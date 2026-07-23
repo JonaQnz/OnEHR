@@ -1,0 +1,1766 @@
+/* workbench.css - Clinical Form Builder Workbench */
+
+/* ─────────────────────────────────────────────
+   ROOT LAYOUT
+   header fixed, panels flex, footer fixed
+───────────────────────────────────────────── */
+.workbench-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #f1f5f9;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #1e293b;
+  overflow: hidden;
+}
+
+/* ─────────────────────────────────────────────
+   HEADER — fixed, two-line info hierarchy
+───────────────────────────────────────────── */
+.workbench-header {
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 1.5rem;
+  flex-shrink: 0;
+  height: 64px;
+  box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.06);
+  z-index: 20;
+}
+
+.workbench-title-area {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.workbench-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.workbench-title-area h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workbench-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.workbench-meta-sep {
+  color: #cbd5e1;
+}
+
+.workbench-template-name {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  cursor: default;
+}
+
+.workbench-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  background-color: #f1f5f9;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.workbench-badge.draft {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.workbench-badge.valid {
+  background-color: #dcfce7;
+  color: #16a34a;
+}
+
+.workbench-actions-area {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.btn-workbench {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 1rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-workbench.secondary {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.btn-workbench.secondary:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.btn-workbench.primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-workbench.primary:hover {
+  background: #2563eb;
+}
+
+.btn-workbench.success {
+  background: #10b981;
+  color: white;
+}
+
+.btn-workbench.success:hover {
+  background: #059669;
+}
+
+/* ─────────────────────────────────────────────
+   3-COLUMN PANEL LAYOUT
+───────────────────────────────────────────── */
+.workbench-panels {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.workbench-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+
+.workbench-panel.left {
+  width: 320px;
+  background: white;
+  border-right: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.workbench-panel.center {
+  flex: 1;
+  background-color: #f1f5f9;
+  position: relative;
+  overflow-y: auto;   /* center canvas scrolls */
+  overflow-x: hidden;
+}
+
+.workbench-panel.right {
+  width: 360px;
+  background: white;
+  border-left: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;   /* right panel itself does NOT scroll */
+}
+
+/* ─────────────────────────────────────────────
+   TABS
+───────────────────────────────────────────── */
+.panel-tabs {
+  display: flex;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  flex-shrink: 0;
+}
+
+.panel-tab {
+  flex: 1;
+  text-align: center;
+  padding: 0.75rem 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  white-space: nowrap;
+}
+
+.panel-tab:hover {
+  color: #3b82f6;
+  background-color: #f1f5f9;
+}
+
+.panel-tab.active {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+  background-color: white;
+}
+
+/* ─────────────────────────────────────────────
+   PANEL CONTENT — left scrolls, right scrolls
+───────────────────────────────────────────── */
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+/* Right inspector content: full height scroll, no nested scrollbars */
+.workbench-panel.right .panel-content {
+  overflow-y: auto;
+  padding: 1.25rem;
+}
+
+/* ─────────────────────────────────────────────
+   LEFT TREE — openEHR fields
+───────────────────────────────────────────── */
+.tree-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.tree-folder {
+  margin-bottom: 0.4rem;
+}
+
+.tree-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: #334155;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  user-select: none;
+}
+
+.tree-folder-header:hover {
+  background-color: #f1f5f9;
+}
+
+.tree-folder-children {
+  padding-left: 1rem;
+  margin-top: 0.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.tree-leaf {
+  display: flex;
+  flex-direction: column;
+  padding: 0.55rem 0.7rem;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  cursor: grab;
+  transition: all 0.15s;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.tree-leaf:active {
+  cursor: grabbing;
+}
+
+.tree-leaf:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 8px -2px rgba(59, 130, 246, 0.15);
+  transform: translateY(-1px);
+}
+
+.tree-leaf-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 0.2rem;
+}
+
+.tree-leaf-meta {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  font-family: monospace;
+  word-break: break-all;
+  line-height: 1.3;
+}
+
+.tree-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin-top: 0.35rem;
+}
+
+.badge-pill {
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+}
+
+.badge-pill.unused   { background: #f1f5f9; color: #94a3b8; }
+.badge-pill.inform   { background: #dcfce7; color: #15803d; }
+.badge-pill.required { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+.badge-pill.mapped   { background: #e0f2fe; color: #0369a1; }
+.badge-pill.missing-fhir { background: #ffedd5; color: #c2410c; }
+
+/* Filters block */
+.tree-filters-box {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.tree-filters-box .search-wrapper {
+  position: relative;
+}
+
+.tree-filters-box .search-input {
+  width: 100%;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  transition: all 0.15s;
+}
+
+.tree-filters-box .search-input:focus {
+  border-color: #3b82f6;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.tree-filters-box .filter-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.tree-filters-box .filter-option {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+}
+
+.tree-filters-box .filter-option input[type="checkbox"] {
+  cursor: pointer;
+  margin: 0;
+}
+
+.tree-filters-box .view-mode-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 0.5rem;
+  font-size: 0.72rem;
+}
+
+.tree-filters-box .view-mode-toggle .mode-label {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.tree-filters-box .view-mode-toggle .mode-buttons {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tree-filters-box .btn-mode-select {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.68rem;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #475569;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.tree-filters-box .btn-mode-select.active {
+  background: #3b82f6;
+  color: #fff;
+  border-color: #3b82f6;
+}
+
+.tree-filters-box .btn-mode-select:hover:not(.active) {
+  background: #f1f5f9;
+}
+
+/* Compact Tree Leaf Mode */
+.tree-leaf.compact {
+  padding: 0.35rem 0.55rem;
+  gap: 0.15rem;
+}
+
+.tree-leaf-header-compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.tree-leaf-header-compact .leaf-label {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.tree-leaf-header-compact .leaf-rmtype-compact {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #8b5cf6;
+  font-family: monospace;
+}
+
+.tree-badges-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.65rem;
+  color: #94a3b8;
+}
+
+.tree-badges-compact .status-dot-text {
+  font-weight: 500;
+}
+
+.tree-badges-compact .status-dot-text.required { color: #dc2626; }
+.tree-badges-compact .status-dot-text.inform   { color: #16a34a; }
+.tree-badges-compact .status-dot-text.unused   { color: #94a3b8; }
+.tree-badges-compact .status-dot-text.mapped   { color: #2563eb; }
+.tree-badges-compact .status-dot-text.missing  { color: #d97706; }
+
+.tree-badges-compact .status-dot-sep {
+  color: #e2e8f0;
+}
+
+.no-fields-matched {
+  padding: 2rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+/* ─────────────────────────────────────────────
+   LEFT TOOLBOX — layout elements
+───────────────────────────────────────────── */
+.layout-toolbox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.toolbox-group-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #94a3b8;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0;
+}
+
+.toolbox-item {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  cursor: grab;
+  transition: all 0.15s;
+  color: #334155;
+}
+
+.toolbox-item:active { cursor: grabbing; }
+
+.toolbox-item:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 8px -2px rgba(59, 130, 246, 0.12);
+  color: #1e293b;
+}
+
+.toolbox-item i {
+  color: #3b82f6;
+  font-size: 0.95rem;
+  width: 16px;
+  text-align: center;
+}
+
+/* ─────────────────────────────────────────────
+   CENTER CANVAS
+───────────────────────────────────────────── */
+.canvas-scroll-container {
+  width: 100%;
+  padding: 1.5rem 2rem 4rem;
+  box-sizing: border-box;
+}
+
+/* Form-sheet header above the builder */
+.canvas-form-header {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px 12px 0 0;
+  padding: 1.5rem 2rem 1rem;
+  border-bottom: none;
+}
+
+.canvas-form-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.25rem;
+}
+
+.canvas-form-meta {
+  font-size: 0.78rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: monospace;
+}
+
+/* ─────────────────────────────────────────────
+   CANVAS FIELD CARDS — the status statusbar
+   Each rfb-item gets a footer line via CSS
+───────────────────────────────────────────── */
+
+/* Slot for the field status footer inside each card */
+.rfb-field-status {
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid #f1f5f9;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.2s ease;
+}
+
+.rfb-field-status.collapsed {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.rfb-field-status .status-sep {
+  color: #e2e8f0;
+}
+
+.rfb-field-status .status-rmtype {
+  font-family: monospace;
+  color: #8b5cf6;
+  font-weight: 600;
+  background: #f5f3ff;
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+}
+
+.rfb-field-status .status-path {
+  color: #94a3b8;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 250px;
+}
+
+.rfb-field-status .status-fhir-dot {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+}
+
+.rfb-field-status .status-fhir-dot.mapped {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.rfb-field-status .status-fhir-dot.missing {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+/* Subtlest details togglers */
+.rfb-field-status .btn-status-toggle,
+.rfb-field-status .btn-status-toggle-hide {
+  background: transparent;
+  border: none;
+  padding: 0 0.3rem;
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #3b82f6;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.rfb-field-status .btn-status-toggle:hover,
+.rfb-field-status .btn-status-toggle-hide:hover {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+/* Expanded Metadata Grid */
+.rfb-field-status.expanded {
+  background: #f8fafc;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.rfb-field-status .status-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rfb-field-status .status-grid-row {
+  display: flex;
+  font-size: 0.75rem;
+}
+
+.rfb-field-status .grid-label {
+  width: 100px;
+  font-weight: 600;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.rfb-field-status .grid-value {
+  color: #334155;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rfb-field-status .status-name {
+  color: #475569;
+  font-weight: 600;
+}
+
+.rfb-field-status .status-path-expanded {
+  white-space: normal;
+  word-break: break-all;
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.rfb-field-status .status-fhir {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+}
+
+.rfb-field-status .status-fhir.mapped {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.rfb-field-status .status-fhir.missing {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.rfb-field-status .btn-status-toggle-hide {
+  align-self: flex-end;
+  margin-top: 0.25rem;
+}
+
+/* ─────────────────────────────────────────────
+   RIGHT INSPECTOR
+───────────────────────────────────────────── */
+.inspector-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Selected element name at top of inspector */
+.inspector-element-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+  padding: 0.6rem 0.75rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.inspector-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.inspector-field-group label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.inspector-input,
+.inspector-select {
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.83rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background-color: white;
+  color: #1e293b;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+
+.inspector-input:focus,
+.inspector-select:focus {
+  border-color: #3b82f6;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.inspector-read-only-box {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.inspector-read-only-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.inspector-read-only-row:last-child { margin-bottom: 0; }
+
+.inspector-read-only-label {
+  color: #64748b;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.inspector-read-only-value {
+  color: #1e293b;
+  font-weight: 600;
+  text-align: right;
+  word-break: break-all;
+  font-family: monospace;
+  font-size: 0.78rem;
+}
+
+/* Section divider in inspector */
+.inspector-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #94a3b8;
+  padding-top: 0.5rem;
+  border-top: 1px solid #f1f5f9;
+  margin-top: 0.25rem;
+}
+
+/* FHIR status badge inside inspector */
+.inspector-fhir-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+}
+
+.inspector-fhir-status.mapped {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.inspector-fhir-status.missing {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+/* ─────────────────────────────────────────────
+   BOTTOM STATUS BAR
+───────────────────────────────────────────── */
+.workbench-bottom-bar {
+  height: 42px;
+  background: #0f172a;
+  color: #94a3b8;
+  border-top: 1px solid #1e293b;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 1.5rem;
+  font-size: 0.74rem;
+  font-weight: 500;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.bottom-stats-left {
+  display: flex;
+  align-items: center;
+  gap: 1.75rem;
+}
+
+.bottom-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.bottom-stat-label {
+  color: #64748b;
+}
+
+.bottom-stat-value {
+  color: white;
+  font-weight: 600;
+}
+
+.bottom-stat-status {
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.bottom-stat-status.ok      { background: #15803d; color: white; }
+.bottom-stat-status.warning { background: #c2410c; color: white; }
+
+.bottom-warnings-toggle {
+  cursor: pointer;
+  color: #3b82f6;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid #1e40af40;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.bottom-warnings-toggle:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+/* ─────────────────────────────────────────────
+   VALIDATION DRAWER
+───────────────────────────────────────────── */
+.validation-drawer {
+  position: absolute;
+  bottom: 42px;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 1px solid #cbd5e1;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 -4px 12px -2px rgba(0, 0, 0, 0.08);
+}
+
+.validation-drawer-header {
+  background: #f8fafc;
+  padding: 0.6rem 1.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+}
+
+.validation-list {
+  padding: 0.5rem 1.5rem;
+  list-style: none;
+  margin: 0;
+}
+
+.validation-item {
+  padding: 0.4rem 0;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.validation-item:last-child { border-bottom: none; }
+.validation-item.error   { color: #dc2626; }
+.validation-item.warning { color: #ea580c; }
+
+/* ─────────────────────────────────────────────
+   SPLIT PANE PREVIEW
+───────────────────────────────────────────── */
+.split-pane-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+}
+
+.split-pane-left {
+  flex: 1.2;
+  overflow-y: auto;
+  padding: 2.5rem;
+  background-color: white;
+  border-right: 1px solid #e2e8f0;
+}
+
+.split-pane-right {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2.5rem;
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+.split-pane-right pre {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+/* ─────────────────────────────────────────────
+   DROPZONE OVERRIDES
+───────────────────────────────────────────── */
+.form-canvas-container .form-place-holder {
+  border: 2px dashed #94a3b8;
+  border-radius: 12px;
+  background: white;
+  min-height: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #64748b;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+/* Option List Styling in Right Inspector */
+.dynamic-option-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.dynamic-option-list li {
+  margin-bottom: 0.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.dynamic-option-list li .row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.dynamic-option-list li .col-sm-6,
+.dynamic-option-list li .col-sm-2,
+.dynamic-option-list li .col-sm-1,
+.dynamic-option-list li .col-sm-3 {
+  padding: 0;
+  margin: 0;
+  float: none;
+  width: auto;
+}
+
+.dynamic-option-list li .col-sm-6 {
+  flex: 2;
+}
+
+.dynamic-option-list li .col-sm-2 {
+  flex: 1;
+}
+
+.dynamic-option-list li .col-sm-3 {
+  flex-shrink: 0;
+}
+
+/* Make inputs look like the rest */
+.dynamic-option-list .form-control {
+  padding: 0.35rem 0.6rem !important;
+  font-size: 0.82rem !important;
+  border-radius: 5px !important;
+  border: 1px solid #cbd5e1 !important;
+  width: 100% !important;
+}
+
+/* modern action buttons */
+.dynamic-options-actions-buttons {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.dynamic-options-actions-buttons .btn {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 6px !important;
+  border: 1px solid #e2e8f0 !important;
+  font-size: 0.8rem !important;
+  cursor: pointer !important;
+  transition: all 0.15s !important;
+}
+
+.dynamic-options-actions-buttons .btn-success {
+  background: #f0fdf4 !important;
+  color: #166534 !important;
+}
+
+.dynamic-options-actions-buttons .btn-success:hover {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border-color: #bbf7d0 !important;
+}
+
+.dynamic-options-actions-buttons .btn-danger {
+  background: #fef2f2 !important;
+  color: #991b1b !important;
+}
+
+.dynamic-options-actions-buttons .btn-danger:hover {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+  border-color: #fca5a5 !important;
+}
+
+/* Template Badge Styles in Header */
+.workbench-template-badge {
+  display: inline-flex;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.72rem;
+  color: #334155;
+  gap: 0.35rem;
+  font-weight: 500;
+}
+
+.workbench-template-badge .badge-title {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.workbench-template-badge .badge-name {
+  font-family: monospace;
+  color: #0f172a;
+  font-weight: 600;
+  background: #e2e8f0;
+  padding: 0.05rem 0.25rem;
+  border-radius: 4px;
+}
+
+.workbench-template-badge .badge-stat {
+  background: white;
+  border: 1px solid #cbd5e1;
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  color: #475569;
+  font-weight: 600;
+}
+
+/* Inspector Scope Header Toggle at top of Right Sidebar */
+.inspector-scope-header {
+  display: flex;
+  background: #f1f5f9;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 0.35rem 0.5rem;
+  gap: 0.25rem;
+}
+
+.scope-tab {
+  flex: 1;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.scope-tab:hover {
+  color: #334155;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.scope-tab.active {
+  color: #3b82f6;
+  background: white;
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* CSS rule to dynamically hide technical paths on the canvas */
+.hide-technical-paths .status-path,
+.hide-technical-paths .status-path-expanded {
+  display: none !important;
+}
+
+/* Also hide the path separator in the collapsed status bar */
+.hide-technical-paths .field-status-bar .status-sep:nth-of-type(2) {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────
+   PROPERTIES PANEL PREMIUM STYLING
+   ───────────────────────────────────────────── */
+.inspector-form-container {
+  font-family: inherit;
+  color: #1e293b;
+}
+
+.inspector-section {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+}
+
+.inspector-section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 0.45rem;
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.inspector-section-title .section-emoji {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+/* No FA icons in section titles anymore */
+.inspector-section-title i {
+  display: none;
+}
+
+/* ---- Field Groups (label above input) ---- */
+.inspector-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.inspector-field-group label {
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: 0.01em;
+}
+
+/* ---- Inputs & Selects ---- */
+.inspector-input,
+.inspector-select {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.82rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background-color: #f8fafc;
+  color: #1e293b;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.inspector-input:focus,
+.inspector-select:focus {
+  border-color: #818cf8;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.1);
+  background-color: #ffffff;
+}
+
+.inspector-input::placeholder {
+  color: #94a3b8;
+  font-size: 0.78rem;
+}
+
+/* ---- Toggle / Checkbox Rows ---- */
+.inspector-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 7px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  cursor: pointer;
+  margin: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.inspector-checkbox-row:hover {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.inspector-checkbox-row input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 2.1rem;
+  height: 1.15rem;
+  background: #cbd5e1;
+  border-radius: 999px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+  border: none;
+  outline: none;
+}
+
+.inspector-checkbox-row input[type="checkbox"]::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 0.85rem;
+  height: 0.85rem;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+
+.inspector-checkbox-row input[type="checkbox"]:checked {
+  background: #818cf8;
+}
+
+.inspector-checkbox-row input[type="checkbox"]:checked::after {
+  transform: translateX(0.9rem);
+}
+
+.inspector-checkbox-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ---- Options List Wrapper ---- */
+.inspector-options-list-wrapper {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 0.65rem 0.75rem;
+}
+
+/* Ensure all inputs and select fields in the form builder have the exact same width and layout */
+.SortableItem .form-group input.form-control,
+.SortableItem .form-group select.form-control,
+.SortableItem .form-group textarea.form-control {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* ─────────────────────────────────────────────
+   CANVAS CARD TOOLBAR BUTTONS REDESIGN
+   ───────────────────────────────────────────── */
+
+/* Make the toolbar header container a flex container to align buttons right */
+.rfb-item .toolbar-header {
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  position: relative !important;
+  padding: 0.5rem 0.5rem 0.25rem 0.5rem !important; /* Good top padding, less bottom */
+  margin: 0 !important;
+  opacity: 1 !important;
+  z-index: 100 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Position of buttons container - clear out absolute styles */
+.rfb-item .toolbar-header .toolbar-header-buttons {
+  position: static !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  margin: 0 !important;
+  right: auto !important;
+}
+
+/* Style the buttons inside the toolbar buttons container */
+.rfb-item .toolbar-header .toolbar-header-buttons .btn {
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 6px !important;
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #64748b !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  font-size: 0.72rem !important;
+}
+
+.rfb-item .toolbar-header .toolbar-header-buttons .btn:hover {
+  background: #cbd5e1 !important;
+  color: #1e293b !important;
+  border-color: #94a3b8 !important;
+}
+
+/* Specific styling for the delete button on hover */
+.rfb-item .toolbar-header .toolbar-header-buttons .btn.delete:hover {
+  background: #fee2e2 !important;
+  color: #ef4444 !important;
+  border-color: #fca5a5 !important;
+}
+
+/* Fix spacing for the type-badge when it is rendered */
+.rfb-item .toolbar-header .type-badge {
+  margin-right: auto !important; /* Push buttons to the far right! */
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  padding: 0.3rem 0.5rem !important;
+  font-size: 0.72rem !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+}
+
+/* ─────────────────────────────────────────────
+   FieldSet GROUP CONTAINER PREMIUM HEADERS
+   ───────────────────────────────────────────── */
+
+.group-fieldset-container {
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  background: white !important;
+  margin-bottom: 1.5rem !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+.group-container-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 0.75rem 1rem !important;
+  background: #f8fafc !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+  user-select: none !important;
+}
+
+.group-fieldset-container.collapsed .group-container-header {
+  border-bottom: none !important;
+}
+
+.group-header-info {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.15rem !important;
+}
+
+.group-title {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.group-subtitle {
+  font-size: 0.72rem !important;
+  color: #64748b !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+}
+
+.group-tech-id {
+  font-family: monospace !important;
+}
+
+.group-header-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.4rem !important;
+}
+
+.btn-group-action {
+  background: transparent !important;
+  border: none !important;
+  color: #64748b !important;
+  cursor: pointer !important;
+  padding: 0.25rem 0.4rem !important;
+  border-radius: 4px !important;
+  font-size: 0.85rem !important;
+  transition: all 0.15s !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.btn-group-action:hover {
+  background: #cbd5e1 !important;
+  color: #1e293b !important;
+}
+
+.btn-group-action.delete:hover {
+  background: #fee2e2 !important;
+  color: #ef4444 !important;
+}
+
+.group-container-content {
+  padding: 1rem !important;
+  background: #ffffff !important;
+}
+
+/* Inline required badges next to field labels */
+.label-required.badge.badge-danger {
+  font-size: 0.65rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  background: #fef2f2 !important;
+  color: #ef4444 !important;
+  border: 1px solid #fee2e2 !important;
+  padding: 0.1rem 0.4rem !important;
+  border-radius: 4px !important;
+  margin-left: 0.5rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  box-shadow: none !important;
+}
+
+/* Toning down technical metadata status bar */
+.rfb-field-status {
+  margin-top: 0.5rem !important;
+  padding-top: 0.45rem !important;
+  border-top: 1px solid #f1f5f9 !important;
+  font-size: 0.7rem !important;
+  color: #94a3b8 !important;
+}
+
+.rfb-field-status .status-rmtype {
+  font-family: inherit !important; /* Non-monospace */
+  color: #94a3b8 !important; /* Low contrast */
+  font-weight: 500 !important;
+  background: #f8fafc !important; /* Subtle gray background */
+  padding: 0.05rem 0.25rem !important;
+  border-radius: 3px !important;
+}
+
+.rfb-field-status .status-path {
+  color: #94a3b8 !important;
+  font-family: monospace !important;
+  font-size: 0.7rem !important;
+}
+
+.rfb-field-status .btn-status-toggle {
+  color: #94a3b8 !important;
+  font-size: 0.78rem !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.rfb-field-status .btn-status-toggle:hover {
+  color: #475569 !important;
+  background: transparent !important;
+}
+
+/* Split layout for metadata status bar */
+.rfb-field-status.collapsed {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.status-left {
+  display: flex !important;
+  align-items: center !important;
+}
+
+.status-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.4rem !important;
+  margin-left: auto !important;
+}
+
+/* Style for Form UI Type label on the left */
+.status-ui-label {
+  font-size: 0.65rem !important;
+  font-weight: 700 !important;
+  color: #4f46e5 !important; /* Indigo for Form/UI Type */
+  background: #eef2ff !important;
+  padding: 0.1rem 0.35rem !important;
+  border-radius: 4px !important;
+  border: 1px solid #e0e7ff !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.02em !important;
+}
+
+/* Expanded Metadata Section Columns */
+.rfb-field-status.expanded {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  padding: 0.75rem !important;
+  border-radius: 8px !important;
+}
+
+.status-expanded-sections {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important; /* Two side-by-side columns: Form vs openEHR */
+  gap: 1rem !important;
+}
+
+@media (max-width: 768px) {
+  .status-expanded-sections {
+    grid-template-columns: 1fr !important; /* Single column on mobile */
+  }
+}
+
+.expanded-section {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.4rem !important;
+  background: #f8fafc !important;
+  padding: 0.6rem 0.75rem !important;
+  border-radius: 6px !important;
+  border: 1px solid #f1f5f9 !important;
+}
+
+.expanded-section-header {
+  font-size: 0.73rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  margin-bottom: 0.2rem !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  padding-bottom: 0.2rem !important;
+}
+
+.expanded-section.form-props .expanded-section-header {
+  color: #4f46e5 !important; /* Indigo for Form properties */
+}
+
+.expanded-section.openehr-props .expanded-section-header {
+  color: #0891b2 !important; /* Cyan/Teal for openEHR properties */
+}
+
+.status-rmtype-expanded {
+  color: #0891b2 !important;
+  background: #ecfeff !important;
+  border: 1px solid #cffafe !important;
+  padding: 0.02rem 0.25rem !important;
+  border-radius: 3px !important;
+  font-weight: 600 !important;
+}
+
+/* Cascading nesting for groups inside groups */
+.group-container-content .rfb-item {
+  margin-left: 1rem !important;
+  margin-right: 1rem !important;
+  margin-top: 0.75rem !important;
+  margin-bottom: 0.75rem !important;
+  background: #f8fafc !important; /* Slightly distinct background for nested items */
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+}
+
+/* Nested group containers styled to stand out */
+.group-container-content .group-fieldset-container {
+  margin-left: 1rem !important;
+  margin-right: 1rem !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important; /* Nested groups stay white to stand out */
+}
+
+/* Nested group headers should be slightly smaller/cleaner */
+.group-container-content .group-fieldset-container .group-container-header {
+  background: #f1f5f9 !important;
+  padding: 0.6rem 0.85rem !important;
+}
+
+/* Styling for the field card title bar (Windows Explorer style) */
+.react-form-builder-preview .rfb-item {
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  padding: 0 !important; /* Remove card padding so the title bar can stretch edge-to-edge! */
+  margin-bottom: 1rem !important;
+  overflow: hidden !important; /* Keep border radius intact */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Make sure the form-group inside the card has correct padding since card padding is now 0 */
+.react-form-builder-preview .rfb-item .form-group {
+  padding: 0.75rem 1rem !important;
+  margin-bottom: 0 !important;
+}
+
+/* Also padding for the metadata status bar at the bottom */
+.react-form-builder-preview .rfb-item .rfb-field-status {
+  padding: 0.45rem 1rem 0.75rem 1rem !important;
+  margin-top: 0 !important;
+}
+
+.react-form-builder-preview .rfb-item .toolbar-header.field-title-bar {
+  background: #f8fafc !important; /* Explorer style background */
+  border-bottom: 1px solid #cbd5e1 !important;
+  padding: 0.3rem 0.75rem 0.3rem 1.15rem !important; /* Narrower top/bottom padding, more left padding */
+  margin: 0 !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  min-height: 30px !important;
+}
+
+.field-title-info {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.4rem !important;
+}
+
+.field-title-text {
+  font-size: 0.85rem !important;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+}
+
+/* Static items on canvas should have padding since they don't use .form-group */
+.react-form-builder-preview .rfb-item h3.static,
+.react-form-builder-preview .rfb-item p.static {
+  padding: 0.75rem 1rem !important;
+  margin: 0 !important;
+}
+
+
+
+
+.dnd-insertion-line {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 4px !important;
+  background: #3b82f6 !important; /* Premium blue indicator color */
+  z-index: 1000 !important;
+  pointer-events: none !important;
+  border-radius: 2px !important;
+  animation: pulse-line 1.5s infinite ease-in-out !important;
+}
+
+.dnd-insertion-line::before {
+  content: '' !important;
+  position: absolute !important;
+  left: -4px !important;
+  top: -4px !important;
+  width: 12px !important;
+  height: 12px !important;
+  background: #3b82f6 !important;
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
+.dnd-insertion-line.top {
+  top: -4px !important;
+}
+
+.dnd-insertion-line.bottom {
+  bottom: -4px !important;
+}
+
+@keyframes pulse-line {
+  0% { opacity: 0.8; }
+  50% { opacity: 1; }
+  100% { opacity: 0.8; }
+}

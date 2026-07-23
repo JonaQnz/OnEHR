@@ -1,0 +1,494 @@
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const { exportToCambioForm } = require('../dist/exporters/cambioExporter');
+
+test('Cambio Exporter: normalizes template alias and field names', () => {
+  const form = {
+    id: 'form123',
+    name: 'Form Name',
+    version: '1.0.0',
+    sourceTemplates: [
+      { alias: 'vg_diagnosis.v1.1.0', id: 'diag_tmpl', version: '1.0.0', type: 'openEhrWebTemplate' }
+    ],
+    layout: {
+      type: 'form',
+      children: [
+        {
+          type: 'container',
+          children: [
+            {
+              type: 'input-text',
+              name: 'vg_diagnosis.v1.1.0_problem_diagnosis_name_8cef',
+              label: 'Diagnosis Name'
+            },
+            {
+              type: 'input-text',
+              name: 'vg_diagnosis.v1.1.0_körpergewicht_9abc',
+              label: 'Weight'
+            }
+          ]
+        }
+      ]
+    },
+    bindings: {
+      'vg_diagnosis.v1.1.0_problem_diagnosis_name_8cef': {
+        openehr: { templateAlias: 'vg_diagnosis.v1.1.0', path: '/data/path1', rmType: 'DV_TEXT' }
+      },
+      'vg_diagnosis.v1.1.0_körpergewicht_9abc': {
+        openehr: { templateAlias: 'vg_diagnosis.v1.1.0', path: '/data/path2', rmType: 'DV_TEXT' }
+      }
+    },
+    locales: {
+      en: {
+        "[name='vg_diagnosis.v1.1.0_problem_diagnosis_name_8cef']": { label: 'Diagnosis Name' }
+      }
+    }
+  };
+
+  const result = exportToCambioForm(form);
+
+  // Assert alias mapping
+  assert.equal(result.templates[0].alias, 'T0');
+  
+  // Assert field name normalization (removing alias prefix, stripping trailing hex hash, transliterating umlaute)
+  const row1 = result.elements[0].children[0].children[0];
+  const row2 = result.elements[0].children[0].children[1];
+  const field1 = row1.children[0].children[0];
+  const field2 = row2.children[0].children[0];
+  assert.equal(field1.name, 'T0_problem_diagnosis_name');
+  assert.equal(field2.name, 'T0_koerpergewicht');
+  
+  // Assert label and locales
+  assert.equal(result.locales.en["[name='T0_problem_diagnosis_name']"].label, 'Diagnosis Name');
+  assert.equal(result.locales.en["[name='T0_koerpergewicht']"].label, 'Weight');
+});
+
+test('Cambio Exporter: wraps layout and prunes builder-only properties', () => {
+  const form = {
+    id: 'f1',
+    name: 'Form',
+    version: '0.1.0',
+    sourceTemplates: [{ alias: 'tmpl', id: 't', version: '1.0.0', type: 't' }],
+    layout: {
+      type: 'form',
+      children: [
+        {
+          type: 'container',
+          children: [
+            {
+              type: 'input-text',
+              name: 'tmpl_field',
+              label: 'Field',
+              id: 'builder_id',
+              uiElement: 'TextInput',
+              semanticType: 'DV_TEXT',
+              binding: {},
+              validation: {},
+              description: 'Builder description',
+              placeholder: 'Type here...'
+            }
+          ]
+        }
+      ]
+    },
+    bindings: {
+      'tmpl_field': { openehr: { templateAlias: 'tmpl', path: '/path' } }
+    },
+    locales: { en: {} }
+  };
+
+  const result = exportToCambioForm(form);
+
+  // Expect layout hierarchy: form -> container -> row -> column -> field -> submit-button
+  const elements = result.elements;
+  assert.equal(elements[0].type, 'form');
+  const container = elements[0].children[0];
+  assert.equal(container.type, 'container');
+  const row = container.children[0];
+  assert.equal(row.type, 'row');
+  const col = row.children[0];
+  assert.equal(col.type, 'column');
+  
+  // Field in col.children[0]
+  const field = col.children[0];
+  assert.equal(field.type, 'input-text');
+  assert.equal(field.name, 'T0_field');
+  
+  // Pruned properties check
+  assert.equal(field.id, undefined);
+  assert.equal(field.label, undefined);
+  assert.equal(field.uiElement, undefined);
+  assert.equal(field.semanticType, undefined);
+  assert.equal(field.binding, undefined);
+  assert.equal(field.validation, undefined);
+  assert.equal(field.description, undefined);
+  assert.equal(field.placeholder, undefined);
+
+  // Submit button in col.children[1]
+  const submitBtn = col.children[1];
+  assert.equal(submitBtn.type, 'submit-button');
+  assert.equal(submitBtn.id, 'submit_button');
+  assert.equal(result.locales.en['#submit_button'].label, 'Submit');
+});
+
+test('Cambio Exporter: removes system fields', () => {
+  const form = {
+    id: 'f1',
+    name: 'Form',
+    sourceTemplates: [{ alias: 'tmpl', id: 't', version: '1.0.0', type: 't' }],
+    layout: {
+      type: 'form',
+      children: [
+        {
+          type: 'container',
+          children: [
+            { type: 'input-text', name: 'tmpl_language', label: 'language' },
+            { type: 'input-text', name: 'tmpl_encoding', label: 'encoding' },
+            { type: 'input-text', name: 'tmpl_valid', label: 'Valid Field' }
+          ]
+        }
+      ]
+    },
+    bindings: {
+      'tmpl_language': { openehr: { templateAlias: 'tmpl', path: '/context/language' } },
+      'tmpl_encoding': { openehr: { templateAlias: 'tmpl', path: '/context/encoding' } },
+      'tmpl_valid': { openehr: { templateAlias: 'tmpl', path: '/data/valid' } }
+    },
+    locales: { en: {} }
+  };
+
+  const result = exportToCambioForm(form);
+  const fields = result.elements[0].children[0].children[0].children[0].children;
+  
+  // Assert only valid field and submit-button are present (language and encoding are removed)
+  assert.equal(fields.length, 2); // T0_valid + submit-button
+  assert.equal(fields[0].name, 'T0_valid');
+  assert.equal(fields[1].type, 'submit-button');
+});
+
+test('Cambio Exporter: validates input-select options and handles locales', () => {
+  const form = {
+    id: 'f1',
+    name: 'Form',
+    sourceTemplates: [{ alias: 'tmpl', id: 't', version: '1.0.0', type: 't' }],
+    layout: {
+      type: 'form',
+      children: [
+        {
+          type: 'container',
+          children: [
+            {
+              type: 'input-select',
+              name: 'tmpl_dropdown',
+              label: 'Dropdown Field',
+              options: [
+                { value: 'val1', text: 'Text 1', key: 'opt_1' }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    bindings: {
+      'tmpl_dropdown': { openehr: { templateAlias: 'tmpl', path: '/path' } }
+    },
+    locales: { en: {} }
+  };
+
+  const result = exportToCambioForm(form);
+  const selectField = result.elements[0].children[0].children[0].children[0].children[0];
+  
+  assert.equal(selectField.clearable, true);
+  assert.equal(selectField.display, 'dropdown');
+  assert.equal(selectField.options, undefined); // options not directly on field
+
+  const localeEntry = result.locales.en["[name='T0_dropdown']"];
+  assert.deepEqual(localeEntry.options, [
+    { text: 'Text 1', value: 'val1' }
+  ]);
+});
+
+test('Cambio Exporter: blocks export on duplicate openEHR paths', () => {
+  const form = {
+    id: 'f1',
+    name: 'Form',
+    sourceTemplates: [{ alias: 'tmpl', id: 't', version: '1.0.0', type: 't' }],
+    layout: {
+      type: 'form',
+      children: [
+        {
+          type: 'container',
+          children: [
+            { type: 'input-text', name: 'tmpl_f1' },
+            { type: 'input-text', name: 'tmpl_f2' }
+          ]
+        }
+      ]
+    },
+    bindings: {
+      'tmpl_f1': { openehr: { templateAlias: 'tmpl', path: '/duplicate/path' } },
+      'tmpl_f2': { openehr: { templateAlias: 'tmpl', path: '/duplicate/path' } }
+    },
+    locales: { en: {} }
+  };
+
+  assert.throws(
+    () => exportToCambioForm(form),
+    /Duplicate openEHR path detected/
+  );
+});
+
+test('Cambio Exporter: removes placeholder options without blocking export', () => {
+  const form = {
+    id: 'f1',
+    name: 'Form',
+    sourceTemplates: [{ alias: 'tmpl', id: 't', version: '1.0.0', type: 't' }],
+    layout: {
+      type: 'form',
+      children: [
+        {
+          type: 'container',
+          children: [
+            {
+              type: 'input-select',
+              name: 'tmpl_sel',
+              options: [{ value: 'option_1', text: 'Option 1' }]
+            }
+          ]
+        }
+      ]
+    },
+    bindings: {
+      'tmpl_sel': { openehr: { templateAlias: 'tmpl', path: '/path' } }
+    },
+    locales: { en: {} }
+  };
+
+  const result = exportToCambioForm(form);
+  assert.equal(result.locales.en["[name='T0_sel']"].options, undefined);
+});
+
+test('Cambio Exporter: quantity fields and validation', () => {
+  const formWithValidQuantity = {
+    id: 'f1',
+    name: 'Form',
+    sourceTemplates: [{ alias: 'tmpl', id: 't', version: '1.0.0', type: 't' }],
+    layout: {
+      type: 'form',
+      children: [
+        {
+          type: 'container',
+          children: [
+            {
+              type: 'input-quantity',
+              name: 'tmpl_qty',
+              unitOptions: [
+                { unit: 'kg', min: 0, max: 200, precision: 1 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    bindings: {
+      'tmpl_qty': { openehr: { templateAlias: 'tmpl', path: '/path' } }
+    },
+    locales: { en: {} }
+  };
+
+  const result = exportToCambioForm(formWithValidQuantity);
+  const qtyField = result.elements[0].children[0].children[0].children[0].children[0];
+  assert.deepEqual(qtyField.unitoptions, [
+    { unit: 'kg', min: 0, max: 200, precision: 1 }
+  ]);
+
+  const formWithInvalidQuantity = {
+    id: 'f1',
+    name: 'Form',
+    sourceTemplates: [{ alias: 'tmpl', id: 't', version: '1.0.0', type: 't' }],
+    layout: {
+      type: 'form',
+      children: [
+        {
+          type: 'container',
+          children: [
+            {
+              type: 'input-quantity',
+              name: 'tmpl_qty',
+              unitOptions: [] // empty
+            }
+          ]
+        }
+      ]
+    },
+    bindings: {
+      'tmpl_qty': { openehr: { templateAlias: 'tmpl', path: '/path' } }
+    },
+    locales: { en: {} }
+  };
+
+  const invalidResult = exportToCambioForm(formWithInvalidQuantity);
+  const invalidQtyField = invalidResult.elements[0].children[0].children[0].children[0].children[0];
+  assert.equal(invalidQtyField.unitoptions, undefined);
+});
+
+test('Cambio Exporter: does not duplicate submit-button if it already exists', () => {
+  const form = {
+    id: 'f1',
+    name: 'Form',
+    sourceTemplates: [{ alias: 'tmpl', id: 't', version: '1.0.0', type: 't' }],
+    layout: {
+      type: 'form',
+      children: [
+        {
+          type: 'container',
+          children: [
+            { type: 'input-text', name: 'tmpl_f1' },
+            { type: 'submit-button', id: 'existing_submit', justify: 'start' }
+          ]
+        }
+      ]
+    },
+    bindings: {
+      'tmpl_f1': { openehr: { templateAlias: 'tmpl', path: '/path' } }
+    },
+    locales: { en: {} }
+  };
+
+  const result = exportToCambioForm(form);
+  
+  // Let's count how many submit-buttons exist in the output elements
+  let submitCount = 0;
+  function countSubmits(node) {
+    if (!node) return;
+    if (node.type === 'submit-button') {
+      submitCount++;
+    }
+    if (node.children) {
+      for (const child of node.children) {
+        countSubmits(child);
+      }
+    }
+  }
+  countSubmits(result.elements[0]);
+
+  assert.equal(submitCount, 1);
+  
+  // Verify that the submit button in the elements keeps its properties
+  let foundSubmit = null;
+  function findSubmit(node) {
+    if (!node) return;
+    if (node.type === 'submit-button') {
+      foundSubmit = node;
+      return;
+    }
+    if (node.children) {
+      for (const child of node.children) {
+        findSubmit(child);
+      }
+    }
+  }
+  findSubmit(result.elements[0]);
+  assert.equal(foundSubmit.id, 'existing_submit');
+  assert.equal(foundSubmit.justify, 'start');
+});
+
+test('Cambio Exporter: maps collapsible container, row gap, and custom spans', () => {
+  const form = {
+    id: 'f1',
+    name: 'Form',
+    sourceTemplates: [{ alias: 'tmpl', id: 't', version: '1.0.0', type: 't' }],
+    layout: {
+      type: 'form',
+      children: [
+        {
+          type: 'container',
+          collapsible: true,
+          initiallyCollapsed: true,
+          children: [
+            {
+              type: 'row',
+              gap: '1.5rem',
+              children: [
+                {
+                  type: 'column',
+                  spanLarge: 4,
+                  spanMedium: 6,
+                  spanSmall: 12,
+                  children: [
+                    { type: 'input-text', name: 'tmpl_f1' }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    bindings: {
+      'tmpl_f1': { openehr: { templateAlias: 'tmpl', path: '/path' } }
+    },
+    locales: { en: {} }
+  };
+
+  const result = exportToCambioForm(form);
+  const container = result.elements[0].children[0];
+  
+  // Assert container properties
+  assert.equal(container.type, 'container');
+  assert.equal(container.collapsible, true);
+  assert.equal(container.initiallyCollapsed, true);
+
+  // Assert row gap
+  const row = container.children[0];
+  assert.equal(row.type, 'row');
+  assert.equal(row.gap, '1.5rem');
+
+  // Assert column spans
+  const col = row.children[0];
+  assert.equal(col.type, 'column');
+  assert.equal(col.spanlarge, 4);
+  assert.equal(col.spanmedium, 6);
+  assert.equal(col.spansmall, 12);
+});
+
+test('Cambio Exporter: repairs EHRbase metadata, maps datetime, and appends submit', () => {
+  const form = {
+    id: 'e544e067-c807-4255-8671-7d22fc85ce93',
+    name: 'Adipositas',
+    version: '0.1.0-draft',
+    sourceTemplates: [{
+      alias: 'adipositas_monitoring.v0.0.1',
+      id: 'adipositas_monitoring.v0.0.1',
+      version: '2.3',
+      type: 'openEhrWebTemplate'
+    }],
+    layout: {
+      type: 'form',
+      children: [{
+        type: 'container',
+        children: [{ type: 'input-date-time', name: 'adipositas_monitoring.v0.0.1_time_dwhn' }]
+      }]
+    },
+    bindings: {
+      'adipositas_monitoring.v0.0.1_time_dwhn': {
+        openehr: { templateAlias: 'adipositas_monitoring.v0.0.1', path: '/data/events/time', rmType: 'DV_DATE_TIME' }
+      }
+    },
+    locales: { en: {} }
+  };
+
+  const result = exportToCambioForm(form);
+  assert.deepEqual(result.templates, [{
+    alias: 'T0',
+    id: 'adipositas_monitoring.v0.0.1',
+    version: '0.0.1',
+    type: 'openEhrOpt14Template'
+  }]);
+
+  const column = result.elements[0].children[0].children[0].children[0];
+  assert.equal(column.children[0].type, 'input-datetime');
+  assert.equal(column.children.at(-1).type, 'submit-button');
+  assert.equal(column.children.at(-1).id, 'submit_button');
+  assert.deepEqual(result.locales.en['#submit_button'], { label: 'Submit' });
+});

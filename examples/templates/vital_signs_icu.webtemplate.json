@@ -1,0 +1,49 @@
+{
+  "templateId": "vital_signs_icu",
+  "version": "0.1.0",
+  "tree": {
+    "id": "vital_signs_icu",
+    "name": "Vital Signs ICU",
+    "rmType": "COMPOSITION",
+    "aqlPath": "",
+    "children": [
+      {
+        "id": "T0",
+        "name": "Blood Pressure",
+        "rmType": "OBSERVATION",
+        "aqlPath": "/content[openEHR-EHR-OBSERVATION.blood_pressure.v1]",
+        "children": [
+          {
+            "id": "systolic",
+            "name": "Systolic",
+            "rmType": "DV_QUANTITY",
+            "aqlPath": "/content[openEHR-EHR-OBSERVATION.blood_pressure.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0004]",
+            "min": 1,
+            "inputs": [
+              { "suffix": "magnitude", "type": "DECIMAL" },
+              { "suffix": "units", "type": "CODED_TEXT", "list": [{ "value": "mm[Hg]" }] }
+            ]
+          },
+          {
+            "id": "diastolic",
+            "name": "Diastolic",
+            "rmType": "DV_QUANTITY",
+            "aqlPath": "/content[openEHR-EHR-OBSERVATION.blood_pressure.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0005]",
+            "min": 1,
+            "inputs": [
+              { "suffix": "magnitude", "type": "DECIMAL" },
+              { "suffix": "units", "type": "CODED_TEXT", "list": [{ "value": "mm[Hg]" }] }
+            ]
+          },
+          {
+            "id": "comment",
+            "name": "Comment",
+            "rmType": "DV_TEXT",
+            "aqlPath": "/content[openEHR-EHR-OBSERVATION.blood_pressure.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0006]",
+            "min": 0
+          }
+        ]
+      }
+    ]
+  }
+}

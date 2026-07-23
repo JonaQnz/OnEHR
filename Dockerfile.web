@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1.7
+
+# Base deps stage
+FROM node:18-alpine AS deps
+WORKDIR /app
+
+# Copy only the files needed for npm ci
+COPY package.json package-lock.json ./
+COPY packages/core/package.json ./packages/core/
+COPY packages/react-form-builder2/package.json ./packages/react-form-builder2/
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+
+RUN --mount=type=cache,target=/root/.npm npm ci
+
+# Builder stage
+FROM node:18-alpine AS build
+WORKDIR /app
+
+# Copy dependencies
+COPY --from=deps /app ./
+
+# Copy source code
+COPY . .
+
+# Build packages and web app
+RUN cd packages/core && npm run build
+RUN cd packages/react-form-builder2 && npm run build:lib
+RUN cd apps/web && npm run build
+
+# Runtime stage
+FROM node:18-alpine AS runtime
+WORKDIR /app
+
+# For MVP we can just use serve
+RUN npm install -g serve
+
+# Copy built assets
+COPY --from=build /app/apps/web/dist ./apps/web/dist
+
+EXPOSE 3000
+CMD ["serve", "-s", "apps/web/dist", "-p", "3000"]

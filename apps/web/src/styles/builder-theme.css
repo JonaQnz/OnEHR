@@ -1,0 +1,326 @@
+/* builder-theme.css - Modern Overrides for react-form-builder2 */
+
+.react-form-builder {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: #1e293b;
+  background-color: transparent;
+  height: 100%;
+  width: 100%;
+}
+
+.react-form-builder > div {
+  display: flex;
+  flex-direction: row;
+  width: 100% !important;
+  max-width: 100% !important;
+  align-items: flex-start;
+}
+
+/* Toolbar Styling */
+.react-form-builder .react-form-builder-toolbar {
+  width: 320px;
+  flex-shrink: 0;
+  background: #f8fafc;
+  border-left: 1px solid #e2e8f0;
+  padding: 1rem;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.react-form-builder .react-form-builder-toolbar h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.react-form-builder .react-form-builder-toolbar ul li {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  cursor: grab;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.react-form-builder .react-form-builder-toolbar ul li i {
+  color: #0ea5e9;
+  font-size: 1.1rem;
+}
+
+.react-form-builder .react-form-builder-toolbar ul li:hover {
+  border-color: #0ea5e9;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  transform: translateY(-1px);
+}
+
+/* Preview Canvas Styling */
+.react-form-builder .react-form-builder-preview {
+  width: 100% !important;
+  max-width: 100% !important;
+  flex: 1 1 100% !important;
+  float: none !important;
+  background: transparent !important;
+  padding: 1.5rem !important;
+  min-height: 100%;
+}
+
+.react-form-builder .Sortable {
+  background: transparent;
+  width: 100% !important;
+}
+
+.react-form-builder-preview .Sortable > div {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Remove any width constraints on the builder itself */
+.canvas-form-header + .react-form-builder {
+  border-radius: 0 0 12px 12px;
+  border: 1px solid #e2e8f0;
+  border-top: none;
+  background: #f8fafc;
+  padding: 1.25rem;
+}
+
+.react-form-builder .rfb-item {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  margin-bottom: 0.5rem;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  position: relative;
+}
+
+/* Selected / active card highlight */
+.react-form-builder .rfb-item.is-selected,
+.react-form-builder .rfb-item.selected {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+/* Clearfix for card container to wrap floats */
+.react-form-builder .rfb-item::after {
+  content: "" !important;
+  display: table !important;
+  clear: both !important;
+}
+
+/* Force Flexbox on bootstrap rows inside builder to prevent height collapse */
+.react-form-builder .row {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  width: 100% !important;
+  margin-left: -8px !important;
+  margin-right: -8px !important;
+}
+
+.react-form-builder .row::before,
+.react-form-builder .row::after {
+  display: none !important;
+}
+
+.react-form-builder .col-md-6 {
+  flex: 0 0 50% !important;
+  max-width: 50% !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  box-sizing: border-box !important;
+}
+
+.react-form-builder .col-md-4 {
+  flex: 0 0 33.333333% !important;
+  max-width: 33.333333% !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  box-sizing: border-box !important;
+}
+
+.react-form-builder .col-md-3 {
+  flex: 0 0 25% !important;
+  max-width: 25% !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  box-sizing: border-box !important;
+}
+
+.react-form-builder .rfb-item:hover {
+  border-color: #94a3b8;
+}
+
+.react-form-builder .rfb-item.is-editing {
+  border-color: #0ea5e9;
+  box-shadow: 0 2px 4px -1px rgb(14 165 233 / 0.15);
+}
+
+.react-form-builder .rfb-item label.form-label {
+  font-weight: 600;
+  color: #334155;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+/* Input Fields */
+.react-form-builder .form-control {
+  width: 100%;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: #1e293b;
+  background-color: #fff;
+  background-clip: padding-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.react-form-builder .form-control:focus {
+  border-color: #0ea5e9;
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.25);
+}
+
+/* Buttons */
+.react-form-builder .btn {
+  display: inline-block;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #fff;
+  text-align: center;
+  text-decoration: none;
+  vertical-align: middle;
+  cursor: pointer;
+  user-select: none;
+  background-color: #0ea5e9;
+  border: 1px solid #0ea5e9;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.react-form-builder .btn:hover {
+  background-color: #0284c7;
+  border-color: #0284c7;
+}
+
+.react-form-builder .btn-danger {
+  background-color: #ef4444;
+  border-color: #ef4444;
+}
+.react-form-builder .btn-danger:hover {
+  background-color: #dc2626;
+  border-color: #dc2626;
+}
+
+/* Floating Action Toolbar inside items */
+.react-form-builder .toolbar-header {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  gap: 0.25rem;
+  z-index: 9999 !important;
+}
+
+.react-form-builder .rfb-item:hover .toolbar-header {
+  opacity: 1;
+}
+
+.react-form-builder .toolbar-header .btn {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.react-form-builder .toolbar-header .btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.react-form-builder .toolbar-header .btn-danger {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #ef4444;
+}
+
+.react-form-builder .toolbar-header .btn-danger:hover {
+  background: #fecaca;
+  color: #dc2626;
+}
+
+/* Edit form sidebar */
+.react-form-builder .edit-element-fields {
+  background: #fff;
+  border-left: 1px solid #e2e8f0;
+  padding: 1.5rem;
+}
+
+.react-form-builder .edit-element-fields h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #0f172a;
+}
+
+/* Hide the empty native inline editor sidebar inside the canvas */
+.react-form-builder .edit-form {
+  display: none !important;
+}
+
+/* Force all col-md-12 columns inside the builder preview canvas to stretch to 100% width and wrap vertically */
+.react-form-builder-preview .col-md-12 {
+  flex: 0 0 100% !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* Force all direct child containers (dustbins and wrappers) inside any column in the canvas preview to stack vertically and stretch fully */
+.react-form-builder-preview [class*="col-md-"] > div,
+.react-form-builder-preview [class*="col-"] > div {
+  width: 100% !important;
+  min-width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  box-sizing: border-box !important;
+}
+
+/* Force all nested rfb-item card elements inside columns in the canvas preview to stretch to 100% width of their column */
+.react-form-builder-preview [class*="col-md-"] .rfb-item,
+.react-form-builder-preview [class*="col-"] .rfb-item {
+  width: 100% !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Hide the Edit button on the canvas toolbar since editing is done via the properties panel */
+.react-form-builder-preview .toolbar-header-buttons > .btn:nth-child(1) {
+  display: none !important;
+}

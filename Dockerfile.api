@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1.7
+
+# Base deps stage
+FROM node:18-slim AS deps
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+
+# Copy only the files needed for npm ci
+COPY package.json package-lock.json ./
+COPY packages/core/package.json ./packages/core/
+COPY packages/react-form-builder2/package.json ./packages/react-form-builder2/
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+
+RUN --mount=type=cache,target=/root/.npm npm ci
+
+# Builder stage
+FROM node:18-slim AS build
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+
+# Copy dependencies
+COPY --from=deps /app ./
+
+# Copy source code
+COPY . .
+
+# Generate Prisma and build
+RUN cd apps/api && npx prisma generate
+RUN cd packages/core && npm run build
+RUN cd apps/api && npx tsc
+
+# Runtime stage
+FROM node:18-slim AS runtime
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+
+# Copy everything necessary from build
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/packages/core ./packages/core
+COPY --from=build /app/apps/api ./apps/api
+COPY --from=build /app/package.json ./
+
+EXPOSE 3001
+CMD ["sh", "-c", "cd apps/api && npx prisma db push --schema=prisma/schema.prisma && node dist/index.js"]
