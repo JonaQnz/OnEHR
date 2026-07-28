@@ -11,6 +11,8 @@ import '../styles/builder-theme.css';
 import '../styles/workbench.css';
 import { canonicalToFormBuilder, formBuilderToCanonical, getElementText } from '../adapters/formBuilderAdapter';
 import { validateForm, exportToOpenEhrFlatJson, getInstanceTitle } from '../utils/formStateHelper';
+import PluginHost from '../components/PluginHost';
+import { AqlPrefillEditor } from 'formbuilder-plugin-aql-prefill';
 
 // Draggable node for openEHR Template tree fields
 function DraggableFieldNode({ field, inForm }: { field: any; inForm: boolean }) {
@@ -383,14 +385,15 @@ function FormBuilderContent() {
 
   // Right Inspector scope: 'field' | 'form'
   const [inspectorScope, setInspectorScope] = useState<'field' | 'form'>('field');
-  // Form settings tabs: 'general' | 'openehr' | 'export'
-  const [formTab, setFormTab] = useState<'general' | 'openehr' | 'export'>('general');
+  // Form settings tabs: 'general' | 'openehr' | 'submission' | 'export'
+  const [formTab, setFormTab] = useState<'general' | 'openehr' | 'submission' | 'export' | 'aqlPrefill'>('general');
 
   // Left panel modes & filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRequired, setFilterRequired] = useState(false);
   const [filterUnused, setFilterUnused] = useState(false);
   const [filterInForm, setFilterInForm] = useState(false);
+  const [expertMode, setExpertMode] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
 
   // Active element editing state from react-form-builder2
@@ -817,6 +820,9 @@ function FormBuilderContent() {
   const groupFieldsByParent = (fields: any[]) => {
     const groups: Record<string, any[]> = {};
     fields.forEach(field => {
+      if (!expertMode && isContextField(field)) {
+        return;
+      }
       // Hide fields that are already placed in the form if they are restricted to at most one occurrence
       const inForm = builderItems.some(i => i.field_name?.startsWith(field.fieldName));
       if (field.maxOccurrences === 1 && inForm) {
@@ -911,8 +917,49 @@ function FormBuilderContent() {
   ];
 
 
+  const isContextField = (field: any): boolean => {
+    if (!field) return false;
+    if (field.inContext === true) return true;
+
+    const id = (field.technicalName || field.id || field.fieldName || '').toLowerCase();
+    const aqlPath = (field.openehrPath || field.aqlPath || '').toLowerCase();
+    const flatPath = (field.flatPath || '').toLowerCase();
+
+    const pathSegments = aqlPath.split('/').filter(Boolean);
+    const lastSegment = pathSegments[pathSegments.length - 1] || '';
+    const cleanLastSegment = lastSegment.split('[')[0].toLowerCase();
+
+    const contextKeys = [
+      'language', 'encoding', 'territory', 'composer', 
+      'subject', 'category', 'setting', 'start_time', 'context'
+    ];
+
+    if (contextKeys.some(k => id === k || id.endsWith('_' + k) || cleanLastSegment === k)) {
+      return true;
+    }
+
+    for (const key of contextKeys) {
+      if (
+        aqlPath.endsWith('/' + key) || 
+        aqlPath.includes('/' + key + '/') || 
+        aqlPath.includes('/' + key + '[') ||
+        flatPath.endsWith('/' + key) ||
+        flatPath.includes('/' + key + '/')
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   const getFilteredFields = () => {
     return templateFields.filter(field => {
+      // Hide openEHR RM context fields unless expert mode is active
+      if (!expertMode && isContextField(field)) {
+        return false;
+      }
+
       // 1. Search Query
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -1003,6 +1050,12 @@ function FormBuilderContent() {
             onClick={() => navigate(`/forms/${id}/export`)}
           >
             Export ↗
+          </button>
+          <button
+            className="btn-workbench secondary"
+            onClick={() => navigate(`/forms/${id}/runtime`)}
+          >
+            Runtime ▶
           </button>
         </div>
       </header>
@@ -1098,6 +1151,11 @@ function FormBuilderContent() {
                               <label className="filter-option" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: 0, cursor: 'pointer', fontSize: '0.76rem', color: '#334155', fontWeight: 500 }}>
                                 <input type="checkbox" checked={filterInForm} onChange={(e) => setFilterInForm(e.target.checked)} />
                                 <span>In form</span>
+                              </label>
+                              <div style={{ height: '1px', background: '#e2e8f0', margin: '0.2rem 0' }} />
+                              <label className="filter-option" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', margin: 0, cursor: 'pointer', fontSize: '0.76rem', color: '#0f172a', fontWeight: 600 }}>
+                                <input type="checkbox" checked={expertMode} onChange={(e) => setExpertMode(e.target.checked)} />
+                                <span>⚙️ Expertenmodus</span>
                               </label>
                             </div>
                           )}
@@ -1202,6 +1260,7 @@ function FormBuilderContent() {
                   Form Settings
                 </button>
               </div>
+              <PluginHost slot="designer" title="Plugin Designer" context={{ formId: id, form: form.canonical_json, data: form.canonical_json }} />
 
               {inspectorScope === 'field' ? (
                 <>
@@ -1445,10 +1504,112 @@ function FormBuilderContent() {
                                     </div>
                                   </div>
                                 )}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                               </div>
+                             )}
+                             {/* AQL PREFILL PROPERTY INSPECTOR */}
+                             <div className="inspector-section" style={{ marginTop: '0.75rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
+                               <div className="inspector-section-title" style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.4rem' }}>
+                                 🔍 AQL Prefill (HIP) Mapping
+                               </div>
+
+                               {activeEditElement.element === 'FieldSet' ? (
+                                 <div>
+                                   <label className="inspector-label" style={{ fontSize: '0.75rem', color: '#475569' }}>
+                                     Group ID (Cluster / Section)
+                                   </label>
+                                   <input
+                                     type="text"
+                                     className="inspector-input"
+                                     value={activeEditElement.custom_metadata?.groupId || activeEditElement.field_name || activeEditElement.id || ''}
+                                     placeholder="z. B. vitalsGroup"
+                                     onChange={(e) => {
+                                       const updated = {
+                                         ...activeEditElement,
+                                         custom_metadata: {
+                                           ...(activeEditElement.custom_metadata || {}),
+                                           groupId: e.target.value,
+                                         },
+                                       };
+                                       updateElementFnRef.current?.(updated);
+                                       setActiveEditElement(updated);
+                                     }}
+                                   />
+                                   <p style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.2rem' }}>
+                                     AQL-Ergebnisse dieser Gruppe werden über den Gruppenbutton gemeinsam geladen.
+                                   </p>
+                                 </div>
+                               ) : (
+                                 <div>
+                                   {(() => {
+                                     const currentFieldId = activeEditElement.field_name || activeEditElement.id || activeEditElement.name;
+                                     const aqlConfig = form.canonical_json.settings?.aqlPrefill;
+                                     const existingMapping = aqlConfig?.mappings?.find((m: any) => m.target.fieldId === currentFieldId);
+
+                                     return (
+                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                         <label className="inspector-label" style={{ fontSize: '0.75rem', color: '#475569' }}>
+                                           Mapped AQL Result Path
+                                         </label>
+                                         <input
+                                           type="text"
+                                           className="inspector-input"
+                                           value={existingMapping?.resultPath || ''}
+                                           placeholder="z. B. weight oder rows[0].weight"
+                                           onChange={(e) => {
+                                             const resultPath = e.target.value;
+                                             const currentConfig = form.canonical_json.settings?.aqlPrefill || {
+                                               id: 'aql-prefill-main',
+                                               name: 'AQL Vorbelegung',
+                                               queryMode: 'latest',
+                                               executionMode: 'manual',
+                                               query: { aql: '' },
+                                               parameters: [{ queryParameter: '$ehrId', source: 'ehrId' }],
+                                               mappings: [],
+                                               behavior: { cacheResult: true, showSource: true, showTimestamp: true, confirmOverwrite: true },
+                                             };
+
+                                             let mappings = [...(currentConfig.mappings || [])];
+                                             if (existingMapping) {
+                                               if (resultPath.trim()) {
+                                                 mappings = mappings.map((m) => m.id === existingMapping.id ? { ...m, resultPath } : m);
+                                               } else {
+                                                 mappings = mappings.filter((m) => m.id !== existingMapping.id);
+                                               }
+                                             } else if (resultPath.trim()) {
+                                               mappings.push({
+                                                 id: `map_${Date.now()}`,
+                                                 resultPath,
+                                                 target: { fieldId: currentFieldId },
+                                               });
+                                             }
+
+                                             const updatedConfig = { ...currentConfig, mappings };
+                                             const updatedForm = {
+                                               ...form,
+                                               canonical_json: {
+                                                 ...form.canonical_json,
+                                                 settings: {
+                                                   ...(form.canonical_json.settings || {}),
+                                                   aqlPrefill: updatedConfig,
+                                                 },
+                                               },
+                                             };
+                                             formRef.current = updatedForm;
+                                             setForm(updatedForm);
+                                             setTimeout(() => handleSave(builderItems), 0);
+                                           }}
+                                         />
+                                         <span style={{ fontSize: '0.7rem', color: existingMapping ? '#16a34a' : '#64748b' }}>
+                                           {existingMapping ? `✓ Mit Pfad '${existingMapping.resultPath}' verknüpft` : 'Nicht mit AQL verknüpft'}
+                                         </span>
+                                       </div>
+                                     );
+                                   })()}
+                                 </div>
+                               )}
+                             </div>
+                           </div>
+                         )}
 
                         {/* OPENEHR TAB */}
                         {rightTab === 'openehr' && (
@@ -1503,6 +1664,12 @@ function FormBuilderContent() {
                     </button>
                     <button className={`panel-tab ${formTab === 'export' ? 'active' : ''}`} onClick={() => setFormTab('export')}>
                       Export
+                    </button>
+                    <button className={`panel-tab ${formTab === 'submission' ? 'active' : ''}`} onClick={() => setFormTab('submission')}>
+                      Submission
+                    </button>
+                    <button className={`panel-tab ${formTab === 'aqlPrefill' ? 'active' : ''}`} onClick={() => setFormTab('aqlPrefill')}>
+                      AQL Prefill
                     </button>
                   </div>
 
@@ -1679,6 +1846,74 @@ function FormBuilderContent() {
                       )}
 
 
+                      {formTab === 'submission' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          <h4>Submission Routing</h4>
+                          <p style={{ color: '#64748b', fontSize: '0.82rem', margin: 0 }}>
+                            Standardmäßig sendet die Runtime direkt an EHRbase. n8n kann einzelne Lade-, Speicher- und Validierungsphasen synchron erweitern; der Submit-Webhook ist optional und wird nur bei aktivierter Submit-Route verwendet.
+                          </p>
+                          <div className="inspector-read-only-box">
+                            <div className="inspector-read-only-row">
+                              <span className="inspector-read-only-label">Aktueller Modus:</span>
+                              <span className="inspector-read-only-value">{form.canonical_json.settings?.submission?.mode === 'workflow' ? `Workflow (${form.canonical_json.settings.submission.workflow?.engine || 'unbekannt'})` : 'Direkt EHRbase'}</span>
+                            </div>
+                            {(form.canonical_json.settings?.submission?.workflow?.publicWebhookUrl || form.canonical_json.settings?.submission?.workflow?.webhookUrl) && <div className="inspector-read-only-row"><span className="inspector-read-only-label">Webhook:</span><span className="inspector-read-only-value" style={{ wordBreak: 'break-all' }}>{form.canonical_json.settings.submission.workflow.publicWebhookUrl || form.canonical_json.settings.submission.workflow.webhookUrl}</span></div>}
+                          </div>
+                          <PluginHost
+                            slot="settings"
+                            scope="form"
+                            title="Submission Plugins"
+                            context={{ formId: id, form: form.canonical_json, data: form.canonical_json.settings?.submission || {} }}
+                            onResult={(result) => {
+                              if (!result.data || !formRef.current) return;
+                              const updated = { ...formRef.current, canonical_json: result.data };
+                              formRef.current = updated;
+                              setForm(updated);
+                              setTimeout(() => handleSave(builderItems), 0);
+                            }}
+                          />
+                        </div>
+                      )}
+                      {formTab === 'aqlPrefill' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          <AqlPrefillEditor
+                            config={form.canonical_json.settings?.aqlPrefill || {
+                              id: 'aql-prefill-main',
+                              name: 'AQL Vorbelegung',
+                              queryMode: 'latest',
+                              executionMode: 'manual',
+                              query: { aql: '' },
+                              parameters: [{ queryParameter: '$ehrId', source: 'ehrId' }],
+                              mappings: [],
+                              behavior: { cacheResult: true, showSource: true, showTimestamp: true, confirmOverwrite: true },
+                            }}
+                            availableFieldIds={(() => {
+                              const ids: string[] = [];
+                              const walk = (node: any) => {
+                                if (node.id || node.name) ids.push(node.id || node.name);
+                                node.children?.forEach(walk);
+                              };
+                              if (form.canonical_json.layout) walk(form.canonical_json.layout);
+                              return Array.from(new Set(ids));
+                            })()}
+                            onChange={(updatedConfig) => {
+                              if (!formRef.current) return;
+                              const currentSettings = formRef.current.canonical_json.settings || {};
+                              const updatedCanonical = {
+                                ...formRef.current.canonical_json,
+                                settings: {
+                                  ...currentSettings,
+                                  aqlPrefill: updatedConfig,
+                                },
+                              };
+                              const updatedForm = { ...formRef.current, canonical_json: updatedCanonical };
+                              formRef.current = updatedForm;
+                              setForm(updatedForm);
+                              setTimeout(() => handleSave(builderItems), 0);
+                            }}
+                          />
+                        </div>
+                      )}
                       {formTab === 'export' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                           <h4>Validation & Export</h4>

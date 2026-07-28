@@ -1,0 +1,17 @@
+{
+  "name": "formbuilder-example-n8n-plugin",
+  "version": "1.0.0",
+  "description": "Example Form Builder plugin that provisions an n8n webhook-to-EHRbase workflow from form settings",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "plugin-api": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

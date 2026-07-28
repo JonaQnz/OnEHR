@@ -6,30 +6,17 @@ interface MappingExportForm {
     id: string;
     version: string;
   }>;
-  fhirMappings?: Record<string, unknown>;
+  bindings: Record<string, { openehr?: { templateAlias?: string; path?: string; rmType?: string; flatPath?: string } }>;
 }
 
 export function exportMappings(form: MappingExportForm) {
-  const mappings = Object.entries(form.fhirMappings || {}).map(
-    ([fieldName, value]) => {
-      const mappingData = value as {
-        source?: { path?: string };
-        fhir?: Record<string, unknown>;
-      };
-
-      return {
-        fieldName,
-        openehrPath: mappingData.source?.path,
-        fhirVersion: mappingData.fhir?.fhirVersion,
-        standard: mappingData.fhir?.standard,
-        resourceType: mappingData.fhir?.resourceType,
-        profile: mappingData.fhir?.profile,
-        elementPath: mappingData.fhir?.elementPath,
-        code: mappingData.fhir?.code,
-        unit: mappingData.fhir?.unit,
-      };
-    },
-  );
+  const mappings = Object.entries(form.bindings || {}).map(([fieldName, binding]) => ({
+    fieldName,
+    openehrPath: binding.openehr?.path,
+    templateAlias: binding.openehr?.templateAlias,
+    rmType: binding.openehr?.rmType,
+    flatPath: binding.openehr?.flatPath,
+  }));
 
   return {
     formId: form.id,

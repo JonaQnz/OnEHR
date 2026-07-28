@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npm run test --workspace=api"
+    "build:packages": "npm run build --workspace=core && npm run build --workspace=plugin-api && npm run build --workspace=formbuilder-example-vitals-plugin && npm run build --workspace=formbuilder-example-n8n-plugin && npm run build --workspace=formbuilder-plugin-aql-prefill",
+    "test": "npm run build:packages && npm run test --workspace=api"
   },
   "keywords": [],
   "author": "",

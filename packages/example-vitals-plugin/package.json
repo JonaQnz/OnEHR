@@ -1,0 +1,17 @@
+{
+  "name": "formbuilder-example-vitals-plugin",
+  "version": "1.0.0",
+  "description": "Small example plugin for testing the Form Builder plugin system",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "plugin-api": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

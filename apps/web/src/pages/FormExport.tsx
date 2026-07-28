@@ -82,10 +82,10 @@ export default function FormExport() {
         
         <div className="card" style={{ flex: 1 }}>
           <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            Mapping JSON
+            openEHR Mapping JSON
             <button
               style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
-              onClick={() => downloadJson(mappings, `${formName}_Mappings.json`)}
+              onClick={() => downloadJson(mappings, `${formName}_openEHR_Mappings.json`)}
               disabled={!mappings}
             >
               ⬇ Download

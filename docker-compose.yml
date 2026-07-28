@@ -23,15 +23,23 @@ services:
       dockerfile: Dockerfile.api
     ports:
       - "3001:3001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - DATABASE_URL=postgresql://admin:password@db:5432/formbuilder?schema=public
       - EHRBASE_URL=http://ehrbase:8080/ehrbase/rest/openehr/v1
       - DATA_DIR=/app/data
+      - N8N_API_URL=${N8N_API_URL:-http://host.docker.internal:5678/api/v1}
+      - N8N_API_KEY=${N8N_API_KEY:-}
+      - N8N_PUBLIC_URL=${N8N_PUBLIC_URL:-http://localhost:5678}
+      - N8N_EHRBASE_URL=${N8N_EHRBASE_URL:-http://ehrbase:8080/ehrbase/rest/openehr/v1}
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./data:/app/data
+      - ./apps/api/dist:/app/apps/api/dist
+      - ./packages/aql-prefill-plugin/dist:/app/packages/aql-prefill-plugin/dist
 
   web:
     # Dev setup with hot reload
@@ -42,6 +50,7 @@ services:
       - "5173:5173"
     environment:
       - VITE_API_URL=http://localhost:3001
+      - API_URL=http://api:3001
       - PORT=3000
     depends_on:
       - api
@@ -52,7 +61,8 @@ services:
       - apps_api_node_modules:/app/apps/api/node_modules
       - packages_core_node_modules:/app/packages/core/node_modules
       - packages_rfb_node_modules:/app/packages/react-form-builder2/node_modules
-    command: sh -c "npm install --legacy-peer-deps && npm run build --workspace=core && npm run build:lib --workspace=react-form-builder2 && cd apps/web && npm run dev -- --host 0.0.0.0 --port 3000 --force"
+      - packages_aql_prefill_node_modules:/app/packages/aql-prefill-plugin/node_modules
+    command: sh -c "npm install --legacy-peer-deps && npm run build:packages && npm run build:lib --workspace=react-form-builder2 && cd apps/web && npm run dev -- --host 0.0.0.0 --port 3000 --force"
 
 volumes:
   pgdata:
@@ -61,3 +71,4 @@ volumes:
   apps_api_node_modules:
   packages_core_node_modules:
   packages_rfb_node_modules:
+  packages_aql_prefill_node_modules:

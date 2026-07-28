@@ -1,4 +1,4 @@
-import { CanonicalForm } from 'core';
+import { FormDefinitionV1, migrateCanonicalFormToV1 } from 'core';
 import { HttpError } from '../middleware/errorHandler';
 
 export function requireNonEmptyString(value: unknown, field: string): string {
@@ -8,7 +8,7 @@ export function requireNonEmptyString(value: unknown, field: string): string {
   return value.trim();
 }
 
-export function normalizeCanonicalFormPayload(payload: unknown, formId: string): CanonicalForm {
+export function normalizeCanonicalFormPayload(payload: unknown, formId: string): FormDefinitionV1 {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     throw new HttpError(400, 'Canonical form must be an object');
   }
@@ -33,5 +33,10 @@ export function normalizeCanonicalFormPayload(payload: unknown, formId: string):
     throw new HttpError(400, '"locales" must be an object');
   }
 
-  return { ...(form as unknown as CanonicalForm), id: formId, name, version };
+  try {
+    return migrateCanonicalFormToV1({ ...form, id: formId, name, version }, formId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Invalid FormDefinition';
+    throw new HttpError(400, message);
+  }
 }

@@ -336,7 +336,6 @@
 .badge-pill.inform   { background: #dcfce7; color: #15803d; }
 .badge-pill.required { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
 .badge-pill.mapped   { background: #e0f2fe; color: #0369a1; }
-.badge-pill.missing-fhir { background: #ffedd5; color: #c2410c; }
 
 /* Filters block */
 .tree-filters-box {
@@ -615,22 +614,6 @@
   max-width: 250px;
 }
 
-.rfb-field-status .status-fhir-dot {
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 0.05rem 0.35rem;
-  border-radius: 4px;
-}
-
-.rfb-field-status .status-fhir-dot.mapped {
-  background: #f0fdf4;
-  color: #166534;
-}
-
-.rfb-field-status .status-fhir-dot.missing {
-  background: #fef2f2;
-  color: #991b1b;
-}
 
 /* Subtlest details togglers */
 .rfb-field-status .btn-status-toggle,
@@ -702,22 +685,6 @@
   color: #64748b;
 }
 
-.rfb-field-status .status-fhir {
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 0.05rem 0.35rem;
-  border-radius: 4px;
-}
-
-.rfb-field-status .status-fhir.mapped {
-  background: #f0fdf4;
-  color: #166534;
-}
-
-.rfb-field-status .status-fhir.missing {
-  background: #fef2f2;
-  color: #991b1b;
-}
 
 .rfb-field-status .btn-status-toggle-hide {
   align-self: flex-end;
@@ -820,25 +787,6 @@
   margin-top: 0.25rem;
 }
 
-/* FHIR status badge inside inspector */
-.inspector-fhir-status {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.78rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
-}
-
-.inspector-fhir-status.mapped {
-  background: #e0f2fe;
-  color: #0369a1;
-}
-
-.inspector-fhir-status.missing {
-  background: #ffedd5;
-  color: #c2410c;
-}
 
 /* ─────────────────────────────────────────────
    BOTTOM STATUS BAR

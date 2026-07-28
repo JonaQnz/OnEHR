@@ -179,6 +179,15 @@ export function exportToCambioForm(form: CanonicalForm): any {
   // 3. Clean tree of system fields and empty containers
   function cleanLayoutTree(node: any): any {
     if (!node) return null;
+
+    if (!node.children && node.name) {
+      const bindingPath = String(form.bindings?.[node.name]?.openehr?.path || '').toLowerCase();
+      const systemSegment = bindingPath.split('/').filter(Boolean).pop() || '';
+      const systemContextSegments = ['language', 'encoding', 'territory', 'composer', 'subject', 'category'];
+      if (bindingPath.includes('/context/') && systemContextSegments.includes(systemSegment)) {
+        return null;
+      }
+    }
     
     if (node.children) {
       const cleanedChildren = node.children
@@ -365,11 +374,11 @@ export function exportToCambioForm(form: CanonicalForm): any {
         });
       
       if (validUnitOptions.length === 0) {
-        const fallbackUnit = node.unit || 'cm';
-        validUnitOptions = [{ unit: fallbackUnit }];
+        const fallbackUnit = node.unit;
+        if (fallbackUnit) validUnitOptions = [{ unit: fallbackUnit }];
       }
       
-      transformedField.unitoptions = validUnitOptions;
+      if (validUnitOptions.length > 0) transformedField.unitoptions = validUnitOptions;
     }
     
     return transformedField;

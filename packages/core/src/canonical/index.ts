@@ -57,6 +57,27 @@ export interface OpenEhrBinding {
   rmType: string;
   flatPath?: string;
 }
+/**
+ * Standard form submission routing. The core only defines the neutral
+ * contract; an extension owns the workflow engine represented by `workflow`.
+ */
+export type FormSubmissionMode = 'direct' | 'workflow';
+
+export interface FormWorkflowReference {
+  engine: string;
+  workflowId?: string;
+  webhookUrl?: string;
+  publicWebhookUrl?: string;
+  hooks?: Record<string, string>;
+  enabledHooks?: Record<string, boolean>;
+  version?: string;
+}
+
+export interface FormSubmissionSettings {
+  mode: FormSubmissionMode;
+  providerId?: string;
+  workflow?: FormWorkflowReference;
+}
 
 export interface CanonicalForm {
   id: string;
@@ -70,6 +91,7 @@ export interface CanonicalForm {
     defaultLocale?: string;
     authors?: string;
     tags?: string[];
+    submission?: FormSubmissionSettings;
   };
   sourceTemplates: Array<{
     alias: string;

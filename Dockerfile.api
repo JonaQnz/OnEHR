@@ -9,6 +9,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/core/package.json ./packages/core/
 COPY packages/react-form-builder2/package.json ./packages/react-form-builder2/
+COPY packages/plugin-api/package.json ./packages/plugin-api/
+COPY packages/example-vitals-plugin/package.json ./packages/example-vitals-plugin/
+COPY packages/example-n8n-plugin/package.json ./packages/example-n8n-plugin/
+COPY packages/aql-prefill-plugin/package.json ./packages/aql-prefill-plugin/
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 
@@ -28,6 +32,10 @@ COPY . .
 # Generate Prisma and build
 RUN cd apps/api && npx prisma generate
 RUN cd packages/core && npm run build
+RUN cd packages/plugin-api && npm run build
+RUN cd packages/example-vitals-plugin && npm run build
+RUN cd packages/example-n8n-plugin && npm run build
+RUN cd packages/aql-prefill-plugin && npm run build
 RUN cd apps/api && npx tsc
 
 # Runtime stage
@@ -39,6 +47,10 @@ WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/core ./packages/core
 COPY --from=build /app/apps/api ./apps/api
+COPY --from=build /app/packages/plugin-api ./packages/plugin-api
+COPY --from=build /app/packages/example-vitals-plugin ./packages/example-vitals-plugin
+COPY --from=build /app/packages/example-n8n-plugin ./packages/example-n8n-plugin
+COPY --from=build /app/packages/aql-prefill-plugin ./packages/aql-prefill-plugin
 COPY --from=build /app/package.json ./
 
 EXPOSE 3001

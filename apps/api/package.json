@@ -12,6 +12,8 @@
   "license": "ISC",
   "dependencies": {
     "core": "*",
+    "plugin-api": "*",
+    "formbuilder-plugin-aql-prefill": "*",
     "@prisma/client": "^5.22.0",
     "axios": "^1.7.9",
     "cors": "^2.8.5",

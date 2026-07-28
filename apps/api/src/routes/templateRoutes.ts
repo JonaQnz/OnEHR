@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { parseWebTemplate } from '../parsers/webTemplateParser';
+import { parseWebTemplate, isContextOrIgnoredNode } from '../parsers/webTemplateParser';
 import prisma from '../db/prisma';
 import { listRemoteTemplates, getRemoteWebTemplate } from '../services/ehrbaseService';
 
@@ -91,7 +91,8 @@ router.get('/:id/fields', async (req, res) => {
     
     const data = template.parsed_registry_json as any;
     const fields = Array.isArray(data) ? data : (data?.fields || []);
-    res.json(fields);
+    const filtered = fields.filter((f: any) => !isContextOrIgnoredNode(f));
+    res.json(filtered);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openehr-formbuilder.dev/schemas/form-definition-v1.schema.json",
+  "title": "openEHR Form Builder FormDefinition v1",
+  "type": "object",
+  "required": ["schemaVersion", "id", "name", "version", "revision", "sourceTemplates", "layout", "bindings", "locales", "extensions"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "id": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "status": { "type": "string" },
+    "revision": { "type": "integer", "minimum": 0 },
+    "sourceTemplates": { "type": "array" },
+    "layout": {
+      "type": "object",
+      "required": ["type"],
+      "properties": { "type": { "const": "form" } }
+    },
+    "bindings": { "type": "object" },
+    "locales": { "type": "object" },
+    "extensions": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": true
+}

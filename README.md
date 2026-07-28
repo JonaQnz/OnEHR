@@ -1,8 +1,8 @@
 # openEHR Clinical Form Builder
 
-An openEHR-first **Clinical Form Builder** MVP designed to separate clinical semantics (openEHR), visual form presentation (drag-and-drop form builder), and healthcare interoperability (FHIR).
+An openEHR-first **Clinical Form Builder** designed to separate clinical semantics (openEHR), visual form presentation (drag-and-drop form builder), and EHRbase interoperability.
 
-This project enables clinical domain experts and developers to import openEHR WebTemplates, visually customize clinical forms with drag-and-drop controls, map attributes to FHIR/openEHR models, and export definitions to target formats such as **CambioForm v1.1**.
+This project enables clinical domain experts and developers to import openEHR WebTemplates, visually customize clinical forms with drag-and-drop controls, edit openEHR bindings, and export definitions to target formats such as **CambioForm v1.1**.
 
 ---
 
@@ -11,7 +11,7 @@ This project enables clinical domain experts and developers to import openEHR We
 - **openEHR WebTemplate Integration**: Upload and parse openEHR WebTemplate JSON files into structured field registries.
 - **Auto-Generated Canonical Form Models**: Automatically initialize structured canonical forms from openEHR templates with sensible default layouts.
 - **Visual Drag-and-Drop Form Builder**: Interactive React canvas with support for multi-column layouts, nested fieldsets, input validations, and custom clinical form elements.
-- **FHIR & openEHR Mapping Inspector**: Zuweisen and edit FHIR and openEHR metadata attributes directly per form field.
+- **openEHR Mapping Inspector**: Zuweisen and edit openEHR metadata attributes directly per form field.
 - **CambioForm v1.1 Export**: Export form structures and mapping definitions into standard `CambioForm.v1.1` JSON format.
 - **Configurable EHRbase & Keycloak Integration**: Dynamic endpoint management for openEHR EHRbase REST APIs and Keycloak authentication.
 
@@ -35,7 +35,7 @@ formbuilder/
 │   └── react-form-builder2/  # Drag-and-drop UI component library for form editing
 └── examples/
     ├── templates/            # Sample openEHR WebTemplates (e.g. vital_signs_icu.webtemplate.json)
-    └── fhir-catalog/         # Local FHIR resource definitions
+    └── templates/            # Sample openEHR WebTemplates
 ```
 
 ### Core Technologies
@@ -146,6 +146,30 @@ The system uses PostgreSQL with Prisma ORM. Key tables:
 - `POST /api/config` - Update endpoint configurations.
 
 ---
+
+## 🔌 Plugins
+
+Plugins are ordinary TypeScript/JavaScript npm packages using the shared `plugin-api` contract. The server executes trusted plugin code; manifests and contributions exposed to the UI remain serializable and namespaced.
+
+Build and test the plugin-enabled app:
+
+```bash
+npm install
+npm test
+```
+
+Open **Plugins** in the web app, enter `formbuilder-example-vitals-plugin`, and choose **Laden**. The page shows the host contract, the manifest, permissions, and registered contributions. The example demonstrates these extension points:
+- `field`: custom field types for the designer.
+- `settings`: panels in application settings.
+- `form`: actions in the form designer.
+- `designer`: panels in the designer workspace.
+- `runtime`: actions available while filling a form.
+- `dataProvider`: load/submit provider metadata (the built-in EHRbase provider remains core).
+- `workflow` and `lifecycle`: server-side orchestration and validation hooks.
+Plugins are trusted TypeScript/JavaScript code executed by the API process. Every package must declare its extension points and permissions (`form:read`, `form:write`, `patient:read`, `ehrbase:read`, `ehrbase:write`, or `network:request`). Packages must be installed in the self-hosted deployment; the UI does not install arbitrary code. For unattended startup, set `FORM_BUILDER_PLUGINS` to a comma-separated package list.
+The n8n example is `formbuilder-example-n8n-plugin`. Configure the n8n API and target in the API environment, then load the package from the Plugins page. In each form, open `Form Settings → Submission` and click `Als n8n Form konfigurieren`:
+Docker default: `N8N_API_URL=http://host.docker.internal:5678/api/v1`; lokale Ausführung: `N8N_API_URL=http://localhost:5678/api/v1`. Zusätzlich: `N8N_API_KEY=…`, `N8N_PUBLIC_URL=http://localhost:5678`, `N8N_EHRBASE_URL=http://ehrbase:8080/ehrbase/rest/openehr/v1`.
+`FORM_BUILDER_PLUGINS=formbuilder-example-vitals-plugin,formbuilder-example-n8n-plugin`
 
 ## 📜 License
 

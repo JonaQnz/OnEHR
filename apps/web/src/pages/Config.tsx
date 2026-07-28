@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Save, CheckCircle2, AlertCircle } from 'lucide-react';
+import PluginSettingsHost from '../components/PluginSettingsHost';
 
 export default function Config() {
   const [config, setConfig] = useState<any>({
@@ -7,11 +8,19 @@ export default function Config() {
     ehrbaseUser: '',
     ehrbasePass: '',
     authMode: 'basic',
+    userAuthMode: 'local',
+    localUsername: '',
+    localPassword: '',
+    hipIssuerUrl: '',
+    hipClientId: '',
+    hipRedirectUri: 'http://localhost:3001/api/auth/callback/hip',
+    hipScopes: 'openid profile email',
     keycloakApi: '',
     keycloakTenantName: '',
     keycloakClientId: '',
     keycloakGrantType: 'password',
-    mappingServiceApi: ''
+    mappingServiceApi: '',
+    defaultEhrId: ''
   });
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -81,6 +90,50 @@ export default function Config() {
         </div>
       )}
 
+        <div className="card">
+          <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '1.25rem', fontSize: '1.1rem' }}>Forms App Access</h3>
+          <p style={{ color: 'var(--text-muted)', marginTop: 0 }}>Choose local sign-in or HIP sign-in. Patient access remains with the HIP.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+            <div>
+              <label className="form-label">User authentication</label>
+              <select name="userAuthMode" value={config.userAuthMode || 'local'} onChange={handleChange} className="form-input">
+                <option value="local">Local login</option>
+                <option value="hip">HIP login</option>
+              </select>
+            </div>
+            {config.userAuthMode === 'local' && (
+              <div>
+                <label className="form-label">Local username</label>
+                <input type="text" name="localUsername" value={config.localUsername || ''} onChange={handleChange} className="form-input" placeholder="Set via environment" />
+              </div>
+            )}
+          </div>
+          {config.userAuthMode === 'hip' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginTop: '1.25rem' }}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label className="form-label">HIP issuer URL</label>
+                <input type="url" name="hipIssuerUrl" value={config.hipIssuerUrl || ''} onChange={handleChange} className="form-input" />
+              </div>
+              <div>
+                <label className="form-label">Client ID</label>
+                <input type="text" name="hipClientId" value={config.hipClientId || ''} onChange={handleChange} className="form-input" />
+              </div>
+              <div>
+                <label className="form-label">Redirect URI</label>
+                <input type="url" name="hipRedirectUri" value={config.hipRedirectUri || ''} onChange={handleChange} className="form-input" />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label className="form-label">Scopes</label>
+                <input type="text" name="hipScopes" value={config.hipScopes || ''} onChange={handleChange} className="form-input" />
+              </div>
+            </div>
+          )}
+        </div>
+      <div className="card" style={{ marginTop: '1.5rem' }}>
+        <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '1.25rem', fontSize: '1.1rem' }}>Plugin Settings</h3>
+        <p style={{ color: 'var(--text-muted)', marginTop: 0 }}>Plugins können hier ihre globalen Verbindungsdaten und Optionen registrieren.</p>
+        <PluginSettingsHost title="Globale Plugin Settings" />
+      </div>
       <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         
         <div className="card">
@@ -89,6 +142,11 @@ export default function Config() {
             <div style={{ gridColumn: '1 / -1' }}>
               <label className="form-label">EHRbase REST URL</label>
               <input type="text" name="ehrbaseUrl" value={config.ehrbaseUrl} onChange={handleChange} className="form-input" required />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label className="form-label">Test / Default EHR-ID (Optional)</label>
+              <input type="text" name="defaultEhrId" value={config.defaultEhrId || ''} onChange={handleChange} className="form-input" placeholder="z. B. 838d21b7-781e-450f-9f7a-8dd2d1234567 oder patient-123" />
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Wird im Formular-Runtime automatisch als Standard-EHRID / Kontext verwendet.</span>
             </div>
             <div>
               <label className="form-label">Authentication Mode</label>

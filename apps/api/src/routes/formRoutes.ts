@@ -5,6 +5,8 @@ import { exportToCambioForm } from '../exporters/cambioExporter';
 import { exportMappings } from '../exporters/mappingExporter';
 import { asyncHandler, HttpError } from '../middleware/errorHandler';
 import { normalizeCanonicalFormPayload, requireNonEmptyString } from '../validation/formValidation';
+import { FORM_DEFINITION_SCHEMA_VERSION, migrateCanonicalFormToV1 } from 'core';
+import { pluginRegistry } from '../plugins/pluginRegistry';
 
 const router = Router();
 
@@ -27,6 +29,9 @@ function createCanonicalForm(template: any, formId: string, formName?: string) {
     id: formId,
     name: formName || template.template_id,
     version: '0.1.0-draft',
+    schemaVersion: FORM_DEFINITION_SCHEMA_VERSION,
+    revision: 0,
+    extensions: {},
     sourceTemplates: [{ alias: template.alias, id: template.template_id, version: template.version || '1.0.0', type: 'openEhrWebTemplate' }],
     layout,
     bindings,
@@ -41,7 +46,7 @@ router.get('/', asyncHandler(async (_req, res) => {
 router.post('/', asyncHandler(async (req, res) => {
   const name = req.body?.name === undefined ? 'New Form' : requireNonEmptyString(req.body.name, 'name');
   const id = uuidv4();
-  const canonicalForm = { id, name, version: '0.1.0-draft', sourceTemplates: [], layout: { type: 'form', children: [{ type: 'container', children: [] }] }, bindings: {}, locales: { en: {} } };
+  const canonicalForm = { id, name, version: '0.1.0-draft', schemaVersion: FORM_DEFINITION_SCHEMA_VERSION, revision: 0, extensions: {}, sourceTemplates: [], layout: { type: 'form', children: [{ type: 'container', children: [] }] }, bindings: {}, locales: { en: {} } };
   const form = await prisma.form.create({ data: { id, parent_id: id, name, version: canonicalForm.version, status: 'draft', canonical_json: canonicalForm as any } });
   res.status(201).json({ message: 'Empty form created', form });
 }));
@@ -75,13 +80,16 @@ router.get('/:id', asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
   const form = await prisma.form.findUnique({ where: { id: formId } });
   if (!form) throw new HttpError(404, 'Form not found');
-  res.json({ ...form, canonical_json: { ...(form.canonical_json as any), id: form.id } });
+  const canonicalForm = migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id);
+  res.json({ ...form, canonical_json: canonicalForm });
 }));
 
 router.put('/:id', asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
-  const canonicalForm = normalizeCanonicalFormPayload(req.body, formId);
+  const beforeSave = await pluginRegistry.runHook('beforeFormSave', { form: (req.body || {}) as Record<string, any>, data: (req.body || {}) as Record<string, any>, formId });
+  const canonicalForm = normalizeCanonicalFormPayload(beforeSave.data || req.body, formId);
   const form = await prisma.form.update({ where: { id: formId }, data: { canonical_json: canonicalForm as any, name: canonicalForm.name, version: canonicalForm.version, status: canonicalForm.status || 'draft' } });
+  await pluginRegistry.runHook('afterFormSave', { form: canonicalForm as Record<string, any>, data: canonicalForm as Record<string, any>, formId });
   res.json(form);
 }));
 
@@ -98,7 +106,7 @@ router.post('/:id/publish', asyncHandler(async (req, res) => {
     newVersion = `${match[1] === '0' ? '1' : match[1]}.${match[2]}.${match[3]}`;
   }
   
-  const canonicalForm = { ...(form.canonical_json as any), version: newVersion, status: 'published' };
+  const canonicalForm = { ...(form.canonical_json as any), schemaVersion: (form.canonical_json as any).schemaVersion || FORM_DEFINITION_SCHEMA_VERSION, revision: (form.canonical_json as any).revision ?? 0, extensions: (form.canonical_json as any).extensions || {}, version: newVersion, status: 'published' };
   const published = await prisma.form.update({ 
     where: { id: formId }, 
     data: { status: 'published', version: newVersion, canonical_json: canonicalForm } 
@@ -119,7 +127,7 @@ router.post('/:id/create-draft', asyncHandler(async (req, res) => {
     newVersion = `${match[1]}.${parseInt(match[2]) + 1}.0-draft`;
   }
 
-  const canonicalForm = { ...(form.canonical_json as any), id: newId, version: newVersion, status: 'draft' };
+  const canonicalForm = { ...(form.canonical_json as any), id: newId, schemaVersion: (form.canonical_json as any).schemaVersion || FORM_DEFINITION_SCHEMA_VERSION, revision: 0, extensions: (form.canonical_json as any).extensions || {}, version: newVersion, status: 'draft' };
   const draft = await prisma.form.create({
     data: {
       id: newId,

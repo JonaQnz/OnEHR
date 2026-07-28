@@ -32,4 +32,27 @@ model Template {
   @@map("templates")
 }
 
+model FormSession {
+  id                 String   @id @default(uuid())
+  formId             String   @map("form_id")
+  formVersion        String   @map("form_version")
+  patientId          String   @map("patient_id")
+  patientNamespace   String?  @map("patient_namespace")
+  userId             String   @map("user_id")
+  authMode           String   @map("auth_mode")
+  status             String   @default("draft")
+  values             Json
+  validation         Json
+  revision           Int      @default(0)
+  providerId         String?  @map("provider_id")
+  providerReference  String?  @map("provider_reference")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([patientId])
+  @@index([formId])
+  @@index([userId])
+  @@map("form_sessions")
+}
+
 

@@ -1,10 +1,41 @@
 import { FieldRegistryItem, FieldConstraint, FormElementLayout } from 'core';
 import { v4 as uuidv4 } from 'uuid';
 
-function isContextNode(node: any): boolean {
-  if (!node.id) return false;
-  const id = node.id.toLowerCase();
-  return ['composer', 'setting', 'language', 'encoding', 'subject', 'category', 'territory', 'context'].includes(id);
+export function isContextOrIgnoredNode(node: any): boolean {
+  if (!node) return false;
+  if (node.inContext === true) return true;
+
+  const id = (node.technicalName || node.id || '').toLowerCase();
+  const rmType = (node.rmType || '').toUpperCase();
+  const aqlPath = (node.openehrPath || node.aqlPath || '').toLowerCase();
+  const flatPath = (node.flatPath || '').toLowerCase();
+
+  const pathSegments = aqlPath.split('/').filter(Boolean);
+  const lastSegment = pathSegments[pathSegments.length - 1] || '';
+  const cleanLastSegment = lastSegment.split('[')[0].toLowerCase();
+
+  const contextKeys = [
+    'language', 'encoding', 'territory', 'composer', 
+    'subject', 'category', 'setting', 'start_time', 'context'
+  ];
+
+  if (contextKeys.includes(id) || contextKeys.includes(cleanLastSegment)) {
+    return true;
+  }
+
+  for (const key of contextKeys) {
+    if (
+      aqlPath.endsWith('/' + key) || 
+      aqlPath.includes('/' + key + '/') || 
+      aqlPath.includes('/' + key + '[') ||
+      flatPath.endsWith('/' + key) ||
+      flatPath.includes('/' + key + '/')
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function isTechnicalWrapper(node: any): boolean {
@@ -99,6 +130,7 @@ export function parseWebTemplate(webTemplate: any): {
   // 1. First, build the flat fields registry (traversing leaves only)
   function traverseFlat(node: any, parentName: string, currentFlatPath: string, parentTechnicalName: string) {
     if (!node) return;
+    if (isContextOrIgnoredNode(node)) return;
 
     let nextParentName = parentName;
     let nextParentTechnicalName = parentTechnicalName;
@@ -215,7 +247,7 @@ export function parseWebTemplate(webTemplate: any): {
   function buildLayoutNode(node: any): FormElementLayout | null {
     if (!node) return null;
 
-    if (isContextNode(node)) {
+    if (isContextOrIgnoredNode(node)) {
       return null;
     }
 

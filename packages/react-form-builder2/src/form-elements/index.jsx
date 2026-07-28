@@ -17,7 +17,7 @@ const FormElements = {};
 
 /**
  * FieldStatusBar — renders a small status footer on each clinical field card.
- * Shows: field_name · DV_TYPE · /aql/path · FHIR: mapped | missing
+ * Shows: field_name · DV_TYPE · /openEHR path
  * Only shows for non-mutable (builder preview) mode.
  */
 function getUIFieldTypeLabel(element) {

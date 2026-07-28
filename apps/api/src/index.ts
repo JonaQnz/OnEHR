@@ -7,17 +7,19 @@ import formRoutes from './routes/formRoutes';
 import templateRoutes from './routes/templateRoutes';
 import configRoutes from './routes/configRoutes';
 import { errorHandler } from './middleware/errorHandler';
+import pluginRoutes from './routes/pluginRoutes';
+import { loadConfiguredPlugins } from './plugins/pluginRegistry';
+import authRoutes from './routes/authRoutes';
+import { attachAuth } from './middleware/auth';
+import formSessionRoutes from './routes/formSessionRoutes';
+import dataProviderRoutes from './routes/dataProviderRoutes';
 
 dotenv.config();
 initConfig();
 
 // Axios Logging Interceptors for Deep Debugging
 axios.interceptors.request.use((config) => {
-  const isAuth = config.headers?.Authorization ? 'Bearer [hidden]' : 'None';
-  const hasBasic = config.auth ? `Basic [${config.auth.username}]` : 'None';
-  console.log(`\n[AXIOS REQUEST] ${config.method?.toUpperCase()} ${config.url}`);
-  console.log(`  Headers: ${JSON.stringify(config.headers)}`);
-  console.log(`  Auth: Keycloak=${isAuth}, Basic=${hasBasic}`);
+  console.debug(`[HTTP REQUEST] ${config.method?.toUpperCase() || 'GET'}`);
   return config;
 }, (error) => {
   console.error(`[AXIOS REQUEST ERROR]`, error.message);
@@ -25,23 +27,22 @@ axios.interceptors.request.use((config) => {
 });
 
 axios.interceptors.response.use((response) => {
-  console.log(`[AXIOS RESPONSE] ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url}`);
-  console.log(`  Data: ${JSON.stringify(response.data).substring(0, 1000)}`);
+  console.debug(`[HTTP RESPONSE] ${response.status} ${response.config.method?.toUpperCase() || 'GET'}`);
   return response;
 }, (error) => {
   if (error.response) {
-    console.error(`[AXIOS ERROR RESPONSE] ${error.response.status} ${error.config?.method?.toUpperCase()} ${error.config?.url}`);
-    console.error(`  Error Data: ${JSON.stringify(error.response.data)}`);
+    console.error(`[HTTP ERROR RESPONSE] ${error.response.status} ${error.config?.method?.toUpperCase() || 'GET'}`);
   } else {
-    console.error(`[AXIOS NETWORK ERROR] ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${error.message}`);
+    console.error(`[HTTP NETWORK ERROR] ${error.config?.method?.toUpperCase() || 'GET'} - ${error.message}`);
   }
   return Promise.reject(error);
 });
 
 const app = express();
 const port = process.env.PORT || 3001;
+app.use('/api', attachAuth);
 
-app.use(cors());
+app.use(cors({ origin: process.env.WEB_ORIGIN || 'http://localhost:3000', credentials: true }));
 app.use(express.json());
 
 // Incoming request logger middleware
@@ -50,14 +51,28 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use('/api/auth', authRoutes);
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+app.use('/api/form-sessions', formSessionRoutes);
+app.use('/api/data-providers', dataProviderRoutes);
 
 app.use('/api/forms', formRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/plugins', pluginRoutes);
 
-app.listen(port, () => {
-  console.log(`API Server running at http://localhost:${port}`);
+app.use(errorHandler);
+
+async function start() {
+  await loadConfiguredPlugins();
+  app.listen(port, () => {
+    console.log(`API Server running at http://localhost:${port}`);
+  });
+}
+
+void start().catch((error) => {
+  console.error('[PLUGIN STARTUP ERROR]', error);
+  process.exitCode = 1;
 });
