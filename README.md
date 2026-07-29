@@ -1,8 +1,8 @@
 # openEHR Clinical Form Builder
 
-An openEHR-first **Clinical Form Builder** designed to separate clinical semantics (openEHR), visual form presentation (drag-and-drop form builder), and EHRbase interoperability.
+An openEHR-first **Clinical Form Builder** MVP designed to separate clinical semantics (openEHR), visual form presentation (drag-and-drop form builder)
 
-This project enables clinical domain experts and developers to import openEHR WebTemplates, visually customize clinical forms with drag-and-drop controls, edit openEHR bindings, and export definitions to target formats such as **CambioForm v1.1**.
+This project enables clinical domain experts and developers to import openEHR WebTemplates, visually customize clinical forms with drag-and-drop controls, map attributes to openEHR models, and export definitions to target formats
 
 ---
 
@@ -11,7 +11,7 @@ This project enables clinical domain experts and developers to import openEHR We
 - **openEHR WebTemplate Integration**: Upload and parse openEHR WebTemplate JSON files into structured field registries.
 - **Auto-Generated Canonical Form Models**: Automatically initialize structured canonical forms from openEHR templates with sensible default layouts.
 - **Visual Drag-and-Drop Form Builder**: Interactive React canvas with support for multi-column layouts, nested fieldsets, input validations, and custom clinical form elements.
-- **openEHR Mapping Inspector**: Zuweisen and edit openEHR metadata attributes directly per form field.
+- **openEHR Mapping Inspector**: Edit openEHR metadata attributes directly per form field.
 - **CambioForm v1.1 Export**: Export form structures and mapping definitions into standard `CambioForm.v1.1` JSON format.
 - **Configurable EHRbase & Keycloak Integration**: Dynamic endpoint management for openEHR EHRbase REST APIs and Keycloak authentication.
 
