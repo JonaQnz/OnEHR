@@ -291,13 +291,15 @@ function workflowPayload(form: JsonObject, workflowSlug: string, ehrbaseUrl: str
 function submissionSettings(form: JsonObject, workflowId: string, urls: { internal: Record<string, string>; public: Record<string, string> }): JsonObject {
   const currentSettings = form.settings && typeof form.settings === 'object' && !Array.isArray(form.settings) ? form.settings as JsonObject : {};
   const enabled = Object.fromEntries(ALL_HOOKS.map((hook) => [hook, Boolean(urls.internal[hook])]));
+  const currentSubmission = currentSettings.submission && typeof currentSettings.submission === 'object' && !Array.isArray(currentSettings.submission) ? currentSettings.submission as JsonObject : {};
+  const hasSubmitHook = Boolean(urls.internal.submit);
   return {
     ...(form || {}),
     settings: {
       ...currentSettings,
       submission: {
-        mode: 'workflow',
-        providerId: 'n8n',
+        ...currentSubmission,
+        ...(hasSubmitHook ? { mode: 'workflow', providerId: 'n8n' } : { providerId: currentSubmission.providerId === 'n8n' ? 'ehrbase' : currentSubmission.providerId || 'ehrbase' }),
         workflow: { engine: 'n8n', workflowId, webhookUrl: urls.internal.submit, publicWebhookUrl: urls.public.submit, hooks: urls.internal, enabledHooks: enabled, version: '1' },
       },
     },

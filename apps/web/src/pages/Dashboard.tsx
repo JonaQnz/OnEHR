@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Plus, FileEdit, Download, Copy, UploadCloud, FolderOpen } from 'lucide-react';
+import { Search, Plus, FileEdit, Download, Copy, UploadCloud, FolderOpen, ExternalLink, Archive, RotateCcw, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 
 export default function Dashboard() {
   const [forms, setForms] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'draft' | 'published'>('all');
+  const [viewDeleted, setViewDeleted] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -52,6 +54,33 @@ export default function Dashboard() {
       });
   };
 
+  const handleArchive = (id: string) => {
+    if (!confirm('Are you sure you want to archive/shut off this version? It will no longer be active.')) return;
+    fetch(`http://localhost:3001/api/forms/${id}/archive`, { method: 'POST' })
+      .then(() => fetchForms());
+  };
+
+  const handleRestore = (id: string) => {
+    if (!confirm('Are you sure you want to restore this version? It will create a new draft from this layout.')) return;
+    fetch(`http://localhost:3001/api/forms/${id}/restore`, { method: 'POST' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.form) {
+          navigate(`/forms/${data.form.id}/builder`);
+        }
+      });
+  };
+
+  const handleDelete = (id: string) => {
+    if (!confirm('Are you sure you want to delete this form?')) return;
+    fetch(`http://localhost:3001/api/forms/${id}/delete`, { method: 'POST' })
+      .then(() => fetchForms());
+  };
+
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
+
   // Grouping logic: group by parent_id or id if parent_id is null.
   // Within a group, we sort by creation date desc to find the "latest".
   const groupedForms = forms.reduce((acc, form) => {
@@ -69,7 +98,12 @@ export default function Dashboard() {
   });
 
   const filteredForms = displayForms.filter(f => {
-    if (filter !== 'all' && f.status !== filter) return false;
+    if (viewDeleted) {
+      if (f.status !== 'deleted') return false;
+    } else {
+      if (f.status === 'deleted') return false;
+      if (filter !== 'all' && f.status !== filter) return false;
+    }
     if (searchQuery && !f.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
@@ -98,21 +132,31 @@ export default function Dashboard() {
             onChange={e => setSearchQuery(e.target.value)}
           />
         </div>
-        <select 
-          className="form-input" 
-          style={{ width: 'auto', minWidth: '150px' }}
-          value={filter}
-          onChange={e => setFilter(e.target.value as any)}
+        {!viewDeleted && (
+          <select 
+            className="form-input" 
+            style={{ width: 'auto', minWidth: '150px' }}
+            value={filter}
+            onChange={e => setFilter(e.target.value as any)}
+          >
+            <option value="all">All Statuses</option>
+            <option value="draft">Drafts</option>
+            <option value="published">Published</option>
+          </select>
+        )}
+        <button 
+          className={`btn ${viewDeleted ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setViewDeleted(!viewDeleted)}
         >
-          <option value="all">All Statuses</option>
-          <option value="draft">Drafts</option>
-          <option value="published">Published</option>
-        </select>
+          <Trash2 size={18} /> {viewDeleted ? 'Back to Forms' : 'Deleted Forms'}
+        </button>
       </div>
 
       <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
         <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>Existing Forms</h3>
+          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>
+            {viewDeleted ? 'Deleted Forms (Papierkorb)' : 'Existing Forms'}
+          </h3>
         </div>
         
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 1.5rem 1.5rem 1.5rem' }}>
@@ -124,47 +168,140 @@ export default function Dashboard() {
             </div>
           ) : (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {filteredForms.map((f: any) => (
-                <li key={f.id} style={{ padding: '1.25rem 0', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'background-color 0.2s', borderRadius: '8px' }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                >
-                  <div style={{ paddingLeft: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-                      <strong style={{ fontSize: '1.05rem', color: 'var(--text-main)' }}>{f.name}</strong>
-                      <span className={`badge ${f.status === 'published' ? 'badge-published' : 'badge-draft'}`}>
-                        {f.status}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                      <span>Version: <span style={{ fontWeight: 600 }}>v{f.version}</span></span>
-                      <span>•</span>
-                      <span>Last updated: {new Date(f.updatedAt).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', paddingRight: '0.5rem' }}>
-                    {f.status === 'draft' ? (
-                      <>
-                        <Link to={`/forms/${f.id}/builder`} className="btn btn-secondary btn-icon" title="Edit Draft">
-                          <FileEdit size={16} /> Edit
+              {filteredForms.map((f: any) => {
+                const groupId = f.parent_id || f.id;
+                const isExpanded = expandedGroups[groupId];
+                const history = groupedForms[groupId].filter((v: any) => v.id !== f.id).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+                return (
+                  <li key={groupId} style={{ borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ padding: '1.25rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'background-color 0.2s', borderRadius: '8px' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <div style={{ paddingLeft: '0.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        {history.length > 0 ? (
+                          <button onClick={() => toggleGroup(groupId)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                            {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                          </button>
+                        ) : (
+                          <div style={{ width: 20 }}></div>
+                        )}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+                            <strong style={{ fontSize: '1.05rem', color: 'var(--text-main)' }}>{f.name}</strong>
+                            <span className={`badge ${f.status === 'published' ? 'badge-published' : f.status === 'archived' ? 'badge-archived' : f.status === 'deleted' ? 'badge-archived' : 'badge-draft'}`}>
+                              {f.status}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                            <span>Version: <span style={{ fontWeight: 600 }}>v{f.version}</span></span>
+                            <span>•</span>
+                            <span>Last updated: {new Date(f.updatedAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem', paddingRight: '0.5rem' }}>
+                        {f.status === 'draft' && (
+                          <>
+                            <Link to={`/forms/${f.id}/builder`} className="btn btn-secondary btn-icon" title="Edit Draft">
+                              <FileEdit size={16} /> Edit
+                            </Link>
+                            <button className="btn btn-icon" onClick={() => handlePublish(f.id)} title="Publish Form">
+                              <UploadCloud size={16} /> Publish
+                            </button>
+                            <button className="btn btn-secondary btn-icon" onClick={() => handleDelete(f.id)} title="Delete Form" style={{ color: '#b91c1c' }}>
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
+                        {f.status === 'published' && (
+                          <>
+                            <Link to={`/live/${groupId}`} target="_blank" className="btn btn-secondary btn-icon" title="Open Live Form">
+                              <ExternalLink size={16} /> Live
+                            </Link>
+                            <button className="btn btn-secondary btn-icon" onClick={() => handleCreateDraft(f.id)} title="Create New Draft from Published">
+                              <Copy size={16} /> New Draft
+                            </button>
+                            <button className="btn btn-secondary btn-icon" onClick={() => handleArchive(f.id)} title="Archive / Shut Off">
+                              <Archive size={16} />
+                            </button>
+                            <button className="btn btn-secondary btn-icon" onClick={() => handleDelete(f.id)} title="Delete Form" style={{ color: '#b91c1c' }}>
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
+                        {f.status === 'archived' && (
+                          <>
+                            <button className="btn btn-secondary btn-icon" onClick={() => handleRestore(f.id)} title="Restore as Draft">
+                              <RotateCcw size={16} /> Restore
+                            </button>
+                            <button className="btn btn-secondary btn-icon" onClick={() => handleDelete(f.id)} title="Delete Form" style={{ color: '#b91c1c' }}>
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
+                        {f.status === 'deleted' && (
+                          <button className="btn btn-secondary btn-icon" onClick={() => handleRestore(f.id)} title="Restore as Draft">
+                            <RotateCcw size={16} /> Restore
+                          </button>
+                        )}
+                        <Link to={`/forms/${f.id}/export`} className="btn btn-secondary btn-icon" title="Export Form">
+                          <Download size={16} />
                         </Link>
-                        <button className="btn btn-icon" onClick={() => handlePublish(f.id)} title="Publish Form">
-                          <UploadCloud size={16} /> Publish
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button className="btn btn-secondary btn-icon" onClick={() => handleCreateDraft(f.id)} title="Create New Draft from Published">
-                          <Copy size={16} /> New Draft
-                        </button>
-                      </>
+                      </div>
+                    </div>
+                    
+                    {isExpanded && history.length > 0 && (
+                      <div style={{ padding: '0 0 1rem 3.5rem' }}>
+                        <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Version History</h4>
+                        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                          {history.map((v: any) => (
+                            <li key={v.id} style={{ padding: '0.75rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--border)' }}>
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                  <span style={{ fontSize: '0.95rem' }}>v{v.version}</span>
+                                  <span className={`badge ${v.status === 'published' ? 'badge-published' : v.status === 'archived' ? 'badge-archived' : v.status === 'deleted' ? 'badge-archived' : 'badge-draft'}`} style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem' }}>
+                                    {v.status}
+                                  </span>
+                                </div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>
+                                  {new Date(v.createdAt).toLocaleDateString()} {new Date(v.createdAt).toLocaleTimeString()}
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                {v.status === 'published' && (
+                                  <button className="btn btn-secondary btn-icon" onClick={() => handleArchive(v.id)} title="Archive">
+                                    <Archive size={14} />
+                                  </button>
+                                )}
+                                {v.status !== 'deleted' && (
+                                  <>
+                                    <button className="btn btn-secondary btn-icon" onClick={() => handleRestore(v.id)} title="Restore to new Draft">
+                                      <RotateCcw size={14} />
+                                    </button>
+                                    <button className="btn btn-secondary btn-icon" onClick={() => handleDelete(v.id)} title="Delete Form" style={{ color: '#b91c1c' }}>
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </>
+                                )}
+                                {v.status === 'deleted' && (
+                                  <button className="btn btn-secondary btn-icon" onClick={() => handleRestore(v.id)} title="Restore to new Draft">
+                                    <RotateCcw size={14} />
+                                  </button>
+                                )}
+                                <Link to={`/forms/${v.id}/export`} className="btn btn-secondary btn-icon" title="Export">
+                                  <Download size={14} />
+                                </Link>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
-                    <Link to={`/forms/${f.id}/export`} className="btn btn-secondary btn-icon" title="Export Form">
-                      <Download size={16} />
-                    </Link>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

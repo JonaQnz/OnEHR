@@ -92,6 +92,9 @@ export interface CanonicalForm {
     authors?: string;
     tags?: string[];
     submission?: FormSubmissionSettings;
+    ehrbase?: {
+      storageStrategy?: 'always_new' | 'update_latest';
+    };
   };
   sourceTemplates: Array<{
     alias: string;

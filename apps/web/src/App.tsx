@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Settings, Puzzle } from 'lucide-react';
+import { LayoutDashboard, Settings, Puzzle, UserRound } from 'lucide-react';
 import React from 'react';
 import Dashboard from './pages/Dashboard';
 import FormBuilder from './pages/FormBuilder';
@@ -8,6 +8,9 @@ import SessionRuntime from './pages/SessionRuntime';
 import Config from './pages/Config';
 import Login from './pages/Login';
 import Plugins from './pages/Plugins';
+import LiveForm from './pages/LiveForm';
+import PatientList from './pages/patients/PatientList';
+import PatientDetail from './pages/patients/PatientDetail';
 import { FrontendPluginProvider } from './components/FrontendPluginRegistry';
 import { registerFrontendPlugin as registerAqlPlugin } from 'formbuilder-plugin-aql-prefill';
 
@@ -59,6 +62,12 @@ function AppContent() {
             </Link>
           </li>
           <li>
+            <Link to="/patients" className={location.pathname.startsWith('/patients') ? 'active' : ''}>
+              <UserRound size={18} />
+              <span>Patienten</span>
+            </Link>
+          </li>
+          <li>
             <Link to="/config" className={location.pathname === '/config' ? 'active' : ''}>
               <Settings size={18} />
               <span>Settings</span>
@@ -75,6 +84,8 @@ function AppContent() {
       <main className="main-content">
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/patients" element={<PatientList />} />
+          <Route path="/patients/:id" element={<PatientDetail />} />
           <Route path="/config" element={<Config />} />
           <Route path="/plugins" element={<Plugins />} />
           <Route path="/forms/:id/export" element={<FormExport />} />
@@ -89,7 +100,10 @@ function App() {
   return (
     <Router>
       <FrontendPluginProvider plugins={[registerAqlPlugin]}>
-        <AuthGate><AppContent /></AuthGate>
+        <Routes>
+          <Route path="/live/:parentId" element={<LiveForm />} />
+          <Route path="*" element={<AuthGate><AppContent /></AuthGate>} />
+        </Routes>
       </FrontendPluginProvider>
     </Router>
   );

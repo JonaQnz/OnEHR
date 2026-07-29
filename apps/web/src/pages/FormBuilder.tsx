@@ -615,6 +615,23 @@ function FormBuilderContent() {
     setForm(updatedForm);
   };
 
+  const updateEhrbaseSetting = (key: string, value: any) => {
+    if (!formRef.current) return;
+    const updatedForm = { ...formRef.current };
+    updatedForm.canonical_json = {
+      ...updatedForm.canonical_json,
+      settings: {
+        ...(updatedForm.canonical_json.settings || {}),
+        ehrbase: {
+          ...(updatedForm.canonical_json.settings?.ehrbase || {}),
+          [key]: value
+        }
+      }
+    };
+    formRef.current = updatedForm;
+    setForm(updatedForm);
+  };
+
 
   const fetchForm = () => {
     fetch(`http://localhost:3001/api/forms/${id}`)
@@ -1837,6 +1854,22 @@ function FormBuilderContent() {
                                   />
                                   Show structural nodes in canvas
                                 </label>
+                              </div>
+
+                              <div className="inspector-field-group" style={{ marginTop: '1.5rem' }}>
+                                <label>Storage Strategy</label>
+                                <select 
+                                  className="inspector-select" 
+                                  value={form.canonical_json.settings?.ehrbase?.storageStrategy || 'update_latest'} 
+                                  onChange={(e) => updateEhrbaseSetting('storageStrategy', e.target.value)}
+                                  onBlur={() => handleSave(builderItems)}
+                                >
+                                  <option value="update_latest">Update Latest Composition (z.B. Stammdaten)</option>
+                                  <option value="always_new">Always Create New (z.B. Vitalparameter)</option>
+                                </select>
+                                <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+                                  Determine whether opening this form loads the patient's most recent composition and updates it, or always creates a new empty composition.
+                                </p>
                               </div>
                             </>
                           ) : (

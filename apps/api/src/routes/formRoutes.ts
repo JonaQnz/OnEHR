@@ -142,6 +142,98 @@ router.post('/:id/create-draft', asyncHandler(async (req, res) => {
   res.status(201).json({ message: 'Draft created', form: draft });
 }));
 
+router.post('/:id/restore', asyncHandler(async (req, res) => {
+  const formId = requireNonEmptyString(req.params.id, 'id');
+  const oldForm = await prisma.form.findUnique({ where: { id: formId } });
+  if (!oldForm) throw new HttpError(404, 'Form not found');
+  
+  const parentId = oldForm.parent_id || oldForm.id;
+  
+  // Find the latest version string to know what minor version to bump to
+  const allVersions = await prisma.form.findMany({ where: { parent_id: parentId } });
+  let maxMajor = 0;
+  let maxMinor = 0;
+  
+  allVersions.forEach(v => {
+    const match = v.version.match(/^(\d+)\.(\d+)\.(\d+)/);
+    if (match) {
+      const maj = parseInt(match[1]);
+      const min = parseInt(match[2]);
+      if (maj > maxMajor) { maxMajor = maj; maxMinor = min; }
+      else if (maj === maxMajor && min > maxMinor) { maxMinor = min; }
+    }
+  });
+
+  const newId = uuidv4();
+  const newVersion = `${maxMajor}.${maxMinor + 1}.0-draft`;
+
+  const canonicalForm = { ...(oldForm.canonical_json as any), id: newId, revision: 0, version: newVersion, status: 'draft' };
+  const restoredDraft = await prisma.form.create({
+    data: {
+      id: newId,
+      parent_id: parentId,
+      name: oldForm.name,
+      version: newVersion,
+      status: 'draft',
+      canonical_json: canonicalForm
+    }
+  });
+
+  res.status(201).json({ message: 'Restored as new draft', form: restoredDraft });
+}));
+
+router.post('/:id/archive', asyncHandler(async (req, res) => {
+  const formId = requireNonEmptyString(req.params.id, 'id');
+  const form = await prisma.form.findUnique({ where: { id: formId } });
+  if (!form) throw new HttpError(404, 'Form not found');
+  
+  const canonicalForm = { ...(form.canonical_json as any), status: 'archived' };
+  const archived = await prisma.form.update({
+    where: { id: formId },
+    data: { status: 'archived', canonical_json: canonicalForm }
+  });
+  
+  res.json({ message: 'Form archived', form: archived });
+}));
+
+router.post('/:id/delete', asyncHandler(async (req, res) => {
+  const formId = requireNonEmptyString(req.params.id, 'id');
+  const form = await prisma.form.findUnique({ where: { id: formId } });
+  if (!form) throw new HttpError(404, 'Form not found');
+  
+  const canonicalForm = { ...(form.canonical_json as any), status: 'deleted' };
+  const deleted = await prisma.form.update({
+    where: { id: formId },
+    data: { status: 'deleted', canonical_json: canonicalForm }
+  });
+  
+  res.json({ message: 'Form deleted', form: deleted });
+}));
+
+router.get('/parent/:parentId/latest-published', asyncHandler(async (req, res) => {
+  const parentId = requireNonEmptyString(req.params.parentId, 'parentId');
+  const forms = await prisma.form.findMany({
+    where: { parent_id: parentId, status: 'published' },
+    orderBy: { createdAt: 'desc' }
+  });
+  if (forms.length === 0) throw new HttpError(404, 'No active published form found');
+  
+  // Custom sort to find semver latest (or we just rely on createdAt)
+  const latest = forms[0];
+  const canonicalForm = migrateCanonicalFormToV1({ ...(latest.canonical_json as any), id: latest.id }, latest.id);
+  res.json({ ...latest, canonical_json: canonicalForm });
+}));
+
+router.get('/parent/:parentId/versions', asyncHandler(async (req, res) => {
+  const parentId = requireNonEmptyString(req.params.parentId, 'parentId');
+  const forms = await prisma.form.findMany({
+    where: { parent_id: parentId },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, parent_id: true, name: true, version: true, status: true, createdAt: true, updatedAt: true }
+  });
+  res.json(forms);
+}));
+
 router.get('/:id/export/cambio', asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
   const form = await prisma.form.findUnique({ where: { id: formId } });

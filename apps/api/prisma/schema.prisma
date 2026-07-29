@@ -55,4 +55,18 @@ model FormSession {
   @@map("form_sessions")
 }
 
+model Patient {
+  id               String   @id @default(uuid())
+  patientId        String   @map("patient_id")
+  patientNamespace String   @map("patient_namespace")
+  firstName        String   @map("first_name")
+  lastName         String   @map("last_name")
+  birthDate        String?  @map("birth_date")
+  gender           String?
+  ehrId            String   @unique @map("ehr_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
+  @@unique([patientNamespace, patientId])
+  @@map("patients")
+}

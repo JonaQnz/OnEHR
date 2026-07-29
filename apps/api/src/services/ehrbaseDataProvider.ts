@@ -356,6 +356,12 @@ export class EhrbaseDataProvider implements FormDataProvider {
       return this.handleError(error);
     }
     const id = templateId(input.form);
+
+    const strategy = (input.form.definition as any).settings?.ehrbase?.storageStrategy;
+    if (strategy === 'always_new') {
+      return { providerId: this.id, values: {}, metadata: { ehrId, templateId: id } };
+    }
+
     const wtTree = await getWebTemplateTree(id);
     let response: ProviderResponse;
     try {
@@ -392,10 +398,14 @@ export class EhrbaseDataProvider implements FormDataProvider {
     const options = await this.requestOptions();
 
     let versionUid: string | undefined;
-    const ref = (input as any).reference;
-    if (ref) {
-      const match = String(ref).match(/([0-9a-f-]{36}::[^/\s]+::\d+)/i) || String(ref).match(/([^/]+::[^/]+::\d+)$/);
-      if (match) versionUid = match[1];
+    const strategy = (input.form.definition as any).settings?.ehrbase?.storageStrategy;
+    
+    if (strategy !== 'always_new') {
+      const ref = (input as any).reference;
+      if (ref) {
+        const match = String(ref).match(/([0-9a-f-]{36}::[^/\s]+::\d+)/i) || String(ref).match(/([^/]+::[^/]+::\d+)$/);
+        if (match) versionUid = match[1];
+      }
     }
 
     try {
