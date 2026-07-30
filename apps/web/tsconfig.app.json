@@ -14,6 +14,12 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    "baseUrl": "../..",
+    "paths": {
+      "core": ["packages/core/src"],
+      "react-form-builder2": ["packages/react-form-builder2/types/index.d.ts"],
+      "formbuilder-plugin-aql-prefill": ["packages/aql-prefill-plugin/dist"]
+    },
 
     /* Linting */
     "strict": true,

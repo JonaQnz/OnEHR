@@ -1,4 +1,5 @@
 import { CanonicalForm } from '../canonical';
+import { FormScriptDocument, normalizeFormScript } from '../form-scripting';
 
 export const FORM_DEFINITION_SCHEMA_VERSION = '1.0' as const;
 
@@ -9,6 +10,7 @@ export interface FormDefinitionV1 extends CanonicalForm {
   schemaVersion: typeof FORM_DEFINITION_SCHEMA_VERSION;
   revision: number;
   extensions: Record<string, JsonValue>;
+  formScript: FormScriptDocument;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -39,11 +41,16 @@ export function migrateCanonicalFormToV1(input: unknown, idOverride?: string): F
     throw new Error('"extensions" must be an object');
   }
 
-  return {
+  const definition = {
     ...(input as unknown as CanonicalForm),
     ...(idOverride ? { id: idOverride } : {}),
     schemaVersion: FORM_DEFINITION_SCHEMA_VERSION,
     revision: revision as number,
     extensions: extensions as Record<string, JsonValue>,
+  };
+
+  return {
+    ...definition,
+    formScript: normalizeFormScript(input.formScript, definition),
   };
 }

@@ -12,7 +12,14 @@ export interface RuntimeFieldDescriptor {
   required: boolean; readOnly: boolean; options: RuntimeOption[]; unitOptions: RuntimeUnitOption[];
   validation?: { min?: number; max?: number; regex?: string }; visibility?: unknown;
   repeatable: boolean; repeatMin: number; repeatMax: number; defaultValue?: RuntimeJsonValue;
+  repeatableGroupId?: string;
   aqlPath?: string; binding?: any; semanticType?: string; archetypeNodeId?: string;
+}
+export interface RuntimeGroupDescriptor {
+  id: string;
+  label: string;
+  repeatMin: number;
+  repeatMax: number;
 }
 export interface RuntimeValidationIssue {
   path: string;
@@ -21,16 +28,32 @@ export interface RuntimeValidationIssue {
 }
 export interface RuntimeValidationResult { valid: boolean; issues: RuntimeValidationIssue[]; }
 
-const NON_FIELD_TYPES = new Set(['form', 'container', 'row', 'column', 'header', 'paragraph', 'line-break']);
+const NON_FIELD_TYPES = new Set([
+  'form',
+  'container',
+  'row',
+  'column',
+  'header',
+  'paragraph',
+  'line-break',
+  'button',
+  'section',
+  'tab',
+  'alert',
+  'text',
+]);
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const nodeId = (node: FormElementLayout): string | undefined => node.id || node.name;
 
-function walk(node: FormElementLayout, visit: (node: FormElementLayout) => void): void {
-  visit(node);
-  node.children?.forEach((child) => walk(child, visit));
+function walk(node: FormElementLayout, visit: (node: FormElementLayout, repeatableGroupId?: string) => void, repeatableGroupId?: string): void {
+  visit(node, repeatableGroupId);
+  const childGroupId = node.type === 'container' && node.repeatable === true && nodeId(node)
+    ? nodeId(node)
+    : repeatableGroupId;
+  node.children?.forEach((child) => walk(child, visit, childGroupId));
 }
 
-function toDescriptor(node: FormElementLayout): RuntimeFieldDescriptor {
+function toDescriptor(node: FormElementLayout, repeatableGroupId?: string): RuntimeFieldDescriptor {
   const id = nodeId(node) as string;
   const defaultValue = node.defaultValue !== undefined ? node.defaultValue : node.default_value;
   return {
@@ -40,6 +63,7 @@ function toDescriptor(node: FormElementLayout): RuntimeFieldDescriptor {
     unitOptions: (node.unitOptions || []).map((option) => typeof option === 'string' ? { unit: option } : { ...option }),
     validation: node.validation, visibility: node.visibility ?? node.enableWhen,
     repeatable: node.repeatable === true, repeatMin: node.repeatMin ?? 0, repeatMax: node.repeatMax ?? -1,
+    ...(repeatableGroupId ? { repeatableGroupId } : {}),
     aqlPath: (node as any).aqlPath || (node as any).path || (node as any).webTemplatePath,
     binding: node.binding, semanticType: node.semanticType, archetypeNodeId: node.archetypeNodeId,
     ...(defaultValue !== undefined ? { defaultValue: defaultValue as RuntimeJsonValue } : {}),
@@ -48,14 +72,41 @@ function toDescriptor(node: FormElementLayout): RuntimeFieldDescriptor {
 
 export function collectRuntimeFields(form: Pick<CanonicalForm, 'layout'>): RuntimeFieldDescriptor[] {
   const fields: RuntimeFieldDescriptor[] = [];
-  walk(form.layout, (node) => { if (nodeId(node) && !NON_FIELD_TYPES.has(node.type)) fields.push(toDescriptor(node)); });
+  walk(form.layout, (node, repeatableGroupId) => {
+    if (nodeId(node) && !NON_FIELD_TYPES.has(node.type)) fields.push(toDescriptor(node, repeatableGroupId));
+  });
   return fields;
+}
+
+export function collectRuntimeGroups(form: Pick<CanonicalForm, 'layout'>): RuntimeGroupDescriptor[] {
+  const groups: RuntimeGroupDescriptor[] = [];
+  walk(form.layout, (node) => {
+    const id = nodeId(node);
+    if (node.type === 'container' && node.repeatable === true && id) {
+      groups.push({
+        id,
+        label: node.label || node.name || id,
+        repeatMin: node.repeatMin ?? 0,
+        repeatMax: node.repeatMax ?? -1,
+      });
+    }
+  });
+  return groups;
 }
 
 export function createInitialRuntimeValues(form: Pick<CanonicalForm, 'layout'>): RuntimeValues {
   const values: RuntimeValues = {};
-  collectRuntimeFields(form).forEach((field) => {
-    if (field.defaultValue !== undefined) values[field.id] = field.repeatable ? [field.defaultValue] : field.defaultValue;
+  const fields = collectRuntimeFields(form);
+  collectRuntimeGroups(form).forEach((group) => {
+    const itemDefaults: Record<string, RuntimeJsonValue> = {};
+    fields.filter((field) => field.repeatableGroupId === group.id && field.defaultValue !== undefined).forEach((field) => {
+      itemDefaults[field.id] = field.repeatable ? [field.defaultValue as RuntimeJsonValue] : field.defaultValue as RuntimeJsonValue;
+    });
+    values[group.id] = Array.from({ length: group.repeatMin }, () => ({ ...itemDefaults }));
+  });
+  fields.forEach((field) => {
+    if (field.repeatableGroupId || field.defaultValue === undefined) return;
+    values[field.id] = field.repeatable ? [field.defaultValue] : field.defaultValue;
   });
   return values;
 }
@@ -125,8 +176,43 @@ function validateOne(field: RuntimeFieldDescriptor, value: RuntimeValue, path: s
 
 export function validateRuntimeValues(form: Pick<CanonicalForm, 'layout'>, values: RuntimeValues): RuntimeValidationResult {
   const issues: RuntimeValidationIssue[] = [];
+  const groups = new Map(collectRuntimeGroups(form).map((group) => [group.id, group]));
+  groups.forEach((group) => {
+    const repeated = values[group.id] === undefined ? [] : values[group.id];
+    if (!Array.isArray(repeated)) {
+      issue(issues, group.id, 'type', `${group.label} requires repeated group entries.`);
+      return;
+    }
+    if (repeated.length < group.repeatMin) issue(issues, group.id, 'repeat-min', `${group.label} requires at least ${group.repeatMin} entries.`);
+    if (group.repeatMax !== -1 && repeated.length > group.repeatMax) issue(issues, group.id, 'repeat-max', `${group.label} allows at most ${group.repeatMax} entries.`);
+  });
   collectRuntimeFields(form).forEach((field) => {
     if (!isRuntimeFieldVisible(field, values)) return;
+    if (field.repeatableGroupId) {
+      const repeated = values[field.repeatableGroupId];
+      if (!Array.isArray(repeated)) return;
+      repeated.forEach((item, index) => {
+        if (!isRecord(item)) {
+          issue(issues, `${field.repeatableGroupId}[${index}]`, 'type', `${groups.get(field.repeatableGroupId as string)?.label || field.repeatableGroupId} requires object entries.`);
+          return;
+        }
+        const value = item[field.id] as RuntimeValue;
+        const path = `${field.repeatableGroupId}[${index}].${field.id}`;
+        if (!field.repeatable) {
+          validateOne(field, value, path, issues);
+          return;
+        }
+        const fieldRepeated = value === undefined ? [] : value;
+        if (!Array.isArray(fieldRepeated)) {
+          issue(issues, path, 'type', `${field.label} requires repeated values.`);
+          return;
+        }
+        if (fieldRepeated.length < field.repeatMin) issue(issues, path, 'repeat-min', `${field.label} requires at least ${field.repeatMin} entries.`);
+        if (field.repeatMax !== -1 && fieldRepeated.length > field.repeatMax) issue(issues, path, 'repeat-max', `${field.label} allows at most ${field.repeatMax} entries.`);
+        fieldRepeated.forEach((entry, entryIndex) => validateOne(field, entry, `${path}[${entryIndex}]`, issues));
+      });
+      return;
+    }
     const value = values[field.id];
     if (!field.repeatable) { validateOne(field, value, field.id, issues); return; }
     const repeated = value === undefined ? [] : value;

@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
   EhrbaseDataProvider,
+  EhrbaseProviderError,
   fromEhrbaseFlatComposition,
   toEhrbaseFlatComposition,
 } = require('../dist/services/ehrbaseDataProvider');
@@ -64,4 +65,71 @@ test('resolves the patient EHR and uses templateId for load and submit', async (
   assert.equal(submitted.reference, '/ehr/ehr-1/composition/v2');
   assert.equal(calls[3].options.params.templateId, 'vitals.v1');
   assert.equal(calls[3].body['vitals/name'], 'Grace');
+});
+
+test('prefers the trusted patient-registry EHR ID over subject lookup', async () => {
+  const calls = [];
+  const http = {
+    async get(url, options) {
+      calls.push({ method: 'GET', url, options });
+      return { data: [] };
+    },
+    async post() {
+      throw new Error('not used');
+    },
+  };
+  const provider = new EhrbaseDataProvider({
+    http,
+    config: {
+      ehrbaseUrl: 'http://ehrbase/rest/openehr/v1',
+      ehrbaseUser: 'admin',
+      ehrbasePass: 'secret',
+      authMode: 'basic',
+      defaultEhrId: 'wrong-default-ehr',
+    },
+  });
+
+  const loaded = await provider.load({
+    context: {
+      patientId: 'asdas',
+      patientNamespace: 'default',
+      ehrId: '3bfb00d8-62f0-4fd5-abbc-a37c9cd4fc5a',
+      userId: 'alice',
+    },
+    form: { id: 'form-1', version: '1.0.0', definition: definition() },
+  });
+
+  assert.equal(loaded.metadata.ehrId, '3bfb00d8-62f0-4fd5-abbc-a37c9cd4fc5a');
+  assert.match(calls[0].url, /\/ehr\/3bfb00d8-62f0-4fd5-abbc-a37c9cd4fc5a\/composition$/);
+  assert.equal(calls.some((call) => call.options?.params?.subject_id === 'asdas'), false);
+});
+
+test('does not silently submit a known patient to the configured default EHR', async () => {
+  const provider = new EhrbaseDataProvider({
+    http: {
+      async get() {
+        const error = new Error('not found');
+        error.response = { status: 404 };
+        throw error;
+      },
+      async post() {
+        throw new Error('not used');
+      },
+    },
+    config: {
+      ehrbaseUrl: 'http://ehrbase/rest/openehr/v1',
+      ehrbaseUser: 'admin',
+      ehrbasePass: 'secret',
+      authMode: 'basic',
+      defaultEhrId: 'default-ehr',
+    },
+  });
+
+  await assert.rejects(
+    provider.load({
+      context: { patientId: 'missing-patient', userId: 'alice' },
+      form: { id: 'form-1', version: '1.0.0', definition: definition() },
+    }),
+    (error) => error instanceof EhrbaseProviderError && error.code === 'PATIENT_EHR_NOT_FOUND',
+  );
 });

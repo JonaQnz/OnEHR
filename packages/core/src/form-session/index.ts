@@ -26,6 +26,7 @@ export interface FormSession {
   formVersion: string;
   patientId: string;
   patientNamespace?: string;
+  ehrId?: string;
   userId: string;
   authMode: UserAuthMode;
   status: FormSessionStatus;

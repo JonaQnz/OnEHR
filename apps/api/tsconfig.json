@@ -8,7 +8,12 @@
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "baseUrl": "../..",
+    "paths": {
+      "core": ["packages/core/dist"],
+      "plugin-api": ["packages/plugin-api/dist"]
+    }
   },
   "include": ["src/**/*"]
 }

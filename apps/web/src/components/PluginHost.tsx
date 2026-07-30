@@ -127,7 +127,7 @@ export default function PluginHost({ slot, context = {}, title, scope, onResult,
     void loadGlobalSettings().catch(() => { if (active) setGlobalWebhookKeys(new Set<string>()); });
     return () => { active = false; };
   }, [snapshot, slot, scope]);
-  const contributions = useMemo(() => (snapshot?.contributions || []).filter((item) => item.extensionPoint === slot && (!scope || item.scope === scope || (scope === 'form' && !item.scope))), [snapshot, slot, scope]);
+  const contributions = useMemo(() => (snapshot?.contributions || []).filter((item) => item.extensionPoint === slot && item.placement !== 'hidden' && (!scope || item.scope === scope || (scope === 'form' && !item.scope))), [snapshot, slot, scope]);
   const submission = objectValue(readPath(context.form || {}, 'settings.submission'));
   const isN8nForm = submission.mode === 'workflow' && submission.providerId === 'n8n';
 

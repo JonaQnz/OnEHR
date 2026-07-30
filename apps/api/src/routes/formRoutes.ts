@@ -7,8 +7,59 @@ import { asyncHandler, HttpError } from '../middleware/errorHandler';
 import { normalizeCanonicalFormPayload, requireNonEmptyString } from '../validation/formValidation';
 import { FORM_DEFINITION_SCHEMA_VERSION, migrateCanonicalFormToV1 } from 'core';
 import { pluginRegistry } from '../plugins/pluginRegistry';
+import {
+  FormScriptCompileResult,
+  compileFormDefinitionScript,
+  compileFormScript,
+} from '../scripting/formScriptCompiler';
+import {
+  hydrateFormScriptConnectors,
+  ScriptConnectorError,
+} from '../services/scriptConnectorRegistry';
+import { requireAuth } from '../middleware/auth';
+import {
+  FormScriptAiError,
+  formScriptAiRateLimiter,
+  generateFormScriptCandidate,
+} from '../scripting/formScriptAiService';
 
 const router = Router();
+
+function assertScriptCompiles(result: FormScriptCompileResult): void {
+  if (result.valid) return;
+  throw new HttpError(422, 'Das Form Script enthält TypeScript- oder Sicherheitsfehler.', {
+    code: 'FORM_SCRIPT_INVALID',
+    messages: result.document.diagnostics.map((diagnostic) => ({
+      severity: diagnostic.severity,
+      code: String(diagnostic.code),
+      path: diagnostic.line
+        ? `form-script.ts:${diagnostic.line}:${diagnostic.column || 1}`
+        : 'form-script.ts',
+      message: diagnostic.message,
+    })),
+  });
+}
+
+function prepareConnectors(definition: ReturnType<typeof migrateCanonicalFormToV1>, allowedOverride?: string[]) {
+  try {
+    return hydrateFormScriptConnectors(definition, allowedOverride);
+  } catch (error) {
+    if (error instanceof ScriptConnectorError) {
+      throw new HttpError(error.status, error.message, {
+        code: error.code,
+        messages: [{ severity: 'error', code: error.code, path: 'formScript.connectors', message: error.message }],
+      });
+    }
+    throw error;
+  }
+}
+
+function prepareNewDefinition(input: Record<string, unknown>, formId: string) {
+  const definition = prepareConnectors(migrateCanonicalFormToV1(input, formId));
+  const compilation = compileFormDefinitionScript(definition);
+  assertScriptCompiles(compilation);
+  return { ...definition, formScript: compilation.document };
+}
 
 function createCanonicalForm(template: any, formId: string, formName?: string) {
   const registryData = template.parsed_registry_json as any;
@@ -25,7 +76,7 @@ function createCanonicalForm(template: any, formId: string, formName?: string) {
     localesEn[`[name='${field.fieldName}']`] = { label: field.label };
   });
 
-  return {
+  return prepareNewDefinition({
     id: formId,
     name: formName || template.template_id,
     version: '0.1.0-draft',
@@ -36,7 +87,7 @@ function createCanonicalForm(template: any, formId: string, formName?: string) {
     layout,
     bindings,
     locales: { en: localesEn },
-  };
+  }, formId);
 }
 
 router.get('/', asyncHandler(async (_req, res) => {
@@ -46,7 +97,7 @@ router.get('/', asyncHandler(async (_req, res) => {
 router.post('/', asyncHandler(async (req, res) => {
   const name = req.body?.name === undefined ? 'New Form' : requireNonEmptyString(req.body.name, 'name');
   const id = uuidv4();
-  const canonicalForm = { id, name, version: '0.1.0-draft', schemaVersion: FORM_DEFINITION_SCHEMA_VERSION, revision: 0, extensions: {}, sourceTemplates: [], layout: { type: 'form', children: [{ type: 'container', children: [] }] }, bindings: {}, locales: { en: {} } };
+  const canonicalForm = prepareNewDefinition({ id, name, version: '0.1.0-draft', schemaVersion: FORM_DEFINITION_SCHEMA_VERSION, revision: 0, extensions: {}, sourceTemplates: [], layout: { type: 'form', children: [{ type: 'container', children: [] }] }, bindings: {}, locales: { en: {} } }, id);
   const form = await prisma.form.create({ data: { id, parent_id: id, name, version: canonicalForm.version, status: 'draft', canonical_json: canonicalForm as any } });
   res.status(201).json({ message: 'Empty form created', form });
 }));
@@ -60,7 +111,18 @@ router.post('/:id/apply-template', asyncHandler(async (req, res) => {
   if (!template) throw new HttpError(404, 'Template not found');
 
   const current = formRecord.canonical_json as any;
-  const canonicalForm = { ...createCanonicalForm(template, formRecord.id, current.name || formRecord.name), status: current.status || formRecord.status, settings: current.settings };
+  let canonicalForm = {
+    ...createCanonicalForm(template, formRecord.id, current.name || formRecord.name),
+    status: current.status || formRecord.status,
+    settings: current.settings,
+    extensions: current.extensions || {},
+    revision: (current.revision ?? 0) + 1,
+    ...(current.formScript ? { formScript: current.formScript } : {}),
+  };
+  canonicalForm = prepareConnectors(migrateCanonicalFormToV1(canonicalForm, formRecord.id)) as any;
+  const compilation = compileFormDefinitionScript(canonicalForm);
+  assertScriptCompiles(compilation);
+  canonicalForm.formScript = compilation.document;
   const form = await prisma.form.update({ where: { id: formRecord.id }, data: { canonical_json: canonicalForm as any, name: canonicalForm.name, version: canonicalForm.version } });
   res.json({ message: 'Template applied', form });
 }));
@@ -84,10 +146,100 @@ router.get('/:id', asyncHandler(async (req, res) => {
   res.json({ ...form, canonical_json: canonicalForm });
 }));
 
+router.post('/:id/script/check', asyncHandler(async (req, res) => {
+  const formId = requireNonEmptyString(req.params.id, 'id');
+  if (typeof req.body?.source !== 'string') throw new HttpError(400, '"source" must be a string');
+  const source = req.body.source;
+  const stored = await prisma.form.findUnique({ where: { id: formId } });
+  if (!stored) throw new HttpError(404, 'Form not found');
+  const allowedOperations = req.body?.allowedOperations === undefined
+    ? undefined
+    : Array.isArray(req.body.allowedOperations)
+      ? req.body.allowedOperations.filter((item: unknown): item is string => typeof item === 'string')
+      : (() => { throw new HttpError(400, '"allowedOperations" must be a string array'); })();
+  const definition = prepareConnectors(
+    migrateCanonicalFormToV1({ ...(stored.canonical_json as any), id: stored.id }, stored.id),
+    allowedOperations,
+  );
+  const result = compileFormScript(definition, source);
+  res.json(result);
+}));
+
+router.post('/:id/script/generate', requireAuth, asyncHandler(async (req, res) => {
+  const formId = requireNonEmptyString(req.params.id, 'id');
+  if (typeof req.body?.source !== 'string') throw new HttpError(400, '"source" must be a string');
+  if (typeof req.body?.instruction !== 'string') throw new HttpError(400, '"instruction" must be a string');
+  const allowedOperations = req.body?.allowedOperations === undefined
+    ? undefined
+    : Array.isArray(req.body.allowedOperations)
+      ? req.body.allowedOperations.filter((item: unknown): item is string => typeof item === 'string')
+      : (() => { throw new HttpError(400, '"allowedOperations" must be a string array'); })();
+  const stored = await prisma.form.findUnique({ where: { id: formId } });
+  if (!stored) throw new HttpError(404, 'Form not found');
+
+  const userId = req.auth?.id || 'anonymous';
+  const definition = prepareConnectors(
+    migrateCanonicalFormToV1({ ...(stored.canonical_json as any), id: stored.id }, stored.id),
+    allowedOperations,
+  );
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  req.once('aborted', abort);
+  const startedAt = Date.now();
+  try {
+    formScriptAiRateLimiter.assertAllowed(`${userId}:${formId}`);
+    const candidate = await generateFormScriptCandidate(
+      definition,
+      req.body.source,
+      req.body.instruction,
+      undefined,
+      controller.signal,
+    );
+    console.info('[FORM SCRIPT AI]', {
+      formId,
+      userId,
+      durationMs: Date.now() - startedAt,
+      valid: candidate.valid,
+      status: 'success',
+    });
+    res.json(candidate);
+  } catch (error) {
+    console.warn('[FORM SCRIPT AI]', {
+      formId,
+      userId,
+      durationMs: Date.now() - startedAt,
+      status: controller.signal.aborted ? 'aborted' : 'error',
+      code: error instanceof FormScriptAiError ? error.code : 'FORM_SCRIPT_AI_FAILED',
+    });
+    if (error instanceof FormScriptAiError) {
+      throw new HttpError(error.status, error.message, {
+        code: error.code,
+        messages: [{
+          severity: 'error',
+          code: error.code,
+          path: 'formScript.ai',
+          message: error.message,
+        }],
+      });
+    }
+    throw error;
+  } finally {
+    req.removeListener('aborted', abort);
+  }
+}));
+
 router.put('/:id', asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
+  const stored = await prisma.form.findUnique({ where: { id: formId } });
+  if (!stored) throw new HttpError(404, 'Form not found');
   const beforeSave = await pluginRegistry.runHook('beforeFormSave', { form: (req.body || {}) as Record<string, any>, data: (req.body || {}) as Record<string, any>, formId });
-  const canonicalForm = normalizeCanonicalFormPayload(beforeSave.data || req.body, formId);
+  let canonicalForm = normalizeCanonicalFormPayload(beforeSave.data || req.body, formId);
+  const storedDefinition = migrateCanonicalFormToV1(stored.canonical_json, formId);
+  canonicalForm.revision = storedDefinition.revision + 1;
+  canonicalForm = prepareConnectors(canonicalForm);
+  const compilation = compileFormDefinitionScript(canonicalForm);
+  assertScriptCompiles(compilation);
+  canonicalForm.formScript = compilation.document;
   const form = await prisma.form.update({ where: { id: formId }, data: { canonical_json: canonicalForm as any, name: canonicalForm.name, version: canonicalForm.version, status: canonicalForm.status || 'draft' } });
   await pluginRegistry.runHook('afterFormSave', { form: canonicalForm as Record<string, any>, data: canonicalForm as Record<string, any>, formId });
   res.json(form);
@@ -106,10 +258,20 @@ router.post('/:id/publish', asyncHandler(async (req, res) => {
     newVersion = `${match[1] === '0' ? '1' : match[1]}.${match[2]}.${match[3]}`;
   }
   
-  const canonicalForm = { ...(form.canonical_json as any), schemaVersion: (form.canonical_json as any).schemaVersion || FORM_DEFINITION_SCHEMA_VERSION, revision: (form.canonical_json as any).revision ?? 0, extensions: (form.canonical_json as any).extensions || {}, version: newVersion, status: 'published' };
+  const canonicalForm = prepareConnectors(migrateCanonicalFormToV1({
+    ...(form.canonical_json as any),
+    schemaVersion: (form.canonical_json as any).schemaVersion || FORM_DEFINITION_SCHEMA_VERSION,
+    revision: ((form.canonical_json as any).revision ?? 0) + 1,
+    extensions: (form.canonical_json as any).extensions || {},
+    version: newVersion,
+    status: 'published',
+  }, formId));
+  const compilation = compileFormDefinitionScript(canonicalForm);
+  assertScriptCompiles(compilation);
+  canonicalForm.formScript = compilation.document;
   const published = await prisma.form.update({ 
     where: { id: formId }, 
-    data: { status: 'published', version: newVersion, canonical_json: canonicalForm } 
+    data: { status: 'published', version: newVersion, canonical_json: canonicalForm as any }
   });
   res.json({ message: 'Form published', form: published });
 }));

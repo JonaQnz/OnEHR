@@ -14,6 +14,7 @@ import { attachAuth } from './middleware/auth';
 import formSessionRoutes from './routes/formSessionRoutes';
 import dataProviderRoutes from './routes/dataProviderRoutes';
 import patientRoutes from './routes/patientRoutes';
+import scriptConnectorRoutes from './routes/scriptConnectorRoutes';
 
 dotenv.config();
 initConfig();
@@ -59,6 +60,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/form-sessions', formSessionRoutes);
 app.use('/api/data-providers', dataProviderRoutes);
 app.use('/api/patients', patientRoutes);
+app.use('/api/script-connectors', scriptConnectorRoutes);
 
 app.use('/api/forms', formRoutes);
 app.use('/api/templates', templateRoutes);

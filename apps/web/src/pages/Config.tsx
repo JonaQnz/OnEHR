@@ -20,14 +20,17 @@ export default function Config() {
     keycloakClientId: '',
     keycloakGrantType: 'password',
     mappingServiceApi: '',
-    defaultEhrId: ''
+    defaultEhrId: '',
+    scriptAiBaseUrl: '',
+    scriptAiApiKey: '',
+    scriptAiModel: ''
   });
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/config')
+    fetch('http://localhost:3001/api/config', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         setConfig(data);
@@ -53,10 +56,15 @@ export default function Config() {
 
     fetch('http://localhost:3001/api/config', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config)
     })
-      .then(res => res.json())
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        return data;
+      })
       .then(data => {
         setConfig(data.config);
         setMessage('Configuration saved successfully!');
@@ -135,7 +143,52 @@ export default function Config() {
         <PluginSettingsHost title="Globale Plugin Settings" />
       </div>
       <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        
+
+        <div className="card">
+          <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '1.25rem', fontSize: '1.1rem' }}>Form Script AI</h3>
+          <p style={{ color: 'var(--text-muted)', marginTop: 0 }}>
+            Optional OpenAI-compatible code generation. Every proposal is checked server-side and shown as a diff before it can replace the visible TypeScript source.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label className="form-label">Chat Completions Base URL</label>
+              <input
+                type="url"
+                name="scriptAiBaseUrl"
+                value={config.scriptAiBaseUrl || ''}
+                onChange={handleChange}
+                className="form-input"
+                placeholder="https://api.openai.com/v1"
+              />
+            </div>
+            <div>
+              <label className="form-label">Model</label>
+              <input
+                type="text"
+                name="scriptAiModel"
+                value={config.scriptAiModel || ''}
+                onChange={handleChange}
+                className="form-input"
+                placeholder="Provider model id"
+              />
+            </div>
+            <div>
+              <label className="form-label">API key</label>
+              <input
+                type="password"
+                name="scriptAiApiKey"
+                value={config.scriptAiApiKey || ''}
+                className="form-input"
+                readOnly
+                placeholder="Set via environment"
+              />
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Server-only via FORM_SCRIPT_AI_API_KEY or OPENAI_API_KEY; it is never persisted or sent to the browser.
+              </span>
+            </div>
+          </div>
+        </div>
+
         <div className="card">
           <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '1.25rem', fontSize: '1.1rem' }}>openEHR Server (EHRbase)</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>

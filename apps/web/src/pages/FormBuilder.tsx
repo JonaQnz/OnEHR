@@ -13,6 +13,9 @@ import { canonicalToFormBuilder, formBuilderToCanonical, getElementText } from '
 import { validateForm, exportToOpenEhrFlatJson, getInstanceTitle } from '../utils/formStateHelper';
 import PluginHost from '../components/PluginHost';
 import { AqlPrefillEditor } from 'formbuilder-plugin-aql-prefill';
+import FormRuntime from '../components/FormRuntime';
+import ScriptEditor from '../scripting/editor/ScriptEditor';
+import ScriptLogs from '../scripting/editor/ScriptLogs';
 
 // Draggable node for openEHR Template tree fields
 function DraggableFieldNode({ field, inForm }: { field: any; inForm: boolean }) {
@@ -334,7 +337,8 @@ function DraggableLayoutNode({ item }: { item: any }) {
           col_count: data.col_count,
           class_name: data.class_name,
           options: data.options || [],
-          field_name: data.field_name ? data.field_name + Math.random().toString(36).substr(2, 4) : 'layout_'
+          field_name: data.field_name ? data.field_name + Math.random().toString(36).substr(2, 4) : 'layout_',
+          custom_metadata: data.custom_metadata || {}
         };
       }
     }),
@@ -401,8 +405,8 @@ function FormBuilderContent() {
   // Store the library's updateElement fn (used to propagate changes back into the canvas store)
   const updateElementFnRef = React.useRef<((elem: any) => void) | null>(null);
 
-  // Preview toggle: 'edit' | 'clinical' | 'export'
-  const [previewMode, setPreviewMode] = useState<'edit' | 'clinical' | 'export'>('edit');
+  // One integrated workbench per form: Designer | Preview | TypeScript | Logs
+  const [previewMode, setPreviewMode] = useState<'edit' | 'runtime' | 'typescript' | 'logs' | 'clinical' | 'export'>('edit');
   // Warnings Drawer toggle
   const [warningsOpen, setWarningsOpen] = useState(false);
 
@@ -930,6 +934,7 @@ function FormBuilderContent() {
     { key: 'ThreeColumnRow', element: 'ThreeColumnRow', name: '3-Column Row', icon: 'fas fa-columns', label: '' },
     { key: 'Header', element: 'Header', name: 'Header / Title', icon: 'fas fa-heading', static: true, content: 'Section Header' },
     { key: 'Paragraph', element: 'Paragraph', name: 'Paragraph / Text', icon: 'fas fa-paragraph', static: true, content: 'Layout text description...' },
+    { key: 'Button', element: 'HyperLink', name: 'Action Button', icon: 'fas fa-bolt', label: 'Aktion', field_name: 'action_', custom_metadata: { type: 'button' } },
     { key: 'LineBreak', element: 'LineBreak', name: 'Divider Line', icon: 'fas fa-arrows-alt-h', static: true }
   ];
 
@@ -1050,12 +1055,12 @@ function FormBuilderContent() {
           </div>
         </div>
         <div className="workbench-actions-area">
-          <button
-            className="btn-workbench secondary"
-            onClick={() => setPreviewMode(previewMode === 'edit' ? 'clinical' : 'edit')}
-          >
-            {previewMode === 'edit' ? '👁 Preview' : '← Editor'}
-          </button>
+          <nav className="workbench-view-tabs" aria-label="Formular-Arbeitsbereich">
+            <button type="button" className={`btn-workbench secondary ${previewMode === 'edit' ? 'active' : ''}`} onClick={() => setPreviewMode('edit')}>Designer</button>
+            <button type="button" className={`btn-workbench secondary ${previewMode === 'runtime' ? 'active' : ''}`} onClick={() => setPreviewMode('runtime')}>Preview</button>
+            <button type="button" className={`btn-workbench secondary ${previewMode === 'typescript' ? 'active' : ''}`} onClick={() => setPreviewMode('typescript')}>TypeScript</button>
+            <button type="button" className={`btn-workbench secondary ${previewMode === 'logs' ? 'active' : ''}`} onClick={() => setPreviewMode('logs')}>Logs</button>
+          </nav>
           <button
             className="btn-workbench success"
             onClick={() => handleSave({ task_data: builderItems })}
@@ -1068,18 +1073,35 @@ function FormBuilderContent() {
           >
             Export ↗
           </button>
-          <button
-            className="btn-workbench secondary"
-            onClick={() => navigate(`/forms/${id}/runtime`)}
-          >
-            Runtime ▶
-          </button>
         </div>
       </header>
 
       {/* Main Panels Area */}
       <div className="workbench-panels">
-        {previewMode === 'edit' ? (
+        {previewMode === 'typescript' ? (
+          <div className="workbench-scripting-view">
+            <ScriptEditor
+              formId={String(id)}
+              definition={form.canonical_json}
+              onSaved={(record) => {
+                setForm(record);
+                formRef.current = record;
+              }}
+            />
+          </div>
+        ) : previewMode === 'logs' ? (
+          <div className="workbench-scripting-view">
+            <ScriptLogs formId={String(id)} />
+          </div>
+        ) : previewMode === 'runtime' ? (
+          <div className="workbench-runtime-view">
+            <FormRuntime
+              definition={form.canonical_json}
+              mode="preview"
+              submitLabel="Lifecycle testen"
+            />
+          </div>
+        ) : previewMode === 'edit' ? (
           <>
             {/* Left Panel: Tabs for openEHR Tree & Layout Elements */}
             <div className="workbench-panel left">
@@ -1312,6 +1334,7 @@ function FormBuilderContent() {
                               if (el === 'Paragraph') return 'fas fa-paragraph';
                               if (el === 'Header') return 'fas fa-heading';
                               if (el === 'LineBreak') return 'fas fa-arrows-alt-h';
+                              if (el === 'Button') return 'fas fa-bolt';
                               if (el?.includes?.('Column')) return 'fas fa-columns';
                               return 'fas fa-cog';
                             })()} style={{ fontSize: '0.75rem' }}></i>
@@ -1328,6 +1351,7 @@ function FormBuilderContent() {
                               if (el === 'Paragraph') return 'Paragraph';
                               if (el === 'Header') return 'Header';
                               if (el === 'LineBreak') return 'Divider';
+                              if (el === 'Button') return 'Button';
                               if (el?.includes?.('Column')) return 'Layout';
                               return el || '';
                             })()}:

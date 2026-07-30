@@ -121,3 +121,33 @@ export async function getPatient(id: string) {
     where: { id }
   });
 }
+
+export async function getPatientByIdentifier(identifier: string) {
+  return resolvePatientReference(identifier);
+}
+
+export async function resolvePatientReference(identifier: string, namespace?: string) {
+  const exact = await prisma.patient.findFirst({
+    where: {
+      OR: [
+        { id: identifier },
+        { ehrId: identifier },
+      ],
+    },
+  });
+  if (exact) return exact;
+  if (namespace) {
+    return prisma.patient.findUnique({
+      where: {
+        patientNamespace_patientId: {
+          patientNamespace: namespace,
+          patientId: identifier,
+        },
+      },
+    });
+  }
+  return prisma.patient.findFirst({
+    where: { patientId: identifier },
+    orderBy: { createdAt: 'desc' },
+  });
+}

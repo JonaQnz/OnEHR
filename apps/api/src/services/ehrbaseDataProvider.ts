@@ -306,26 +306,64 @@ export class EhrbaseDataProvider implements FormDataProvider {
   }
 
   private async resolveEhrId(context: FormDataProviderContext): Promise<string> {
-    const rawId = context.patientId?.trim();
+    const explicitEhrId = text(context.ehrId);
+    if (explicitEhrId) {
+      console.info('[EhrbaseDataProvider] Target EHR resolved', {
+        ehrId: explicitEhrId,
+        source: 'patient-registry',
+      });
+      return explicitEhrId;
+    }
+
+    const rawId = text(context.patientId);
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (rawId && UUID_REGEX.test(rawId)) {
-      return rawId;
+    if (rawId) {
+      try {
+        const response = await this.http.get(`${baseUrl(this.config)}/ehr`, {
+          ...(await this.requestOptions()),
+          params: {
+            subject_id: rawId,
+            subject_namespace: context.patientNamespace || this.config.ehrbaseSubjectNamespace || 'default',
+          },
+        }) as ProviderResponse;
+        const ehrId = extractEhrId(response.data);
+        if (ehrId) {
+          console.info('[EhrbaseDataProvider] Target EHR resolved', {
+            ehrId,
+            source: 'subject-reference',
+          });
+          return ehrId;
+        }
+      } catch (error: any) {
+        if (error?.response?.status !== 404) throw error;
+      }
+
+      // An explicit EHR ID is still supported for standalone sessions, but only
+      // after subject lookup did not resolve the value as a patient identifier.
+      if (UUID_REGEX.test(rawId)) {
+        try {
+          await this.http.get(`${baseUrl(this.config)}/ehr/${encodeURIComponent(rawId)}`, {
+            ...(await this.requestOptions()),
+          });
+          console.info('[EhrbaseDataProvider] Target EHR resolved', {
+            ehrId: rawId,
+            source: 'explicit-ehr-id',
+          });
+          return rawId;
+        } catch (error: any) {
+          if (error?.response?.status !== 404) throw error;
+        }
+      }
     }
-    if (this.config.defaultEhrId && UUID_REGEX.test(this.config.defaultEhrId.trim())) {
-      return this.config.defaultEhrId.trim();
+
+    if (!rawId && this.config.defaultEhrId?.trim()) {
+      const ehrId = this.config.defaultEhrId.trim();
+      console.info('[EhrbaseDataProvider] Target EHR resolved', {
+        ehrId,
+        source: 'default',
+      });
+      return ehrId;
     }
-    const targetPatientId = rawId || this.config.defaultEhrId || 'default-patient';
-    try {
-      const response = await this.http.get(`${baseUrl(this.config)}/ehr`, {
-        ...(await this.requestOptions()),
-        params: { subject_id: targetPatientId, subject_namespace: context.patientNamespace || this.config.ehrbaseSubjectNamespace || 'default' },
-      }) as ProviderResponse;
-      const ehrId = extractEhrId(response.data);
-      if (ehrId) return ehrId;
-    } catch (_err: any) {
-      if (this.config.defaultEhrId) return this.config.defaultEhrId.trim();
-    }
-    if (this.config.defaultEhrId) return this.config.defaultEhrId.trim();
     throw new EhrbaseProviderError('EHRbase returned no EHR for this patient', 'PATIENT_EHR_NOT_FOUND', 404);
   }
 
@@ -393,12 +431,17 @@ export class EhrbaseDataProvider implements FormDataProvider {
     const id = templateId(input.form);
     const wtTree = await getWebTemplateTree(id);
     const flatBody = toEhrbaseFlatComposition(input.form.definition, input.values, input.context, wtTree);
-    console.log('[EhrbaseDataProvider] FLAT body:', JSON.stringify(flatBody));
     let response: ProviderResponse;
     const options = await this.requestOptions();
 
     let versionUid: string | undefined;
     const strategy = (input.form.definition as any).settings?.ehrbase?.storageStrategy;
+    console.info('[EhrbaseDataProvider] Submitting composition', {
+      ehrId,
+      templateId: id,
+      fieldCount: Object.keys(flatBody).filter((key) => !key.startsWith('ctx/')).length,
+      strategy: strategy || 'update_or_create',
+    });
     
     if (strategy !== 'always_new') {
       const ref = (input as any).reference;
@@ -437,7 +480,14 @@ export class EhrbaseDataProvider implements FormDataProvider {
     } catch (error) {
       return this.handleError(error);
     }
-    return { providerId: this.id, reference: referenceFrom(response), metadata: { ehrId, templateId: id } };
+    const reference = referenceFrom(response);
+    console.info('[EhrbaseDataProvider] Composition accepted', {
+      ehrId,
+      templateId: id,
+      status: response.status,
+      reference,
+    });
+    return { providerId: this.id, reference, metadata: { ehrId, templateId: id } };
   }
 }
 

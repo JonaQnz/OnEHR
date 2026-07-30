@@ -63,28 +63,28 @@ export const plugin: FormBuilderPlugin = {
       propertySchema: { type: 'object' },
     });
 
+
     context.registerFormAction({
       key: 'org.openehr.aql-prefill.load',
       actionId: 'load-aql-prefill',
       label: 'Patientendaten aus HIP laden',
-      placement: 'toolbar',
+      placement: 'hidden',
     });
 
     context.registerRuntimeAction({
       key: 'org.openehr.aql-prefill.refresh',
       actionId: 'refresh-aql-prefill',
       label: 'AQL-Daten aktualisieren',
-      placement: 'toolbar',
+      placement: 'hidden',
     });
 
     context.registerRuntimeAction({
       key: 'org.openehr.aql-prefill.execute',
       actionId: 'execute-aql',
       label: 'AQL-Abfrage ausführen',
-      placement: 'toolbar',
+      placement: 'hidden',
     });
 
-    // Backend proxy execution handler for AQL queries
     const handleAqlExecution = async (actionContext: any) => {
       console.log('📥 [AQL Plugin Action Received]', {
         formId: actionContext.formId,

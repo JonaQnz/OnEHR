@@ -21,6 +21,29 @@ test('legacy canonical payloads migrate to FormDefinition v1', () => {
   assert.equal(form.revision, 0);
   assert.deepEqual(form.extensions, {});
   assert.equal(form.id, 'database-id');
+  assert.equal(form.formScript.language, 'typescript');
+  assert.match(form.formScript.source, /defineFormScript/);
+  assert.match(form.formScript.generatedTypes, /declare module "@formbuilder\/runtime"/);
+});
+
+test('FormDefinition v1 preserves script source and refreshes generated field types', () => {
+  const form = normalizeCanonicalFormPayload(validLegacyForm({
+    layout: {
+      type: 'form',
+      children: [{ type: 'input-number', id: 'weight', options: [] }],
+    },
+    formScript: {
+      language: 'typescript',
+      source: 'export default defineFormScript(() => {});',
+      compiled: 'stale',
+      generatedTypes: 'stale',
+      diagnostics: [],
+    },
+  }), 'database-id');
+
+  assert.equal(form.formScript.source, 'export default defineFormScript(() => {});');
+  assert.match(form.formScript.generatedTypes, /"weight"/);
+  assert.doesNotMatch(form.formScript.generatedTypes, /stale/);
 });
 
 test('FormDefinition v1 preserves namespaced extension data', () => {

@@ -9,6 +9,8 @@ export type ProviderJsonValue = ProviderJsonPrimitive | ProviderJsonValue[] | { 
 export interface FormDataProviderContext {
   patientId: string;
   patientNamespace?: string;
+  /** Explicit EHR target resolved by the trusted backend patient registry. */
+  ehrId?: string;
   userId?: string;
   authMode?: UserAuthMode;
   sessionId?: string;

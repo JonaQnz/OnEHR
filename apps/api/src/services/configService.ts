@@ -29,6 +29,9 @@ export interface AppConfig {
     hipScopes?: string;
     defaultEhrId?: string;
     sessionCookieSecure?: boolean;
+    scriptAiBaseUrl?: string;
+    scriptAiApiKey?: string;
+    scriptAiModel?: string;
 }
 
 function getCandidateConfigFiles(): string[] {
@@ -103,6 +106,9 @@ export function getConfig(): AppConfig {
         hipScopes: resolve(persistedConfig.hipScopes, process.env.HIP_SCOPES, 'openid profile email'),
         defaultEhrId: resolve(persistedConfig.defaultEhrId, process.env.DEFAULT_EHR_ID || process.env.EHRBASE_DEFAULT_EHR_ID),
         sessionCookieSecure: resolve(undefined, process.env.SESSION_COOKIE_SECURE, 'false') === 'true',
+        scriptAiBaseUrl: resolve(persistedConfig.scriptAiBaseUrl, process.env.FORM_SCRIPT_AI_BASE_URL),
+        scriptAiApiKey: resolve(undefined, process.env.FORM_SCRIPT_AI_API_KEY || process.env.OPENAI_API_KEY),
+        scriptAiModel: resolve(persistedConfig.scriptAiModel, process.env.FORM_SCRIPT_AI_MODEL),
     };
 }
 
@@ -118,6 +124,7 @@ export function saveConfig(updates: AppConfig) {
     // never persisted in the editable JSON configuration.
     delete (cleanUpdates as any).localPassword;
     delete (cleanUpdates as any).hipClientSecret;
+    delete (cleanUpdates as any).scriptAiApiKey;
 
     persistedConfig = { ...persistedConfig, ...cleanUpdates };
 
@@ -190,5 +197,8 @@ export function getSafeConfig(): Partial<AppConfig> {
         hipScopes: full.hipScopes || 'openid profile email',
         defaultEhrId: full.defaultEhrId || '',
         sessionCookieSecure: full.sessionCookieSecure || false,
+        scriptAiBaseUrl: full.scriptAiBaseUrl || '',
+        scriptAiApiKey: full.scriptAiApiKey ? '***' : '',
+        scriptAiModel: full.scriptAiModel || '',
     };
 }

@@ -7,6 +7,7 @@ export const PLUGIN_EXTENSION_POINTS = [
   'renderer',
   'designer',
   'runtime',
+  'scripting',
   'dataProvider',
   'workflow',
   'lifecycle',
@@ -73,7 +74,7 @@ export interface FormContribution {
   key: string;
   actionId: string;
   label: string;
-  placement?: 'toolbar' | 'footer' | 'context';
+  placement?: 'toolbar' | 'footer' | 'context' | 'hidden';
 }
 
 export interface RendererContribution {
@@ -97,7 +98,19 @@ export interface RuntimeActionContribution {
   key: string;
   actionId: string;
   label: string;
-  placement?: 'toolbar' | 'footer' | 'context';
+  placement?: 'toolbar' | 'footer' | 'context' | 'hidden';
+}
+
+export interface ScriptingOperationContribution {
+  extensionPoint: 'scripting';
+  key: string;
+  operationId: string;
+  actionId: string;
+  label: string;
+  description?: string;
+  permissions?: readonly PluginPermission[];
+  inputSchema: JsonObject;
+  outputSchema: JsonObject;
 }
 
 export interface DataProviderContribution {
@@ -129,6 +142,7 @@ export type PluginContribution =
   | RendererContribution
   | DesignerPanelContribution
   | RuntimeActionContribution
+  | ScriptingOperationContribution
   | DataProviderContribution
   | WorkflowContribution
   | UIExtensionContribution;
@@ -215,6 +229,10 @@ export interface PluginActivationContext {
   registerRenderer(contribution: Omit<RendererContribution, 'extensionPoint'>): void;
   registerDesignerPanel(contribution: Omit<DesignerPanelContribution, 'extensionPoint'>): void;
   registerRuntimeAction(contribution: Omit<RuntimeActionContribution, 'extensionPoint'>): void;
+  registerScriptingOperation(
+    contribution: Omit<ScriptingOperationContribution, 'extensionPoint' | 'actionId'>,
+    handler: PluginAction,
+  ): void;
   registerDataProvider(contribution: Omit<DataProviderContribution, 'extensionPoint'>): void;
   registerWorkflow(contribution: Omit<WorkflowContribution, 'extensionPoint'>): void;
   registerUIExtension(contribution: Omit<UIExtensionContribution, 'extensionPoint'>): void;
@@ -330,6 +348,16 @@ export class PluginRegistry {
         if (!plugin.manifest.extensionPoints.includes(contribution.extensionPoint)) {
           throw new Error(`Plugin ${plugin.manifest.id} has not declared ${contribution.extensionPoint}`);
         }
+        if (contribution.extensionPoint === 'scripting') {
+          if (!/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(contribution.operationId)) {
+            throw new Error('Scripting operation id must be a lowercase namespace identifier');
+          }
+          for (const permission of contribution.permissions || []) {
+            if (!(plugin.manifest.permissions || []).includes(permission)) {
+              throw new Error(`Plugin ${plugin.manifest.id} scripting operation requires undeclared permission ${permission}`);
+            }
+          }
+        }
         pendingContributions.push(contribution);
       },
       registerFieldType: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'field' }),
@@ -338,6 +366,12 @@ export class PluginRegistry {
       registerRenderer: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'renderer' }),
       registerDesignerPanel: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'designer' }),
       registerRuntimeAction: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'runtime' }),
+      registerScriptingOperation: (contribution, handler) => {
+        if (typeof handler !== 'function') throw new Error(`Scripting operation ${contribution.operationId} must have a handler`);
+        const actionId = `scripting.${contribution.operationId}`;
+        context.registerContribution({ ...contribution, actionId, extensionPoint: 'scripting' });
+        pendingActions.push({ actionId, handler });
+      },
       registerDataProvider: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'dataProvider' }),
       registerWorkflow: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'workflow' }),
       registerUIExtension: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'ui' }),

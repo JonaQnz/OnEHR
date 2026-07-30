@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
   collectRuntimeFields,
+  collectRuntimeGroups,
   createInitialRuntimeValues,
   validateRuntimeValues,
 } = require('core');
@@ -64,4 +65,51 @@ test('validates repeated values and quantity units', () => {
   assert.equal(result.valid, false);
   assert.deepEqual(result.issues.map((issue) => issue.path), ['tags[1]', 'dose']);
   assert.equal(result.issues[1].code, 'unit');
+});
+
+test('initializes and validates repeatable groups as row objects', () => {
+  const definition = form([
+    {
+      type: 'container',
+      id: 'medications',
+      label: 'Medications',
+      repeatable: true,
+      repeatMin: 1,
+      repeatMax: 2,
+      children: [
+        {
+          type: 'input-text',
+          id: 'substance',
+          name: 'substance',
+          label: 'Substance',
+          required: true,
+          defaultValue: 'Aspirin',
+        },
+        { type: 'input-number', id: 'dose', name: 'dose', label: 'Dose' },
+      ],
+    },
+  ]);
+
+  assert.deepEqual(collectRuntimeGroups(definition), [{
+    id: 'medications',
+    label: 'Medications',
+    repeatMin: 1,
+    repeatMax: 2,
+  }]);
+  assert.equal(collectRuntimeFields(definition)[0].repeatableGroupId, 'medications');
+  assert.deepEqual(createInitialRuntimeValues(definition), {
+    medications: [{ substance: 'Aspirin' }],
+  });
+
+  const missingRow = validateRuntimeValues(definition, { medications: [] });
+  assert.deepEqual(missingRow.issues.map((item) => item.path), ['medications']);
+  assert.deepEqual(missingRow.issues.map((item) => item.code), ['repeat-min']);
+
+  const missingSubstance = validateRuntimeValues(definition, { medications: [{}] });
+  assert.deepEqual(missingSubstance.issues.map((item) => item.path), ['medications[0].substance']);
+  assert.deepEqual(missingSubstance.issues.map((item) => item.code), ['required']);
+
+  assert.equal(validateRuntimeValues(definition, {
+    medications: [{ substance: 'Aspirin', dose: 100 }],
+  }).valid, true);
 });

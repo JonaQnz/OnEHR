@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Download, Save, Send, UserRound } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { FormDefinitionV1, RuntimeValues } from 'core';
-import FormRuntime from '../components/FormRuntime';
+import FormRuntime, { type FormRuntimeHandle } from '../components/FormRuntime';
 import PluginHost from '../components/PluginHost';
 
 const API = 'http://localhost:3001/api';
@@ -12,12 +12,24 @@ interface SessionRecord {
   formId: string;
   formVersion: string;
   patientId: string;
+  patientNamespace?: string;
+  ehrId?: string;
   status: 'draft' | 'in_progress' | 'ready' | 'submitted' | 'failed' | 'cancelled';
   values: RuntimeValues;
   validation: Array<{ path?: string; code: string; message: string }>;
   messages?: Array<{ severity: 'info' | 'warning' | 'error'; code?: string; path?: string; message: string }>;
   revision: number;
+  providerReference?: string;
   updatedAt: string;
+}
+
+interface ProviderResult {
+  providerId: string;
+  reference?: string;
+  metadata?: {
+    ehrId?: string;
+    templateId?: string;
+  };
 }
 
 interface FormResponse {
@@ -49,6 +61,7 @@ export default function SessionRuntime() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const operationRef = useRef(false);
+  const runtimeRef = useRef<FormRuntimeHandle>(null);
   const beginOperation = () => {
     if (operationRef.current) return false;
     operationRef.current = true;
@@ -127,16 +140,21 @@ export default function SessionRuntime() {
   const submissionProviderId = n8nSubmitEnabled ? 'n8n' : 'ehrbase';
   const saveDraft = async (values = draftValues, showNotice = true): Promise<SessionRecord | null> => {
     if (!session) return null;
+    const beforeSave = await runtimeRef.current?.runLifecycle('beforeSave');
+    if (beforeSave?.cancelled) throw new Error(beforeSave.message || 'Das Speichern wurde vom Form Script abgebrochen.');
+    const valuesToSave = runtimeRef.current?.getValues() || values;
     let updated: SessionRecord;
     try {
-      updated = await request<SessionRecord>(`/form-sessions/${session.id}`, { method: 'PATCH', body: JSON.stringify({ values, expectedRevision: session.revision }) });
+      updated = await request<SessionRecord>(`/form-sessions/${session.id}`, { method: 'PATCH', body: JSON.stringify({ values: valuesToSave, expectedRevision: session.revision }) });
     } catch (reason: any) {
       if (reason?.status !== 409) throw reason;
       const latest = await request<SessionRecord>(`/form-sessions/${session.id}`);
-      updated = await request<SessionRecord>(`/form-sessions/${session.id}`, { method: 'PATCH', body: JSON.stringify({ values, expectedRevision: latest.revision }) });
+      updated = await request<SessionRecord>(`/form-sessions/${session.id}`, { method: 'PATCH', body: JSON.stringify({ values: valuesToSave, expectedRevision: latest.revision }) });
     }
     setSession(updated);
     setDraftValues(updated.values || {});
+    runtimeRef.current?.applyValues(updated.values || {}, 'script', true);
+    await runtimeRef.current?.runLifecycle('afterSave');
     if (showNotice) setNotice('Entwurf gespeichert.');
     return updated;
   };
@@ -153,10 +171,14 @@ export default function SessionRuntime() {
     setError('');
     setNotice('');
     try {
-      const loaded = await request<{ session: SessionRecord }>(`/form-sessions/${session.id}/provider/load`, { method: 'POST', body: JSON.stringify({ providerId: 'ehrbase' }) });
+      const beforeLoad = await runtimeRef.current?.runLifecycle('beforeLoad');
+      if (beforeLoad?.cancelled) throw new Error(beforeLoad.message || 'Das Laden wurde vom Form Script abgebrochen.');
+      const loaded = await request<{ session: SessionRecord; provider: ProviderResult }>(`/form-sessions/${session.id}/provider/load`, { method: 'POST', body: JSON.stringify({ providerId: 'ehrbase' }) });
       setSession(loaded.session);
       setDraftValues(loaded.session.values || {});
-      setNotice('Werte aus EHRbase geladen.');
+      runtimeRef.current?.applyValues(loaded.session.values || {}, 'load', true);
+      await runtimeRef.current?.runLifecycle('afterLoad');
+      setNotice(`Werte aus EHRbase geladen${loaded.provider.metadata?.ehrId ? ` · EHR ${loaded.provider.metadata.ehrId}` : ''}.`);
     } catch (reason: any) {
       reportError(reason, 'Werte konnten nicht aus EHRbase geladen werden.');
     } finally {
@@ -172,10 +194,16 @@ export default function SessionRuntime() {
     try {
       const saved = await saveDraft(draftValues, false);
       if (!saved) return;
-      const result = await request<{ session: SessionRecord }>(`/form-sessions/${saved.id}/provider/submit`, { method: 'POST', body: JSON.stringify({ providerId: submissionProviderId }) });
+      const beforeSubmit = await runtimeRef.current?.runLifecycle('beforeSubmit');
+      if (beforeSubmit?.cancelled) throw new Error(beforeSubmit.message || 'Das Absenden wurde vom Form Script abgebrochen.');
+      const result = await request<{ session: SessionRecord; provider: ProviderResult }>(`/form-sessions/${saved.id}/provider/submit`, { method: 'POST', body: JSON.stringify({ providerId: submissionProviderId }) });
       setSession(result.session);
       setDraftValues(result.session.values || draftValues);
-      setNotice(submissionProviderId === 'n8n' ? 'Session erfolgreich an n8n gesendet.' : 'Session erfolgreich an EHRbase gesendet.');
+      runtimeRef.current?.applyValues(result.session.values || draftValues, 'script', true);
+      await runtimeRef.current?.runLifecycle('afterSubmit');
+      setNotice(submissionProviderId === 'n8n'
+        ? 'Session erfolgreich an n8n gesendet.'
+        : `Session erfolgreich an EHRbase gesendet${result.provider.metadata?.ehrId ? ` · EHR ${result.provider.metadata.ehrId}` : ''}${result.provider.reference ? ` · ${result.provider.reference}` : ''}.`);
     } catch (reason: any) {
       reportError(reason, 'Session konnte nicht an EHRbase gesendet werden.');
     } finally {
@@ -196,12 +224,15 @@ export default function SessionRuntime() {
         setError(`${validation.issues.length} Validierungsfehler müssen korrigiert werden.`);
         return;
       }
-      const submitted = await request<{ session: SessionRecord }>(`/form-sessions/${saved.id}/provider/submit`, { method: 'POST', body: JSON.stringify({ providerId: submissionProviderId, validatedRevision: validation.session.revision }) });
+      const submitted = await request<{ session: SessionRecord; provider: ProviderResult }>(`/form-sessions/${saved.id}/provider/submit`, { method: 'POST', body: JSON.stringify({ providerId: submissionProviderId, validatedRevision: validation.session.revision }) });
       setSession(submitted.session);
       setDraftValues(submitted.session.values || values);
-      setNotice(submissionProviderId === 'n8n' ? 'Session erfolgreich an n8n gesendet.' : 'Session erfolgreich an EHRbase gesendet.');
+      setNotice(submissionProviderId === 'n8n'
+        ? 'Session erfolgreich an n8n gesendet.'
+        : `Session erfolgreich an EHRbase gesendet${submitted.provider.metadata?.ehrId ? ` · EHR ${submitted.provider.metadata.ehrId}` : ''}${submitted.provider.reference ? ` · ${submitted.provider.reference}` : ''}.`);
     } catch (reason: any) {
       reportError(reason, 'Session konnte nicht abgesendet werden.');
+      throw reason;
     } finally {
       endOperation();
     }
@@ -214,7 +245,7 @@ export default function SessionRuntime() {
   return <div style={{ padding: '1.5rem 1rem 3rem' }}>
     <div style={{ maxWidth: '960px', margin: '0 auto 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
       <button className="btn btn-secondary" type="button" onClick={() => navigate(`/forms/${id}/builder`)}><ArrowLeft size={16} /> Zum Designer</button>
-      <span style={{ color: '#64748b', fontSize: '0.85rem' }}>{session ? `EHR / Patient-ID: ${session.patientId} · Status: ${session.status}` : 'Session wird gestartet…'}</span>
+      <span style={{ color: '#64748b', fontSize: '0.85rem' }}>{session ? `Patient-ID: ${session.patientId}${session.ehrId ? ` · EHR-ID: ${session.ehrId}` : ''} · Status: ${session.status}` : 'Session wird gestartet…'}</span>
     </div>
     {error && <div role="alert" className="card" style={{ maxWidth: '960px', margin: '0 auto 1rem', color: '#b91c1c', borderColor: '#fecaca' }}>{error}</div>}
     {notice && <div className="card" style={{ maxWidth: '960px', margin: '0 auto 1rem', color: '#15803d', borderColor: '#bbf7d0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCircle2 size={18} />{notice}</div>}
@@ -233,7 +264,7 @@ export default function SessionRuntime() {
         </div>
         <button className="btn btn-secondary" type="button" disabled={busy || submitted} onClick={() => void saveOnly()}><Save size={16} /> Entwurf speichern</button>
       </div>
-      <FormRuntime definition={form.canonical_json} initialValues={session.values} patientId={session.patientId} ehrId={session.patientId} readOnly={submitted} busy={busy} submitLabel={submitted ? 'Abgesendet' : 'Speichern und absenden'} onValuesChange={setDraftValues} onSubmit={(values) => void validateAndSubmit(values)} />
+      <FormRuntime ref={runtimeRef} definition={form.canonical_json} initialValues={session.values} patientId={session.patientId} ehrId={session.ehrId} sessionId={session.id} readOnly={submitted} busy={busy} submitLabel={submitted ? 'Abgesendet' : 'Speichern und absenden'} onValuesChange={setDraftValues} onSubmit={validateAndSubmit} mode="edit" />
       <PluginHost slot="runtime" title="Runtime-Erweiterungen" disabled={busy || submitted} context={{ formId: id, patientId: session.patientId, sessionId: session.id, form: form.canonical_json as unknown as Record<string, unknown>, data: draftValues as unknown as Record<string, unknown>, metadata: { status: session.status } }} onResult={(result) => { if (result.data) setDraftValues(result.data as RuntimeValues); if (result.message) setNotice(result.message); if (result.messages?.length) { setSession((current) => current ? { ...current, messages: [...(current.messages || []), ...result.messages!] } : current); const firstError = result.messages.find((item) => item.severity === 'error'); if (firstError) setError(firstError.message); } }} />
       {submitted && <div className="card" style={{ maxWidth: '960px', margin: '1rem auto 0', borderColor: '#86efac', color: '#15803d' }}>Diese Session wurde abgesendet und ist schreibgeschützt.</div>}
     </>}

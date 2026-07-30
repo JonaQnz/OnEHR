@@ -76,7 +76,7 @@ export function AqlPrefillProvider({
     })),
   }), [patientId, ehrId, encounterId, values, definition]);
 
-  const executePrefillAction = async (scope: 'field' | 'group' | 'form', targetId?: string, forceOverwrite = false) => {
+  const executePrefillAction = async (scope: 'field' | 'group' | 'form', targetId?: string, forceOverwrite = false, isAutomatic = false) => {
     if (!aqlConfig) return;
     setPrefillLoading(true);
 
@@ -114,6 +114,10 @@ export function AqlPrefillProvider({
       }
 
       if (applyResult.success) {
+        if (applyResult.provenanceList.length === 0 && !isAutomatic) {
+          window.alert('Keine vergangenen Daten gefunden');
+        }
+
         setValues(applyResult.updatedValues);
         setFieldStates(applyResult.updatedStates);
 
@@ -142,7 +146,7 @@ export function AqlPrefillProvider({
   useEffect(() => {
     if (aqlConfig?.executionMode === 'automatic' && !hasAutoLoaded && !prefillLoading && runtimeContext.patientId) {
       setHasAutoLoaded(true);
-      void executePrefillAction('form');
+      void executePrefillAction('form', undefined, false, true);
     }
   }, [aqlConfig?.executionMode, hasAutoLoaded, prefillLoading, runtimeContext.patientId]);
 

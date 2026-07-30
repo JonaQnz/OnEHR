@@ -27,11 +27,23 @@ export function FrontendPluginProvider({ children, plugins = [] }: { children: R
   const [extensions, setExtensions] = React.useState<UIExtensionContribution[]>([]);
 
   React.useEffect(() => {
+    let mounted = true;
     const registry = (ext: UIExtensionContribution) => {
-      setExtensions((prev) => [...prev, ext]);
+      if (!mounted) return;
+      setExtensions((prev) => {
+        // Verhindert doppelte UI-Komponenten im React 18 StrictMode (Mount -> Unmount -> Mount)
+        if (prev.some(p => p.pluginId === ext.pluginId && p.slot === ext.slot)) {
+          return prev;
+        }
+        return [...prev, ext];
+      });
     };
     
     plugins.forEach(pluginInit => pluginInit(registry));
+
+    return () => {
+      mounted = false;
+    };
   }, [plugins]);
 
   return (

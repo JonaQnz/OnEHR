@@ -1,5 +1,5 @@
 import prisma from '../db/prisma';
-import { validateRuntimeValues, type FormSession, type FormSessionMessage, type FormSessionPatchInput, type FormSessionStatus, type FormSessionValues, type SessionValidationIssue, type UserAuthMode } from 'core';
+import { validateRuntimeValues, type FormDataProviderContext, type FormSession, type FormSessionMessage, type FormSessionPatchInput, type FormSessionStatus, type FormSessionValues, type SessionValidationIssue, type UserAuthMode } from 'core';
 import { HttpError } from '../middleware/errorHandler';
 import { migrateCanonicalFormToV1 } from 'core';
 import { getDataProvider } from './dataProviderRegistry';
@@ -8,6 +8,7 @@ import { N8nProviderError } from './n8nDataProvider';
 import { getPluginSettings } from './configService';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 import type { PluginHookName, PluginHookResult } from 'plugin-api';
+import { resolvePatientReference } from './patientService';
 
 export interface SessionActor {
   userId: string;
@@ -121,13 +122,59 @@ function requiredText(value: unknown, field: string): string {
   return value.trim();
 }
 
-function publicSession(record: any, messages?: FormSessionMessage[]): FormSession {
+interface ResolvedSessionPatient {
+  patientId: string;
+  patientNamespace?: string;
+  ehrId?: string;
+}
+
+async function resolveSessionPatient(
+  patientId: string,
+  patientNamespace?: string | null,
+): Promise<ResolvedSessionPatient> {
+  const patient = await resolvePatientReference(patientId, patientNamespace || undefined);
+  if (!patient) {
+    return {
+      patientId,
+      ...(patientNamespace ? { patientNamespace } : {}),
+    };
+  }
+  return {
+    patientId: patient.patientId,
+    patientNamespace: patient.patientNamespace,
+    ehrId: patient.ehrId,
+  };
+}
+
+function providerContext(
+  patient: ResolvedSessionPatient,
+  sessionId: string,
+  actor: SessionActor,
+): FormDataProviderContext {
+  return {
+    patientId: patient.patientId,
+    ...(patient.patientNamespace ? { patientNamespace: patient.patientNamespace } : {}),
+    ...(patient.ehrId ? { ehrId: patient.ehrId } : {}),
+    sessionId,
+    userId: actor.userId,
+    authMode: actor.authMode,
+  };
+}
+
+function publicSession(
+  record: any,
+  messages?: FormSessionMessage[],
+  patient?: ResolvedSessionPatient,
+): FormSession {
   return {
     id: record.id,
     formId: record.formId,
     formVersion: record.formVersion,
-    patientId: record.patientId,
-    ...(record.patientNamespace ? { patientNamespace: record.patientNamespace } : {}),
+    patientId: patient?.patientId || record.patientId,
+    ...((patient?.patientNamespace || record.patientNamespace)
+      ? { patientNamespace: patient?.patientNamespace || record.patientNamespace }
+      : {}),
+    ...(patient?.ehrId ? { ehrId: patient.ehrId } : {}),
     userId: record.userId,
     authMode: record.authMode,
     status: record.status,
@@ -148,14 +195,18 @@ function assertOwner(record: any, actor: SessionActor): void {
 
 export async function createFormSession(input: CreateSessionInput, actor: SessionActor): Promise<FormSession> {
   const formId = requiredText(input.formId, 'formId');
-  const patientId = requiredText(input.patientId, 'patientId');
+  const requestedPatientId = requiredText(input.patientId, 'patientId');
+  const patient = await resolveSessionPatient(
+    requestedPatientId,
+    typeof input.patientNamespace === 'string' ? input.patientNamespace.trim() || undefined : undefined,
+  );
   const form = await prisma.form.findUnique({ where: { id: formId } });
   if (!form) throw new HttpError(404, 'Form not found');
   const record = await prisma.formSession.create({ data: {
     formId,
     formVersion: form.version,
-    patientId,
-    patientNamespace: typeof input.patientNamespace === 'string' ? input.patientNamespace.trim() || null : null,
+    patientId: patient.patientId,
+    patientNamespace: patient.patientNamespace || null,
     userId: actor.userId,
     authMode: actor.authMode,
     status: 'draft',
@@ -164,7 +215,7 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
     revision: 0,
     providerId: input.providerId || null,
   } });
-  return publicSession(record);
+  return publicSession(record, undefined, patient);
 }
 
 export async function getFormSession(id: string, actor: SessionActor): Promise<FormSession> {
@@ -172,7 +223,8 @@ export async function getFormSession(id: string, actor: SessionActor): Promise<F
   const record = await prisma.formSession.findUnique({ where: { id: sessionId } });
   if (!record) throw new HttpError(404, 'Form session not found');
   assertOwner(record, actor);
-  return publicSession(record);
+  const patient = await resolveSessionPatient(record.patientId, record.patientNamespace);
+  return publicSession(record, undefined, patient);
 }
 
 export async function listFormSessions(actor: SessionActor, patientId?: string, formId?: string): Promise<FormSession[]> {
@@ -181,7 +233,10 @@ export async function listFormSessions(actor: SessionActor, patientId?: string, 
     where: actor.userId === 'anonymous' ? { ...(patientId ? { patientId } : {}), ...formFilter } : { userId: actor.userId, ...(patientId ? { patientId } : {}), ...formFilter },
     orderBy: { updatedAt: 'desc' },
   });
-  return records.map((record) => publicSession(record));
+  return Promise.all(records.map(async (record) => {
+    const patient = await resolveSessionPatient(record.patientId, record.patientNamespace);
+    return publicSession(record, undefined, patient);
+  }));
 }
 
 export async function patchFormSession(id: string, input: FormSessionPatchInput, actor: SessionActor): Promise<FormSession> {
@@ -192,7 +247,10 @@ export async function patchFormSession(id: string, input: FormSessionPatchInput,
   if (input.expectedRevision !== undefined && input.expectedRevision !== record.revision) {
     const sameValues = input.values === undefined || sameJson(record.values, input.values);
     const sameStatus = input.status === undefined || input.status === record.status;
-    if (sameValues && sameStatus) return publicSession(record);
+    if (sameValues && sameStatus) {
+      const patient = await resolveSessionPatient(record.patientId, record.patientNamespace);
+      return publicSession(record, undefined, patient);
+    }
     throw new HttpError(409, 'Form session was changed by another request');
   }
   if (record.status === 'submitted' || record.status === 'cancelled') throw new HttpError(409, 'Form session is no longer editable');
@@ -202,7 +260,8 @@ export async function patchFormSession(id: string, input: FormSessionPatchInput,
   const status = (input.status || (input.values ? 'in_progress' : record.status)) as FormSessionStatus;
   const updated = await prisma.formSession.update({ where: { id: sessionId }, data: { values: values as any, status, revision: { increment: 1 } } });
   const afterSave = await runBestEffortHook({ name: 'afterSave', formId: record.formId, form, data: (updated.values || {}) as Record<string, unknown>, patientId: record.patientId, sessionId, actor, metadata: { status: updated.status } });
-  return publicSession(updated, [...beforeSave.messages, ...afterSave.messages]);
+  const patient = await resolveSessionPatient(record.patientId, record.patientNamespace);
+  return publicSession(updated, [...beforeSave.messages, ...afterSave.messages], patient);
 }
 
 export async function validateFormSession(id: string, actor: SessionActor): Promise<{ session: FormSession; valid: boolean; issues: SessionValidationIssue[] }> {
@@ -221,14 +280,16 @@ export async function validateFormSession(id: string, actor: SessionActor): Prom
   const valid = result.valid && pluginIssues.length === 0;
   const status = valid ? (record.status === 'draft' ? 'ready' : record.status) : 'in_progress';
   const updated = await prisma.formSession.update({ where: { id: sessionId }, data: { values: finalValues as any, validation: issues as any, status, revision: { increment: 1 } } });
-  return { session: publicSession(updated, [...beforeValidate.messages, ...afterMessages]), valid, issues };
+  const patient = await resolveSessionPatient(record.patientId, record.patientNamespace);
+  return { session: publicSession(updated, [...beforeValidate.messages, ...afterMessages], patient), valid, issues };
 }
 
 export async function submitFormSession(id: string, actor: SessionActor): Promise<FormSession> {
   const validation = await validateFormSession(id, actor);
   if (!validation.valid) throw new HttpError(422, 'Form session is not valid');
   const updated = await prisma.formSession.update({ where: { id: validation.session.id }, data: { status: 'submitted', revision: { increment: 1 } } });
-  return publicSession(updated);
+  const patient = await resolveSessionPatient(updated.patientId, updated.patientNamespace);
+  return publicSession(updated, undefined, patient);
 }
 
 function mapProviderError(error: unknown): never {
@@ -245,8 +306,11 @@ async function providerInput(id: string, providerId: string, actor: SessionActor
   if (session.status === 'submitted' || session.status === 'cancelled') throw new HttpError(409, 'Form session is no longer editable');
   const form = await prisma.form.findUnique({ where: { id: session.formId } });
   if (!form) throw new HttpError(404, 'Form definition not found');
+  const patient = await resolveSessionPatient(session.patientId, session.patientNamespace);
   return {
     session,
+    patient,
+    context: providerContext(patient, session.id, actor),
     provider: getDataProvider(requiredText(providerId, 'providerId')),
     form: { id: form.id, version: form.version, definition: migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id) },
   };
@@ -258,7 +322,7 @@ export async function loadFormSessionFromProvider(id: string, providerId: string
   const beforeLoad = await runRequiredHook({ name: 'beforeLoad', formId: input.form.id, form, data: (input.session.values || {}) as Record<string, unknown>, patientId: input.session.patientId, sessionId: input.session.id, actor, metadata: { providerId } });
   let result;
   try {
-    result = await input.provider.load({ context: { patientId: input.session.patientId, patientNamespace: input.session.patientNamespace || undefined, sessionId: input.session.id, userId: actor.userId, authMode: actor.authMode }, form: input.form });
+    result = await input.provider.load({ context: input.context, form: input.form });
   } catch (error) {
     return mapProviderError(error);
   }
@@ -271,13 +335,13 @@ export async function loadFormSessionFromProvider(id: string, providerId: string
     providerReference: result.reference || input.session.providerReference || null,
     revision: { increment: 1 },
   } });
-  return { session: publicSession(updated, [...beforeLoad.messages, ...afterLoad.messages]), provider: result };
+  return { session: publicSession(updated, [...beforeLoad.messages, ...afterLoad.messages], input.patient), provider: result };
 }
 
 export async function submitFormSessionToProvider(id: string, providerId: string, actor: SessionActor, options: { validatedRevision?: number } = {}): Promise<{ session: FormSession; provider: unknown }> {
   const input = await providerInput(id, providerId, actor);
   const validation = options.validatedRevision !== undefined && options.validatedRevision === input.session.revision
-    ? { session: publicSession(input.session), valid: !Array.isArray(input.session.validation) || input.session.validation.length === 0, issues: (Array.isArray(input.session.validation) ? input.session.validation : []) as unknown as SessionValidationIssue[] }
+    ? { session: publicSession(input.session, undefined, input.patient), valid: !Array.isArray(input.session.validation) || input.session.validation.length === 0, issues: (Array.isArray(input.session.validation) ? input.session.validation : []) as unknown as SessionValidationIssue[] }
     : await validateFormSession(id, actor);
   if (!validation.valid) {
     const messages = (validation.issues || []).map((item) => ({ severity: 'error' as const, code: item.code, path: item.path, message: item.message }));
@@ -288,7 +352,12 @@ export async function submitFormSessionToProvider(id: string, providerId: string
   const submitValues = beforeSubmit.data;
   let result;
   try {
-    result = await input.provider.submit({ context: { patientId: input.session.patientId, patientNamespace: input.session.patientNamespace || undefined, sessionId: input.session.id, userId: actor.userId, authMode: actor.authMode }, form: input.form, values: submitValues });
+    result = await input.provider.submit({
+      context: input.context,
+      form: input.form,
+      values: submitValues,
+      ...(input.session.providerReference ? { reference: input.session.providerReference } : {}),
+    });
   } catch (error) {
     return mapProviderError(error);
   }
@@ -301,5 +370,12 @@ export async function submitFormSessionToProvider(id: string, providerId: string
     providerReference: result.reference || input.session.providerReference || null,
     revision: { increment: 1 },
   } });
-  return { session: publicSession(updated, [...(validation.session.messages || []), ...beforeSubmit.messages, ...afterSubmit.messages, ...messagesFromProvider(result)]), provider: result };
+  return {
+    session: publicSession(
+      updated,
+      [...(validation.session.messages || []), ...beforeSubmit.messages, ...afterSubmit.messages, ...messagesFromProvider(result)],
+      input.patient,
+    ),
+    provider: result,
+  };
 }

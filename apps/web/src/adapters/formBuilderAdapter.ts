@@ -3,7 +3,7 @@ import { CanonicalForm, FormElementLayout } from 'core';
 export function getElementText(element: string, label: string): string {
   if (!label) return element;
   // If the label already starts with Type: prefix, return it as is
-  if (/^(Group|Text|Number|Select|Date|Checkbox|Radio|Textarea|Paragraph|Header|Layout|Divider):\s*(.*)$/.test(label)) {
+  if (/^(Group|Text|Number|Select|Date|Checkbox|Radio|Textarea|Paragraph|Header|Layout|Divider|Button):\s*(.*)$/.test(label)) {
     return label;
   }
   if (element === 'FieldSet') return `Group: ${label}`;
@@ -17,6 +17,7 @@ export function getElementText(element: string, label: string): string {
   if (element === 'Paragraph') return `Paragraph: ${label}`;
   if (element === 'Header') return `Header: ${label}`;
   if (element === 'LineBreak') return `Divider Line`;
+  if (element === 'Button') return `Button: ${label}`;
   if (element === 'TwoColumnRow') return `Layout: 2 Columns`;
   if (element === 'ThreeColumnRow') return `Layout: 3 Columns`;
   if (element === 'MultiColumnRow') return `Layout: Multi Columns`;
@@ -25,7 +26,7 @@ export function getElementText(element: string, label: string): string {
 
 export function cleanLabel(text: string): string {
   if (!text) return '';
-  const match = text.match(/^(Group|Text|Number|Select|Date|Checkbox|Radio|Textarea|Paragraph|Header|Layout|Divider):\s*(.*)$/);
+  const match = text.match(/^(Group|Text|Number|Select|Date|Checkbox|Radio|Textarea|Paragraph|Header|Layout|Divider|Button):\s*(.*)$/);
   return match ? match[2] : text;
 }
 
@@ -50,7 +51,9 @@ export function canonicalToFormBuilder(form: CanonicalForm): any[] {
 
     let element = node.uiElement;
     if (!element) {
-      if (node.type === 'input-quantity' || node.type === 'input-proportion' || node.type === 'input-number') {
+      if (node.type === 'button') {
+        element = 'HyperLink';
+      } else if (node.type === 'input-quantity' || node.type === 'input-proportion' || node.type === 'input-number') {
         element = 'NumberInput';
       } else if (node.type === 'input-date' || node.type === 'input-date-time' || node.type === 'input-time') {
         element = 'DatePicker';
@@ -70,7 +73,7 @@ export function canonicalToFormBuilder(form: CanonicalForm): any[] {
       text: getElementText(element, label),
       label: label,
       field_name: fieldName,
-      canHaveAnswer: true,
+      canHaveAnswer: node.type !== 'button',
       canReadOnly: true,
       canHavePageBreakBefore: true,
       canHaveAlternateForm: true,
@@ -327,7 +330,9 @@ export function formBuilderToCanonical(items: any[], originalForm: CanonicalForm
     const archetypeNodeId = binding.path?.match(/\[(at\d+)\]/)?.[1] || '';
 
     let type = meta.type || 'input-text';
-    if (['Dropdown', 'Checkboxes', 'RadioButtons', 'Tags'].includes(item.element)) {
+    if (meta.type === 'button' || item.element === 'Button') {
+      type = 'button';
+    } else if (['Dropdown', 'Checkboxes', 'RadioButtons', 'Tags'].includes(item.element)) {
       type = 'input-select';
     } else if (['NumberInput', 'Range', 'Rating'].includes(item.element)) {
       type = meta.type?.includes('proportion') ? 'input-proportion' : 'input-quantity';
@@ -345,6 +350,7 @@ export function formBuilderToCanonical(items: any[], originalForm: CanonicalForm
       readOnly: item.readOnly || false,
       id: item.id,
       label: item.label || item.text || '',
+      content: meta.type === 'button' || item.element === 'Button' ? (item.label || item.text || 'Aktion') : undefined,
       description: item.description || '',
       helpText: item.description || '',
       placeholder: item.placeholder || '',

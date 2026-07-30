@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import type { FormDefinitionV1, RuntimeValues } from 'core';
-import FormRuntime from '../components/FormRuntime';
+import FormRuntime, { type FormRuntimeHandle } from '../components/FormRuntime';
 import PluginHost from '../components/PluginHost';
 
 const API = 'http://localhost:3001/api';
@@ -10,9 +10,21 @@ interface SessionRecord {
   id: string;
   formId: string;
   patientId: string;
+  patientNamespace?: string;
+  ehrId?: string;
   status: 'draft' | 'in_progress' | 'ready' | 'submitted' | 'failed' | 'cancelled';
   values: RuntimeValues;
   revision: number;
+  providerReference?: string;
+}
+
+interface ProviderResult {
+  providerId: string;
+  reference?: string;
+  metadata?: {
+    ehrId?: string;
+    templateId?: string;
+  };
 }
 
 interface FormResponse {
@@ -49,6 +61,7 @@ export default function LiveForm() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const runtimeRef = useRef<FormRuntimeHandle>(null);
 
   useEffect(() => {
     if (!parentId) return;
@@ -92,21 +105,27 @@ export default function LiveForm() {
     if (!session || busy || submitted) return;
     setBusy(true);
     try {
+      const beforeSave = await runtimeRef.current?.runLifecycle('beforeSave');
+      if (beforeSave?.cancelled) throw new Error(beforeSave.message || 'Das Speichern wurde vom Form Script abgebrochen.');
+      const valuesToSave = runtimeRef.current?.getValues() || values;
       // Save draft
       const saved = await request<SessionRecord>(`/form-sessions/${session.id}`, { 
         method: 'PATCH', 
-        body: JSON.stringify({ values, expectedRevision: session.revision }) 
+        body: JSON.stringify({ values: valuesToSave, expectedRevision: session.revision })
       });
+      runtimeRef.current?.applyValues(saved.values || valuesToSave, 'script', true);
+      await runtimeRef.current?.runLifecycle('afterSave');
       
       // Submit
       const submissionProviderId = form?.canonical_json?.settings?.submission?.providerId || 'ehrbase';
-      const result = await request<{ session: SessionRecord }>(`/form-sessions/${saved.id}/provider/submit`, { 
+      const result = await request<{ session: SessionRecord; provider: ProviderResult }>(`/form-sessions/${saved.id}/provider/submit`, {
         method: 'POST', 
         body: JSON.stringify({ providerId: submissionProviderId, validatedRevision: saved.revision }) 
       });
       
       setSession(result.session);
       setDraftValues(result.session.values || values);
+      runtimeRef.current?.applyValues(result.session.values || values, 'script', true);
       setSubmitted(true);
       
       // Notify parent iframe
@@ -137,7 +156,14 @@ export default function LiveForm() {
         <div style={{ maxWidth: '960px', margin: '0 auto' }}>
           {submitted && (
             <div style={{ padding: '1.5rem', marginBottom: '1.5rem', background: '#dcfce7', color: '#15803d', borderRadius: '8px', border: '1px solid #bbf7d0', fontFamily: 'sans-serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: '1.1rem' }}>Formular erfolgreich abgesendet.</strong>
+              <div>
+                <strong style={{ fontSize: '1.1rem' }}>Formular erfolgreich abgesendet.</strong>
+                <div style={{ marginTop: '0.35rem', fontSize: '0.8rem', overflowWrap: 'anywhere' }}>
+                  Patient-ID: {session.patientId}
+                  {session.ehrId ? ` · EHR-ID: ${session.ehrId}` : ''}
+                  {session.providerReference ? ` · Referenz: ${session.providerReference}` : ''}
+                </div>
+              </div>
               {searchParams.get('returnUrl') && (
                 <button 
                   onClick={() => {
@@ -155,17 +181,20 @@ export default function LiveForm() {
               )}
             </div>
           )}
-          <FormRuntime 
+          <FormRuntime
+            ref={runtimeRef}
             definition={form.canonical_json} 
             initialValues={session.values} 
             patientId={session.patientId} 
-            ehrId={session.patientId} 
+            ehrId={session.ehrId}
             encounterId={searchParams.get('encounterId') || undefined}
+            sessionId={session.id}
             readOnly={submitted} 
             busy={busy} 
             submitLabel={submitted ? 'Abgesendet' : 'Absenden'} 
             onValuesChange={setDraftValues} 
             onSubmit={handleSubmit} 
+            mode="edit"
           />
           <PluginHost 
             slot="runtime" 

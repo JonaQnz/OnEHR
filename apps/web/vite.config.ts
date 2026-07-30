@@ -8,7 +8,10 @@ export default defineConfig({
     alias: { core: path.resolve(__dirname, '../../packages/core/src') },
   },
   define: {
-    global: 'window',
+    // Some legacy browser dependencies reference Node's `global`. `globalThis`
+    // is available in both the document and module-worker contexts, whereas
+    // `window` crashes every Form Script worker during module evaluation.
+    global: 'globalThis',
   },
   server: {
     host: '0.0.0.0',

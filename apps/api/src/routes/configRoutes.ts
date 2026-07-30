@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getSafeConfig, saveConfig } from '../services/configService';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
@@ -11,7 +12,7 @@ router.get('/', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireAuth, (req, res) => {
   try {
     saveConfig(req.body);
     res.json({ message: 'Configuration saved successfully', config: getSafeConfig() });
