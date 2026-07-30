@@ -43,8 +43,11 @@ const store = new Store({
 
     delete(context, element) {
       const { data, saveAlways } = context.state;
-      data.splice(data.indexOf(element), 1);
-      this.setData(context, data, saveAlways);
+      const idx = data.indexOf(element);
+      if (idx !== -1) {
+        data.splice(idx, 1);
+        this.setData(context, data, saveAlways);
+      }
     },
 
     deleteLastItem(context) {

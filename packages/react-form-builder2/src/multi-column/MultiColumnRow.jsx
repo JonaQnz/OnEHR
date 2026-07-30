@@ -37,6 +37,7 @@ class MultiColumnRowBase extends React.Component {
                     _onDestroy={() => removeChild(data, i)}
                     getDataById={getDataById}
                     setAsChild={setAsChild}
+                    removeChild={removeChild}
                     seq={seq}
                   />}
               </div>))}

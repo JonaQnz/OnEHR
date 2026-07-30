@@ -95,6 +95,7 @@ export interface CanonicalForm {
     submission?: FormSubmissionSettings;
     ehrbase?: {
       storageStrategy?: 'always_new' | 'update_latest';
+      defaultMode?: 'create' | 'edit' | 'view' | 'prefill';
     };
   };
   sourceTemplates: Array<{

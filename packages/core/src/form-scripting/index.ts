@@ -88,7 +88,8 @@ function walk(node: FormElementLayout, visit: (node: FormElementLayout) => void)
 }
 
 function nodeId(node: FormElementLayout): string | undefined {
-  return node.id || node.name;
+  // Use technical name (node.name) if available, fallback to internal id
+  return node.name || node.id;
 }
 
 function union(values: readonly string[]): string {
@@ -149,7 +150,7 @@ export function getFormScriptConnectorConfiguration(
 }
 
 function optionType(node: FormElementLayout): string {
-  const values = (node.options || []).map((option) => option.value);
+  const values = (node.options || []).map((option) => option.text || option.value);
   return values.length > 0 ? `${union(values)} | null` : 'string | null';
 }
 

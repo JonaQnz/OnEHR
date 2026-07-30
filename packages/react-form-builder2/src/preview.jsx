@@ -173,10 +173,10 @@ export default class Preview extends React.Component {
     }
     const list = data.filter(x => x && x.parentId === item.id);
     const toRemove = list.filter(x => item.childItems.indexOf(x.id) === -1);
-    let newData = data;
+    let newData = [...data];
     if (toRemove.length) {
       // console.log('toRemove', toRemove);
-      newData = data.filter(x => toRemove.indexOf(x) === -1);
+      newData = newData.filter(x => toRemove.indexOf(x) === -1);
     }
     if (!this.getDataById(child.id)) {
       newData.push(child);
@@ -199,22 +199,22 @@ export default class Preview extends React.Component {
     }
   }
 
-  restoreCard(item, id) {
+  restoreCard(item, id, hoverIndex) {
     const { data } = this.state;
     const parent = this.getDataById(item.data.parentId);
     const oldItem = this.getDataById(id);
     if (parent && oldItem) {
-      const newIndex = data.indexOf(oldItem);
-      const newData = [...data]; // data.filter(x => x !== oldItem);
-      // eslint-disable-next-line no-param-reassign
+      // Remove oldItem from its parent
       parent.childItems[oldItem.col] = null;
       delete oldItem.parentId;
-      // eslint-disable-next-line no-param-reassign
       delete item.setAsChild;
-      // eslint-disable-next-line no-param-reassign
       delete item.parentIndex;
-      // eslint-disable-next-line no-param-reassign
-      item.index = newIndex;
+      
+      // We must also move it to the correct hoverIndex in the data array
+      const newData = data.filter(x => x !== oldItem);
+      newData.splice(hoverIndex, 0, oldItem);
+      
+      item.index = hoverIndex;
       this.seq = this.seq > 100000 ? 0 : this.seq + 1;
       store.dispatch('updateOrder', newData);
       this.setState({ data: newData });
@@ -224,7 +224,7 @@ export default class Preview extends React.Component {
   insertCard(item, hoverIndex, id) {
     const { data } = this.state;
     if (id) {
-      this.restoreCard(item, id);
+      this.restoreCard(item, id, hoverIndex);
     } else {
       data.splice(hoverIndex, 0, item);
       this.saveData(item, hoverIndex, hoverIndex);
@@ -258,15 +258,11 @@ export default class Preview extends React.Component {
 
   getElement(item, index) {
     if (item.custom) {
-      console.log('[Preview.jsx] Processing custom item:', item.key, 'Component exists?', !!item.component, 'Type:', typeof item.component);
       if (!item.component || typeof item.component !== 'function') {
         const restoredComponent = this.props.registry.get(item.key);
-        console.log('[Preview.jsx] Restored component from registry for', item.key, ':', restoredComponent);
         // eslint-disable-next-line no-param-reassign
         item.component = restoredComponent;
       }
-    } else {
-      console.log('[Preview.jsx] Item is not marked as custom:', item);
     }
     const SortableFormElement = SortableFormElements[item.element];
 

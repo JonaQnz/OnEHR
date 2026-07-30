@@ -18,6 +18,21 @@ import FormRuntime from '../components/FormRuntime';
 import ScriptEditor from '../scripting/editor/ScriptEditor';
 import ScriptLogs from '../scripting/editor/ScriptLogs';
 
+function getUniqueFieldName(baseName: string, usedNames?: Set<string>): string {
+  const data = (ElementStore as any).state?.data || [];
+  let name = baseName;
+  let counter = 1;
+  const isUsed = (n: string) => (usedNames && usedNames.has(n)) || data.some((item: any) => item.field_name === n);
+  while (isUsed(name)) {
+    name = `${baseName}_${counter}`;
+    counter++;
+  }
+  if (usedNames) {
+    usedNames.add(name);
+  }
+  return name;
+}
+
 // Draggable node for openEHR Template tree fields
 function DraggableFieldNode({ field, inForm }: { field: any; inForm: boolean }) {
   const rm = field.rmType || '';
@@ -70,7 +85,7 @@ function DraggableFieldNode({ field, inForm }: { field: any; inForm: boolean }) 
           element: data.element,
           text: getElementText(data.element, data.label),
           label: data.label,
-          field_name: data.field_name + Math.random().toString(36).substr(2, 4),
+          field_name: getUniqueFieldName(field.technicalName || field.fieldName),
           custom_metadata: data.custom_metadata,
           required: field.required || false,
           dateFormat: data.element === 'DatePicker' ? 'dd.MM.yyyy' : undefined,
@@ -190,6 +205,7 @@ function DraggableFolderHeader({
             console.log('DRAG DROP FOLDER: ElementStore data count:', (ElementStore as any).state?.data?.length);
 
             const newItems: any[] = [];
+            const usedNames = new Set<string>();
 
             childFields.forEach((field: any) => {
               const childId = 'field_' + Math.random().toString(36).substr(2, 9);
@@ -221,7 +237,7 @@ function DraggableFolderHeader({
                 element: childElement,
                 text: getElementText(childElement, field.label),
                 label: field.label,
-                field_name: field.fieldName + '_' + Math.random().toString(36).substr(2, 4),
+                field_name: getUniqueFieldName(field.technicalName || field.fieldName, usedNames),
                 required: field.required || false,
                 dateFormat: childElement === 'DatePicker' ? 'dd.MM.yyyy' : undefined,
                 timeFormat: childElement === 'DatePicker' ? 'HH:mm' : undefined,
@@ -2000,6 +2016,25 @@ function FormBuilderContent() {
                                 </select>
                                 <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.5rem' }}>
                                   Determine whether opening this form loads the patient's most recent composition and updates it, or always creates a new empty composition.
+                                </p>
+                              </div>
+
+                              <div className="inspector-field-group" style={{ marginTop: '1.5rem' }}>
+                                <label>Default Runtime Mode</label>
+                                <select 
+                                  className="inspector-select" 
+                                  value={form.canonical_json.settings?.ehrbase?.defaultMode || 'create'} 
+                                  onChange={(e) => updateEhrbaseSetting('defaultMode', e.target.value)}
+                                  onBlur={() => handleSave(builderItems)}
+                                >
+                                  <option value="create">Create (Start empty, save as new)</option>
+                                  <option value="edit">Edit (Load existing, update version)</option>
+                                  <option value="prefill">Prefill (Load existing, save as new)</option>
+                                  <option value="view">View (Read-only)</option>
+                                </select>
+                                <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+                                  The default operating mode for the form if no explicit mode is provided in the URL. 
+                                  Note: "Edit" and "Prefill" modes typically require an existing composition reference.
                                 </p>
                               </div>
                             </>

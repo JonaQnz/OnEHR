@@ -196,6 +196,7 @@ export default function FieldSetBase(props) {
                   moveCard={moveGroupCard}
                   insertCard={insertCard}
                   setAsChild={setAsChild}
+                  removeChild={removeChild}
                   seq={seq}
                   rowNo={i}
                 />

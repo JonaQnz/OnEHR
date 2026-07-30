@@ -20,7 +20,9 @@ export interface CreateSessionInput {
   patientId: string;
   patientNamespace?: string;
   values?: FormSessionValues;
+  mode?: string;
   providerId?: string;
+  providerReference?: string;
 }
 type SessionHookInput = {
   name: PluginHookName;
@@ -150,15 +152,17 @@ function providerContext(
   patient: ResolvedSessionPatient,
   sessionId: string,
   actor: SessionActor,
+  mode: string,
 ): FormDataProviderContext {
   return {
+    mode: mode as any,
     patientId: patient.patientId,
     ...(patient.patientNamespace ? { patientNamespace: patient.patientNamespace } : {}),
     ...(patient.ehrId ? { ehrId: patient.ehrId } : {}),
     sessionId,
     userId: actor.userId,
     authMode: actor.authMode,
-  };
+  } as any;
 }
 
 function publicSession(
@@ -170,6 +174,7 @@ function publicSession(
     id: record.id,
     formId: record.formId,
     formVersion: record.formVersion,
+    mode: record.mode || 'create',
     patientId: patient?.patientId || record.patientId,
     ...((patient?.patientNamespace || record.patientNamespace)
       ? { patientNamespace: patient?.patientNamespace || record.patientNamespace }
@@ -186,7 +191,7 @@ function publicSession(
     ...(record.providerReference ? { providerReference: record.providerReference } : {}),
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
-  };
+  } as any;
 }
 
 function assertOwner(record: any, actor: SessionActor): void {
@@ -205,6 +210,7 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
   const record = await prisma.formSession.create({ data: {
     formId,
     formVersion: form.version,
+    mode: input.mode || 'create',
     patientId: patient.patientId,
     patientNamespace: patient.patientNamespace || null,
     userId: actor.userId,
@@ -214,6 +220,7 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
     validation: [] as any,
     revision: 0,
     providerId: input.providerId || null,
+    providerReference: input.providerReference || null,
   } });
   return publicSession(record, undefined, patient);
 }
@@ -286,6 +293,7 @@ export async function validateFormSession(id: string, actor: SessionActor): Prom
 
 export async function submitFormSession(id: string, actor: SessionActor): Promise<FormSession> {
   const validation = await validateFormSession(id, actor);
+  if ((validation.session as any).mode === 'view') throw new HttpError(403, 'Session is in view mode and cannot be submitted');
   if (!validation.valid) throw new HttpError(422, 'Form session is not valid');
   const updated = await prisma.formSession.update({ where: { id: validation.session.id }, data: { status: 'submitted', revision: { increment: 1 } } });
   const patient = await resolveSessionPatient(updated.patientId, updated.patientNamespace);
@@ -310,7 +318,7 @@ async function providerInput(id: string, providerId: string, actor: SessionActor
   return {
     session,
     patient,
-    context: providerContext(patient, session.id, actor),
+    context: providerContext(patient, session.id, actor, session.mode),
     provider: getDataProvider(requiredText(providerId, 'providerId')),
     form: { id: form.id, version: form.version, definition: migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id) },
   };
@@ -322,7 +330,11 @@ export async function loadFormSessionFromProvider(id: string, providerId: string
   const beforeLoad = await runRequiredHook({ name: 'beforeLoad', formId: input.form.id, form, data: (input.session.values || {}) as Record<string, unknown>, patientId: input.session.patientId, sessionId: input.session.id, actor, metadata: { providerId } });
   let result;
   try {
-    result = await input.provider.load({ context: input.context, form: input.form });
+    result = await input.provider.load({ 
+      context: input.context, 
+      form: input.form,
+      ...(input.session.providerReference ? { reference: input.session.providerReference } as any : {})
+    });
   } catch (error) {
     return mapProviderError(error);
   }
@@ -340,6 +352,7 @@ export async function loadFormSessionFromProvider(id: string, providerId: string
 
 export async function submitFormSessionToProvider(id: string, providerId: string, actor: SessionActor, options: { validatedRevision?: number } = {}): Promise<{ session: FormSession; provider: unknown }> {
   const input = await providerInput(id, providerId, actor);
+  if ((input.session as any).mode === 'view') throw new HttpError(403, 'Session is in view mode and cannot be submitted');
   const validation = options.validatedRevision !== undefined && options.validatedRevision === input.session.revision
     ? { session: publicSession(input.session, undefined, input.patient), valid: !Array.isArray(input.session.validation) || input.session.validation.length === 0, issues: (Array.isArray(input.session.validation) ? input.session.validation : []) as unknown as SessionValidationIssue[] }
     : await validateFormSession(id, actor);

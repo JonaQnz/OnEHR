@@ -1,5 +1,5 @@
 import type { CanonicalForm } from '../canonical';
-import type { FormSessionValues, UserAuthMode } from '../form-session';
+import type { FormSessionValues, FormRuntimeMode, UserAuthMode } from '../form-session';
 
 export const FORM_DATA_PROVIDER_API_VERSION = '1.0' as const;
 
@@ -7,6 +7,7 @@ export type ProviderJsonPrimitive = string | number | boolean | null;
 export type ProviderJsonValue = ProviderJsonPrimitive | ProviderJsonValue[] | { [key: string]: ProviderJsonValue };
 
 export interface FormDataProviderContext {
+  mode: FormRuntimeMode;
   patientId: string;
   patientNamespace?: string;
   /** Explicit EHR target resolved by the trusted backend patient registry. */

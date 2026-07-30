@@ -77,15 +77,16 @@ function getStyle(backgroundColor, hasElement, isOver, canDrop) {
 }
 
 function isContainer(item) {
-  if (item.itemType !== ItemTypes.CARD) {
-    const { data } = item;
-    if (data) {
-      if (data.isContainer) {
-        return true;
-      }
-      if (data.field_name) {
-        return data.field_name.indexOf('_col_row') > -1;
-      }
+  const data = item.data;
+  if (data) {
+    if (data.isContainer) {
+      return true;
+    }
+    if (data.field_name && data.field_name.indexOf('_col_row') > -1) {
+      return true;
+    }
+    if (data.element && data.element.indexOf('ColumnRow') > -1) {
+      return true;
     }
   }
   return false;
@@ -110,7 +111,7 @@ const Dustbin = ({
   const [{ isOver, canDrop, draggedItem }, drop] = useDrop({
     accept: accepts,
     collect: (monitor) => ({
-      isOver: monitor.isOver(),
+      isOver: monitor.isOver({ shallow: true }),
       canDrop: monitor.canDrop(),
       draggedItem: monitor.getItem(),
     }),
@@ -120,7 +121,7 @@ const Dustbin = ({
 
       // Do not allow replacing a component unless both items are in the same multi-column row
       if (droppedItem.col === undefined && items[col]) {
-        store.dispatch('resetLastItem');
+        store.dispatch('deleteLastItem');
         return;
       }
 

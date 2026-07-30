@@ -395,18 +395,41 @@ export class EhrbaseDataProvider implements FormDataProvider {
     }
     const id = templateId(input.form);
 
+    const mode = (input.context as any).mode || 'create';
+    if (mode === 'create') {
+      return { providerId: this.id, values: {}, metadata: { ehrId, templateId: id } };
+    }
+
+    // Only skip fetching if explicitly set to always_new AND we didn't ask for a specific reference. 
+    // Wait, if the mode is edit/view/prefill, we probably want to fetch regardless of strategy!
+    // But I will leave strategy just in case it's used for something else.
+    // Actually, I'll just check it.
     const strategy = (input.form.definition as any).settings?.ehrbase?.storageStrategy;
-    if (strategy === 'always_new') {
+    if (strategy === 'always_new' && !(input as any).reference) {
       return { providerId: this.id, values: {}, metadata: { ehrId, templateId: id } };
     }
 
     const wtTree = await getWebTemplateTree(id);
     let response: ProviderResponse;
+    const reference = (input as any).reference;
+    let versionUid: string | undefined;
+    if (reference) {
+      const match = String(reference).match(/([0-9a-f-]{36}::[^/\s]+::\d+)/i) || String(reference).match(/([^/]+::[^/]+::\d+)$/);
+      if (match) versionUid = match[1];
+    }
+
     try {
-      response = await this.http.get(`${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition`, {
-        ...(await this.requestOptions()),
-        params: { templateId: id, format: 'FLAT' },
-      }) as ProviderResponse;
+      if (versionUid) {
+        response = await this.http.get(`${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(versionUid)}`, {
+          ...(await this.requestOptions()),
+          params: { format: 'FLAT' },
+        }) as ProviderResponse;
+      } else {
+        response = await this.http.get(`${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition`, {
+          ...(await this.requestOptions()),
+          params: { templateId: id, format: 'FLAT' },
+        }) as ProviderResponse;
+      }
     } catch (error) {
       if ((error as any)?.response?.status === 404) return { providerId: this.id, values: {}, metadata: { ehrId, templateId: id } };
       return this.handleError(error);
@@ -415,7 +438,7 @@ export class EhrbaseDataProvider implements FormDataProvider {
     return {
       providerId: this.id,
       values: composition ? fromEhrbaseFlatComposition(input.form.definition, composition, wtTree) : {},
-      reference: composition ? referenceFrom(response) : undefined,
+      reference: mode !== 'prefill' && composition ? referenceFrom(response) : undefined,
       metadata: { ehrId, templateId: id },
     };
   }

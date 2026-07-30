@@ -52,7 +52,9 @@ const useDragAndDrop = (props) => {
       // Prevent live-sorting on hover if either element is nested inside a container (parentId is set)
       const dragParentId = item.data?.parentId || item.parentId;
       const hoverParentId = props.data?.parentId;
-      if (dragParentId || hoverParentId) {
+      
+      // If hovering over a nested element, let the Dustbin handle it
+      if (hoverParentId) {
         return;
       }
 
@@ -60,7 +62,18 @@ const useDragAndDrop = (props) => {
       const hoverIndex = props.index;
 
       // Don't replace items with themselves
-      if (dragIndex === hoverIndex) {
+      if (dragIndex === hoverIndex && !dragParentId) {
+        return;
+      }
+
+      // If pulling an item out of a layout to the root canvas:
+      if (dragParentId) {
+        if (typeof props.insertCard === 'function') {
+           props.insertCard(item, hoverIndex, item.id);
+           item.parentId = undefined;
+           if (item.data) item.data.parentId = undefined;
+           item.index = hoverIndex;
+        }
         return;
       }
 

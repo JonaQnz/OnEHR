@@ -358,14 +358,40 @@ export default function PatientDetail() {
                       </div>
                     )}
                     {session.providerReference && (
-                      <a
-                        href={session.providerReference}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.9rem', color: 'var(--primary)', fontSize: '0.82rem', overflowWrap: 'anywhere' }}
-                      >
-                        EHRbase-Composition öffnen <ExternalLink size={13} />
-                      </a>
+                      <div style={{ display: 'flex', gap: '1rem', marginTop: '0.9rem', flexWrap: 'wrap' }}>
+                        <a
+                          href={`/live/${session.formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent(session.providerReference)}&mode=view`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 500 }}
+                        >
+                          Ansehen
+                        </a>
+                        <a
+                          href={`/live/${session.formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent(session.providerReference)}&mode=edit`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 500 }}
+                        >
+                          Bearbeiten
+                        </a>
+                        <a
+                          href={`/live/${session.formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent(session.providerReference)}&mode=prefill`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 500 }}
+                        >
+                          Werte übernehmen
+                        </a>
+                        <a
+                          href={session.providerReference}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--text-muted)', fontSize: '0.82rem', overflowWrap: 'anywhere' }}
+                        >
+                          Rohdaten ansehen <ExternalLink size={13} />
+                        </a>
+                      </div>
                     )}
                   </div>
                 )}
@@ -601,7 +627,7 @@ export default function PatientDetail() {
               ) : publishedForms.map((form) => (
                 <a
                   key={form.id}
-                  href={`/live/${form.parent_id || form.id}?patientId=${encodeURIComponent(patient.patientId)}&returnUrl=${encodeURIComponent(`/patients/${id}`)}`}
+                  href={`/live/${form.parent_id || form.id}?patientId=${encodeURIComponent(patient.patientId)}&mode=create&returnUrl=${encodeURIComponent(`/patients/${id}`)}`}
                   target="_blank"
                   rel="noreferrer"
                   style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--border)', borderRadius: '6px', textDecoration: 'none', color: 'inherit' }}

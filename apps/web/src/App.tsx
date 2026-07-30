@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Settings, Puzzle, UserRound } from 'lucide-react';
+import { LayoutDashboard, Settings, Puzzle, UserRound, Beaker } from 'lucide-react';
 import React from 'react';
 import Dashboard from './pages/Dashboard';
 import FormBuilder from './pages/FormBuilder';
@@ -8,6 +8,7 @@ import SessionRuntime from './pages/SessionRuntime';
 import Config from './pages/Config';
 import Login from './pages/Login';
 import Plugins from './pages/Plugins';
+import FunctionsAdmin from './pages/FunctionsAdmin';
 import LiveForm from './pages/LiveForm';
 import PatientList from './pages/patients/PatientList';
 import PatientDetail from './pages/patients/PatientDetail';
@@ -80,6 +81,12 @@ function AppContent() {
               <span>Plugins</span>
             </Link>
           </li>
+          <li>
+            <Link to="/functions" className={location.pathname === '/functions' ? 'active' : ''}>
+              <Beaker size={18} />
+              <span>Functions</span>
+            </Link>
+          </li>
         </ul>
       </nav>
       <main className="main-content">
@@ -89,6 +96,7 @@ function AppContent() {
           <Route path="/patients/:id" element={<PatientDetail />} />
           <Route path="/config" element={<Config />} />
           <Route path="/plugins" element={<Plugins />} />
+          <Route path="/functions" element={<FunctionsAdmin />} />
           <Route path="/forms/:id/export" element={<FormExport />} />
           <Route path="/forms/:id/runtime" element={<SessionRuntime />} />
         </Routes>

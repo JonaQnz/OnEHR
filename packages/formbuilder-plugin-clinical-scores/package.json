@@ -1,0 +1,15 @@
+{
+  "name": "formbuilder-plugin-clinical-scores",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "plugin-api": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

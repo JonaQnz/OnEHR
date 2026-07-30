@@ -20,10 +20,13 @@ export interface FormSessionValues {
   [fieldId: string]: unknown;
 }
 
+export type FormRuntimeMode = 'create' | 'edit' | 'view' | 'prefill';
+
 export interface FormSession {
   id: string;
   formId: string;
   formVersion: string;
+  mode: FormRuntimeMode;
   patientId: string;
   patientNamespace?: string;
   ehrId?: string;
@@ -42,6 +45,7 @@ export interface FormSession {
 
 export interface FormSessionCreateInput {
   formId: string;
+  mode?: FormRuntimeMode;
   patientId: string;
   patientNamespace?: string;
   values?: FormSessionValues;

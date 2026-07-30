@@ -74,16 +74,27 @@ export default function LiveForm() {
         
         // Extract context from URL
         const patientId = searchParams.get('patientId') || searchParams.get('ehrId');
+        const reference = searchParams.get('reference');
+        const mode = searchParams.get('mode') || formData.canonical_json?.settings?.ehrbase?.defaultMode || 'create';
         
         if (patientId) {
           try {
             const query = `?patientId=${encodeURIComponent(patientId)}&formId=${encodeURIComponent(formData.id)}`;
             const existing = await request<SessionRecord[]>(`/form-sessions${query}`);
-            const reusable = existing.find((item) => !['submitted', 'cancelled'].includes(item.status));
+            const reusable = existing.find((item) => 
+              !['submitted', 'cancelled'].includes(item.status) &&
+              (!reference || item.providerReference === reference) &&
+              ((item as any).mode === mode)
+            );
             
             const current = reusable || await request<SessionRecord>('/form-sessions', {
               method: 'POST',
-              body: JSON.stringify({ formId: formData.id, patientId }),
+              body: JSON.stringify({ 
+                formId: formData.id, 
+                patientId, 
+                mode,
+                ...(reference ? { providerReference: reference } : {}) 
+              }),
             });
             
             setSession(current);
@@ -189,12 +200,12 @@ export default function LiveForm() {
             ehrId={session.ehrId}
             encounterId={searchParams.get('encounterId') || undefined}
             sessionId={session.id}
-            readOnly={submitted} 
+            readOnly={submitted || (session as any).mode === 'view'} 
             busy={busy} 
             submitLabel={submitted ? 'Abgesendet' : 'Absenden'} 
             onValuesChange={setDraftValues} 
             onSubmit={handleSubmit} 
-            mode="edit"
+            mode={(session as any).mode || 'create'}
           />
           <PluginHost 
             slot="runtime" 

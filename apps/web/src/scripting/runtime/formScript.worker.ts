@@ -1,3 +1,25 @@
+import type {
+  FormScriptChangeSource,
+  FormScriptEventName,
+  FormScriptLogEntry,
+  FormScriptSchemaIds,
+  RuntimeValues,
+} from 'core';
+import { appendScriptLog } from './scriptLogStore';
+import { buildGlobalFunctionsObject } from './registeredFunctions';
+
+export interface FormScriptUiState {
+  visible?: boolean;
+  enabled?: boolean;
+  readonly?: boolean;
+  required?: boolean;
+  loading?: boolean;
+  label?: string;
+  placeholder?: string;
+  helpText?: string;
+  options?: Array<{ value: string; label: string }>;
+}
+
 type ChangeSource = 'user' | 'script' | 'load' | 'api' | 'computed';
 type LifecycleName =
   | 'beforeLoad'
@@ -827,6 +849,7 @@ function createSdk() {
     ui,
     events,
     context,
+    functions: buildGlobalFunctionsObject(),
     state: {
       get: (key: string) => stateValues.get(key),
       set: (key: string, value: unknown) => stateValues.set(key, value),

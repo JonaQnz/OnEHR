@@ -175,6 +175,30 @@ export interface PluginHookContext {
   metadata?: JsonObject;
 }
 
+export interface ValidationIssue {
+  code: string;
+  path?: string;
+  message: string;
+}
+
+export interface FunctionDefinition {
+  name: string;
+  description: string;
+  parameters: Record<string, string>;
+  returns: string;
+  execute: (...args: any[]) => any;
+}
+
+export interface FunctionPackageDefinition {
+  id: string;
+  version: string;
+  functions: FunctionDefinition[];
+}
+
+export function defineFunctionPackage(pkg: FunctionPackageDefinition): FunctionPackageDefinition {
+  return pkg;
+}
+
 export interface PluginValidationError {
   path?: string;
   message: string;

@@ -59,7 +59,7 @@ export interface FormRuntimeProps {
   sessionId?: string;
   rendererOverrides?: Record<string, RuntimeRenderer>;
   onValuesChange?: (values: RuntimeValues) => void;
-  mode?: 'create' | 'edit' | 'view' | 'preview';
+  mode?: 'create' | 'edit' | 'view' | 'preview' | 'prefill';
   onSubmit?: (values: RuntimeValues) => void | Promise<void>;
 }
 
