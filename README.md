@@ -2,7 +2,7 @@
 
 An openEHR-first **Clinical Form Builder** designed to separate clinical semantics (openEHR), visual form presentation (drag-and-drop form builder), and EHRbase interoperability.
 
-This project enables clinical domain experts and developers to import openEHR WebTemplates, visually customize clinical forms with drag-and-drop controls, edit openEHR bindings, and export definitions to target formats such as **CambioForm v1.1**.
+This project enables clinical domain experts and developers to import openEHR WebTemplates, visually customize clinical forms with drag-and-drop controls, edit openEHR bindings, and export definitions to target formats such as **CambioForm v1.1**. With its robust plugin system and Live Form engine, it also acts as a full-fledged runtime for clinical data capture.
 
 ---
 
@@ -11,9 +11,28 @@ This project enables clinical domain experts and developers to import openEHR We
 - **openEHR WebTemplate Integration**: Upload and parse openEHR WebTemplate JSON files into structured field registries.
 - **Auto-Generated Canonical Form Models**: Automatically initialize structured canonical forms from openEHR templates with sensible default layouts.
 - **Visual Drag-and-Drop Form Builder**: Interactive React canvas with support for multi-column layouts, nested fieldsets, input validations, and custom clinical form elements.
-- **openEHR Mapping Inspector**: Zuweisen and edit openEHR metadata attributes directly per form field.
+- **Live Form Engine (Session Management)**: Run forms in "Live" mode tied to patient IDs, complete with autosave (drafts) and automated EHRbase submission.
+- **openEHR Mapping Inspector**: View, edit, and assign openEHR metadata attributes directly per form field.
+- **Extensible Plugin System (`plugin-api`)**: An expansive plugin SDK enabling developers to extend backend APIs, inject frontend React components, provide custom workflow hooks, or handle form submissions securely.
 - **CambioForm v1.1 Export**: Export form structures and mapping definitions into standard `CambioForm.v1.1` JSON format.
 - **Configurable EHRbase & Keycloak Integration**: Dynamic endpoint management for openEHR EHRbase REST APIs and Keycloak authentication.
+
+---
+
+## 🔌 Plugins Ecosystem
+
+Plugins are ordinary TypeScript/JavaScript npm packages using the shared `plugin-api` contract. The server securely executes trusted backend code while dynamically serving frontend React extensions.
+
+### Core Plugins included:
+
+- **`formbuilder-plugin-aql-prefill`**: Allows querying EHRbase via AQL to automatically prefill form data. Configurable on a form, group, or field level directly via the form designer.
+- **`formbuilder-example-n8n-plugin`**: Demonstrates integration with [n8n](https://n8n.io/) to trigger external orchestration workflows upon form events (e.g. `afterSubmit`).
+- **`formbuilder-example-vitals-plugin`**: A reference plugin adding custom clinical widgets and lifecycle hooks.
+
+To enable plugins, install them in the repository and list them in your environment variables:
+```bash
+FORM_BUILDER_PLUGINS=formbuilder-plugin-aql-prefill,formbuilder-example-vitals-plugin,formbuilder-example-n8n-plugin
+```
 
 ---
 
@@ -24,24 +43,24 @@ The project is structured as an **npm workspaces monorepo**:
 ```text
 formbuilder/
 ├── docker-compose.yml        # Multi-container setup (PostgreSQL, API, Web)
-├── Dockerfile.api            # Dockerfile for Express API backend
-├── Dockerfile.web            # Dockerfile for React Web frontend
 ├── package.json              # Workspace root configuration
 ├── apps/
 │   ├── api/                  # Express.js + TypeScript + Prisma ORM Backend
 │   └── web/                  # React + Vite + TypeScript Frontend
 ├── packages/
-│   ├── core/                 # Shared TypeScript interfaces & Canonical models
-│   └── react-form-builder2/  # Drag-and-drop UI component library for form editing
-└── examples/
-    ├── templates/            # Sample openEHR WebTemplates (e.g. vital_signs_icu.webtemplate.json)
-    └── templates/            # Sample openEHR WebTemplates
+│   ├── core/                           # Shared TypeScript interfaces & Canonical models
+│   ├── plugin-api/                     # Plugin SDK definitions & runtime interfaces
+│   ├── react-form-builder2/            # Drag-and-drop UI component library for form editing
+│   ├── aql-prefill-plugin/             # AQL Prefill plugin implementation
+│   ├── formbuilder-example-n8n-plugin/ # Example n8n workflow integration plugin
+│   └── formbuilder-example-vitals-plugin/ # Example vitals plugin
+└── data/                     # Local configurations and exports
 ```
 
 ### Core Technologies
 - **Frontend (`apps/web`)**: React 18, Vite, TypeScript, customized `react-form-builder2` library.
 - **Backend (`apps/api`)**: Node.js, Express.js, TypeScript, Prisma ORM, Axios.
-- **Database**: PostgreSQL (with JSONB support for canonical form definitions).
+- **Database**: PostgreSQL (with JSONB support for canonical form definitions & live sessions).
 - **Containerization**: Docker & Docker Compose.
 
 ---
@@ -53,7 +72,7 @@ formbuilder/
 Ensure you have the following installed on your machine:
 - **Node.js**: `v18.x` or higher
 - **npm**: `v9.x` or higher
-- **Docker & Docker Compose** (optional, for containerized runs)
+- **Docker & Docker Compose** (Highly recommended for the EHRbase backend stack)
 
 ---
 
@@ -86,8 +105,7 @@ Ensure you have the following installed on your machine:
 
 2. **Build Shared Packages**:
    ```bash
-   npm run build --workspace=core
-   npm run build:lib --workspace=react-form-builder2
+   npm run build:packages
    ```
 
 3. **Database Setup**:
@@ -123,53 +141,34 @@ Ensure you have the following installed on your machine:
 
 The system uses PostgreSQL with Prisma ORM. Key tables:
 
-- **`forms` (`Form`)**: Stores canonical form models (`id`, `name`, `version`, `status`, `canonical_json`, timestamps).
-- **`templates` (`Template`)**: Stores uploaded and parsed openEHR WebTemplates (`id`, `template_id`, `version`, `type`, `alias`, `parsed_registry_json`, timestamps).
+- **`Form`**: Stores canonical form models (`id`, `name`, `version`, `status`, `canonical_json`, timestamps).
+- **`Template`**: Stores uploaded and parsed openEHR WebTemplates (`id`, `template_id`, `version`, `type`, `alias`, `parsed_registry_json`, timestamps).
+- **`FormSession`**: Stores "Live Form" instances tied to a patient with autosave states and submission results (`id`, `patientId`, `ehrId`, `status`, `values`).
 
 ---
 
-## 🔌 API Endpoints Summary
+## 🔌 Core API Endpoints
 
 ### Forms (`/api/forms`)
 - `GET /api/forms` - List all canonical forms.
 - `GET /api/forms/:id` - Fetch a specific form by ID.
-- `POST /api/forms` - Save/Update a canonical form.
 - `POST /api/forms/generate` - Generate a new canonical form model from a WebTemplate registry.
 - `GET /api/forms/:id/export/cambio` - Export form to CambioForm.v1.1 format.
+
+### Live Form Sessions (`/api/form-sessions`)
+- `POST /api/form-sessions` - Start a new form session for a patient.
+- `PATCH /api/form-sessions/:id` - Autosave form values (Draft mode).
+- `POST /api/form-sessions/:id/provider/submit` - Execute formal composition submission (e.g. to EHRbase).
 
 ### WebTemplates (`/api/templates`)
 - `GET /api/templates` - List imported WebTemplates.
 - `POST /api/templates/import` - Upload & parse a new WebTemplate JSON.
 
-### Configuration (`/api/config`)
-- `GET /api/config` - Retrieve current EHRbase & Keycloak settings.
-- `POST /api/config` - Update endpoint configurations.
+### Plugins & Extensions (`/api/plugins`)
+- `GET /api/plugins` - Retrieve all loaded plugin manifests and UI contributions.
+- `POST /api/plugins/actions/:pluginId/:actionId` - Proxies execution requests to secure plugin backend handlers.
 
 ---
-
-## 🔌 Plugins
-
-Plugins are ordinary TypeScript/JavaScript npm packages using the shared `plugin-api` contract. The server executes trusted plugin code; manifests and contributions exposed to the UI remain serializable and namespaced.
-
-Build and test the plugin-enabled app:
-
-```bash
-npm install
-npm test
-```
-
-Open **Plugins** in the web app, enter `formbuilder-example-vitals-plugin`, and choose **Laden**. The page shows the host contract, the manifest, permissions, and registered contributions. The example demonstrates these extension points:
-- `field`: custom field types for the designer.
-- `settings`: panels in application settings.
-- `form`: actions in the form designer.
-- `designer`: panels in the designer workspace.
-- `runtime`: actions available while filling a form.
-- `dataProvider`: load/submit provider metadata (the built-in EHRbase provider remains core).
-- `workflow` and `lifecycle`: server-side orchestration and validation hooks.
-Plugins are trusted TypeScript/JavaScript code executed by the API process. Every package must declare its extension points and permissions (`form:read`, `form:write`, `patient:read`, `ehrbase:read`, `ehrbase:write`, or `network:request`). Packages must be installed in the self-hosted deployment; the UI does not install arbitrary code. For unattended startup, set `FORM_BUILDER_PLUGINS` to a comma-separated package list.
-The n8n example is `formbuilder-example-n8n-plugin`. Configure the n8n API and target in the API environment, then load the package from the Plugins page. In each form, open `Form Settings → Submission` and click `Als n8n Form konfigurieren`:
-Docker default: `N8N_API_URL=http://host.docker.internal:5678/api/v1`; lokale Ausführung: `N8N_API_URL=http://localhost:5678/api/v1`. Zusätzlich: `N8N_API_KEY=…`, `N8N_PUBLIC_URL=http://localhost:5678`, `N8N_EHRBASE_URL=http://ehrbase:8080/ehrbase/rest/openehr/v1`.
-`FORM_BUILDER_PLUGINS=formbuilder-example-vitals-plugin,formbuilder-example-n8n-plugin`
 
 ## 📜 License
 
