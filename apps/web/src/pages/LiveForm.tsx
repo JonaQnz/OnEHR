@@ -67,8 +67,13 @@ export default function LiveForm() {
     if (!parentId) return;
     setLoading(true);
     
-    // Attempt to load the latest published version of the form
-    request<FormResponse>(`/forms/parent/${encodeURIComponent(parentId)}/latest-published`)
+    const exactVersion = searchParams.get('exactVersion') === 'true';
+    const formPromise = exactVersion 
+      ? request<FormResponse>(`/forms/${encodeURIComponent(parentId)}`)
+      : request<FormResponse>(`/forms/parent/${encodeURIComponent(parentId)}/latest-published`)
+          .catch(() => request<FormResponse>(`/forms/${encodeURIComponent(parentId)}`));
+
+    formPromise
       .then(async (formData) => {
         setForm(formData);
         
@@ -87,15 +92,31 @@ export default function LiveForm() {
               ((item as any).mode === mode)
             );
             
-            const current = reusable || await request<SessionRecord>('/form-sessions', {
-              method: 'POST',
-              body: JSON.stringify({ 
-                formId: formData.id, 
-                patientId, 
-                mode,
-                ...(reference ? { providerReference: reference } : {}) 
-              }),
-            });
+            let current = reusable;
+            let newlyCreated = false;
+            if (!current) {
+               current = await request<SessionRecord>('/form-sessions', {
+                method: 'POST',
+                body: JSON.stringify({ 
+                  formId: formData.id, 
+                  patientId, 
+                  mode,
+                  ...(reference ? { providerReference: reference } : {}) 
+                }),
+              });
+              newlyCreated = true;
+            }
+
+            if (newlyCreated) {
+              if (mode !== 'create') {
+                const submissionProviderId = formData.canonical_json?.settings?.submission?.providerId || 'ehrbase';
+                const loadResult = await request<{ session: SessionRecord }>(`/form-sessions/${current.id}/provider/load`, {
+                  method: 'POST',
+                  body: JSON.stringify({ providerId: submissionProviderId })
+                });
+                current = loadResult.session;
+              }
+            }
             
             setSession(current);
             setDraftValues(current.values || {});

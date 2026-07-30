@@ -360,7 +360,7 @@ export default function PatientDetail() {
                     {session.providerReference && (
                       <div style={{ display: 'flex', gap: '1rem', marginTop: '0.9rem', flexWrap: 'wrap' }}>
                         <a
-                          href={`/live/${session.formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent(session.providerReference)}&mode=view`}
+                          href={`/live/${session.formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent(session.providerReference)}&mode=view&exactVersion=true`}
                           target="_blank"
                           rel="noreferrer"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 500 }}
@@ -368,7 +368,7 @@ export default function PatientDetail() {
                           Ansehen
                         </a>
                         <a
-                          href={`/live/${session.formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent(session.providerReference)}&mode=edit`}
+                          href={`/live/${session.formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent(session.providerReference)}&mode=edit&exactVersion=true`}
                           target="_blank"
                           rel="noreferrer"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 500 }}
@@ -376,7 +376,7 @@ export default function PatientDetail() {
                           Bearbeiten
                         </a>
                         <a
-                          href={`/live/${session.formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent(session.providerReference)}&mode=prefill`}
+                          href={`/live/${session.formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent(session.providerReference)}&mode=prefill&exactVersion=true`}
                           target="_blank"
                           rel="noreferrer"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 500 }}
@@ -627,7 +627,7 @@ export default function PatientDetail() {
               ) : publishedForms.map((form) => (
                 <a
                   key={form.id}
-                  href={`/live/${form.parent_id || form.id}?patientId=${encodeURIComponent(patient.patientId)}&mode=create&returnUrl=${encodeURIComponent(`/patients/${id}`)}`}
+                  href={`/live/${form.parent_id || form.id}?patientId=${encodeURIComponent(patient.patientId)}&returnUrl=${encodeURIComponent(`/patients/${id}`)}`}
                   target="_blank"
                   rel="noreferrer"
                   style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--border)', borderRadius: '6px', textDecoration: 'none', color: 'inherit' }}

@@ -196,28 +196,46 @@ export function toEhrbaseFlatComposition(
   return flat;
 }
 
-function indexedValues(flat: Record<string, any>, path: string): any[] {
-  const prefix = `${path}:`;
-  const entries = Object.keys(flat).map((key) => {
-    if (!key.startsWith(prefix)) return undefined;
-    const suffix = key.slice(prefix.length).split('|', 1)[0];
-    return /^\\d+$/.test(suffix) ? { index: Number(suffix), key } : undefined;
-  }).filter((entry): entry is { index: number; key: string } => Boolean(entry)).sort((left, right) => left.index - right.index);
-  return entries.map(({ key }) => flat[key]);
-}
-
 function readFlatValue(flat: Record<string, any>, path: string, rmType?: string): any {
-  const indexed = indexedValues(flat, path);
-  if (indexed.length > 0) {
-    return indexed.map((_value, index) => readFlatValue(flat, `${path}:${index}`, rmType));
+  const escapedPath = path.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&').replace(/\\\//g, '(?::\\d+)?\\/');
+  const pathRegex = new RegExp('^' + escapedPath + '(?::\\d+)?(?:\\|.*)?$');
+  const matchingKeys = Object.keys(flat).filter(k => pathRegex.test(k));
+  if (matchingKeys.length === 0) return undefined;
+  
+  const values: any[] = [];
+  for (const k of matchingKeys) {
+    // extract indices
+    const indices: number[] = [];
+    const re = /:(\d+)(?=\/|$|\|)/g;
+    let m;
+    while ((m = re.exec(k)) !== null) indices.push(Number(m[1]));
+    
+    // extract value
+    let val: any = undefined;
+    if (rmType === 'DV_QUANTITY') {
+        if (k.endsWith('|magnitude')) val = { magnitude: flat[k], unit: flat[k.replace('|magnitude', '|unit')] };
+        else continue;
+    } else if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE') {
+        if (k.endsWith('|code')) val = flat[k];
+        else if (k.endsWith('|value') && !matchingKeys.find(mk => mk === k.replace('|value', '|code'))) val = flat[k];
+        else continue;
+    } else {
+        val = flat[k];
+    }
+    
+    // build nested structure
+    let current = values;
+    for (let i = 0; i < indices.length - 1; i++) {
+        if (!current[indices[i]]) current[indices[i]] = [];
+        current = current[indices[i]] as any;
+    }
+    if (indices.length > 0) {
+        current[indices[indices.length - 1]] = val;
+    } else {
+        return val; // no indices, simple scalar return
+    }
   }
-  if (rmType === 'DV_QUANTITY') {
-    const magnitude = flat[`${path}|magnitude`];
-    const unit = flat[`${path}|unit`];
-    return isEmpty(magnitude) && isEmpty(unit) ? undefined : { magnitude, unit };
-  }
-  if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE') return flat[`${path}|code`] ?? flat[`${path}|value`] ?? flat[path];
-  return flat[path];
+  return values.length > 0 ? values : undefined;
 }
 
 export function fromEhrbaseFlatComposition(
@@ -249,6 +267,16 @@ export function fromEhrbaseFlatComposition(
     const value = readFlatValue(composition, flatPath, binding?.rmType);
     if (!isEmpty(value)) values[fieldId] = value;
   }
+  
+  console.log('[EhrbaseDataProvider] Mapped flat composition to values:', {
+    compositionKeyCount: Object.keys(composition).length,
+    compositionKeys: Object.keys(composition),
+    matchedValues: values,
+    unmatchedBindings: Array.from(fieldBindings.entries())
+      .filter(([id]) => values[id] === undefined)
+      .map(([id, fb]) => ({ id, path: resolveFlatPath(fb, aqlMap) }))
+  });
+
   return values;
 }
 
@@ -396,16 +424,8 @@ export class EhrbaseDataProvider implements FormDataProvider {
     const id = templateId(input.form);
 
     const mode = (input.context as any).mode || 'create';
-    if (mode === 'create') {
-      return { providerId: this.id, values: {}, metadata: { ehrId, templateId: id } };
-    }
 
-    // Only skip fetching if explicitly set to always_new AND we didn't ask for a specific reference. 
-    // Wait, if the mode is edit/view/prefill, we probably want to fetch regardless of strategy!
-    // But I will leave strategy just in case it's used for something else.
-    // Actually, I'll just check it.
-    const strategy = (input.form.definition as any).settings?.ehrbase?.storageStrategy;
-    if (strategy === 'always_new' && !(input as any).reference) {
+    if (mode === 'create') {
       return { providerId: this.id, values: {}, metadata: { ehrId, templateId: id } };
     }
 
@@ -419,26 +439,36 @@ export class EhrbaseDataProvider implements FormDataProvider {
     }
 
     try {
+      if (!versionUid) {
+        // We must query AQL to find the latest composition for this template
+        // EHRbase requires the ORDER BY column to be present in the SELECT statement
+        const aql = `SELECT c/uid/value, c/context/start_time/value FROM EHR e [ehr_id/value='${ehrId}'] CONTAINS COMPOSITION c WHERE c/archetype_details/template_id/value='${id}' ORDER BY c/context/start_time/value DESC LIMIT 1`;
+        const aqlResponse = await this.http.post(`${baseUrl(this.config)}/query/aql`, { q: aql }, await this.requestOptions()) as ProviderResponse;
+        
+        const rows = aqlResponse.data?.rows || [];
+        if (rows.length > 0 && rows[0][0]) {
+          versionUid = rows[0][0];
+        }
+      }
+
       if (versionUid) {
         response = await this.http.get(`${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(versionUid)}`, {
           ...(await this.requestOptions()),
           params: { format: 'FLAT' },
         }) as ProviderResponse;
       } else {
-        response = await this.http.get(`${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition`, {
-          ...(await this.requestOptions()),
-          params: { templateId: id, format: 'FLAT' },
-        }) as ProviderResponse;
+        // No composition found
+        return { providerId: this.id, values: {}, metadata: { ehrId, templateId: id } };
       }
     } catch (error) {
       if ((error as any)?.response?.status === 404) return { providerId: this.id, values: {}, metadata: { ehrId, templateId: id } };
       return this.handleError(error);
     }
-    const composition = latestComposition(response.data);
+    const composition = response.data;
     return {
       providerId: this.id,
       values: composition ? fromEhrbaseFlatComposition(input.form.definition, composition, wtTree) : {},
-      reference: mode !== 'prefill' && composition ? referenceFrom(response) : undefined,
+      reference: mode !== 'prefill' && composition ? (versionUid || referenceFrom(response)) : undefined,
       metadata: { ehrId, templateId: id },
     };
   }
@@ -480,10 +510,10 @@ export class EhrbaseDataProvider implements FormDataProvider {
           response = await this.http.put(`${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(versionUid)}`, flatBody, {
             ...options,
             params: { templateId: id, format: 'FLAT' },
-            headers: { ...options.headers, Prefer: 'return=representation' },
+            headers: { ...options.headers, 'If-Match': versionUid, Prefer: 'return=representation' },
           }) as ProviderResponse;
         } catch (putErr: any) {
-          if (putErr?.response?.status === 404) {
+          if (putErr?.response?.status === 404 || putErr?.response?.status === 412) {
             response = await this.http.post(`${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition`, flatBody, {
               ...options,
               params: { templateId: id, format: 'FLAT' },

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Plus, FileEdit, Download, Copy, UploadCloud, FolderOpen, ExternalLink, Archive, RotateCcw, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 
@@ -9,6 +9,7 @@ export default function Dashboard() {
   const [viewDeleted, setViewDeleted] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchForms();
@@ -35,6 +36,47 @@ export default function Dashboard() {
           navigate(`/forms/${data.form.id}/builder`);
         }
       });
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        const res = await fetch('http://localhost:3001/api/forms/import/full', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(json)
+        });
+        
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          alert(`Import failed: ${errData.error || errData.message || 'Unknown error'}`);
+          return;
+        }
+
+        const data = await res.json();
+        alert('Form imported successfully!');
+        fetchForms();
+        if (data.form) {
+          navigate(`/forms/${data.form.id}/builder`);
+        }
+      } catch (err) {
+        alert('Failed to parse JSON file or invalid JSON structure.');
+      }
+    };
+    reader.readAsText(file);
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handlePublish = (id: string) => {
@@ -115,9 +157,21 @@ export default function Dashboard() {
           <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: '0 0 0.5rem 0', letterSpacing: '-0.02em' }}>Dashboard</h1>
           <p style={{ margin: 0, color: 'var(--text-muted)' }}>Manage and version your clinical forms.</p>
         </div>
-        <button className="btn" onClick={handleCreateForm}>
-          <Plus size={18} /> Create New Form
-        </button>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            style={{ display: 'none' }} 
+            accept=".json"
+            onChange={handleFileChange}
+          />
+          <button className="btn btn-secondary" onClick={handleImportClick}>
+            <UploadCloud size={18} /> Import Form
+          </button>
+          <button className="btn" onClick={handleCreateForm}>
+            <Plus size={18} /> Create New Form
+          </button>
+        </div>
       </div>
 
       <div className="card" style={{ display: 'flex', gap: '1rem', padding: '1rem 1.5rem', marginBottom: '1.5rem', alignItems: 'center' }}>

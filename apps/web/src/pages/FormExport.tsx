@@ -19,6 +19,7 @@ export default function FormExport() {
   const { id } = useParams();
   const [cambio, setCambio] = useState<any>(null);
   const [mappings, setMappings] = useState<any>(null);
+  const [fullExport, setFullExport] = useState<any>(null);
   const [formName, setFormName] = useState<string>('Form');
 
   useEffect(() => {
@@ -57,6 +58,21 @@ export default function FormExport() {
       })
       .then(data => setMappings(data))
       .catch(err => setMappings({ error: err.message }));
+
+    fetch(`http://localhost:3001/api/forms/${id}/export/full`)
+      .then(async res => {
+        if (!res.ok) {
+          const errText = await res.text();
+          try {
+            return JSON.parse(errText);
+          } catch {
+            return { error: errText || `Export failed with status ${res.status}` };
+          }
+        }
+        return res.json();
+      })
+      .then(data => setFullExport(data))
+      .catch(err => setFullExport({ error: err.message }));
   }, [id]);
 
   return (
@@ -93,6 +109,27 @@ export default function FormExport() {
           </h3>
           <pre style={{ background: '#f1f5f9', padding: '1rem', fontSize: '0.8rem', overflowX: 'auto', maxHeight: '600px' }}>
             {mappings ? JSON.stringify(mappings, null, 2) : 'Loading...'}
+          </pre>
+        </div>
+      </div>
+      
+      <div style={{ display: 'flex', gap: '2rem', marginTop: '2rem' }}>
+        <div className="card" style={{ flex: 1 }}>
+          <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            Full Form Export (1:1)
+            <button
+              style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+              onClick={() => downloadJson(fullExport, `${formName}_FullExport.json`)}
+              disabled={!fullExport}
+            >
+              ⬇ Download 1:1 Backup
+            </button>
+          </h3>
+          <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1rem' }}>
+            Contains layout, plugin configuration, logic scripts, and form settings. Use this file to import the form into another environment.
+          </p>
+          <pre style={{ background: '#f1f5f9', padding: '1rem', fontSize: '0.8rem', overflowX: 'auto', maxHeight: '600px' }}>
+            {fullExport ? JSON.stringify(fullExport, null, 2) : 'Loading...'}
           </pre>
         </div>
       </div>

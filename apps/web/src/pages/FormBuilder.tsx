@@ -18,6 +18,55 @@ import FormRuntime from '../components/FormRuntime';
 import ScriptEditor from '../scripting/editor/ScriptEditor';
 import ScriptLogs from '../scripting/editor/ScriptLogs';
 
+function LiveJsonEditor({ form, onSave }: { form: any, onSave: (f: any, items: any[]) => void }) {
+  const [jsonString, setJsonString] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setJsonString(JSON.stringify(form.canonical_json, null, 2));
+  }, [form]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setJsonString(val);
+    try {
+      const parsed = JSON.parse(val);
+      setError(null);
+      const items = canonicalToFormBuilder(parsed);
+      const newForm = { ...form, canonical_json: parsed };
+      onSave(newForm, items);
+      
+      fetch(`http://localhost:3001/api/forms/${form.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed)
+      }).catch(err => console.error("Auto-save failed from JSON view:", err));
+
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '1rem', backgroundColor: '#1e293b', color: '#f8fafc' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', alignItems: 'center' }}>
+        <strong style={{ fontSize: '1rem' }}>Live JSON Editor</strong>
+        {error ? (
+          <span style={{ color: '#ef4444', fontSize: '0.85rem', fontWeight: 600 }}>{error}</span>
+        ) : (
+          <span style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: 600 }}>JSON is Valid (Auto-saving)</span>
+        )}
+      </div>
+      <textarea
+        style={{ flex: 1, backgroundColor: '#0f172a', color: '#f8fafc', border: '1px solid #334155', borderRadius: '8px', fontFamily: 'monospace', padding: '1rem', fontSize: '13px', outline: 'none', resize: 'none' }}
+        value={jsonString}
+        onChange={handleChange}
+        spellCheck={false}
+      />
+    </div>
+  );
+}
+
 function getUniqueFieldName(baseName: string, usedNames?: Set<string>): string {
   const data = (ElementStore as any).state?.data || [];
   let name = baseName;
@@ -435,8 +484,8 @@ function FormBuilderContent() {
   // Store the library's updateElement fn (used to propagate changes back into the canvas store)
   const updateElementFnRef = React.useRef<((elem: any) => void) | null>(null);
 
-  // One integrated workbench per form: Designer | Preview | TypeScript | Logs
-  const [previewMode, setPreviewMode] = useState<'edit' | 'runtime' | 'typescript' | 'logs' | 'clinical' | 'export'>('edit');
+  // One integrated workbench per form: Designer | Preview | TypeScript | Logs | Live JSON
+  const [previewMode, setPreviewMode] = useState<'edit' | 'runtime' | 'typescript' | 'logs' | 'clinical' | 'export' | 'json'>('edit');
   // Warnings Drawer toggle
   const [warningsOpen, setWarningsOpen] = useState(false);
 
@@ -1095,6 +1144,7 @@ function FormBuilderContent() {
         <div className="workbench-actions-area">
           <nav className="workbench-view-tabs" aria-label="Formular-Arbeitsbereich">
             <button type="button" className={`btn-workbench secondary ${previewMode === 'edit' ? 'active' : ''}`} onClick={() => setPreviewMode('edit')}>Designer</button>
+            <button type="button" className={`btn-workbench secondary ${previewMode === 'json' ? 'active' : ''}`} onClick={() => setPreviewMode('json')}>Live JSON</button>
             <button type="button" className={`btn-workbench secondary ${previewMode === 'runtime' ? 'active' : ''}`} onClick={() => setPreviewMode('runtime')}>Preview</button>
             <button type="button" className={`btn-workbench secondary ${previewMode === 'typescript' ? 'active' : ''}`} onClick={() => setPreviewMode('typescript')}>TypeScript</button>
             <button type="button" className={`btn-workbench secondary ${previewMode === 'logs' ? 'active' : ''}`} onClick={() => setPreviewMode('logs')}>Logs</button>
@@ -1137,6 +1187,18 @@ function FormBuilderContent() {
               definition={form.canonical_json}
               mode="preview"
               submitLabel="Lifecycle testen"
+            />
+          </div>
+        ) : previewMode === 'json' ? (
+          <div className="workbench-scripting-view">
+            <LiveJsonEditor 
+              form={form} 
+              onSave={(newForm, newBuilderItems) => {
+                 setForm(newForm);
+                 formRef.current = newForm;
+                 setBuilderItems(newBuilderItems);
+                 (ElementStore as any).dispatch('setData', [...newBuilderItems], false);
+              }}
             />
           </div>
         ) : previewMode === 'edit' ? (
@@ -1330,6 +1392,7 @@ function FormBuilderContent() {
                   })();
 
                   return (
+                    // @ts-ignore: ReactFormBuilder types are incomplete
                     <ReactFormBuilder
                       data={sanitizedLayout}
                       onPost={handleSave}
@@ -2003,21 +2066,7 @@ function FormBuilderContent() {
                                 </label>
                               </div>
 
-                              <div className="inspector-field-group" style={{ marginTop: '1.5rem' }}>
-                                <label>Storage Strategy</label>
-                                <select 
-                                  className="inspector-select" 
-                                  value={form.canonical_json.settings?.ehrbase?.storageStrategy || 'update_latest'} 
-                                  onChange={(e) => updateEhrbaseSetting('storageStrategy', e.target.value)}
-                                  onBlur={() => handleSave(builderItems)}
-                                >
-                                  <option value="update_latest">Update Latest Composition (z.B. Stammdaten)</option>
-                                  <option value="always_new">Always Create New (z.B. Vitalparameter)</option>
-                                </select>
-                                <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.5rem' }}>
-                                  Determine whether opening this form loads the patient's most recent composition and updates it, or always creates a new empty composition.
-                                </p>
-                              </div>
+
 
                               <div className="inspector-field-group" style={{ marginTop: '1.5rem' }}>
                                 <label>Default Runtime Mode</label>
