@@ -14,6 +14,7 @@
     "core": "*",
     "plugin-api": "*",
     "formbuilder-plugin-aql-prefill": "*",
+    "formbuilder-plugin-iframe": "*",
     "@prisma/client": "^5.22.0",
     "axios": "^1.7.9",
     "cors": "^2.8.5",

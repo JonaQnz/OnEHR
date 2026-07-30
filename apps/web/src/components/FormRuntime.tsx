@@ -18,7 +18,7 @@ import type {
   RuntimeValidationIssue,
 } from 'core';
 import * as CoreRuntime from 'core';
-import { ExtensionSlot, ExtensionWrapperSlot } from './FrontendPluginRegistry';
+import { ExtensionSlot, ExtensionWrapperSlot, useFrontendPlugins } from './FrontendPluginRegistry';
 import {
   FormScriptClient,
   type FormScriptLifecycleResult,
@@ -115,6 +115,12 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   onSubmit,
   mode = 'preview',
 }, ref) {
+  const { renderers } = useFrontendPlugins();
+  const effectiveRendererOverrides = useMemo(() => ({
+    ...renderers,
+    ...rendererOverrides
+  }), [renderers, rendererOverrides]);
+
   const fields = useMemo(() => CoreRuntime.collectRuntimeFields(definition), [definition]);
   const groups = useMemo(() => CoreRuntime.collectRuntimeGroups(definition), [definition]);
   const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group])), [groups]);
@@ -395,7 +401,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   ): ReactNode => {
     const dynamic = uiStates[`fields:${field.id}`];
     const disabled = readOnly || dynamic?.enabled === false || dynamic?.readonly === true || field.readOnly;
-    const override = rendererOverrides[field.type] || rendererOverrides[node.uiElement || ''];
+    const override = effectiveRendererOverrides[field.type] || effectiveRendererOverrides[node.uiElement || ''];
     if (override) return override({ field, node, value, error, disabled, onChange });
     const invalid = Boolean(error);
     const style = {

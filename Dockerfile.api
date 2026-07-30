@@ -13,6 +13,7 @@ COPY packages/plugin-api/package.json ./packages/plugin-api/
 COPY packages/example-vitals-plugin/package.json ./packages/example-vitals-plugin/
 COPY packages/example-n8n-plugin/package.json ./packages/example-n8n-plugin/
 COPY packages/aql-prefill-plugin/package.json ./packages/aql-prefill-plugin/
+COPY packages/formbuilder-plugin-iframe/package.json ./packages/formbuilder-plugin-iframe/
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 
@@ -31,12 +32,8 @@ COPY . .
 
 # Generate Prisma and build
 RUN cd apps/api && npx prisma generate
-RUN cd packages/core && npm run build
-RUN cd packages/plugin-api && npm run build
-RUN cd packages/example-vitals-plugin && npm run build
-RUN cd packages/example-n8n-plugin && npm run build
-RUN cd packages/aql-prefill-plugin && npm run build
-RUN cd apps/api && npx tsc
+RUN npm run build:packages
+RUN cd apps/api && npm run build
 
 # Runtime stage
 FROM node:18-slim AS runtime
@@ -51,6 +48,7 @@ COPY --from=build /app/packages/plugin-api ./packages/plugin-api
 COPY --from=build /app/packages/example-vitals-plugin ./packages/example-vitals-plugin
 COPY --from=build /app/packages/example-n8n-plugin ./packages/example-n8n-plugin
 COPY --from=build /app/packages/aql-prefill-plugin ./packages/aql-prefill-plugin
+COPY --from=build /app/packages/formbuilder-plugin-iframe ./packages/formbuilder-plugin-iframe
 COPY --from=build /app/package.json ./
 
 EXPOSE 3001

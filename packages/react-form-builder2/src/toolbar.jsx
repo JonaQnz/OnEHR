@@ -340,7 +340,7 @@ class Toolbar extends React.Component {
   }
 
   addCustomOptions(item, elementOptions) {
-    if (item.type === 'custom') {
+    if (item.type === 'custom' || item.custom || item.element === 'CustomElement') {
       const customOptions = { ...item, ...elementOptions };
       customOptions.custom = true;
       customOptions.component = item.component || null;

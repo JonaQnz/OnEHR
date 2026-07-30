@@ -12,6 +12,7 @@ import '../styles/workbench.css';
 import { canonicalToFormBuilder, formBuilderToCanonical, getElementText } from '../adapters/formBuilderAdapter';
 import { validateForm, exportToOpenEhrFlatJson, getInstanceTitle } from '../utils/formStateHelper';
 import PluginHost from '../components/PluginHost';
+import { useFrontendPlugins } from '../components/FrontendPluginRegistry';
 import { AqlPrefillEditor } from 'formbuilder-plugin-aql-prefill';
 import FormRuntime from '../components/FormRuntime';
 import ScriptEditor from '../scripting/editor/ScriptEditor';
@@ -328,6 +329,7 @@ function DraggableLayoutNode({ item }: { item: any }) {
       onCreate: (data: any) => {
         const id = 'layout_' + Math.random().toString(36).substr(2, 9);
         return {
+          ...data,
           id,
           element: data.element,
           text: getElementText(data.element, data.label || data.name),
@@ -370,6 +372,18 @@ export default function FormBuilder() {
 function FormBuilderContent() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { customFields } = useFrontendPlugins();
+  
+  React.useMemo(() => {
+    customFields.forEach(cf => {
+      try {
+        FormBuilders.Registry.register(cf.key, cf.component as any);
+      } catch (e) {
+        // Ignore "already registered" errors during hot-reload or strict mode
+      }
+    });
+  }, [customFields]);
+
   const [form, setForm] = useState<any>(null);
   const formRef = React.useRef<any>(null);
   useEffect(() => {
@@ -418,6 +432,24 @@ function FormBuilderContent() {
   const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
   // Validation errors: maps field path/instanceId -> error string
   const [, setValidationErrors] = useState<Record<string, string>>({});
+  const layoutToolboxItems = React.useMemo(() => [
+    { key: 'FieldSet', element: 'FieldSet', name: 'Container / Group', icon: 'fas fa-bars', label: 'Group Container' },
+    { key: 'TwoColumnRow', element: 'TwoColumnRow', name: '2-Column Row', icon: 'fas fa-columns', label: '' },
+    { key: 'ThreeColumnRow', element: 'ThreeColumnRow', name: '3-Column Row', icon: 'fas fa-columns', label: '' },
+    { key: 'Header', element: 'Header', name: 'Header / Title', icon: 'fas fa-heading', static: true, content: 'Section Header' },
+    { key: 'Paragraph', element: 'Paragraph', name: 'Paragraph / Text', icon: 'fas fa-paragraph', static: true, content: 'Layout text description...' },
+    { key: 'Button', element: 'HyperLink', name: 'Action Button', icon: 'fas fa-bolt', label: 'Aktion', field_name: 'action_', custom_metadata: { type: 'button' } },
+    { key: 'LineBreak', element: 'LineBreak', name: 'Divider Line', icon: 'fas fa-arrows-alt-h', static: true },
+    ...customFields.map(cf => ({
+      ...cf.toolboxItem,
+      key: cf.key,
+      element: 'CustomElement',
+      component: cf.component,
+      type: 'custom',
+      custom: true,
+      forwardRef: true
+    }))
+  ], [customFields]);
 
   const initializeRepeatInstances = (layout: any) => {
     const initialInstances: Record<string, string[]> = {};
@@ -928,18 +960,8 @@ function FormBuilderContent() {
     return null;
   };
 
-  const layoutToolboxItems = [
-    { key: 'FieldSet', element: 'FieldSet', name: 'Container / Group', icon: 'fas fa-bars', label: 'Group Container' },
-    { key: 'TwoColumnRow', element: 'TwoColumnRow', name: '2-Column Row', icon: 'fas fa-columns', label: '' },
-    { key: 'ThreeColumnRow', element: 'ThreeColumnRow', name: '3-Column Row', icon: 'fas fa-columns', label: '' },
-    { key: 'Header', element: 'Header', name: 'Header / Title', icon: 'fas fa-heading', static: true, content: 'Section Header' },
-    { key: 'Paragraph', element: 'Paragraph', name: 'Paragraph / Text', icon: 'fas fa-paragraph', static: true, content: 'Layout text description...' },
-    { key: 'Button', element: 'HyperLink', name: 'Action Button', icon: 'fas fa-bolt', label: 'Aktion', field_name: 'action_', custom_metadata: { type: 'button' } },
-    { key: 'LineBreak', element: 'LineBreak', name: 'Divider Line', icon: 'fas fa-arrows-alt-h', static: true }
-  ];
 
-
-  const isContextField = (field: any): boolean => {
+  function isContextField(field: any): boolean {
     if (!field) return false;
     if (field.inContext === true) return true;
 
@@ -1270,15 +1292,40 @@ function FormBuilderContent() {
                     )}
                   </div>
                 </div>
-                <ReactFormBuilder
-                  onPost={handleSave}
-                  onLoad={async () => builderItems}
-                  saveAlways={true}
-                  hideToolbar={true}
-                  wrapDnd={false}
-                  renderEditForm={customRenderEditForm}
-                  files={[]}
-                />
+                {(() => {
+                  const sanitizedLayout = (() => {
+                    let layoutData = form.canonical_json?.layout || [];
+                    if (typeof layoutData === 'string') {
+                      try {
+                        layoutData = JSON.parse(layoutData);
+                      } catch (e) {
+                        layoutData = [];
+                      }
+                    }
+                    if (!Array.isArray(layoutData)) {
+                      layoutData = [];
+                    }
+                    return layoutData.map((item: any) => {
+                      if (item.element === 'IframeField') {
+                        return { ...item, element: 'CustomElement', type: 'custom', custom: true };
+                      }
+                      return item;
+                    });
+                  })();
+
+                  return (
+                    <ReactFormBuilder
+                      data={sanitizedLayout}
+                      onPost={handleSave}
+                      onLoad={async () => builderItems}
+                      saveAlways={true}
+                      hideToolbar={true}
+                      wrapDnd={false}
+                      renderEditForm={customRenderEditForm}
+                      files={[]}
+                    />
+                  );
+                })()}
               </div>
             </div>
 
@@ -1545,6 +1592,66 @@ function FormBuilderContent() {
                                     </div>
                                   </div>
                                 )}
+                               </div>
+                             )}
+
+                             {/* IFRAME PROPERTIES */}
+                             {activeEditElement.element === 'CustomElement' && activeEditElement.custom_metadata?.type === 'IframeField' && (
+                               <div className="inspector-section" style={{ marginTop: '0.25rem' }}>
+                                 <div className="inspector-section-title">
+                                   <span className="section-emoji">🌐</span> Iframe Options
+                                 </div>
+                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                   <div className="inspector-field-group">
+                                     <label>Iframe URL</label>
+                                     <input
+                                       type="text"
+                                       className="inspector-input"
+                                       placeholder="https://example.com"
+                                       value={activeEditElement.props?.url || ''}
+                                       onChange={(e) => {
+                                         const updated = {
+                                           ...activeEditElement,
+                                           props: { ...(activeEditElement.props || {}), url: e.target.value }
+                                         };
+                                         updateElementFnRef.current?.(updated);
+                                         setActiveEditElement(updated);
+                                       }}
+                                     />
+                                   </div>
+                                   <div className="inspector-field-group">
+                                     <label>Height</label>
+                                     <input
+                                       type="text"
+                                       className="inspector-input"
+                                       placeholder="e.g. 400px, 100%, 100vh"
+                                       value={activeEditElement.props?.height || ''}
+                                       onChange={(e) => {
+                                         const updated = {
+                                           ...activeEditElement,
+                                           props: { ...(activeEditElement.props || {}), height: e.target.value }
+                                         };
+                                         updateElementFnRef.current?.(updated);
+                                         setActiveEditElement(updated);
+                                       }}
+                                     />
+                                   </div>
+                                   <label className="inspector-checkbox-row">
+                                     <input
+                                       type="checkbox"
+                                       checked={activeEditElement.props?.border !== false}
+                                       onChange={(e) => {
+                                         const updated = {
+                                           ...activeEditElement,
+                                           props: { ...(activeEditElement.props || {}), border: e.target.checked }
+                                         };
+                                         updateElementFnRef.current?.(updated);
+                                         setActiveEditElement(updated);
+                                       }}
+                                     />
+                                     <span className="inspector-checkbox-label">Show Border</span>
+                                   </label>
+                                 </div>
                                </div>
                              )}
                              {/* AQL PREFILL PROPERTY INSPECTOR */}

@@ -14,6 +14,7 @@ This project enables clinical domain experts and developers to import openEHR We
 - **Live Form Engine (Session Management)**: Run forms in "Live" mode tied to patient IDs, complete with autosave (drafts) and automated EHRbase submission.
 - **openEHR Mapping Inspector**: View, edit, and assign openEHR metadata attributes directly per form field.
 - **Extensible Plugin System (`plugin-api`)**: An expansive plugin SDK enabling developers to extend backend APIs, inject frontend React components, provide custom workflow hooks, or handle form submissions securely.
+- **Advanced Form Scripting Engine**: A built-in scripting engine allowing advanced clinical logic, dynamic UI state manipulation (hide/show/disable fields), custom validation rules, and lifecycle event handling.
 - **CambioForm v1.1 Export**: Export form structures and mapping definitions into standard `CambioForm.v1.1` JSON format.
 - **Configurable EHRbase & Keycloak Integration**: Dynamic endpoint management for openEHR EHRbase REST APIs and Keycloak authentication.
 
@@ -26,13 +27,34 @@ Plugins are ordinary TypeScript/JavaScript npm packages using the shared `plugin
 ### Core Plugins included:
 
 - **`formbuilder-plugin-aql-prefill`**: Allows querying EHRbase via AQL to automatically prefill form data. Configurable on a form, group, or field level directly via the form designer.
+- **`formbuilder-plugin-iframe`**: A frontend custom field plugin that allows form designers to embed an Iframe anywhere in the form. Demonstrates how to register custom layout fields and runtime renderers.
 - **`formbuilder-example-n8n-plugin`**: Demonstrates integration with [n8n](https://n8n.io/) to trigger external orchestration workflows upon form events (e.g. `afterSubmit`).
 - **`formbuilder-example-vitals-plugin`**: A reference plugin adding custom clinical widgets and lifecycle hooks.
 
-To enable plugins, install them in the repository and list them in your environment variables:
-```bash
-FORM_BUILDER_PLUGINS=formbuilder-plugin-aql-prefill,formbuilder-example-vitals-plugin,formbuilder-example-n8n-plugin
+### Extending the SDK (Frontend Custom Fields)
+The SDK supports powerful UI injections:
+- **`registerField`**: Allows plugins to inject entirely new drag-and-drop components into the Form Builder's *Layout Elements* toolbox.
+- **`registerRenderer`**: Allows plugins to provide native React implementations for those custom fields when they are executed inside the `FormRuntime` (Live Mode / Preview).
+
+To enable plugins, install them in the repository and list them in your environment variables or local `data/config.json`:
+```json
+"pluginPackages": [
+  "formbuilder-plugin-aql-prefill",
+  "formbuilder-plugin-iframe",
+  "formbuilder-example-n8n-plugin"
+]
 ```
+
+---
+
+## 🧠 Form Scripting Engine
+
+The built-in Scripting Engine allows you to attach dynamic behavior directly to forms without writing external plugins.
+
+- **Lifecycle Hooks**: Write code that triggers on events like `beforeLoad`, `afterLoad`, `onValidation`, `beforeSubmit`, and `afterSubmit`.
+- **UI State Management**: Dynamically change field properties via `uiStates` (e.g., hiding a field if a specific checkbox is ticked, or disabling input).
+- **Validation**: Enforce complex, cross-field validation rules that block submission until resolved.
+- **Context Injection**: Access form metadata, `patientId`, `ehrId`, and other session parameters directly within your scripts.
 
 ---
 
@@ -52,6 +74,7 @@ formbuilder/
 │   ├── plugin-api/                     # Plugin SDK definitions & runtime interfaces
 │   ├── react-form-builder2/            # Drag-and-drop UI component library for form editing
 │   ├── aql-prefill-plugin/             # AQL Prefill plugin implementation
+│   ├── formbuilder-plugin-iframe/      # Custom Iframe field implementation
 │   ├── formbuilder-example-n8n-plugin/ # Example n8n workflow integration plugin
 │   └── formbuilder-example-vitals-plugin/ # Example vitals plugin
 └── data/                     # Local configurations and exports

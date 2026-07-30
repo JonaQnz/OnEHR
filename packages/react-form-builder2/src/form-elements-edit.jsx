@@ -184,11 +184,13 @@ export default class FormElementsEdit extends React.Component {
       editorState = this.convertFromHTML(this.props.element.label);
     }
 
+    const hideDefault = this.props.element.hideDefaultProperties === true;
+
     return (
       <div className="inspector-form-container" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
         
         {/* ── Section: Display Type ── */}
-        { this.props.element.custom_metadata?.type && (
+        { this.props.element.custom_metadata?.type && !hideDefault && (
           <div className="inspector-section">
             <div className="inspector-section-title">
               <span className="section-emoji">🎨</span> Display Type
@@ -251,7 +253,7 @@ export default class FormElementsEdit extends React.Component {
         )}
 
         {/* ── Section: openEHR Constraints ── */}
-        { this.props.element.custom_metadata?.binding?.rmType === 'DV_QUANTITY' && (
+        { this.props.element.custom_metadata?.binding?.rmType === 'DV_QUANTITY' && !hideDefault && (
           <div className="inspector-section">
             <div className="inspector-section-title">
               <span className="section-emoji">📏</span> openEHR Constraints
@@ -334,53 +336,55 @@ export default class FormElementsEdit extends React.Component {
         )}
 
         {/* ── Section: Label & Text ── */}
-        <div className="inspector-section">
-          <div className="inspector-section-title">
-            <span className="section-emoji">✏️</span> Label & Text
-          </div>
-          <div className="inspector-field-group">
-            <label>Field Label</label>
-            <input
-              type="text"
-              className="inspector-input"
-              defaultValue={this.props.element.label || this.props.element.text}
-              onBlur={this.updateElement.bind(this)}
-              onChange={this.editElementProp.bind(this, 'label', 'value')}
-            />
-          </div>
-
-          { !['Checkboxes', 'RadioButtons', 'Range', 'Rating', 'Header', 'Paragraph', 'LineBreak'].includes(this.state.element.element) && (
+        { !hideDefault && (
+          <div className="inspector-section">
+            <div className="inspector-section-title">
+              <span className="section-emoji">✏️</span> Label & Text
+            </div>
             <div className="inspector-field-group">
-              <label>Placeholder</label>
+              <label>Field Label</label>
               <input
                 type="text"
                 className="inspector-input"
-                placeholder="e.g. Select... or Enter value..."
-                defaultValue={this.props.element.placeholder || ''}
+                defaultValue={this.props.element.label || this.props.element.text}
                 onBlur={this.updateElement.bind(this)}
-                onChange={this.editElementProp.bind(this, 'placeholder', 'value')}
+                onChange={this.editElementProp.bind(this, 'label', 'value')}
               />
             </div>
-          )}
 
-          { !['Header', 'Paragraph', 'LineBreak'].includes(this.state.element.element) && (
-            <div className="inspector-field-group">
-              <label>Help Text</label>
-              <textarea
-                className="inspector-input"
-                rows={2}
-                style={{ resize: 'vertical', minHeight: '48px' }}
-                placeholder="Instruction shown below the field"
-                defaultValue={this.props.element.description || ''}
-                onBlur={this.updateElement.bind(this)}
-                onChange={this.editElementProp.bind(this, 'description', 'value')}
-              />
-            </div>
-          )}
-        </div>
+            { !['Checkboxes', 'RadioButtons', 'Range', 'Rating', 'Header', 'Paragraph', 'LineBreak'].includes(this.state.element.element) && (
+              <div className="inspector-field-group">
+                <label>Placeholder</label>
+                <input
+                  type="text"
+                  className="inspector-input"
+                  placeholder="e.g. Select... or Enter value..."
+                  defaultValue={this.props.element.placeholder || ''}
+                  onBlur={this.updateElement.bind(this)}
+                  onChange={this.editElementProp.bind(this, 'placeholder', 'value')}
+                />
+              </div>
+            )}
+
+            { !['Header', 'Paragraph', 'LineBreak'].includes(this.state.element.element) && (
+              <div className="inspector-field-group">
+                <label>Help Text</label>
+                <textarea
+                  className="inspector-input"
+                  rows={2}
+                  style={{ resize: 'vertical', minHeight: '48px' }}
+                  placeholder="Instruction shown below the field"
+                  defaultValue={this.props.element.description || ''}
+                  onBlur={this.updateElement.bind(this)}
+                  onChange={this.editElementProp.bind(this, 'description', 'value')}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Section: Behavior ── */}
-        { !['Header', 'Paragraph', 'LineBreak'].includes(this.state.element.element) && (
+        { !['Header', 'Paragraph', 'LineBreak'].includes(this.state.element.element) && !hideDefault && (
           <div className="inspector-section">
             <div className="inspector-section-title">
               <span className="section-emoji">⚙️</span> Behavior
@@ -420,7 +424,7 @@ export default class FormElementsEdit extends React.Component {
         )}
 
         {/* ── Section: Scale / Range ── */}
-        { this.state.element.element === 'Range' && (
+        { this.state.element.element === 'Range' && !hideDefault && (
           <div className="inspector-section">
             <div className="inspector-section-title">
               <span className="section-emoji">📊</span> Scale Config
@@ -444,7 +448,7 @@ export default class FormElementsEdit extends React.Component {
         )}
 
         {/* ── Section: Options / Choices ── */}
-        { this.props.element.options && (
+        { this.props.element.options && !hideDefault && (
           <div className="inspector-section" style={{ gap: '0.5rem' }}>
             <div className="inspector-section-title" style={{ marginBottom: 0 }}>
               <span className="section-emoji">📋</span> Choices

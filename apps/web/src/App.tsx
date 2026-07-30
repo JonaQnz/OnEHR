@@ -13,6 +13,7 @@ import PatientList from './pages/patients/PatientList';
 import PatientDetail from './pages/patients/PatientDetail';
 import { FrontendPluginProvider } from './components/FrontendPluginRegistry';
 import { registerFrontendPlugin as registerAqlPlugin } from 'formbuilder-plugin-aql-prefill';
+import { registerFrontendPlugin as registerIframePlugin } from 'formbuilder-plugin-iframe/src/frontend';
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<{ loading: boolean; required: boolean; authenticated: boolean; mode: 'local' | 'hip' }>({ loading: true, required: false, authenticated: false, mode: 'local' });
@@ -99,7 +100,7 @@ function AppContent() {
 function App() {
   return (
     <Router>
-      <FrontendPluginProvider plugins={[registerAqlPlugin]}>
+      <FrontendPluginProvider plugins={[registerAqlPlugin, registerIframePlugin]}>
         <Routes>
           <Route path="/live/:parentId" element={<LiveForm />} />
           <Route path="*" element={<AuthGate><AppContent /></AuthGate>} />

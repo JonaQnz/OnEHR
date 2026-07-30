@@ -23,7 +23,7 @@ export default defineConfig({
       },
     },
     watch: {
-      usePolling: true,
+      usePolling: false,
     },
   },
   optimizeDeps: {

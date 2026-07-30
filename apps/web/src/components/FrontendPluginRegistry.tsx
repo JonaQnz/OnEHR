@@ -13,41 +13,80 @@ export interface UIExtensionContribution {
   component: React.ComponentType<any>;
 }
 
+export interface CustomFieldContribution {
+  pluginId: string;
+  key: string;
+  component: React.ComponentType<any>;
+  toolboxItem: {
+    element: string;
+    name: string;
+    icon: string;
+    label?: string;
+    static?: boolean;
+    content?: string;
+    custom_metadata?: any;
+    field_name?: string;
+  };
+}
+
+export interface RuntimeRendererContribution {
+  pluginId: string;
+  uiElement: string;
+  renderer: (props: any) => React.ReactNode;
+}
+
+export interface FrontendPluginRegistrar {
+  registerExtension: (extension: UIExtensionContribution) => void;
+  registerField: (field: CustomFieldContribution) => void;
+  registerRenderer: (renderer: RuntimeRendererContribution) => void;
+}
+
 interface PluginRegistryContextType {
   extensions: UIExtensionContribution[];
+  customFields: CustomFieldContribution[];
+  renderers: Record<string, (props: any) => React.ReactNode>;
   registerExtension: (extension: UIExtensionContribution) => void;
 }
 
 const PluginRegistryContext = createContext<PluginRegistryContextType>({ 
   extensions: [], 
+  customFields: [],
+  renderers: {},
   registerExtension: () => {} 
 });
 
-export function FrontendPluginProvider({ children, plugins = [] }: { children: ReactNode, plugins?: Array<(register: (ext: UIExtensionContribution) => void) => void> }) {
-  const [extensions, setExtensions] = React.useState<UIExtensionContribution[]>([]);
-
-  React.useEffect(() => {
-    let mounted = true;
-    const registry = (ext: UIExtensionContribution) => {
-      if (!mounted) return;
-      setExtensions((prev) => {
-        // Verhindert doppelte UI-Komponenten im React 18 StrictMode (Mount -> Unmount -> Mount)
-        if (prev.some(p => p.pluginId === ext.pluginId && p.slot === ext.slot)) {
-          return prev;
-        }
-        return [...prev, ext];
-      });
+export function FrontendPluginProvider({ children, plugins = [] }: { children: ReactNode, plugins?: Array<(register: FrontendPluginRegistrar) => void> }) {
+  const { initialExtensions, initialCustomFields, initialRenderers } = React.useMemo(() => {
+    const exts: UIExtensionContribution[] = [];
+    const fields: CustomFieldContribution[] = [];
+    const rends: Record<string, (props: any) => React.ReactNode> = {};
+    const registrar: FrontendPluginRegistrar = {
+      registerExtension: (ext) => {
+        if (!exts.some(p => p.pluginId === ext.pluginId && p.slot === ext.slot)) exts.push(ext);
+      },
+      registerField: (field) => {
+        if (!fields.some(p => p.pluginId === field.pluginId && p.key === field.key)) fields.push(field);
+      },
+      registerRenderer: (renderer) => {
+        if (!rends[renderer.uiElement]) rends[renderer.uiElement] = renderer.renderer;
+      }
     };
-    
-    plugins.forEach(pluginInit => pluginInit(registry));
-
-    return () => {
-      mounted = false;
-    };
+    plugins.forEach(pluginInit => pluginInit(registrar));
+    return { initialExtensions: exts, initialCustomFields: fields, initialRenderers: rends };
   }, [plugins]);
 
+  const [extensions, setExtensions] = React.useState<UIExtensionContribution[]>(initialExtensions);
+  const [customFields, setCustomFields] = React.useState<CustomFieldContribution[]>(initialCustomFields);
+  const [renderers, setRenderers] = React.useState<Record<string, (props: any) => React.ReactNode>>(initialRenderers);
+
+  React.useEffect(() => {
+    setExtensions(initialExtensions);
+    setCustomFields(initialCustomFields);
+    setRenderers(initialRenderers);
+  }, [initialExtensions, initialCustomFields, initialRenderers]);
+
   return (
-    <PluginRegistryContext.Provider value={{ extensions, registerExtension: (ext) => setExtensions(p => [...p, ext]) }}>
+    <PluginRegistryContext.Provider value={{ extensions, customFields, renderers, registerExtension: (ext) => setExtensions(p => [...p, ext]) }}>
       {children}
     </PluginRegistryContext.Provider>
   );

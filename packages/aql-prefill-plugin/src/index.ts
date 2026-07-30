@@ -106,9 +106,12 @@ export const plugin: FormBuilderPlugin = {
       const pluginSettings = actionContext.metadata?.pluginSettings as Record<string, unknown> | undefined;
 
       const loadHostService = (serviceName: string) => {
-        try { return require(`../../apps/api/dist/services/${serviceName}`); } catch (_e) {}
-        try { return require(`../../../apps/api/dist/services/${serviceName}`); } catch (_e) {}
-        try { return require(`../apps/api/dist/services/${serviceName}`); } catch (_e) {}
+        try {
+          const req = eval('require');
+          try { return req(`../../apps/api/dist/services/${serviceName}`); } catch (_e) {}
+          try { return req(`../../../apps/api/dist/services/${serviceName}`); } catch (_e) {}
+          try { return req(`../apps/api/dist/services/${serviceName}`); } catch (_e) {}
+        } catch (_e) {}
         return undefined;
       };
 
@@ -220,13 +223,13 @@ export const plugin: FormBuilderPlugin = {
   },
 };
 
-export function registerFrontendPlugin(register: (ext: any) => void) {
+export function registerFrontendPlugin(register: any) {
   // We dynamically import to avoid loading React logic in the backend if this file is required by Node
   import('./components/AqlPrefillProvider').then((mod) => {
-    register({ pluginId: 'org.openehr.aql-prefill', slot: 'form:wrapper', component: mod.AqlPrefillProvider });
-    register({ pluginId: 'org.openehr.aql-prefill', slot: 'form:field:actions', component: mod.AqlFieldActionWrapper });
-    register({ pluginId: 'org.openehr.aql-prefill', slot: 'form:group:actions', component: mod.AqlGroupActionWrapper });
-    register({ pluginId: 'org.openehr.aql-prefill', slot: 'form:header:actions', component: mod.AqlFormActionWrapper });
+    register.registerExtension({ pluginId: 'org.openehr.aql-prefill', slot: 'form:wrapper', component: mod.AqlPrefillProvider });
+    register.registerExtension({ pluginId: 'org.openehr.aql-prefill', slot: 'form:field:actions', component: mod.AqlFieldActionWrapper });
+    register.registerExtension({ pluginId: 'org.openehr.aql-prefill', slot: 'form:group:actions', component: mod.AqlGroupActionWrapper });
+    register.registerExtension({ pluginId: 'org.openehr.aql-prefill', slot: 'form:header:actions', component: mod.AqlFormActionWrapper });
   }).catch(console.error);
 }
 

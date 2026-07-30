@@ -23,8 +23,12 @@ class CustomElement extends Component {
     }
 
     // Return if component is invalid.
-    if (!this.props.data.component) return null;
+    if (!this.props.data.component) {
+      console.error('[CustomElement] RETURNED NULL! Missing component in data:', this.props.data);
+      return null;
+    }
     const Element = this.props.data.component;
+    console.log('[CustomElement] Rendering Element:', Element, 'with data:', this.props.data);
 
     let baseClasses = 'SortableItem rfb-item';
     if (this.props.data.pageBreakBefore) {

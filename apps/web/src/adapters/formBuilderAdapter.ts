@@ -135,6 +135,18 @@ export function canonicalToFormBuilder(form: CanonicalForm): any[] {
     item.max_value = node.max_value ?? (isNumberOrRange ? 100 : undefined);
     item.default_value = node.default_value ?? (isNumberOrRange ? 0 : undefined);
 
+    if (node.props) {
+      item.props = node.props;
+      if (node.props.hideDefaultProperties) {
+        item.hideDefaultProperties = true;
+      }
+    }
+
+    if (element === 'CustomElement') {
+      item.custom = true;
+      item.key = node.type;
+    }
+
     return item;
   }
 
@@ -395,6 +407,13 @@ export function formBuilderToCanonical(items: any[], originalForm: CanonicalForm
       layoutNode.repeatMin = meta.repeatMin;
       layoutNode.repeatMax = meta.repeatMax;
       layoutNode.repeatable = true;
+    }
+
+    if (item.props || item.hideDefaultProperties) {
+      layoutNode.props = { ...(item.props || {}) };
+      if (item.hideDefaultProperties) {
+        layoutNode.props!.hideDefaultProperties = true;
+      }
     }
 
     return layoutNode;

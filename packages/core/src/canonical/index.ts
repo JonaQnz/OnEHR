@@ -49,6 +49,7 @@ export interface FormElementLayout {
   repeatMin?: number;
   repeatMax?: number;
   repeatable?: boolean;
+  props?: Record<string, any>;
 }
 
 export interface OpenEhrBinding {

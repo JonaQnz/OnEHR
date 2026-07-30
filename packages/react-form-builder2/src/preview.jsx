@@ -258,10 +258,15 @@ export default class Preview extends React.Component {
 
   getElement(item, index) {
     if (item.custom) {
+      console.log('[Preview.jsx] Processing custom item:', item.key, 'Component exists?', !!item.component, 'Type:', typeof item.component);
       if (!item.component || typeof item.component !== 'function') {
+        const restoredComponent = this.props.registry.get(item.key);
+        console.log('[Preview.jsx] Restored component from registry for', item.key, ':', restoredComponent);
         // eslint-disable-next-line no-param-reassign
-        item.component = this.props.registry.get(item.key);
+        item.component = restoredComponent;
       }
+    } else {
+      console.log('[Preview.jsx] Item is not marked as custom:', item);
     }
     const SortableFormElement = SortableFormElements[item.element];
 
