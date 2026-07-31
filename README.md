@@ -11,6 +11,17 @@ Built around clean architecture, portability, and extensibility, onEHR separates
 
 ---
 
+
+## Disclaimer
+
+onEHR was developed with extensive AI assistance.
+
+The vision, architecture, product decisions, and technical direction come from a programmer with with over 10 years of professional experience building healthcare software (me). AI was used as a development tool—not as a substitute for software engineering. I wanted to create this project, because i saw a huge gap. But I had no time at hand to do it by hand. 
+
+Judge this project by its architecture, code quality, documentation, and usefulness—not by how the code was written. This project would not exist without Codex and Antigravity. Decide for yourself if this is wrong.
+
+---
+
 ## Features
 
 ### Design
@@ -38,15 +49,6 @@ Built around clean architecture, portability, and extensibility, onEHR separates
 ## 🔌 Plugins Ecosystem
 
 Plugins are ordinary TypeScript/JavaScript npm packages using the shared `plugin-api` contract. The server securely executes trusted backend code while dynamically serving frontend React extensions.
-
-
-## Disclaimer
-
-onEHR was developed with extensive AI assistance.
-
-The vision, architecture, product decisions, and technical direction come from a programmer with with over 10 years of professional experience building healthcare software (me). AI was used as a development tool—not as a substitute for software engineering. I wanted to create this project, because i saw a huge gap. But I had no time at hand to do it by hand. 
-
-Judge this project by its architecture, code quality, documentation, and usefulness—not by how the code was written. This project would not exist without Codex and Antigravity. Decide for yourself if this is wrong.
 
 
 ### Core Plugins included:
