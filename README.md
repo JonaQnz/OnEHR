@@ -1,28 +1,53 @@
-# openEHR Clinical Form Builder
+# onEHR: An openEHR Clinical Form Builder
+<img width="1774" height="887" alt="image" src="https://github.com/user-attachments/assets/8aa8fd5a-46b4-4836-8328-a16cc2ba813b" />
 
-An openEHR-first **Clinical Form Builder** designed to separate clinical semantics (openEHR), visual form presentation (drag-and-drop form builder), and EHRbase interoperability.
+onEHR is an openEHR-first Clinical Form Platform for building, running, and embedding interoperable clinical applications.
 
-This project enables clinical domain experts and developers to import openEHR WebTemplates, visually customize clinical forms with drag-and-drop controls, edit openEHR bindings, and export definitions to target formats such as **CambioForm v1.1**. With its robust plugin system and Live Form engine, it also acts as a full-fledged runtime for clinical data capture.
+It combines a visual drag-and-drop designer, a powerful runtime engine, a typed plugin ecosystem, and native openEHR interoperability into a single developer platform.
+
+Import WebTemplates, design modern clinical forms, define mappings and business logic, execute forms anywhere, and seamlessly integrate with EHRbase or your own infrastructure.
+
+Built around clean architecture, portability, and extensibility, onEHR separates clinical semantics from presentation, enabling reusable forms that remain independent of any specific EHR system.
 
 ---
 
-## 🚀 Features
+## Features
 
-- **openEHR WebTemplate Integration**: Upload and parse openEHR WebTemplate JSON files into structured field registries.
-- **Auto-Generated Canonical Form Models**: Automatically initialize structured canonical forms from openEHR templates with sensible default layouts.
-- **Visual Drag-and-Drop Form Builder**: Interactive React canvas with support for multi-column layouts, nested fieldsets, input validations, and custom clinical form elements.
-- **Live Form Engine (Session Management)**: Run forms in "Live" mode tied to patient IDs, complete with autosave (drafts) and automated EHRbase submission.
-- **openEHR Mapping Inspector**: View, edit, and assign openEHR metadata attributes directly per form field.
-- **Extensible Plugin System (`plugin-api`)**: An expansive plugin SDK enabling developers to extend backend APIs, inject frontend React components, provide custom workflow hooks, or handle form submissions securely.
-- **Advanced Form Scripting Engine**: A built-in scripting engine allowing advanced clinical logic, dynamic UI state manipulation (hide/show/disable fields), custom validation rules, and lifecycle event handling.
-- **CambioForm v1.1 Export**: Export form structures and mapping definitions into standard `CambioForm.v1.1` JSON format.
-- **Configurable EHRbase & Keycloak Integration**: Dynamic endpoint management for openEHR EHRbase REST APIs and Keycloak authentication.
+### Design
+
+- **Visual Form Designer** — Build clinical forms using an intuitive drag-and-drop editor with flexible layouts, reusable components, and configurable validation.
+- **openEHR WebTemplate Integration** — Import openEHR WebTemplates and automatically generate structured, editable form models while preserving clinical semantics.
+- **Mapping Inspector** — Inspect and customize openEHR paths, RM types, metadata, and field mappings directly within the designer.
+- **Portable Form Definitions** — Create reusable, versioned form packages that can be shared, embedded, and deployed across different applications.
+
+### Runtime
+
+- **Embedded Form Engine** — Run forms directly inside your own applications with support for create, edit, view, and draft workflows.
+- **Live Data Capture** — Load existing patient data, manage drafts with autosave, and submit Compositions to openEHR repositories such as EHRbase.
+- **Form Scripting Engine** — Implement calculations, conditional logic, validation rules, API calls, and lifecycle events using TypeScript.
+
+### Platform
+
+- **Plugin SDK** — Extend the platform with custom fields, functions, integrations, workflow hooks, backend services, and frontend components.
+- **EHRbase Integration** — Native support for openEHR repositories with configurable endpoints and authentication.
+- **Developer-Focused Architecture** — Modular packages, strong TypeScript typing, clean APIs, and a clear separation between clinical models, runtime, and presentation.
+- **CambioForm v1.1 Export** — Export form structures and mapping definitions in the standard `CambioForm.v1.1` format.
 
 ---
 
 ## 🔌 Plugins Ecosystem
 
 Plugins are ordinary TypeScript/JavaScript npm packages using the shared `plugin-api` contract. The server securely executes trusted backend code while dynamically serving frontend React extensions.
+
+
+## Disclaimer
+
+onEHR was developed with extensive AI assistance.
+
+The vision, architecture, product decisions, and technical direction come from a programmer with with over 10 years of professional experience building healthcare software (me). AI was used as a development tool—not as a substitute for software engineering. I wanted to create this project, because i saw a huge gap. But I had no time at hand to do it by hand. 
+
+Judge this project by its architecture, code quality, documentation, and usefulness—not by how the code was written. This project would not exist without Codex and Antigravity. Decide for yourself if this is wrong.
+
 
 ### Core Plugins included:
 
