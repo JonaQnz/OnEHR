@@ -1,10 +1,7 @@
-import { CanonicalForm } from '../canonical';
+import { CanonicalForm, JsonValue } from '../canonical';
 import { FormScriptDocument, normalizeFormScript } from '../form-scripting';
 
 export const FORM_DEFINITION_SCHEMA_VERSION = '1.0' as const;
-
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 
 export interface FormDefinitionV1 extends CanonicalForm {
   schemaVersion: typeof FORM_DEFINITION_SCHEMA_VERSION;

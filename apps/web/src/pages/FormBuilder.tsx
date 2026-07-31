@@ -457,6 +457,7 @@ function FormBuilderContent() {
   const [templateFields, setTemplateFields] = useState<any[]>([]);
   const [builderItems, setBuilderItems] = useState<any[]>([]);
   const [remoteTemplates, setRemoteTemplates] = useState<any[]>([]);
+  const [remoteTemplatesError, setRemoteTemplatesError] = useState<string | null>(null);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
 
   // Left panel tabs: 'fields' | 'layout'
@@ -769,9 +770,25 @@ function FormBuilderContent() {
   useEffect(() => {
     fetchForm();
     fetch('http://localhost:3001/api/templates/remote')
-      .then(res => res.json())
-      .then(data => setRemoteTemplates(data))
-      .catch(() => setRemoteTemplates([]));
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`Server responded with status ${res.status}`);
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) {
+          setRemoteTemplates(data);
+          setRemoteTemplatesError(null);
+        } else {
+          setRemoteTemplates([]);
+          setRemoteTemplatesError("Invalid data format received from server.");
+        }
+      })
+      .catch((err) => {
+        setRemoteTemplates([]);
+        setRemoteTemplatesError(err.message || "Failed to connect to the server.");
+      });
   }, [id]);
 
   useEffect(() => {
@@ -977,7 +994,12 @@ function FormBuilderContent() {
               <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>Available Templates</h3>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 1.5rem 1.5rem 1.5rem' }}>
-              {remoteTemplates.length === 0 ? (
+              {remoteTemplatesError ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: '#dc2626' }}>
+                  <p style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Error loading templates</p>
+                  <p>{remoteTemplatesError}</p>
+                </div>
+              ) : remoteTemplates.length === 0 ? (
                 <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No templates found in EHRbase or failed to connect.</div>
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Plus, UserRound } from 'lucide-react';
+import { Search, Plus, UserRound, Settings } from 'lucide-react';
 
 const API = 'http://localhost:3001/api';
 
@@ -11,7 +11,13 @@ export default function PatientList() {
   const [isCreating, setIsCreating] = useState(false);
   const navigate = useNavigate();
 
-  // Create Form State
+  const [showSettings, setShowSettings] = useState(false);
+  const [defaultFormId, setDefaultFormId] = useState(() => localStorage.getItem('defaultPatientFormId') || 'a0717dce-a9bd-4321-9715-ecc717f51579');
+
+  const saveSettings = (newFormId: string) => {
+    setDefaultFormId(newFormId);
+    localStorage.setItem('defaultPatientFormId', newFormId);
+  };
   const [patientId, setPatientId] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -50,9 +56,7 @@ export default function PatientList() {
       if (!res.ok) throw new Error(data.error || data.message || 'Fehler beim Erstellen');
       
       // Auto-navigate to live form for vg_Person
-      // Based on user feedback: live/a0717dce-a9bd-4321-9715-ecc717f51579
-      const personFormId = 'a0717dce-a9bd-4321-9715-ecc717f51579';
-      navigate(`/live/${personFormId}?patientId=${encodeURIComponent(data.patient.patientId)}&returnUrl=/patients/${data.patient.id}`);
+      navigate(`/live/${defaultFormId}?patientId=${encodeURIComponent(data.patient.patientId)}&returnUrl=/patients/${data.patient.id}`);
     } catch (err: any) {
       setCreateError(err.message);
       setCreateBusy(false);
@@ -76,10 +80,34 @@ export default function PatientList() {
           <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>Patienten</h1>
           <p style={{ margin: 0, color: 'var(--text-muted)' }}>Patientenübersicht und Akten</p>
         </div>
-        <button className="btn" onClick={() => setIsCreating(true)}>
-          <Plus size={18} /> Patient anlegen
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn btn-secondary" onClick={() => setShowSettings(!showSettings)} title="Einstellungen">
+            <Settings size={18} />
+          </button>
+          <button className="btn" onClick={() => setIsCreating(true)}>
+            <Plus size={18} /> Patient anlegen
+          </button>
+        </div>
       </div>
+
+      {showSettings && (
+        <div className="card" style={{ marginBottom: '1.5rem', padding: '1.5rem', backgroundColor: 'var(--bg-sidebar)' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>Einstellungen</h3>
+          <div>
+            <label className="form-label">Standard Formular-ID für Patienten</label>
+            <input
+              type="text"
+              className="form-input"
+              value={defaultFormId}
+              onChange={e => saveSettings(e.target.value)}
+              placeholder="UUID des Formulars (z.B. a0717dce-a9bd-...)"
+            />
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem', marginBottom: 0 }}>
+              Dieses Formular wird automatisch aufgerufen, wenn ein neuer Patient angelegt wird.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="card" style={{ display: 'flex', gap: '1rem', padding: '1rem 1.5rem', marginBottom: '1.5rem', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: 1 }}>

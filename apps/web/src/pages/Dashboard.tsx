@@ -11,8 +11,16 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [remoteTemplates, setRemoteTemplates] = useState<any[]>([]);
+
   useEffect(() => {
     fetchForms();
+    fetch('http://localhost:3001/api/templates/remote')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setRemoteTemplates(data);
+      })
+      .catch(err => console.error(err));
   }, []);
 
   const fetchForms = () => {
@@ -154,7 +162,7 @@ export default function Dashboard() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: '0 0 0.5rem 0', letterSpacing: '-0.02em' }}>Dashboard</h1>
+          <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: '0 0 0.5rem 0', letterSpacing: '-0.02em' }}>Formulare</h1>
           <p style={{ margin: 0, color: 'var(--text-muted)' }}>Manage and version your clinical forms.</p>
         </div>
         <div style={{ display: 'flex', gap: '1rem' }}>
@@ -226,6 +234,10 @@ export default function Dashboard() {
                 const groupId = f.parent_id || f.id;
                 const isExpanded = expandedGroups[groupId];
                 const history = groupedForms[groupId].filter((v: any) => v.id !== f.id).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                
+                const tpl = f.canonical_json?.sourceTemplates?.[0];
+                const templateId = tpl ? tpl.id : (f.canonical_json?.templateId || f.canonical_json?.settings?.ehrbase?.templateId);
+                const isTemplateOnServer = templateId ? remoteTemplates.some((t: any) => t.template_id === templateId) : false;
 
                 return (
                   <li key={groupId} style={{ borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
@@ -252,6 +264,19 @@ export default function Dashboard() {
                             <span>Version: <span style={{ fontWeight: 600 }}>v{f.version}</span></span>
                             <span>•</span>
                             <span>Last updated: {new Date(f.updatedAt).toLocaleDateString()}</span>
+                            {templateId && (
+                              <>
+                                <span>•</span>
+                                <span>
+                                  Template: <span style={{ fontFamily: 'monospace' }}>{templateId}</span>
+                                  {remoteTemplates.length > 0 && (
+                                    isTemplateOnServer 
+                                      ? <span style={{ color: '#16a34a', marginLeft: '0.35rem', fontWeight: 600 }} title="Template is available on the server">✓ Active</span> 
+                                      : <span style={{ color: '#dc2626', marginLeft: '0.35rem', fontWeight: 600 }} title="Template NOT found on server">⚠️ Missing on Server</span>
+                                  )}
+                                </span>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>

@@ -1,3 +1,5 @@
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
 export interface FormElementLayout {
   type: 'form' | 'container' | 'row' | 'column' | 'input-text' | 'input-select' | 'input-quantity' | 'input-proportion' | string;
   name?: string;
@@ -30,7 +32,7 @@ export interface FormElementLayout {
   description?: string;
   helpText?: string;
   placeholder?: string;
-  defaultValue?: any;
+  defaultValue?: JsonValue;
   validation?: {
     min?: number;
     max?: number;
@@ -39,9 +41,9 @@ export interface FormElementLayout {
   semanticType?: string;
   unit?: string;
   archetypeNodeId?: string;
-  binding?: any;
-  visibility?: any;
-  enableWhen?: any;
+  binding?: OpenEhrBinding;
+  visibility?: JsonValue;
+  enableWhen?: JsonValue;
   showTimeSelect?: boolean;
   showTimeSelectOnly?: boolean;
   dateFormat?: string;
@@ -49,7 +51,7 @@ export interface FormElementLayout {
   repeatMin?: number;
   repeatMax?: number;
   repeatable?: boolean;
-  props?: Record<string, any>;
+  props?: Record<string, unknown>;
 }
 
 export interface OpenEhrBinding {
@@ -57,6 +59,15 @@ export interface OpenEhrBinding {
   path: string;
   rmType: string;
   flatPath?: string;
+}
+
+export interface FormError {
+  code: string;
+  message: string;
+  fieldId?: string;
+  openEhrPath?: string;
+  source: 'runtime' | 'validation' | 'script' | 'plugin' | 'openehr' | 'provider' | 'host';
+  cause?: unknown;
 }
 /**
  * Standard form submission routing. The core only defines the neutral

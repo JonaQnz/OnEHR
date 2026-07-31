@@ -169,27 +169,34 @@ export function toEhrbaseFlatComposition(
   // 1. Collect bindings from the layout fields (keyed by field_xxx IDs)
   const fieldBindings = definition.layout ? collectFieldBindings(definition.layout) : new Map();
 
-  // 2. Iterate values and resolve each field's binding
+  // Track processed flatPaths to prevent semantic bindings from duplicating or conflicting with layout bindings
+  const processedPaths = new Set<string>();
+
+  // Pass 1: Process layout-level bindings (field_xxx keys)
   for (const [fieldId, value] of Object.entries(values)) {
-    // Try layout-level binding first (matches field_xxx keys)
     const fb = fieldBindings.get(fieldId);
     if (fb) {
       const flatPath = resolveFlatPath(fb, aqlMap);
       if (flatPath) {
         if (Array.isArray(value)) value.forEach((entry, index) => setFlatValue(flat, flatPath, fb.rmType, entry, index));
         else setFlatValue(flat, flatPath, fb.rmType, value);
+        processedPaths.add(flatPath);
       }
-      continue;
     }
+  }
 
-    // Fall back to definition.bindings (keyed by binding name)
+  // Pass 2: Fall back to definition.bindings (keyed by semantic name)
+  for (const [fieldId, value] of Object.entries(values)) {
+    if (fieldBindings.has(fieldId)) continue; // Already processed in Pass 1
+
     const wrapped = definition.bindings?.[fieldId];
     const binding = wrapped?.openehr;
     if (binding) {
       const flatPath = resolveFlatPath(binding, aqlMap);
-      if (flatPath) {
+      if (flatPath && !processedPaths.has(flatPath)) {
         if (Array.isArray(value)) value.forEach((entry, index) => setFlatValue(flat, flatPath, binding.rmType, entry, index));
         else setFlatValue(flat, flatPath, binding.rmType, value);
+        processedPaths.add(flatPath);
       }
     }
   }
@@ -298,10 +305,13 @@ async function getWebTemplateTree(tplId: string): Promise<any> {
       webTemplateCache.set(tplId, wt.tree);
       return wt.tree;
     }
+    throw new EhrbaseProviderError(`WebTemplate '${tplId}' does not contain a tree`, 'TEMPLATE_INVALID', 422);
   } catch (err: any) {
+    if (err instanceof EhrbaseProviderError) throw err;
     console.warn(`[EhrbaseDataProvider] Could not fetch WebTemplate for ${tplId}:`, err.message);
+    const status = err.response?.status || 500;
+    throw new EhrbaseProviderError(`Failed to fetch WebTemplate '${tplId}': ${err.message}`, 'TEMPLATE_NOT_FOUND', status);
   }
-  return undefined;
 }
 
 export class EhrbaseDataProvider implements FormDataProvider {
@@ -495,6 +505,7 @@ export class EhrbaseDataProvider implements FormDataProvider {
       fieldCount: Object.keys(flatBody).filter((key) => !key.startsWith('ctx/')).length,
       strategy: strategy || 'update_or_create',
     });
+    console.info('[EhrbaseDataProvider] Generated flat composition body:\n', JSON.stringify(flatBody, null, 2));
     
     if (strategy !== 'always_new') {
       const ref = (input as any).reference;
@@ -507,7 +518,8 @@ export class EhrbaseDataProvider implements FormDataProvider {
     try {
       if (versionUid && typeof this.http.put === 'function') {
         try {
-          response = await this.http.put(`${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(versionUid)}`, flatBody, {
+          const baseUid = versionUid.split('::')[0];
+          response = await this.http.put(`${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(baseUid)}`, flatBody, {
             ...options,
             params: { templateId: id, format: 'FLAT' },
             headers: { ...options.headers, 'If-Match': versionUid, Prefer: 'return=representation' },

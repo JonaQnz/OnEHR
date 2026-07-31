@@ -8,12 +8,12 @@ export type RuntimeValues = Record<string, RuntimeValue>;
 export interface RuntimeOption { value: string; text: string; }
 export interface RuntimeUnitOption { unit: string; min?: number; max?: number; precision?: number; }
 export interface RuntimeFieldDescriptor {
-  id: string; name: string; type: string; label: string; description?: string;
+  id: string; name: string; type: string; label: string; description?: string | undefined;
   required: boolean; readOnly: boolean; options: RuntimeOption[]; unitOptions: RuntimeUnitOption[];
-  validation?: { min?: number; max?: number; regex?: string }; visibility?: unknown;
-  repeatable: boolean; repeatMin: number; repeatMax: number; defaultValue?: RuntimeJsonValue;
-  repeatableGroupId?: string;
-  aqlPath?: string; binding?: any; semanticType?: string; archetypeNodeId?: string;
+  validation?: { min?: number; max?: number; regex?: string } | undefined; visibility?: unknown;
+  repeatable: boolean; repeatMin: number; repeatMax: number; defaultValue?: RuntimeJsonValue | undefined;
+  repeatableGroupId?: string | undefined;
+  aqlPath?: string | undefined; binding?: unknown; semanticType?: string | undefined; archetypeNodeId?: string | undefined;
 }
 export interface RuntimeGroupDescriptor {
   id: string;
@@ -64,7 +64,7 @@ function toDescriptor(node: FormElementLayout, repeatableGroupId?: string): Runt
     validation: node.validation, visibility: node.visibility ?? node.enableWhen,
     repeatable: node.repeatable === true, repeatMin: node.repeatMin ?? 0, repeatMax: node.repeatMax ?? -1,
     ...(repeatableGroupId ? { repeatableGroupId } : {}),
-    aqlPath: (node as any).aqlPath || (node as any).path || (node as any).webTemplatePath,
+    aqlPath: (node as unknown as Record<string, unknown>).aqlPath as string | undefined || (node as unknown as Record<string, unknown>).path as string | undefined || (node as unknown as Record<string, unknown>).webTemplatePath as string | undefined,
     binding: node.binding, semanticType: node.semanticType, archetypeNodeId: node.archetypeNodeId,
     ...(defaultValue !== undefined ? { defaultValue: defaultValue as RuntimeJsonValue } : {}),
   };
