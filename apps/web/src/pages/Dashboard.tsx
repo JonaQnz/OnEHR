@@ -4,6 +4,7 @@ import { Search, Plus, FileEdit, Download, Copy, UploadCloud, FolderOpen, Extern
 
 export default function Dashboard() {
   const [forms, setForms] = useState<any[]>([]);
+  const [loadError, setLoadError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'draft' | 'published'>('all');
   const [viewDeleted, setViewDeleted] = useState(false);
@@ -14,7 +15,7 @@ export default function Dashboard() {
   const [remoteTemplates, setRemoteTemplates] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchForms();
+    void fetchForms();
     fetch('http://localhost:3001/api/templates/remote')
       .then(res => res.json())
       .then(data => {
@@ -23,10 +24,19 @@ export default function Dashboard() {
       .catch(err => console.error(err));
   }, []);
 
-  const fetchForms = () => {
-    fetch('http://localhost:3001/api/forms')
-      .then(res => res.json())
-      .then(data => setForms(data));
+  const fetchForms = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/forms');
+      const data: unknown = await response.json().catch(() => undefined);
+      if (!response.ok) throw new Error('Formulare konnten nicht geladen werden.');
+      if (!Array.isArray(data)) throw new Error('Die API hat keine Formularliste zurückgegeben.');
+      setForms(data);
+      setLoadError('');
+    } catch (error) {
+      console.error('Failed to load forms:', error);
+      setForms([]);
+      setLoadError(error instanceof Error ? error.message : 'Formulare konnten nicht geladen werden.');
+    }
   };
 
   const handleCreateForm = () => {
@@ -182,6 +192,12 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {loadError && (
+        <div className="card" style={{ marginBottom: '1.5rem', color: 'var(--danger-hover)', borderColor: '#fecaca' }}>
+          {loadError}
+        </div>
+      )}
+
       <div className="card" style={{ display: 'flex', gap: '1rem', padding: '1rem 1.5rem', marginBottom: '1.5rem', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: 1 }}>
           <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
@@ -236,7 +252,7 @@ export default function Dashboard() {
                 const history = groupedForms[groupId].filter((v: any) => v.id !== f.id).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
                 
                 const tpl = f.canonical_json?.sourceTemplates?.[0];
-                const templateId = tpl ? tpl.id : (f.canonical_json?.templateId || f.canonical_json?.settings?.ehrbase?.templateId);
+                const templateId = tpl ? tpl.id : f.canonical_json?.templateId;
                 const isTemplateOnServer = templateId ? remoteTemplates.some((t: any) => t.template_id === templateId) : false;
 
                 return (

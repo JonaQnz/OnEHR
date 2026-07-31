@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { parseWebTemplate, isContextOrIgnoredNode } from '../parsers/webTemplateParser';
 import prisma from '../db/prisma';
 import { listRemoteTemplates, getRemoteWebTemplate } from '../services/ehrbaseService';
+import { asyncHandler, HttpError } from '../middleware/errorHandler';
 
 const router = Router();
 
@@ -14,88 +15,55 @@ function getClinicalTemplateVersion(webTemplate: any): string {
   return versionedId?.[1] || '1.0.0';
 }
 
-router.get('/', async (req, res) => {
+router.get('/', asyncHandler(async (_req, res) => {
   const templates = await prisma.template.findMany();
   res.json(templates);
-});
+}));
 
-router.get('/remote', async (req, res) => {
-  try {
-    const templates = await listRemoteTemplates();
-    res.json(templates);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
+router.get('/remote', asyncHandler(async (_req, res) => {
+  res.json(await listRemoteTemplates());
+}));
 
-router.post('/remote/:templateId/import', async (req, res) => {
-  try {
-    const templateId = req.params.templateId;
-    // 1. Fetch from EHRbase
-    const webTemplate = await getRemoteWebTemplate(templateId);
-    
-    // 2. Parse
-    const parsed = parseWebTemplate(webTemplate);
-    
-    // 3. Save to DB
-    const template = await prisma.template.create({
-      data: {
-        template_id: parsed.templateId,
-        version: getClinicalTemplateVersion(webTemplate),
-        type: 'openEhrWebTemplate',
-        alias: parsed.alias,
-        parsed_registry_json: {
-          fields: parsed.fields,
-          layout: parsed.layout
-        } as any
-      }
-    });
+router.post('/remote/:templateId/import', asyncHandler(async (req, res) => {
+  const templateId = typeof req.params.templateId === 'string' ? req.params.templateId : undefined;
+  if (!templateId) throw new HttpError(400, 'templateId is required');
+  const webTemplate = await getRemoteWebTemplate(templateId);
+  const parsed = parseWebTemplate(webTemplate);
+  const template = await prisma.template.create({
+    data: {
+      template_id: parsed.templateId,
+      version: getClinicalTemplateVersion(webTemplate),
+      type: 'openEhrWebTemplate',
+      alias: parsed.alias,
+      parsed_registry_json: { fields: parsed.fields, layout: parsed.layout } as any,
+    },
+  });
+  res.json({ message: 'Template imported from EHRbase', template });
+}));
 
-    res.json({ message: 'Template imported from EHRbase', template });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
+router.post('/import', asyncHandler(async (req, res) => {
+  const webTemplate = req.body;
+  const parsed = parseWebTemplate(webTemplate);
+  const template = await prisma.template.create({
+    data: {
+      template_id: parsed.templateId,
+      version: getClinicalTemplateVersion(webTemplate),
+      type: 'openEhrWebTemplate',
+      alias: parsed.alias,
+      parsed_registry_json: { fields: parsed.fields, layout: parsed.layout } as any,
+    },
+  });
+  res.json({ message: 'Template imported', template });
+}));
 
-router.post('/import', async (req, res) => {
-  try {
-    const webTemplate = req.body;
-    const parsed = parseWebTemplate(webTemplate);
-    
-    // Save to DB
-    const template = await prisma.template.create({
-      data: {
-        template_id: parsed.templateId,
-        version: getClinicalTemplateVersion(webTemplate),
-        type: 'openEhrWebTemplate',
-        alias: parsed.alias,
-        parsed_registry_json: {
-          fields: parsed.fields,
-          layout: parsed.layout
-        } as any
-      }
-    });
-
-    res.json({ message: 'Template imported', template });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/:id/fields', async (req, res) => {
-  try {
-    const template = await prisma.template.findUnique({
-      where: { id: req.params.id }
-    });
-    if (!template) return res.status(404).json({ error: 'Template not found' });
-    
-    const data = template.parsed_registry_json as any;
-    const fields = Array.isArray(data) ? data : (data?.fields || []);
-    const filtered = fields.filter((f: any) => !isContextOrIgnoredNode(f));
-    res.json(filtered);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
+router.get('/:id/fields', asyncHandler(async (req, res) => {
+  const templateId = typeof req.params.id === 'string' ? req.params.id : undefined;
+  if (!templateId) throw new HttpError(400, 'id is required');
+  const template = await prisma.template.findUnique({ where: { id: templateId } });
+  if (!template) throw new HttpError(404, 'Template not found');
+  const data = template.parsed_registry_json as any;
+  const fields = Array.isArray(data) ? data : (data?.fields || []);
+  res.json(fields.filter((field: any) => !isContextOrIgnoredNode(field)));
+}));
 
 export default router;

@@ -32,16 +32,32 @@ model Template {
   @@map("templates")
 }
 
+enum FormSessionMode {
+  create
+  edit
+  view
+  prefill
+}
+
+enum FormSessionStatus {
+  draft
+  in_progress
+  ready
+  submitted
+  failed
+  cancelled
+}
+
 model FormSession {
   id                 String   @id @default(uuid())
   formId             String   @map("form_id")
   formVersion        String   @map("form_version")
-  mode               String   @default("create")
+  mode               FormSessionMode @default(create)
   patientId          String   @map("patient_id")
   patientNamespace   String?  @map("patient_namespace")
   userId             String   @map("user_id")
   authMode           String   @map("auth_mode")
-  status             String   @default("draft")
+  status             FormSessionStatus @default(draft)
   values             Json
   validation         Json
   revision           Int      @default(0)

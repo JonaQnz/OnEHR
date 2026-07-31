@@ -1,7 +1,8 @@
-import type { FunctionPackageDefinition, FunctionDefinition } from '../../../../../packages/plugin-api/src/index';
+import type { FunctionPackageDefinition, FunctionDefinition } from 'plugin-api';
 
-// Static import of known function packages for the worker sandbox
-import clinicalScoresPackage from '../../../../../packages/formbuilder-plugin-clinical-scores/src/index';
+// A worker needs executable functions synchronously. It consumes the package's
+// declared public entry point rather than an implementation file.
+import clinicalScoresPackage from 'formbuilder-plugin-clinical-scores';
 
 const packages: FunctionPackageDefinition[] = [
   clinicalScoresPackage

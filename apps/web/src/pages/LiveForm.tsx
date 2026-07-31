@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import type { FormDefinitionV1, RuntimeValues } from 'core';
+import { FORM_LAUNCH_PROTOCOL_VERSION, type FormDefinitionV1, type FormEmbedEventName, type RuntimeValues } from 'core';
 import FormRuntime, { type FormRuntimeHandle } from '../components/FormRuntime';
 import PluginHost from '../components/PluginHost';
 
@@ -9,6 +9,7 @@ const API = 'http://localhost:3001/api';
 interface SessionRecord {
   id: string;
   formId: string;
+  mode: 'create' | 'edit' | 'view' | 'prefill';
   patientId: string;
   patientNamespace?: string;
   ehrId?: string;
@@ -63,6 +64,23 @@ export default function LiveForm() {
   const [submitted, setSubmitted] = useState(false);
   const runtimeRef = useRef<FormRuntimeHandle>(null);
 
+  const publishEmbedEvent = (event: FormEmbedEventName, formId: string, sessionId?: string, message?: string) => {
+    if (window.parent === window) return;
+    let targetOrigin = window.location.origin;
+    const requestedOrigin = searchParams.get('hostOrigin');
+    if (requestedOrigin) {
+      try { targetOrigin = new URL(requestedOrigin).origin; } catch { /* use same-origin fallback */ }
+    }
+    window.parent.postMessage({
+      protocolVersion: FORM_LAUNCH_PROTOCOL_VERSION,
+      event,
+      formId,
+      ...(sessionId ? { sessionId } : {}),
+      ...(searchParams.get('launchId') ? { launchId: searchParams.get('launchId') } : {}),
+      ...(message ? { message } : {}),
+    }, targetOrigin);
+  };
+
   useEffect(() => {
     if (!parentId) return;
     setLoading(true);
@@ -77,10 +95,21 @@ export default function LiveForm() {
       .then(async (formData) => {
         setForm(formData);
         
-        // Extract context from URL
+        const launchSessionId = searchParams.get('sessionId');
+        if (launchSessionId) {
+          const current = await request<SessionRecord>(`/form-sessions/${encodeURIComponent(launchSessionId)}`);
+          if (current.formId !== formData.id) throw new Error('Die gestartete Session gehört nicht zu diesem Formular.');
+          setSession(current);
+          setDraftValues(current.values || {});
+          if (current.status === 'submitted') setSubmitted(true);
+          publishEmbedEvent('loaded', formData.id, current.id);
+          return;
+        }
+
+        // Legacy direct-launch compatibility. New hosts use /form-launches.
         const patientId = searchParams.get('patientId') || searchParams.get('ehrId');
         const reference = searchParams.get('reference');
-        const mode = searchParams.get('mode') || formData.canonical_json?.settings?.ehrbase?.defaultMode || 'create';
+        const mode = searchParams.get('mode') || formData.canonical_json?.settings?.runtime?.defaultMode || 'create';
         
         if (patientId) {
           try {
@@ -122,14 +151,17 @@ export default function LiveForm() {
             setDraftValues(current.values || {});
             if (current.status === 'submitted') setSubmitted(true);
             
-            // Notify parent window that the form has loaded
-            window.parent.postMessage({ type: 'form:loaded', formId: formData.id, sessionId: current.id }, '*');
+            publishEmbedEvent('loaded', formData.id, current.id);
           } catch (e: any) {
+            publishEmbedEvent('error', formData.id, undefined, e.message || 'Session konnte nicht gestartet werden.');
             setError(e.message || 'Session konnte nicht gestartet werden.');
           }
         }
       })
-      .catch((e: any) => setError(e.message || 'Live Formular nicht gefunden oder nicht veröffentlicht.'))
+      .catch((e: any) => {
+        publishEmbedEvent('error', parentId, undefined, e.message || 'Live Formular nicht gefunden oder nicht veröffentlicht.');
+        setError(e.message || 'Live Formular nicht gefunden oder nicht veröffentlicht.');
+      })
       .finally(() => setLoading(false));
   }, [parentId, searchParams]);
 
@@ -160,9 +192,9 @@ export default function LiveForm() {
       runtimeRef.current?.applyValues(result.session.values || values, 'script', true);
       setSubmitted(true);
       
-      // Notify parent iframe
-      window.parent.postMessage({ type: 'form:submitted', formId: form?.id, sessionId: session.id }, '*');
+      if (form) publishEmbedEvent('submitted', form.id, session.id);
     } catch (e: any) {
+      if (form) publishEmbedEvent('error', form.id, session.id, e.message || 'Senden fehlgeschlagen.');
       setError(e.message || 'Senden fehlgeschlagen.');
     } finally {
       setBusy(false);

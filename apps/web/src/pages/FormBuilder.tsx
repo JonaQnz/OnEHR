@@ -9,11 +9,10 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import 'react-form-builder2/dist/app.css';
 import '../styles/builder-theme.css';
 import '../styles/workbench.css';
-import { canonicalToFormBuilder, formBuilderToCanonical, getElementText } from '../adapters/formBuilderAdapter';
+import { canonicalToFormBuilder, formBuilderToCanonical, getElementText, hydrateCustomBuilderElements } from '../adapters/formBuilderAdapter';
 import { validateForm, exportToOpenEhrFlatJson, getInstanceTitle } from '../utils/formStateHelper';
 import PluginHost from '../components/PluginHost';
-import { useFrontendPlugins } from '../components/FrontendPluginRegistry';
-import { AqlPrefillEditor } from 'formbuilder-plugin-aql-prefill';
+import { ExtensionSlot, useFrontendPlugins } from '../components/FrontendPluginRegistry';
 import FormRuntime from '../components/FormRuntime';
 import ScriptEditor from '../scripting/editor/ScriptEditor';
 import ScriptLogs from '../scripting/editor/ScriptLogs';
@@ -456,6 +455,10 @@ function FormBuilderContent() {
   }, [form]);
   const [templateFields, setTemplateFields] = useState<any[]>([]);
   const [builderItems, setBuilderItems] = useState<any[]>([]);
+  const hydratedBuilderItems = React.useMemo(
+    () => hydrateCustomBuilderElements(builderItems, customFields),
+    [builderItems, customFields],
+  );
   const [remoteTemplates, setRemoteTemplates] = useState<any[]>([]);
   const [remoteTemplatesError, setRemoteTemplatesError] = useState<string | null>(null);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
@@ -717,15 +720,15 @@ function FormBuilderContent() {
     setForm(updatedForm);
   };
 
-  const updateEhrbaseSetting = (key: string, value: any) => {
+  const updateRuntimeSetting = (key: string, value: any) => {
     if (!formRef.current) return;
     const updatedForm = { ...formRef.current };
     updatedForm.canonical_json = {
       ...updatedForm.canonical_json,
       settings: {
         ...(updatedForm.canonical_json.settings || {}),
-        ehrbase: {
-          ...(updatedForm.canonical_json.settings?.ehrbase || {}),
+        runtime: {
+          ...(updatedForm.canonical_json.settings?.runtime || {}),
           [key]: value
         }
       }
@@ -1413,12 +1416,13 @@ function FormBuilderContent() {
                     });
                   })();
 
+                  const UnsafeReactFormBuilder = ReactFormBuilder as unknown as React.ComponentType<Record<string, unknown>>;
                   return (
-                    // @ts-ignore: ReactFormBuilder types are incomplete
-                    <ReactFormBuilder
+                    <UnsafeReactFormBuilder
+                      key={`builder:${customFields.map((field) => field.key).sort().join('|')}`}
                       data={sanitizedLayout}
                       onPost={handleSave}
-                      onLoad={async () => builderItems}
+                      onLoad={async () => hydratedBuilderItems}
                       saveAlways={true}
                       hideToolbar={true}
                       wrapDnd={false}
@@ -2094,8 +2098,8 @@ function FormBuilderContent() {
                                 <label>Default Runtime Mode</label>
                                 <select 
                                   className="inspector-select" 
-                                  value={form.canonical_json.settings?.ehrbase?.defaultMode || 'create'} 
-                                  onChange={(e) => updateEhrbaseSetting('defaultMode', e.target.value)}
+                                  value={form.canonical_json.settings?.runtime?.defaultMode || 'create'}
+                                  onChange={(e) => updateRuntimeSetting('defaultMode', e.target.value)}
                                   onBlur={() => handleSave(builderItems)}
                                 >
                                   <option value="create">Create (Start empty, save as new)</option>
@@ -2146,40 +2150,28 @@ function FormBuilderContent() {
                       )}
                       {formTab === 'aqlPrefill' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                          <AqlPrefillEditor
-                            config={form.canonical_json.settings?.aqlPrefill || {
-                              id: 'aql-prefill-main',
-                              name: 'AQL Vorbelegung',
-                              queryMode: 'latest',
-                              executionMode: 'manual',
-                              query: { aql: '' },
-                              parameters: [{ queryParameter: '$ehrId', source: 'ehrId' }],
-                              mappings: [],
-                              behavior: { cacheResult: true, showSource: true, showTimestamp: true, confirmOverwrite: true },
-                            }}
-                            availableFieldIds={(() => {
-                              const ids: string[] = [];
-                              const walk = (node: any) => {
-                                if (node.id || node.name) ids.push(node.id || node.name);
-                                node.children?.forEach(walk);
-                              };
-                              if (form.canonical_json.layout) walk(form.canonical_json.layout);
-                              return Array.from(new Set(ids));
-                            })()}
-                            onChange={(updatedConfig) => {
-                              if (!formRef.current) return;
-                              const currentSettings = formRef.current.canonical_json.settings || {};
-                              const updatedCanonical = {
-                                ...formRef.current.canonical_json,
-                                settings: {
-                                  ...currentSettings,
-                                  aqlPrefill: updatedConfig,
-                                },
-                              };
-                              const updatedForm = { ...formRef.current, canonical_json: updatedCanonical };
-                              formRef.current = updatedForm;
-                              setForm(updatedForm);
-                              setTimeout(() => handleSave(builderItems), 0);
+                          <ExtensionSlot
+                            name="designer:aql-prefill"
+                            context={{
+                              config: form.canonical_json.settings?.aqlPrefill || {
+                                id: 'aql-prefill-main', name: 'AQL Vorbelegung', queryMode: 'latest', executionMode: 'manual',
+                                query: { aql: '' }, parameters: [{ queryParameter: '$ehrId', source: 'ehrId' }], mappings: [],
+                                behavior: { cacheResult: true, showSource: true, showTimestamp: true, confirmOverwrite: true },
+                              },
+                              availableFieldIds: (() => {
+                                const ids: string[] = [];
+                                const walk = (node: any) => { if (node.id || node.name) ids.push(node.id || node.name); node.children?.forEach(walk); };
+                                if (form.canonical_json.layout) walk(form.canonical_json.layout);
+                                return Array.from(new Set(ids));
+                              })(),
+                              onChange: (updatedConfig: unknown) => {
+                                if (!formRef.current) return;
+                                const currentSettings = formRef.current.canonical_json.settings || {};
+                                const updatedForm = { ...formRef.current, canonical_json: { ...formRef.current.canonical_json, settings: { ...currentSettings, aqlPrefill: updatedConfig } } };
+                                formRef.current = updatedForm;
+                                setForm(updatedForm);
+                                setTimeout(() => handleSave(builderItems), 0);
+                              },
                             }}
                           />
                         </div>

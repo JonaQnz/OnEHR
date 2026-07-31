@@ -1,0 +1,38 @@
+services:
+  ehrbase-test-db:
+    image: ehrbase/ehrbase-v2-postgres:16.2
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      EHRBASE_USER_ADMIN: ehrbase
+      EHRBASE_PASSWORD_ADMIN: ehrbase
+      EHRBASE_USER: ehrbase_restricted
+      EHRBASE_PASSWORD: ehrbase_restricted
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - ehrbase_test_data:/var/lib/postgresql/data
+
+  ehrbase-test:
+    image: ehrbase/ehrbase:2.30.0
+    depends_on:
+      ehrbase-test-db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://ehrbase-test-db:5432/ehrbase
+      DB_USER_ADMIN: ehrbase
+      DB_PASS_ADMIN: ehrbase
+      DB_USER: ehrbase_restricted
+      DB_PASS: ehrbase_restricted
+      SECURITY_AUTHUSER: ehrbase-user
+      SECURITY_AUTHPASSWORD: SuperSecretPassword
+      SECURITY_AUTHADMINUSER: ehrbase-admin
+      SECURITY_AUTHADMINPASSWORD: EvenMoreSecretPassword
+    ports:
+      - "8082:8080"
+
+volumes:
+  ehrbase_test_data:

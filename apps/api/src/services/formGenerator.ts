@@ -1,13 +1,20 @@
 import { CanonicalForm, FormElementLayout, FieldRegistryItem } from 'core';
 import { v4 as uuidv4 } from 'uuid';
 
+export interface GenerateCanonicalFormInput {
+  name: string;
+  templateId: string;
+  alias: string;
+  fields: readonly FieldRegistryItem[];
+  id?: string;
+  templateVersion?: string;
+  layout?: FormElementLayout;
+}
+
 export function generateCanonicalForm(
-  name: string,
-  templateId: string,
-  alias: string,
-  fields: FieldRegistryItem[]
+  { name, templateId, alias, fields, id, templateVersion = '1.0.0', layout }: GenerateCanonicalFormInput,
 ): CanonicalForm {
-  const formId = uuidv4();
+  const formId = id || uuidv4();
   
   // Create a basic layout: one column per field, wrapped in a row, wrapped in a container
   const children: FormElementLayout[] = fields.map((field) => {
@@ -39,7 +46,7 @@ export function generateCanonicalForm(
     };
   });
 
-  const layout: FormElementLayout = {
+  const generatedLayout: FormElementLayout = {
     type: 'form',
     children: [
       {
@@ -50,16 +57,17 @@ export function generateCanonicalForm(
   };
 
   // Generate Bindings and Locales
-  const bindings: Record<string, any> = {};
-  const localesEn: Record<string, any> = {};
+  const bindings: CanonicalForm['bindings'] = {};
+  const localesEn: CanonicalForm['locales']['en'] = {};
 
   fields.forEach(field => {
     bindings[field.fieldName] = {
       openehr: {
         templateAlias: field.templateAlias,
         path: field.openehrPath,
-        rmType: field.rmType
-      }
+        rmType: field.rmType,
+        ...(field.flatPath ? { flatPath: field.flatPath } : {}),
+      },
     };
 
     localesEn[`[name='${field.fieldName}']`] = {
@@ -75,11 +83,11 @@ export function generateCanonicalForm(
       {
         alias,
         id: templateId,
-        version: '0.1.0',
+        version: templateVersion,
         type: 'openEhrWebTemplate'
       }
     ],
-    layout,
+    layout: layout || generatedLayout,
     bindings,
     locales: {
       en: localesEn

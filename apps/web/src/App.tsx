@@ -13,8 +13,8 @@ import LiveForm from './pages/LiveForm';
 import PatientList from './pages/patients/PatientList';
 import PatientDetail from './pages/patients/PatientDetail';
 import { FrontendPluginProvider } from './components/FrontendPluginRegistry';
-import { registerFrontendPlugin as registerAqlPlugin } from 'formbuilder-plugin-aql-prefill';
-import { registerFrontendPlugin as registerIframePlugin } from 'formbuilder-plugin-iframe/src/frontend';
+import type { FrontendPluginRegistration } from 'plugin-api';
+import { loadFrontendPluginRegistrations } from './plugins/frontendPluginCatalog';
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<{ loading: boolean; required: boolean; authenticated: boolean; mode: 'local' | 'hip' }>({ loading: true, required: false, authenticated: false, mode: 'local' });
@@ -106,11 +106,16 @@ function AppContent() {
 }
 
 function App() {
+  const [frontendPlugins, setFrontendPlugins] = React.useState<FrontendPluginRegistration[]>([]);
+  React.useEffect(() => {
+    void loadFrontendPluginRegistrations().then(setFrontendPlugins).catch((error: unknown) => console.error('[PLUGIN] Failed to load frontend plugins', error));
+  }, []);
   return (
     <Router>
-      <FrontendPluginProvider plugins={[registerAqlPlugin, registerIframePlugin]}>
+      <FrontendPluginProvider plugins={frontendPlugins}>
         <Routes>
           <Route path="/live/:parentId" element={<LiveForm />} />
+          <Route path="/embed/forms/:parentId" element={<LiveForm />} />
           <Route path="*" element={<AuthGate><AppContent /></AuthGate>} />
         </Routes>
       </FrontendPluginProvider>

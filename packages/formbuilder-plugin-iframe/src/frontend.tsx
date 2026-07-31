@@ -1,10 +1,5 @@
 import React from 'react';
-
-interface FrontendPluginRegistrar {
-  registerExtension: (extension: any) => void;
-  registerField: (field: any) => void;
-  registerRenderer: (renderer: any) => void;
-}
+import type { FrontendPluginRegistrar } from 'plugin-api';
 
 const IframeDesignerPreview = React.forwardRef((props: any, ref: any) => {
   console.log('[IframeDesignerPreview] Rendering with props:', props);

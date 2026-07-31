@@ -1,6 +1,9 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { validateRuntimeValues } = require('core');
+const {
+  canTransitionFormSession,
+  validateRuntimeValues,
+} = require('core');
 
 function form() {
   return {
@@ -22,4 +25,12 @@ test('a draft session can be validated using the shared runtime rules', () => {
   const valid = validateRuntimeValues(form(), { name: 'Ada' });
   assert.equal(valid.valid, true);
   assert.deepEqual(valid.issues, []);
+});
+
+test('form-session state transitions prevent direct submission', () => {
+  assert.equal(canTransitionFormSession('draft', 'in_progress'), true);
+  assert.equal(canTransitionFormSession('in_progress', 'ready'), true);
+  assert.equal(canTransitionFormSession('ready', 'submitted'), true);
+  assert.equal(canTransitionFormSession('draft', 'submitted'), false);
+  assert.equal(canTransitionFormSession('submitted', 'in_progress'), false);
 });

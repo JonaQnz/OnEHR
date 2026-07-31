@@ -11,7 +11,7 @@ import type {
   FormDataProviderSubmitResult,
 } from 'core';
 
-import { toEhrbaseFlatComposition } from './ehrbaseDataProvider';
+import { toOpenEhrFlatComposition } from 'openehr-engine';
 import { getPluginSettings } from './configService';
 type ProviderHttp = Pick<AxiosInstance, 'post'>;
 type ProviderResponse = { data: any; headers?: Record<string, any>; status?: number };
@@ -131,9 +131,10 @@ export class N8nDataProvider implements FormDataProvider {
         userId: input.context.userId,
         authMode: input.context.authMode,
       },
-      ehrbase: {
+      composition: {
+        format: 'flat',
         templateId: input.form.definition.sourceTemplates?.[0]?.id,
-        flatComposition: toEhrbaseFlatComposition(input.form.definition, input.values, input.context),
+        values: toOpenEhrFlatComposition(input.form.definition, input.values, { composerName: input.context.userId }),
       },
       values: input.values,
     };

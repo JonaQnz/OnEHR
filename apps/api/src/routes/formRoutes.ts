@@ -6,6 +6,7 @@ import { exportMappings } from '../exporters/mappingExporter';
 import { asyncHandler, HttpError } from '../middleware/errorHandler';
 import { normalizeCanonicalFormPayload, requireNonEmptyString } from '../validation/formValidation';
 import { FORM_DEFINITION_SCHEMA_VERSION, migrateCanonicalFormToV1 } from 'core';
+import { generateCanonicalForm } from '../services/formGenerator';
 import {
   FormScriptCompileResult,
   compileFormDefinitionScript,
@@ -61,32 +62,28 @@ function prepareNewDefinition(input: Record<string, unknown>, formId: string) {
   return { ...definition, formScript: compilation.document };
 }
 
-function createCanonicalForm(template: any, formId: string, formName?: string) {
+function generateDefinitionFromTemplate(template: any, formId: string, formName?: string) {
   const registryData = template.parsed_registry_json as any;
   const isNewSchema = registryData && !Array.isArray(registryData);
   const fields = isNewSchema ? (registryData.fields || []) : (registryData || []);
   const layout = isNewSchema
     ? (registryData.layout || { type: 'form', children: [{ type: 'container', children: [] }] })
     : { type: 'form', children: [{ type: 'container', children: [] }] };
-  const bindings: Record<string, any> = {};
-  const localesEn: Record<string, any> = {};
-
-  fields.forEach((field: any) => {
-    bindings[field.fieldName] = { openehr: { templateAlias: field.templateAlias, path: field.openehrPath, rmType: field.rmType, flatPath: field.flatPath } };
-    localesEn[`[name='${field.fieldName}']`] = { label: field.label };
-  });
 
   return prepareNewDefinition({
-    id: formId,
-    name: formName || template.template_id,
+    ...generateCanonicalForm({
+      id: formId,
+      name: formName || template.template_id,
+      templateId: template.template_id,
+      alias: template.alias,
+      templateVersion: template.version || '1.0.0',
+      fields,
+      layout,
+    }),
     version: '0.1.0-draft',
     schemaVersion: FORM_DEFINITION_SCHEMA_VERSION,
     revision: 0,
     extensions: {},
-    sourceTemplates: [{ alias: template.alias, id: template.template_id, version: template.version || '1.0.0', type: 'openEhrWebTemplate' }],
-    layout,
-    bindings,
-    locales: { en: localesEn },
   }, formId);
 }
 
@@ -112,7 +109,7 @@ router.post('/:id/apply-template', asyncHandler(async (req, res) => {
 
   const current = formRecord.canonical_json as any;
   let canonicalForm = {
-    ...createCanonicalForm(template, formRecord.id, current.name || formRecord.name),
+    ...generateDefinitionFromTemplate(template, formRecord.id, current.name || formRecord.name),
     status: current.status || formRecord.status,
     settings: current.settings,
     extensions: current.extensions || {},
@@ -133,7 +130,7 @@ router.post('/generate-from-template', asyncHandler(async (req, res) => {
   const template = await prisma.template.findUnique({ where: { id: templateId } });
   if (!template) throw new HttpError(404, 'Template not found');
 
-  const canonicalForm = createCanonicalForm(template, uuidv4(), formName);
+  const canonicalForm = generateDefinitionFromTemplate(template, uuidv4(), formName);
   const form = await prisma.form.create({ data: { id: canonicalForm.id, parent_id: canonicalForm.id, name: canonicalForm.name, version: canonicalForm.version, status: 'draft', canonical_json: canonicalForm as any } });
   res.status(201).json({ message: 'Form generated', form });
 }));

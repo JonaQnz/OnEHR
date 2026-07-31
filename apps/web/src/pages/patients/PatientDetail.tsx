@@ -11,6 +11,8 @@ import {
   History,
   Plus,
 } from 'lucide-react';
+import { formEmbedUrl, isFormEmbedEvent, launchEmbeddedForm } from '../../integration/formLaunch';
+import type { FormLaunchLoadPolicy, FormRuntimeMode } from 'core';
 
 const API = 'http://localhost:3001/api';
 
@@ -43,6 +45,7 @@ interface StoredForm {
   createdAt: string;
   canonical_json?: {
     layout?: FormLayoutElement;
+    sourceTemplates?: Array<{ id?: string }>;
   };
 }
 
@@ -69,13 +72,35 @@ interface FieldDescriptor {
   options: Map<string, string>;
 }
 
-type PatientTab = 'documents' | 'overview' | 'data' | 'versions';
+type PatientTab = 'documents' | 'overview' | 'data' | 'versions' | 'kis';
 
 const TABS: Array<{ id: PatientTab; label: string }> = [
   { id: 'documents', label: 'Formulare und Dokumente' },
   { id: 'overview', label: 'Übersicht' },
   { id: 'data', label: 'Daten' },
   { id: 'versions', label: 'Versionen' },
+  { id: 'kis', label: 'KIS-Arbeitsplatz' },
+];
+
+interface KisWorkflow {
+  id: string;
+  title: string;
+  detail: string;
+  templateId: string;
+  mode: FormRuntimeMode;
+  load: FormLaunchLoadPolicy;
+}
+
+const KIS_WORKFLOWS: KisWorkflow[] = [
+  { id: 'service-request', title: 'Laborauftrag', detail: 'Neuen Auftrag für das Labor anlegen.', templateId: 'vg_ServiceRequest.v1.1.1', mode: 'create', load: 'never' },
+  { id: 'specimen', title: 'Probe erfassen', detail: 'Neue Probe im Kontext eines Auftrags dokumentieren.', templateId: 'vg_Specimen.v1.0.0', mode: 'create', load: 'never' },
+  { id: 'observation-lab', title: 'Laborwerte übernehmen', detail: 'Vorhandene Laborwerte laden und ergänzen.', templateId: 'vg_ObservationLab.v1.2.0', mode: 'prefill', load: 'provider' },
+  { id: 'diagnostic-report', title: 'Laborbefund', detail: 'Neuen diagnostischen Laborbericht dokumentieren.', templateId: 'vg_DiagnosticReportLab.v1.1.2', mode: 'create', load: 'never' },
+  { id: 'diagnosis', title: 'Diagnose', detail: 'Bestehende Diagnose laden und versioniert bearbeiten.', templateId: 'vg_Diagnosis.v1.1.1', mode: 'edit', load: 'provider' },
+  { id: 'procedure', title: 'Prozedur', detail: 'Neue Prozedur dokumentieren.', templateId: 'vg_Procedure.v1.1.0', mode: 'create', load: 'never' },
+  { id: 'medication-administration', title: 'Medikamentengabe', detail: 'Neue Medikamentengabe erfassen.', templateId: 'vg_MedicationAdministration.v1.0.2', mode: 'create', load: 'never' },
+  { id: 'medication-statement', title: 'Medikationsplan', detail: 'Bestehenden Medikationsplan laden und versionieren.', templateId: 'vg_MedicationStatement.v1.1.0', mode: 'edit', load: 'provider' },
+  { id: 'person', title: 'Stammdaten', detail: 'Personendaten aus der bestehenden Composition bearbeiten.', templateId: 'vg_Person.v1.1.1', mode: 'edit', load: 'provider' },
 ];
 
 const STATUS_LABELS: Record<SessionStatus, string> = {
@@ -194,6 +219,8 @@ export default function PatientDetail() {
   const [activeTab, setActiveTab] = useState<PatientTab>('documents');
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [selectedDataSessionId, setSelectedDataSessionId] = useState('');
+  const [embeddedLaunch, setEmbeddedLaunch] = useState<{ url: string; title: string } | null>(null);
+  const [launchingWorkflow, setLaunchingWorkflow] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -265,6 +292,48 @@ export default function PatientDetail() {
   const latestSession = sessions[0];
 
   const formName = (session: FormSessionRecord) => formsById.get(session.formId)?.name || 'Unbekanntes Formular';
+
+  const formForTemplate = (templateId: string) => publishedForms.find(
+    (form) => form.canonical_json?.sourceTemplates?.some((template) => template.id === templateId),
+  );
+
+  const launchKisWorkflow = async (workflow: KisWorkflow) => {
+    if (!patient) return;
+    const form = formForTemplate(workflow.templateId);
+    if (!form) return;
+    setLaunchingWorkflow(workflow.id);
+    setError('');
+    try {
+      const launch = await launchEmbeddedForm({
+        formId: form.id,
+        patient: { id: patient.patientId, ...(patient.namespace ? { namespace: patient.namespace } : {}) },
+        mode: workflow.mode,
+        load: workflow.load,
+        launchId: `${workflow.id}-${Date.now()}`,
+      });
+      setEmbeddedLaunch({ url: formEmbedUrl(launch.launchUrl), title: workflow.title });
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Formular konnte nicht gestartet werden.');
+    } finally {
+      setLaunchingWorkflow(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!embeddedLaunch || !patient) return undefined;
+    const receiveEmbedEvent = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || !isFormEmbedEvent(event.data)) return;
+      if (event.data.event === 'error' && event.data.message) setError(event.data.message);
+      if (event.data.event === 'submitted') {
+        setEmbeddedLaunch(null);
+        void request<FormSessionRecord[]>(`/form-sessions?patientId=${encodeURIComponent(patient.patientId)}`)
+          .then(setSessions)
+          .catch(() => undefined);
+      }
+    };
+    window.addEventListener('message', receiveEmbedEvent);
+    return () => window.removeEventListener('message', receiveEmbedEvent);
+  }, [embeddedLaunch, patient]);
 
   const sessionEntries = (session: FormSessionRecord) => {
     const descriptors = collectFieldDescriptors(formsById.get(session.formId)?.canonical_json?.layout);
@@ -505,6 +574,51 @@ export default function PatientDetail() {
     );
   };
 
+  const renderKis = () => (
+    <div style={{ display: 'grid', gap: '1.25rem' }}>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Klinischer Arbeitsplatz</h3>
+        <p style={{ margin: '0.35rem 0 0', color: 'var(--text-muted)' }}>
+          Diese Karten nutzen die öffentliche Form-Launch-Schnittstelle. Die Zuordnung erfolgt über die Template-ID — nicht über fest codierte Formular-IDs.
+        </p>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
+        {KIS_WORKFLOWS.map((workflow) => {
+          const form = formForTemplate(workflow.templateId);
+          const starting = launchingWorkflow === workflow.id;
+          return (
+            <article key={workflow.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div>
+                <strong style={{ display: 'block', marginBottom: '0.3rem' }}>{workflow.title}</strong>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{workflow.detail}</span>
+              </div>
+              <code style={{ color: 'var(--text-muted)', fontSize: '0.72rem', overflowWrap: 'anywhere' }}>{workflow.templateId}</code>
+              {form ? (
+                <>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{form.name} · {workflow.mode}{workflow.load === 'provider' ? ' · Provider laden' : ''}</span>
+                  <button className="btn" disabled={starting} onClick={() => void launchKisWorkflow(workflow)}>
+                    <FileText size={16} /> {starting ? 'Starte…' : 'Formular öffnen'}
+                  </button>
+                </>
+              ) : (
+                <span style={{ color: '#a16207', fontSize: '0.82rem' }}>Kein veröffentlichtes Formular für dieses Template zugeordnet.</span>
+              )}
+            </article>
+          );
+        })}
+      </div>
+      {embeddedLaunch && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '0.85rem 1rem', display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
+            <strong>{embeddedLaunch.title}</strong>
+            <button className="btn btn-secondary" onClick={() => setEmbeddedLaunch(null)}>Schließen</button>
+          </div>
+          <iframe title={embeddedLaunch.title} src={embeddedLaunch.url} style={{ width: '100%', minHeight: '760px', border: 0, display: 'block', background: '#f8fafc' }} />
+        </div>
+      )}
+    </div>
+  );
+
   const renderVersions = () => (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       {sessions.length === 0 ? (
@@ -615,6 +729,7 @@ export default function PatientDetail() {
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'data' && renderData()}
         {activeTab === 'versions' && renderVersions()}
+        {activeTab === 'kis' && renderKis()}
       </div>
 
       {showFormModal && (

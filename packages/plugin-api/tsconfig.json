@@ -8,7 +8,11 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": "../..",
+    "paths": {
+      "core": ["packages/core/dist"]
+    }
   },
   "include": ["src/**/*"]
 }

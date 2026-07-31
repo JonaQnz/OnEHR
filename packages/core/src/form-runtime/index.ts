@@ -1,8 +1,8 @@
-import { CanonicalForm, FormElementLayout } from '../canonical';
+import type { CanonicalForm, FormElementLayout, JsonPrimitive, JsonValue, ValidationIssue } from '../canonical';
 
-export type RuntimePrimitive = string | number | boolean | null;
-export type RuntimeJsonValue = RuntimePrimitive | RuntimeJsonValue[] | { [key: string]: RuntimeJsonValue };
-export type RuntimeValue = RuntimeJsonValue | undefined;
+export type RuntimePrimitive = JsonPrimitive;
+export type RuntimeJsonValue = JsonValue;
+export type RuntimeValue = JsonValue | undefined;
 export type RuntimeValues = Record<string, RuntimeValue>;
 
 export interface RuntimeOption { value: string; text: string; }
@@ -21,10 +21,9 @@ export interface RuntimeGroupDescriptor {
   repeatMin: number;
   repeatMax: number;
 }
-export interface RuntimeValidationIssue {
+export interface RuntimeValidationIssue extends ValidationIssue {
   path: string;
   code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max';
-  message: string;
 }
 export interface RuntimeValidationResult { valid: boolean; issues: RuntimeValidationIssue[]; }
 

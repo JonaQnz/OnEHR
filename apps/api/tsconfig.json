@@ -12,6 +12,7 @@
     "baseUrl": "../..",
     "paths": {
       "core": ["packages/core/dist"],
+      "openehr-engine": ["packages/openehr-engine/dist"],
       "plugin-api": ["packages/plugin-api/dist"]
     }
   },

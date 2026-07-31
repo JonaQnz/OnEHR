@@ -5,6 +5,7 @@ import { getConfig, getPluginSettings, getSafePluginSettings, saveConfig, savePl
 import { getPluginPackageStatuses, loadPluginPackage, unloadPluginPackage } from '../plugins/pluginRegistry';
 import { requireAuth } from '../middleware/auth';
 import prisma from '../db/prisma';
+import { asyncHandler } from '../middleware/errorHandler';
 
 const router = Router();
 
@@ -49,7 +50,7 @@ router.post('/settings/:pluginId', (req, res) => {
   });
 });
 
-router.post('/actions/:pluginId/:actionId', requireAuth, async (req, res) => {
+router.post('/actions/:pluginId/:actionId', requireAuth, asyncHandler(async (req, res) => {
   const pluginId = typeof req.params.pluginId === 'string' ? req.params.pluginId : '';
   const actionId = typeof req.params.actionId === 'string' ? req.params.actionId : '';
   console.log(`[PluginRoutes] POST /actions/${pluginId}/${actionId} received`);
@@ -97,9 +98,9 @@ router.post('/actions/:pluginId/:actionId', requireAuth, async (req, res) => {
     console.error(`[PluginRoutes] Action ${contribution.pluginId}:${actionId} threw exception:`, message);
     return res.status(400).json({ error: message });
   }
-});
+}));
 
-router.post('/load', async (req, res) => {
+router.post('/load', asyncHandler(async (req, res) => {
   const packageName = typeof req.body?.packageName === 'string' ? req.body.packageName.trim() : '';
   if (!packageName) return res.status(400).json({ error: 'packageName is required' });
 
@@ -112,7 +113,7 @@ router.post('/load', async (req, res) => {
     const message = error instanceof Error ? error.message : 'Unable to load plugin';
     return res.status(400).json({ error: message });
   }
-});
+}));
 
 router.post('/unload', (req, res) => {
   const packageName = typeof req.body?.packageName === 'string' ? req.body.packageName.trim() : '';

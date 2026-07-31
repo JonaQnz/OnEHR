@@ -4,6 +4,14 @@
   "description": "Form Builder Plugin: Iframe Field",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./frontend": {
+      "types": "./dist/frontend.d.ts",
+      "import": "./src/frontend.tsx",
+      "default": "./dist/frontend.js"
+    }
+  },
   "scripts": {
     "build": "tsc"
   },

@@ -3,9 +3,11 @@ const test = require('node:test');
 const {
   EhrbaseDataProvider,
   EhrbaseProviderError,
-  fromEhrbaseFlatComposition,
-  toEhrbaseFlatComposition,
 } = require('../dist/services/ehrbaseDataProvider');
+const {
+  fromOpenEhrFlatComposition,
+  toOpenEhrFlatComposition,
+} = require('openehr-engine');
 
 function definition() {
   return {
@@ -24,9 +26,9 @@ function definition() {
   };
 }
 
-test('maps runtime values to and from the EHRbase flat representation', () => {
+test('uses the transport-independent openEHR mapping implementation', () => {
   const values = { name: 'Ada', weight: { magnitude: 63, unit: 'kg' }, status: 'ok', active: true };
-  const flat = toEhrbaseFlatComposition(definition(), values, { patientId: 'p-1', userId: 'alice' });
+  const flat = toOpenEhrFlatComposition(definition(), values, { composerName: 'alice', time: '2026-01-01T00:00:00.000Z' });
   assert.equal(flat['vitals/name'], 'Ada');
   assert.equal(flat['vitals/weight|magnitude'], 63);
   assert.equal(flat['vitals/weight|unit'], 'kg');
@@ -35,36 +37,140 @@ test('maps runtime values to and from the EHRbase flat representation', () => {
   assert.equal(flat['ctx/composer_name'], 'alice');
   assert.equal(flat['ctx/template_id'], 'vitals.v1');
 
-  assert.deepEqual(fromEhrbaseFlatComposition(definition(), flat), values);
+  assert.deepEqual(fromOpenEhrFlatComposition(definition(), flat), values);
 });
 
-test('resolves the patient EHR and uses templateId for load and submit', async () => {
+test('edit loads the template composition and creates a new version with PUT', async () => {
   const calls = [];
+  const versionOne = '11111111-1111-1111-1111-111111111111::vitals.v1::1';
+  const versionTwo = '11111111-1111-1111-1111-111111111111::vitals.v1::2';
   const http = {
     async get(url, options) {
       calls.push({ method: 'GET', url, options });
       if (url.endsWith('/ehr')) return { data: { ehr_id: { value: 'ehr-1' } } };
-      return { data: [{ 'vitals/name': 'Ada' }], headers: { location: '/ehr/ehr-1/composition/v1' } };
+      return { data: [{ 'vitals/name': 'Ada' }] };
     },
     async post(url, body, options) {
       calls.push({ method: 'POST', url, body, options });
-      return { data: {}, headers: { location: '/ehr/ehr-1/composition/v2' } };
+      if (url.endsWith('/query/aql')) return { data: { rows: [[versionOne]] } };
+      throw new Error(`unexpected POST ${url}`);
+    },
+    async put(url, body, options) {
+      calls.push({ method: 'PUT', url, body, options });
+      return { data: {}, headers: { location: `/ehr/ehr-1/composition/${versionTwo}` } };
     },
   };
   const provider = new EhrbaseDataProvider({
     http,
     config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic', ehrbaseSubjectNamespace: 'demo' },
   });
-  const input = { context: { patientId: 'patient-1', patientNamespace: 'demo', userId: 'alice' }, form: { id: 'form-1', version: '1.0.0', definition: definition() } };
+  const input = { context: { patientId: 'patient-1', patientNamespace: 'demo', userId: 'alice', mode: 'edit' }, form: { id: 'form-1', version: '1.0.0', definition: definition() } };
   const loaded = await provider.load(input);
   assert.equal(loaded.values.name, 'Ada');
-  assert.equal(loaded.reference, '/ehr/ehr-1/composition/v1');
-  assert.equal(calls[1].options.params.templateId, 'vitals.v1');
+  assert.equal(loaded.reference, versionOne);
+  assert.match(calls[1].url, /\/query\/aql$/);
+  assert.match(calls[1].body.q, /vitals\.v1/);
 
-  const submitted = await provider.submit({ ...input, values: { name: 'Grace' } });
-  assert.equal(submitted.reference, '/ehr/ehr-1/composition/v2');
-  assert.equal(calls[3].options.params.templateId, 'vitals.v1');
-  assert.equal(calls[3].body['vitals/name'], 'Grace');
+  const submitted = await provider.submit({ ...input, reference: loaded.reference, values: { name: 'Grace' } });
+  const update = calls.find((call) => call.method === 'PUT');
+  assert.equal(submitted.reference, `/ehr/ehr-1/composition/${versionTwo}`);
+  assert.match(update.url, /\/composition\/11111111-1111-1111-1111-111111111111$/);
+  assert.equal(update.options.headers['If-Match'], versionOne);
+  assert.equal(update.options.params.templateId, 'vitals.v1');
+  assert.equal(update.body['vitals/name'], 'Grace');
+  assert.equal(calls.filter((call) => call.method === 'POST' && /\/composition$/.test(call.url)).length, 0);
+});
+
+test('edit resolves a missing reference before updating and never creates a composition', async () => {
+  const calls = [];
+  const versionUid = '22222222-2222-2222-2222-222222222222::vitals.v1::3';
+  const http = {
+    async get(url, options) {
+      calls.push({ method: 'GET', url, options });
+      if (url.endsWith('/ehr')) return { data: { ehr_id: { value: 'ehr-1' } } };
+      throw new Error(`unexpected GET ${url}`);
+    },
+    async post(url, body, options) {
+      calls.push({ method: 'POST', url, body, options });
+      if (url.endsWith('/query/aql')) return { data: { rows: [[versionUid]] } };
+      throw new Error(`unexpected POST ${url}`);
+    },
+    async put(url, body, options) {
+      calls.push({ method: 'PUT', url, body, options });
+      return { data: {}, headers: { location: `/ehr/ehr-1/composition/${versionUid.replace(/::3$/, '::4')}` } };
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic', ehrbaseSubjectNamespace: 'demo' } });
+
+  await provider.submit({
+    context: { patientId: 'patient-1', patientNamespace: 'demo', userId: 'alice', mode: 'edit' },
+    form: { id: 'form-1', version: '1.0.0', definition: definition() },
+    values: { name: 'Grace' },
+  });
+
+  assert.equal(calls.filter((call) => call.method === 'POST' && /\/query\/aql$/.test(call.url)).length, 1);
+  assert.equal(calls.filter((call) => call.method === 'PUT').length, 1);
+  assert.equal(calls.filter((call) => call.method === 'POST' && /\/composition$/.test(call.url)).length, 0);
+});
+
+test('edit turns a stale version into a conflict instead of creating a second composition', async () => {
+  const calls = [];
+  const versionUid = '33333333-3333-3333-3333-333333333333::vitals.v1::1';
+  const http = {
+    async get(url) {
+      calls.push({ method: 'GET', url });
+      return { data: { ehr_id: { value: 'ehr-1' } } };
+    },
+    async post(url, body) {
+      calls.push({ method: 'POST', url, body });
+      if (url.endsWith('/query/aql')) return { data: { rows: [[versionUid]] } };
+      throw new Error(`unexpected POST ${url}`);
+    },
+    async put(url) {
+      calls.push({ method: 'PUT', url });
+      const error = new Error('stale composition');
+      error.response = { status: 412 };
+      throw error;
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic', ehrbaseSubjectNamespace: 'demo' } });
+
+  await assert.rejects(
+    provider.submit({ context: { patientId: 'patient-1', patientNamespace: 'demo', userId: 'alice', mode: 'edit' }, form: { id: 'form-1', version: '1.0.0', definition: definition() }, values: { name: 'Grace' } }),
+    (error) => error instanceof EhrbaseProviderError && error.code === 'COMPOSITION_VERSION_CONFLICT' && error.status === 409,
+  );
+  assert.equal(calls.filter((call) => call.method === 'POST' && /\/composition$/.test(call.url)).length, 0);
+});
+
+test('create and prefill submit new compositions even when given an old reference', async () => {
+  for (const mode of ['create', 'prefill']) {
+    const calls = [];
+    const http = {
+      async get(url) {
+        calls.push({ method: 'GET', url });
+        return { data: { ehr_id: { value: 'ehr-1' } } };
+      },
+      async post(url, body, options) {
+        calls.push({ method: 'POST', url, body, options });
+        return { data: {}, headers: { location: '/ehr/ehr-1/composition/new-version' } };
+      },
+      async put() {
+        throw new Error('PUT must not be used outside edit mode');
+      },
+    };
+    const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic', ehrbaseSubjectNamespace: 'demo' } });
+
+    await provider.submit({ context: { patientId: 'patient-1', patientNamespace: 'demo', userId: 'alice', mode }, form: { id: 'form-1', version: '1.0.0', definition: definition() }, reference: '44444444-4444-4444-4444-444444444444::vitals.v1::1', values: { name: 'Grace' } });
+    assert.equal(calls.filter((call) => call.method === 'POST' && /\/composition$/.test(call.url)).length, 1, `${mode} creates a composition`);
+  }
+});
+
+test('view mode cannot submit a composition', async () => {
+  const provider = new EhrbaseDataProvider();
+  await assert.rejects(
+    provider.submit({ context: { patientId: 'patient-1', userId: 'alice', mode: 'view' }, form: { id: 'form-1', version: '1.0.0', definition: definition() }, values: {} }),
+    (error) => error instanceof EhrbaseProviderError && error.code === 'FORM_MODE_READ_ONLY' && error.status === 403,
+  );
 });
 
 test('prefers the trusted patient-registry EHR ID over subject lookup', async () => {
@@ -74,8 +180,9 @@ test('prefers the trusted patient-registry EHR ID over subject lookup', async ()
       calls.push({ method: 'GET', url, options });
       return { data: [] };
     },
-    async post() {
-      throw new Error('not used');
+    async post(url, body, options) {
+      calls.push({ method: 'POST', url, body, options });
+      return { data: { rows: [] } };
     },
   };
   const provider = new EhrbaseDataProvider({
@@ -95,13 +202,14 @@ test('prefers the trusted patient-registry EHR ID over subject lookup', async ()
       patientNamespace: 'default',
       ehrId: '3bfb00d8-62f0-4fd5-abbc-a37c9cd4fc5a',
       userId: 'alice',
+      mode: 'edit',
     },
     form: { id: 'form-1', version: '1.0.0', definition: definition() },
   });
 
   assert.equal(loaded.metadata.ehrId, '3bfb00d8-62f0-4fd5-abbc-a37c9cd4fc5a');
-  assert.match(calls[0].url, /\/ehr\/3bfb00d8-62f0-4fd5-abbc-a37c9cd4fc5a\/composition$/);
-  assert.equal(calls.some((call) => call.options?.params?.subject_id === 'asdas'), false);
+  assert.match(calls[0].url, /\/query\/aql$/);
+  assert.match(calls[0].body.q, /3bfb00d8-62f0-4fd5-abbc-a37c9cd4fc5a/);
 });
 
 test('does not silently submit a known patient to the configured default EHR', async () => {

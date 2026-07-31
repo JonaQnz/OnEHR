@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useDrop } from 'react-dnd';
 import FormElements from '../sortable-form-elements';
 import ItemTypes from '../ItemTypes';
@@ -106,6 +106,7 @@ const Dustbin = ({
   ...rest
 }) => {
   const dropRef = useRef(null);
+  const [hoverDirection, setHoverDirection] = useState(null);
   const item = getDataById(items[col]);
 
   const [{ isOver, canDrop, draggedItem }, drop] = useDrop({
@@ -115,15 +116,10 @@ const Dustbin = ({
       canDrop: monitor.canDrop(),
       draggedItem: monitor.getItem(),
     }),
-    drop: (droppedItem) => {
+    drop: (droppedItem, monitor) => {
+      if (monitor.didDrop()) return undefined;
       // Do nothing when moving the box inside the same column
-      if (col === droppedItem.col && items[col] === droppedItem.id) return;
-
-      // Do not allow replacing a component unless both items are in the same multi-column row
-      if (droppedItem.col === undefined && items[col]) {
-        store.dispatch('deleteLastItem');
-        return;
-      }
+      if (col === droppedItem.col && items[col] === droppedItem.id) return { destination: data?.id };
 
       const isParentFieldSet = data && data.element === 'FieldSet';
       if (!isContainer(droppedItem) || isParentFieldSet) {
@@ -133,27 +129,48 @@ const Dustbin = ({
           const isNew = !droppedItem.data.id;
           const itemData = isNew ? droppedItem.onCreate(droppedItem.data) : droppedItem.data;
 
-          if (typeof setAsChild === 'function') {
-            setAsChild(data, itemData, col, isBusy);
-          }
-
+          const moved = typeof setAsChild === 'function'
+            && setAsChild(data, itemData, col, isBusy);
+          if (!moved) return { destination: data?.id, rejected: true };
           onDropSuccess && onDropSuccess();
 
           // Only delete lastItem if it refers to a different item that was
           // temporarily inserted on the flat canvas during hover. If lastItem
           // IS this item (same id), deleting it would make the item vanish.
           const lastItem = store.state?.lastItem;
-          if (lastItem && lastItem.id !== itemData.id) {
+          if (isNew && lastItem && lastItem.id !== itemData.id) {
             store.dispatch('deleteLastItem');
           } else {
             store.dispatch('resetLastItem');
           }
+          return { destination: data?.id };
         }
       }
+      return { destination: data?.id, rejected: true };
     },
-    canDrop: (item) => {
-      // Add any custom logic for when an item can be dropped
-      return true;
+    hover: (dragged, monitor) => {
+      if (!monitor.isOver({ shallow: true }) || !dropRef.current) return;
+      const rect = dropRef.current.getBoundingClientRect();
+      const offset = monitor.getClientOffset();
+      if (!offset) return;
+      setHoverDirection(offset.y < rect.top + (rect.height / 2) ? 'top' : 'bottom');
+    },
+    canDrop: (dragged) => {
+      const draggedData = dragged?.data;
+      if (!draggedData || !data || draggedData.id === data.id) return false;
+      if (isContainer(dragged) && data.element !== 'FieldSet') return false;
+
+      // A group may not be dropped into itself or one of its descendants.
+      let ancestor = data;
+      while (ancestor?.parentId) {
+        ancestor = getDataById(ancestor.parentId);
+        if (!ancestor || ancestor.id === draggedData.id) return false;
+      }
+
+      const occupiedId = items[col];
+      return !occupiedId
+        || occupiedId === draggedData.id
+        || (draggedData.parentId === data.id && items.includes(draggedData.id));
     },
   });
 
@@ -171,9 +188,11 @@ const Dustbin = ({
   drop(dropRef);
 
   return (
-    <div ref={dropRef} style={!sameCard ? getStyle(backgroundColor, !!element, isOver, canDrop) : getStyle('rgba(0, 0, 0, .03)', !!element, false, false)}>
+    <div ref={dropRef} style={{ ...(!sameCard ? getStyle(backgroundColor, !!element, isOver, canDrop) : getStyle('rgba(0, 0, 0, .03)', !!element, false, false)), position: 'relative' }}>
+      {!sameCard && isOver && canDrop && hoverDirection === 'top' && <div className="dnd-insertion-line top" />}
       {!element && <span style={{ pointerEvents: 'none' }}>Drop your element here</span>}
       {element}
+      {!sameCard && isOver && canDrop && hoverDirection === 'bottom' && <div className="dnd-insertion-line bottom" />}
     </div>
   );
 };

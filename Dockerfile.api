@@ -8,6 +8,7 @@ WORKDIR /app
 # Copy only the files needed for npm ci
 COPY package.json package-lock.json ./
 COPY packages/core/package.json ./packages/core/
+COPY packages/openehr-engine/package.json ./packages/openehr-engine/
 COPY packages/react-form-builder2/package.json ./packages/react-form-builder2/
 COPY packages/plugin-api/package.json ./packages/plugin-api/
 COPY packages/example-vitals-plugin/package.json ./packages/example-vitals-plugin/
@@ -43,6 +44,7 @@ WORKDIR /app
 # Copy everything necessary from build
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/core ./packages/core
+COPY --from=build /app/packages/openehr-engine ./packages/openehr-engine
 COPY --from=build /app/apps/api ./apps/api
 COPY --from=build /app/packages/plugin-api ./packages/plugin-api
 COPY --from=build /app/packages/example-vitals-plugin ./packages/example-vitals-plugin

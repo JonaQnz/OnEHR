@@ -5,10 +5,14 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "npm run build --workspace=core && npm run build && node --test tests/*.test.js"
   },
   "keywords": ["openehr", "form-builder", "plugin"],
   "license": "ISC",
+  "dependencies": {
+    "core": "*"
+  },
   "devDependencies": {
     "typescript": "^5.7.3"
   }

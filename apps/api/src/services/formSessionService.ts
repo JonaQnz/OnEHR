@@ -1,5 +1,19 @@
 import prisma from '../db/prisma';
-import { validateRuntimeValues, type FormDataProviderContext, type FormSession, type FormSessionMessage, type FormSessionPatchInput, type FormSessionStatus, type FormSessionValues, type SessionValidationIssue, type UserAuthMode } from 'core';
+import {
+  assertFormSessionTransition,
+  isFormRuntimeMode,
+  isFormSessionStatus,
+  validateRuntimeValues,
+  type FormDataProviderContext,
+  type FormRuntimeMode,
+  type FormSession,
+  type FormSessionMessage,
+  type FormSessionPatchInput,
+  type FormSessionStatus,
+  type FormSessionValues,
+  type SessionValidationIssue,
+  type UserAuthMode,
+} from 'core';
 import { HttpError } from '../middleware/errorHandler';
 import { migrateCanonicalFormToV1 } from 'core';
 import { getDataProvider } from './dataProviderRegistry';
@@ -20,7 +34,7 @@ export interface CreateSessionInput {
   patientId: string;
   patientNamespace?: string;
   values?: FormSessionValues;
-  mode?: string;
+  mode?: FormRuntimeMode;
   providerId?: string;
   providerReference?: string;
 }
@@ -37,6 +51,51 @@ type SessionHookInput = {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function sessionValues(value: unknown): FormSessionValues {
+  return isObject(value) ? value : {};
+}
+
+function sessionValidation(value: unknown): SessionValidationIssue[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isObject(item) || typeof item.code !== 'string' || typeof item.message !== 'string') return [];
+    const severity = item.severity === 'info' || item.severity === 'warning' || item.severity === 'error'
+      ? item.severity
+      : undefined;
+    return [{
+      code: item.code,
+      message: item.message,
+      ...(typeof item.path === 'string' ? { path: item.path } : {}),
+      ...(severity ? { severity } : {}),
+    }];
+  });
+}
+
+function persistedStatus(value: unknown): FormSessionStatus {
+  if (!isFormSessionStatus(value)) throw new HttpError(500, 'Stored form session has an invalid status');
+  return value;
+}
+
+function persistedMode(value: unknown): FormRuntimeMode {
+  if (!isFormRuntimeMode(value)) throw new HttpError(500, 'Stored form session has an invalid mode');
+  return value;
+}
+
+function transitionStatus(current: FormSessionStatus, next: FormSessionStatus): FormSessionStatus {
+  try {
+    assertFormSessionTransition(current, next);
+  } catch {
+    throw new HttpError(409, `Invalid form-session transition: ${current} -> ${next}`);
+  }
+  return next;
+}
+
+function assertSessionIsEditable(status: FormSessionStatus): void {
+  if (status === 'submitted' || status === 'cancelled') {
+    throw new HttpError(409, 'Form session is no longer editable');
+  }
 }
 
 function sameJson(left: unknown, right: unknown): boolean {
@@ -152,17 +211,17 @@ function providerContext(
   patient: ResolvedSessionPatient,
   sessionId: string,
   actor: SessionActor,
-  mode: string,
+  mode: FormRuntimeMode,
 ): FormDataProviderContext {
   return {
-    mode: mode as any,
+    mode,
     patientId: patient.patientId,
     ...(patient.patientNamespace ? { patientNamespace: patient.patientNamespace } : {}),
     ...(patient.ehrId ? { ehrId: patient.ehrId } : {}),
     sessionId,
     userId: actor.userId,
     authMode: actor.authMode,
-  } as any;
+  };
 }
 
 function publicSession(
@@ -170,11 +229,13 @@ function publicSession(
   messages?: FormSessionMessage[],
   patient?: ResolvedSessionPatient,
 ): FormSession {
+  const mode = persistedMode(record.mode || 'create');
+  const status = persistedStatus(record.status);
   return {
     id: record.id,
     formId: record.formId,
     formVersion: record.formVersion,
-    mode: record.mode || 'create',
+    mode,
     patientId: patient?.patientId || record.patientId,
     ...((patient?.patientNamespace || record.patientNamespace)
       ? { patientNamespace: patient?.patientNamespace || record.patientNamespace }
@@ -182,16 +243,16 @@ function publicSession(
     ...(patient?.ehrId ? { ehrId: patient.ehrId } : {}),
     userId: record.userId,
     authMode: record.authMode,
-    status: record.status,
-    values: record.values || {},
-    validation: record.validation || [],
+    status,
+    values: sessionValues(record.values),
+    validation: sessionValidation(record.validation),
     ...(messages && messages.length > 0 ? { messages } : {}),
     revision: record.revision,
     ...(record.providerId ? { providerId: record.providerId } : {}),
     ...(record.providerReference ? { providerReference: record.providerReference } : {}),
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
-  } as any;
+  };
 }
 
 function assertOwner(record: any, actor: SessionActor): void {
@@ -207,10 +268,12 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
   );
   const form = await prisma.form.findUnique({ where: { id: formId } });
   if (!form) throw new HttpError(404, 'Form not found');
+  const mode = input.mode === undefined ? 'create' : input.mode;
+  if (!isFormRuntimeMode(mode)) throw new HttpError(400, 'mode must be create, edit, view, or prefill');
   const record = await prisma.formSession.create({ data: {
     formId,
     formVersion: form.version,
-    mode: input.mode || 'create',
+    mode,
     patientId: patient.patientId,
     patientNamespace: patient.patientNamespace || null,
     userId: actor.userId,
@@ -251,6 +314,7 @@ export async function patchFormSession(id: string, input: FormSessionPatchInput,
   const record = await prisma.formSession.findUnique({ where: { id: sessionId } });
   if (!record) throw new HttpError(404, 'Form session not found');
   assertOwner(record, actor);
+  const currentStatus = persistedStatus(record.status);
   if (input.expectedRevision !== undefined && input.expectedRevision !== record.revision) {
     const sameValues = input.values === undefined || sameJson(record.values, input.values);
     const sameStatus = input.status === undefined || input.status === record.status;
@@ -260,11 +324,18 @@ export async function patchFormSession(id: string, input: FormSessionPatchInput,
     }
     throw new HttpError(409, 'Form session was changed by another request');
   }
-  if (record.status === 'submitted' || record.status === 'cancelled') throw new HttpError(409, 'Form session is no longer editable');
+  assertSessionIsEditable(currentStatus);
+  if (input.status !== undefined && !isFormSessionStatus(input.status)) {
+    throw new HttpError(400, 'status is invalid');
+  }
+  if (input.status === 'ready' || input.status === 'submitted' || input.status === 'failed') {
+    throw new HttpError(400, 'ready, submitted, and failed are managed by validation or provider submission');
+  }
   const form = await formForSession(record);
-  const beforeSave = await runRequiredHook({ name: 'beforeSave', formId: record.formId, form, data: (input.values === undefined ? record.values : input.values) as Record<string, unknown>, patientId: record.patientId, sessionId, actor, metadata: { status: input.status || record.status } });
+  const beforeSave = await runRequiredHook({ name: 'beforeSave', formId: record.formId, form, data: input.values === undefined ? sessionValues(record.values) : input.values, patientId: record.patientId, sessionId, actor, metadata: { status: input.status || currentStatus } });
   const values = beforeSave.data;
-  const status = (input.status || (input.values ? 'in_progress' : record.status)) as FormSessionStatus;
+  const requestedStatus = input.status || (input.values ? 'in_progress' : currentStatus);
+  const status = transitionStatus(currentStatus, requestedStatus);
   const updated = await prisma.formSession.update({ where: { id: sessionId }, data: { values: values as any, status, revision: { increment: 1 } } });
   const afterSave = await runBestEffortHook({ name: 'afterSave', formId: record.formId, form, data: (updated.values || {}) as Record<string, unknown>, patientId: record.patientId, sessionId, actor, metadata: { status: updated.status } });
   const patient = await resolveSessionPatient(record.patientId, record.patientNamespace);
@@ -276,6 +347,8 @@ export async function validateFormSession(id: string, actor: SessionActor): Prom
   const record = await prisma.formSession.findUnique({ where: { id: sessionId } });
   if (!record) throw new HttpError(404, 'Form session not found');
   assertOwner(record, actor);
+  const currentStatus = persistedStatus(record.status);
+  assertSessionIsEditable(currentStatus);
   const form = await formForSession(record);
   const beforeValidate = await runRequiredHook({ name: 'beforeValidate', formId: record.formId, form, data: (record.values || {}) as Record<string, unknown>, patientId: record.patientId, sessionId, actor });
   const result = validateRuntimeValues(form as any, beforeValidate.data as any);
@@ -285,19 +358,14 @@ export async function validateFormSession(id: string, actor: SessionActor): Prom
   const issues = [...(result.issues as SessionValidationIssue[]), ...pluginIssues];
   const finalValues = isObject(after.data) ? after.data : beforeValidate.data;
   const valid = result.valid && pluginIssues.length === 0;
-  const status = valid ? (record.status === 'draft' ? 'ready' : record.status) : 'in_progress';
+  const status = transitionStatus(currentStatus, valid ? 'ready' : 'in_progress');
   const updated = await prisma.formSession.update({ where: { id: sessionId }, data: { values: finalValues as any, validation: issues as any, status, revision: { increment: 1 } } });
   const patient = await resolveSessionPatient(record.patientId, record.patientNamespace);
   return { session: publicSession(updated, [...beforeValidate.messages, ...afterMessages], patient), valid, issues };
 }
 
-export async function submitFormSession(id: string, actor: SessionActor): Promise<FormSession> {
-  const validation = await validateFormSession(id, actor);
-  if ((validation.session as any).mode === 'view') throw new HttpError(403, 'Session is in view mode and cannot be submitted');
-  if (!validation.valid) throw new HttpError(422, 'Form session is not valid');
-  const updated = await prisma.formSession.update({ where: { id: validation.session.id }, data: { status: 'submitted', revision: { increment: 1 } } });
-  const patient = await resolveSessionPatient(updated.patientId, updated.patientNamespace);
-  return publicSession(updated, undefined, patient);
+export async function submitFormSession(_id: string, _actor: SessionActor): Promise<never> {
+  throw new HttpError(409, 'Submitting a session requires POST /provider/submit so a data provider confirms the submission');
 }
 
 function mapProviderError(error: unknown): never {
@@ -311,14 +379,14 @@ async function providerInput(id: string, providerId: string, actor: SessionActor
   const session = await prisma.formSession.findUnique({ where: { id: sessionId } });
   if (!session) throw new HttpError(404, 'Form session not found');
   assertOwner(session, actor);
-  if (session.status === 'submitted' || session.status === 'cancelled') throw new HttpError(409, 'Form session is no longer editable');
+  assertSessionIsEditable(persistedStatus(session.status));
   const form = await prisma.form.findUnique({ where: { id: session.formId } });
   if (!form) throw new HttpError(404, 'Form definition not found');
   const patient = await resolveSessionPatient(session.patientId, session.patientNamespace);
   return {
     session,
     patient,
-    context: providerContext(patient, session.id, actor, session.mode),
+    context: providerContext(patient, session.id, actor, persistedMode(session.mode)),
     provider: getDataProvider(requiredText(providerId, 'providerId')),
     form: { id: form.id, version: form.version, definition: migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id) },
   };
@@ -333,7 +401,7 @@ export async function loadFormSessionFromProvider(id: string, providerId: string
     result = await input.provider.load({ 
       context: input.context, 
       form: input.form,
-      ...(input.session.providerReference ? { reference: input.session.providerReference } as any : {})
+      ...(input.session.providerReference ? { reference: input.session.providerReference } : {})
     });
   } catch (error) {
     return mapProviderError(error);
@@ -342,7 +410,7 @@ export async function loadFormSessionFromProvider(id: string, providerId: string
   const updated = await prisma.formSession.update({ where: { id: input.session.id }, data: {
     values: afterLoad.data as any,
     validation: [] as any,
-    status: input.session.status === 'draft' ? 'in_progress' : input.session.status,
+    status: transitionStatus(persistedStatus(input.session.status), persistedStatus(input.session.status) === 'draft' ? 'in_progress' : persistedStatus(input.session.status)),
     providerId: result.providerId,
     providerReference: result.reference || input.session.providerReference || null,
     revision: { increment: 1 },
@@ -352,14 +420,21 @@ export async function loadFormSessionFromProvider(id: string, providerId: string
 
 export async function submitFormSessionToProvider(id: string, providerId: string, actor: SessionActor, options: { validatedRevision?: number } = {}): Promise<{ session: FormSession; provider: unknown }> {
   const input = await providerInput(id, providerId, actor);
-  if ((input.session as any).mode === 'view') throw new HttpError(403, 'Session is in view mode and cannot be submitted');
-  const validation = options.validatedRevision !== undefined && options.validatedRevision === input.session.revision
+  if (persistedMode(input.session.mode) === 'view') throw new HttpError(403, 'Session is in view mode and cannot be submitted');
+  // A matching revision alone is not proof that validation ran: normal saves
+  // also increment it. Reuse a client-side validation only after it placed the
+  // persisted session in `ready`; otherwise validate server-side before submit.
+  const canReuseValidation = options.validatedRevision !== undefined
+    && options.validatedRevision === input.session.revision
+    && persistedStatus(input.session.status) === 'ready';
+  const validation = canReuseValidation
     ? { session: publicSession(input.session, undefined, input.patient), valid: !Array.isArray(input.session.validation) || input.session.validation.length === 0, issues: (Array.isArray(input.session.validation) ? input.session.validation : []) as unknown as SessionValidationIssue[] }
     : await validateFormSession(id, actor);
   if (!validation.valid) {
     const messages = (validation.issues || []).map((item) => ({ severity: 'error' as const, code: item.code, path: item.path, message: item.message }));
     throw new HttpError(422, `${validation.issues.length} Formular-Validierungsfehler verhindern das Absenden`, { messages });
   }
+  transitionStatus(validation.session.status, 'submitted');
   const form = input.form.definition as unknown as Record<string, unknown>;
   const beforeSubmit = await runRequiredHook({ name: 'beforeSubmit', formId: input.form.id, form, data: validation.session.values as Record<string, unknown>, patientId: input.session.patientId, sessionId: input.session.id, actor, metadata: { providerId } });
   const submitValues = beforeSubmit.data;

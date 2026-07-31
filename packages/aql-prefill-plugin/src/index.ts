@@ -1,4 +1,4 @@
-import { FormBuilderPlugin, JsonObject } from 'plugin-api';
+import { FormBuilderPlugin, FrontendPluginRegistrar, JsonObject } from 'plugin-api';
 import { AqlPrefillConfiguration, PrefillRuntimeContext } from './types/aqlPrefill';
 import { AqlClient } from './services/aqlClient';
 
@@ -223,14 +223,15 @@ export const plugin: FormBuilderPlugin = {
   },
 };
 
-export function registerFrontendPlugin(register: any) {
+export async function registerFrontendPlugin(register: FrontendPluginRegistrar): Promise<void> {
   // We dynamically import to avoid loading React logic in the backend if this file is required by Node
-  import('./components/AqlPrefillProvider').then((mod) => {
-    register.registerExtension({ pluginId: 'org.openehr.aql-prefill', slot: 'form:wrapper', component: mod.AqlPrefillProvider });
-    register.registerExtension({ pluginId: 'org.openehr.aql-prefill', slot: 'form:field:actions', component: mod.AqlFieldActionWrapper });
-    register.registerExtension({ pluginId: 'org.openehr.aql-prefill', slot: 'form:group:actions', component: mod.AqlGroupActionWrapper });
-    register.registerExtension({ pluginId: 'org.openehr.aql-prefill', slot: 'form:header:actions', component: mod.AqlFormActionWrapper });
-  }).catch(console.error);
+  const mod = await import('./components/AqlPrefillProvider');
+  const editor = await import('./components/AqlPrefillEditor');
+  register.registerExtension({ pluginId: 'org.openehr.aql-prefill', slot: 'designer:aql-prefill', component: editor.AqlPrefillEditor });
+  register.registerExtension({ pluginId: 'org.openehr.aql-prefill', slot: 'form:wrapper', component: mod.AqlPrefillProvider });
+  register.registerExtension({ pluginId: 'org.openehr.aql-prefill', slot: 'form:field:actions', component: mod.AqlFieldActionWrapper });
+  register.registerExtension({ pluginId: 'org.openehr.aql-prefill', slot: 'form:group:actions', component: mod.AqlGroupActionWrapper });
+  register.registerExtension({ pluginId: 'org.openehr.aql-prefill', slot: 'form:header:actions', component: mod.AqlFormActionWrapper });
 }
 
 export default plugin;

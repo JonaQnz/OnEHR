@@ -179,7 +179,7 @@ function workflowPayload(form: JsonObject, workflowSlug: string, ehrbaseUrl: str
     "const first = Array.isArray(result.ehrs) ? result.ehrs[0] : undefined;",
     "const ehrId = result.ehr_id?.value || result.ehr_id || result.ehrId || first?.ehr_id?.value || first?.ehr_id || first?.ehrId;",
     "if (!ehrId) throw new Error('EHRbase returned no EHR for the patient');",
-    "return [{ json: { ...source, ehrbase: { ...source.ehrbase, ehrId } } }];",
+    "return [{ json: { ...source, composition: { ...source.composition, ehrId } } }];",
   ].join('\\n');
   const hookNodes = hooks.filter((hook) => hook !== 'submit').flatMap((hook, index) => {
     const path = lifecyclePath(workflowSlug, hook);
@@ -257,15 +257,15 @@ function workflowPayload(form: JsonObject, workflowSlug: string, ehrbaseUrl: str
         position: [120, 0],
         parameters: {
           method: 'POST',
-          url: `${ehrbaseUrl}/ehr/{{$json.ehrbase.ehrId}}/composition`,
+          url: `${ehrbaseUrl}/ehr/{{$json.composition.ehrId}}/composition`,
           sendQuery: true,
           queryParameters: { parameters: [
-            { name: 'templateId', value: '={{$json.ehrbase.templateId}}' },
+            { name: 'templateId', value: '={{$json.composition.templateId}}' },
             { name: 'format', value: 'FLAT' },
           ] },
           sendBody: true,
           specifyBody: 'json',
-          jsonBody: '={{ JSON.stringify($json.ehrbase.flatComposition) }}',
+          jsonBody: '={{ JSON.stringify($json.composition.values) }}',
           options: {},
         },
       },

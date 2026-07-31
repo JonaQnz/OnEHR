@@ -7,10 +7,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "npm run build",
     "preview": "vite preview"
   },
   "dependencies": {
     "core": "*",
+    "plugin-api": "*",
+    "openehr-engine": "*",
     "formbuilder-plugin-aql-prefill": "*",
     "lucide-react": "^1.24.0",
     "react": "^18.3.1",

@@ -8,6 +8,7 @@ export default function PatientList() {
   const [patients, setPatients] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const navigate = useNavigate();
 
@@ -29,10 +30,15 @@ export default function PatientList() {
   const fetchPatients = async () => {
     try {
       const res = await fetch(`${API}/patients`);
-      const data = await res.json();
+      const data: unknown = await res.json().catch(() => undefined);
+      if (!res.ok) throw new Error('Patienten konnten nicht geladen werden.');
+      if (!Array.isArray(data)) throw new Error('Die API hat keine Patientenliste zurückgegeben.');
       setPatients(data);
+      setLoadError('');
     } catch (err) {
       console.error(err);
+      setPatients([]);
+      setLoadError(err instanceof Error ? err.message : 'Patienten konnten nicht geladen werden.');
     } finally {
       setLoading(false);
     }
@@ -89,6 +95,12 @@ export default function PatientList() {
           </button>
         </div>
       </div>
+
+      {loadError && (
+        <div className="card" style={{ marginBottom: '1.5rem', color: 'var(--danger-hover)', borderColor: '#fecaca' }}>
+          {loadError}
+        </div>
+      )}
 
       {showSettings && (
         <div className="card" style={{ marginBottom: '1.5rem', padding: '1.5rem', backgroundColor: 'var(--bg-sidebar)' }}>

@@ -5,13 +5,15 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node --test tests/*.test.js"
+    "test": "npm run build && node --test tests/*.test.js",
+    "test:integration:ehrbase": "node --test tests/integration/ehrbase-template-smoke.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "core": "*",
+    "openehr-engine": "*",
     "plugin-api": "*",
     "formbuilder-plugin-aql-prefill": "*",
     "formbuilder-plugin-iframe": "*",

@@ -1,4 +1,19 @@
-export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonValue[] | JsonObject;
+export type JsonObject = { [key: string]: JsonValue };
+
+/** Shared machine-readable validation contract used by runtime, sessions and plugins. */
+export type ValidationSeverity = 'info' | 'warning' | 'error';
+
+export interface FormIssue {
+  message: string;
+  path?: string;
+  severity?: ValidationSeverity;
+}
+
+export interface ValidationIssue extends FormIssue {
+  code: string;
+}
 
 export interface FormElementLayout {
   type: 'form' | 'container' | 'row' | 'column' | 'input-text' | 'input-select' | 'input-quantity' | 'input-proportion' | string;
@@ -61,9 +76,7 @@ export interface OpenEhrBinding {
   flatPath?: string;
 }
 
-export interface FormError {
-  code: string;
-  message: string;
+export interface FormError extends ValidationIssue {
   fieldId?: string;
   openEhrPath?: string;
   source: 'runtime' | 'validation' | 'script' | 'plugin' | 'openehr' | 'provider' | 'host';
@@ -91,6 +104,11 @@ export interface FormSubmissionSettings {
   workflow?: FormWorkflowReference;
 }
 
+/** Runtime behaviour independent of a concrete server or submission provider. */
+export interface FormRuntimeSettings {
+  defaultMode?: 'create' | 'edit' | 'view' | 'prefill';
+}
+
 export interface CanonicalForm {
   id: string;
   name: string;
@@ -104,10 +122,7 @@ export interface CanonicalForm {
     authors?: string;
     tags?: string[];
     submission?: FormSubmissionSettings;
-    ehrbase?: {
-      storageStrategy?: 'always_new' | 'update_latest';
-      defaultMode?: 'create' | 'edit' | 'view' | 'prefill';
-    };
+    runtime?: FormRuntimeSettings;
   };
   sourceTemplates: Array<{
     alias: string;

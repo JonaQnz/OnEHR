@@ -1,3 +1,16 @@
+import type {
+  JsonObject as CoreJsonObject,
+  JsonPrimitive as CoreJsonPrimitive,
+  JsonValue as CoreJsonValue,
+  FormIssue as CoreFormIssue,
+  ValidationIssue as CoreValidationIssue,
+} from 'core';
+
+export type JsonPrimitive = CoreJsonPrimitive;
+export type JsonValue = CoreJsonValue;
+export type JsonObject = CoreJsonObject;
+export type ValidationIssue = CoreValidationIssue;
+
 export const PLUGIN_API_VERSION = '1.0' as const;
 
 export const PLUGIN_EXTENSION_POINTS = [
@@ -27,10 +40,42 @@ export const PLUGIN_PERMISSIONS = [
 
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number];
 
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
-export type JsonObject = { [key: string]: JsonValue };
 export type MaybePromise<T> = T | Promise<T>;
+
+/**
+ * Framework-neutral frontend extension contract. Components are intentionally
+ * opaque here: the web host owns React and validates/renders them at its edge.
+ */
+export interface FrontendExtensionContribution {
+  pluginId: string;
+  slot: string;
+  component: unknown;
+}
+
+export interface FrontendFieldContribution {
+  pluginId: string;
+  key: string;
+  component: unknown;
+  toolboxItem: Record<string, unknown>;
+}
+
+export interface FrontendRendererContribution {
+  pluginId: string;
+  uiElement: string;
+  renderer: unknown;
+}
+
+export interface FrontendPluginRegistrar {
+  registerExtension(extension: FrontendExtensionContribution): void;
+  registerField(field: FrontendFieldContribution): void;
+  registerRenderer(renderer: FrontendRendererContribution): void;
+}
+
+export type FrontendPluginRegistration = (registrar: FrontendPluginRegistrar) => MaybePromise<void>;
+
+export interface FrontendPluginModule {
+  registerFrontendPlugin?: FrontendPluginRegistration;
+}
 
 export interface PluginManifest {
   id: string;
@@ -175,12 +220,6 @@ export interface PluginHookContext {
   metadata?: JsonObject;
 }
 
-export interface ValidationIssue {
-  code: string;
-  path?: string;
-  message: string;
-}
-
 export interface FunctionDefinition {
   name: string;
   description: string;
@@ -199,9 +238,8 @@ export function defineFunctionPackage(pkg: FunctionPackageDefinition): FunctionP
   return pkg;
 }
 
-export interface PluginValidationError {
-  path?: string;
-  message: string;
+export interface PluginValidationError extends CoreFormIssue {
+  code?: string;
 }
 
 export type PluginNoticeSeverity = 'info' | 'warning' | 'error';

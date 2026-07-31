@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
+import path from 'path';
 import { initConfig } from './services/configService';
 import formRoutes from './routes/formRoutes';
 import templateRoutes from './routes/templateRoutes';
@@ -15,8 +16,11 @@ import formSessionRoutes from './routes/formSessionRoutes';
 import dataProviderRoutes from './routes/dataProviderRoutes';
 import patientRoutes from './routes/patientRoutes';
 import scriptConnectorRoutes from './routes/scriptConnectorRoutes';
+import formLaunchRoutes from './routes/formLaunchRoutes';
 
-dotenv.config();
+// Resolve the API-local environment file, independent of the process working
+// directory (for example when started as `node apps/api/dist/index.js`).
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 initConfig();
 
 // Axios Logging Interceptors for Deep Debugging
@@ -58,6 +62,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 app.use('/api/form-sessions', formSessionRoutes);
+app.use('/api/form-launches', formLaunchRoutes);
 app.use('/api/data-providers', dataProviderRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/script-connectors', scriptConnectorRoutes);

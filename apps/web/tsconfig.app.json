@@ -17,6 +17,7 @@
     "baseUrl": "../..",
     "paths": {
       "core": ["packages/core/src"],
+      "openehr-engine": ["packages/openehr-engine/src"],
       "react-form-builder2": ["packages/react-form-builder2/types/index.d.ts"],
       "formbuilder-plugin-aql-prefill": ["packages/aql-prefill-plugin/dist"]
     },

@@ -1,10 +1,12 @@
-import type { CanonicalForm } from '../canonical';
+import type { CanonicalForm, JsonPrimitive, JsonValue } from '../canonical';
 import type { FormSessionValues, FormRuntimeMode, UserAuthMode } from '../form-session';
 
 export const FORM_DATA_PROVIDER_API_VERSION = '1.0' as const;
 
-export type ProviderJsonPrimitive = string | number | boolean | null;
-export type ProviderJsonValue = ProviderJsonPrimitive | ProviderJsonValue[] | { [key: string]: ProviderJsonValue };
+/** @deprecated Use JsonPrimitive from the core contract. */
+export type ProviderJsonPrimitive = JsonPrimitive;
+/** @deprecated Use JsonValue from the core contract. */
+export type ProviderJsonValue = JsonValue;
 
 export interface FormDataProviderContext {
   mode: FormRuntimeMode;
@@ -21,6 +23,13 @@ export interface FormDataProviderForm {
   id: string;
   version: string;
   definition: CanonicalForm;
+}
+
+/** A provider-neutral openEHR composition payload. */
+export interface OpenEhrCompositionPayload {
+  format: 'flat';
+  templateId?: string;
+  values: Record<string, unknown>;
 }
 export const FORM_SUBMISSION_PROTOCOL = 'formbuilder.form-submission.v1' as const;
 
@@ -43,15 +52,14 @@ export interface FormSubmissionEnvelope {
     authMode?: UserAuthMode;
   };
   values: FormSessionValues;
-  ehrbase?: {
-    templateId?: string;
-    flatComposition: Record<string, unknown>;
-  };
+  composition?: OpenEhrCompositionPayload;
 }
 
 export interface FormDataProviderLoadInput {
   context: FormDataProviderContext;
   form: FormDataProviderForm;
+  /** Existing provider-specific resource version to load, when one is known. */
+  reference?: string;
 }
 
 export interface FormDataProviderLoadResult {

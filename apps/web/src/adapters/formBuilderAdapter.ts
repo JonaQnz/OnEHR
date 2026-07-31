@@ -30,6 +30,52 @@ export function cleanLabel(text: string): string {
   return match ? match[2] : text;
 }
 
+/**
+ * Older saved forms stored plugin fields with their plugin key as `element`
+ * (for example `IframeField`). react-form-builder2 only renders plugin fields
+ * through `CustomElement` and resolves the component from `key`. Normalize at
+ * the UI boundary so opening an old form also migrates it on its next save.
+ */
+export function hydrateCustomBuilderElements(
+  items: any[],
+  customFields: ReadonlyArray<{ key: string; component: unknown }>,
+): any[] {
+  if (!Array.isArray(items)) return items;
+  const fieldsByKey = new Map(customFields.map((field) => [field.key, field]));
+  const builtInElements = new Set([
+    'TextInput', 'NumberInput', 'TextArea', 'Dropdown', 'Checkboxes',
+    'RadioButtons', 'DatePicker', 'Signature', 'Paragraph', 'Header',
+    'Label', 'LineBreak', 'HyperLink', 'Button', 'Rating', 'Tags', 'Range',
+    'Camera', 'FileUpload', 'FieldSet', 'TwoColumnRow', 'ThreeColumnRow',
+    'MultiColumnRow', 'CustomElement',
+  ]);
+
+  return items.map((item) => {
+    const registeredKey = [item?.key, item?.element, item?.custom_metadata?.type]
+      .find((candidate) => typeof candidate === 'string' && fieldsByKey.has(candidate));
+    const legacyCustomKey = typeof item?.element === 'string' && !builtInElements.has(item.element)
+      ? item.element
+      : undefined;
+    const key = registeredKey || legacyCustomKey;
+    if (!key) return item;
+    const field = fieldsByKey.get(key);
+
+    return {
+      ...item,
+      element: 'CustomElement',
+      key,
+      ...(field ? { component: field.component } : {}),
+      type: 'custom',
+      custom: true,
+      forwardRef: item.forwardRef ?? true,
+      custom_metadata: {
+        ...(item.custom_metadata || {}),
+        type: key,
+      },
+    };
+  });
+}
+
 export function canonicalToFormBuilder(form: CanonicalForm): any[] {
   const items: any[] = [];
   let generatedIdSequence = 0;
@@ -372,7 +418,7 @@ export function formBuilderToCanonical(items: any[], originalForm: CanonicalForm
       semanticType: binding.rmType || '',
       unit: (meta.unitOptions && meta.unitOptions[0]) ? (typeof meta.unitOptions[0] === 'string' ? meta.unitOptions[0] : meta.unitOptions[0].unit) : '',
       archetypeNodeId: archetypeNodeId,
-      binding: binding.path ? { openehr: binding } : undefined,
+      binding: binding.path ? binding : undefined,
       validation: {
         min: item.min_value,
         max: item.max_value,

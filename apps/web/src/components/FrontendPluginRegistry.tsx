@@ -1,11 +1,13 @@
 import React, { createContext, useContext, ReactNode, useMemo } from 'react';
+import type { FrontendPluginRegistrar as SdkFrontendPluginRegistrar, FrontendPluginRegistration } from 'plugin-api';
 
 export type UIExtensionSlotName = 
   | 'form:wrapper' 
   | 'form:header:actions' 
   | 'form:field:actions' 
   | 'form:group:actions' 
-  | 'form:overlay';
+  | 'form:overlay'
+  | 'designer:aql-prefill';
 
 export interface UIExtensionContribution {
   pluginId: string;
@@ -55,35 +57,30 @@ const PluginRegistryContext = createContext<PluginRegistryContextType>({
   registerExtension: () => {} 
 });
 
-export function FrontendPluginProvider({ children, plugins = [] }: { children: ReactNode, plugins?: Array<(register: FrontendPluginRegistrar) => void> }) {
-  const { initialExtensions, initialCustomFields, initialRenderers } = React.useMemo(() => {
-    const exts: UIExtensionContribution[] = [];
-    const fields: CustomFieldContribution[] = [];
-    const rends: Record<string, (props: any) => React.ReactNode> = {};
-    const registrar: FrontendPluginRegistrar = {
-      registerExtension: (ext) => {
-        if (!exts.some(p => p.pluginId === ext.pluginId && p.slot === ext.slot)) exts.push(ext);
-      },
-      registerField: (field) => {
-        if (!fields.some(p => p.pluginId === field.pluginId && p.key === field.key)) fields.push(field);
-      },
-      registerRenderer: (renderer) => {
-        if (!rends[renderer.uiElement]) rends[renderer.uiElement] = renderer.renderer;
-      }
-    };
-    plugins.forEach(pluginInit => pluginInit(registrar));
-    return { initialExtensions: exts, initialCustomFields: fields, initialRenderers: rends };
-  }, [plugins]);
-
-  const [extensions, setExtensions] = React.useState<UIExtensionContribution[]>(initialExtensions);
-  const [customFields, setCustomFields] = React.useState<CustomFieldContribution[]>(initialCustomFields);
-  const [renderers, setRenderers] = React.useState<Record<string, (props: any) => React.ReactNode>>(initialRenderers);
+export function FrontendPluginProvider({ children, plugins = [] }: { children: ReactNode, plugins?: readonly FrontendPluginRegistration[] }) {
+  const [extensions, setExtensions] = React.useState<UIExtensionContribution[]>([]);
+  const [customFields, setCustomFields] = React.useState<CustomFieldContribution[]>([]);
+  const [renderers, setRenderers] = React.useState<Record<string, (props: any) => React.ReactNode>>({});
 
   React.useEffect(() => {
-    setExtensions(initialExtensions);
-    setCustomFields(initialCustomFields);
-    setRenderers(initialRenderers);
-  }, [initialExtensions, initialCustomFields, initialRenderers]);
+    let active = true;
+    setExtensions([]);
+    setCustomFields([]);
+    setRenderers({});
+    const registrar: FrontendPluginRegistrar = {
+      registerExtension: (extension) => {
+        if (active) setExtensions((current) => current.some((item) => item.pluginId === extension.pluginId && item.slot === extension.slot) ? current : [...current, extension]);
+      },
+      registerField: (field) => {
+        if (active) setCustomFields((current) => current.some((item) => item.pluginId === field.pluginId && item.key === field.key) ? current : [...current, field]);
+      },
+      registerRenderer: (renderer) => {
+        if (active) setRenderers((current) => current[renderer.uiElement] ? current : { ...current, [renderer.uiElement]: renderer.renderer });
+      },
+    };
+    void Promise.all(plugins.map((plugin) => Promise.resolve(plugin(registrar as unknown as SdkFrontendPluginRegistrar)))).catch((error: unknown) => console.error('[PLUGIN] Frontend registration failed', error));
+    return () => { active = false; };
+  }, [plugins]);
 
   return (
     <PluginRegistryContext.Provider value={{ extensions, customFields, renderers, registerExtension: (ext) => setExtensions(p => [...p, ext]) }}>

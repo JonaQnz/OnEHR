@@ -1,4 +1,4 @@
-import type { FunctionPackageDefinition } from '../../plugin-api/src/index';
+import type { FunctionPackageDefinition } from 'plugin-api';
 
 const pkg: FunctionPackageDefinition = {
   id: 'clinical-scores',

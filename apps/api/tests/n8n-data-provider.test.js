@@ -38,7 +38,7 @@ test('n8n provider sends the complete standardized submission payload', async ()
   assert.equal(calls[0].body.patient.id, 'patient-1');
   assert.equal(calls[0].body.session.id, 'session-1');
   assert.equal(calls[0].body.values.weight.magnitude, 63);
-  assert.equal(calls[0].body.ehrbase.flatComposition['vitals/weight|magnitude'], 63);
+  assert.equal(calls[0].body.composition.values['vitals/weight|magnitude'], 63);
   assert.equal(calls[0].body.session.authMode, 'hip');
 });
 

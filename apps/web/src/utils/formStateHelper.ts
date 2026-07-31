@@ -230,7 +230,7 @@ export function exportToOpenEhrFlatJson(
     }
 
     // Leaf field
-    const binding = canonicalForm.bindings?.[node.name!]?.openehr || node.binding?.openehr;
+    const binding = canonicalForm.bindings?.[node.name!]?.openehr || node.binding;
     if (!binding || !binding.flatPath) return;
 
     const isRepeat = node.repeatable === true;

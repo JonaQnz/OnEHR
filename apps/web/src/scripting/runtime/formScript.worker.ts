@@ -1,11 +1,3 @@
-import type {
-  FormScriptChangeSource,
-  FormScriptEventName,
-  FormScriptLogEntry,
-  FormScriptSchemaIds,
-  RuntimeValues,
-} from 'core';
-import { appendScriptLog } from './scriptLogStore';
 import { buildGlobalFunctionsObject } from './registeredFunctions';
 
 export interface FormScriptUiState {

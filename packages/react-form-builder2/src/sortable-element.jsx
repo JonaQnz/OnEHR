@@ -34,13 +34,21 @@ const useDragAndDrop = (props) => {
       isOver: monitor.isOver({ shallow: true }),
       canDrop: monitor.canDrop(),
     }),
-    drop: (item) => {
-      if (item.index === -1) {
-        const hoverIndex = props.index;
-        if (typeof props.insertCard === 'function') {
-          props.insertCard(item, hoverIndex, item.id);
-        }
+    drop: (item, monitor) => {
+      // React DnD bubbles a nested Dustbin drop to every outer sortable card.
+      // Never replay an already completed drop on the canvas.
+      if (monitor.didDrop()) return undefined;
+      const hoverIndex = props.index;
+      if (item.data?.parentId && typeof props.insertCard === 'function') {
+        props.insertCard(item, hoverIndex, item.id);
+        return { destination: 'canvas' };
       }
+      if (item.index === -1 && typeof props.insertCard === 'function') {
+        const created = typeof item.onCreate === 'function' ? item.onCreate(item.data) : item.data;
+        props.insertCard(created, hoverIndex);
+        return { destination: 'canvas' };
+      }
+      return undefined;
     },
     hover: (item, monitor) => {
       // Don't replace items being dragged from box with index -1
@@ -66,31 +74,13 @@ const useDragAndDrop = (props) => {
         return;
       }
 
-      // If pulling an item out of a layout to the root canvas:
-      if (dragParentId) {
-        if (typeof props.insertCard === 'function') {
-           props.insertCard(item, hoverIndex, item.id);
-           item.parentId = undefined;
-           if (item.data) item.data.parentId = undefined;
-           item.index = hoverIndex;
-        }
-        return;
-      }
+      // A nested card is moved only on drop. Moving it on hover made it leave
+      // its group while the pointer was merely crossing an outer container.
+      if (dragParentId) return;
 
-      // Handle new items being created
-      if (dragIndex === -1) {
-        if (props.data && props.data.isContainer) {
-          return;
-        }
-        
-        if (typeof props.insertCard !== 'function') {
-          return;
-        }
-
-        item.index = hoverIndex;
-        props.insertCard(item.onCreate(item.data), hoverIndex);
-        return;
-      }
+      // Palette items are also created only on drop. This avoids a temporary
+      // root copy racing a subsequent nested drop.
+      if (dragIndex === -1) return;
 
       // Skip if no ref available
       if (!ref.current) {

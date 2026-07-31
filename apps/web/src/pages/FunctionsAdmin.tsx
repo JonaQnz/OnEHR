@@ -1,4 +1,3 @@
-import React from 'react';
 import { Beaker, Book, Info, Code } from 'lucide-react';
 import { registeredFunctions } from '../scripting/runtime/registeredFunctions';
 

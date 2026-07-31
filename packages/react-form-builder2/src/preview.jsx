@@ -125,16 +125,11 @@ export default class Preview extends React.Component {
   }
 
   swapChildren(data, item, child, col) {
-    if (child.col !== undefined && item.id !== child.parentId) {
-      return false;
-    }
-    if (!(child.col !== undefined && child.col !== col && item.childItems[col])) {
-      // No child was assigned yet in both source and target.
-      return false;
-    }
+    const oldCol = item.childItems.indexOf(child.id);
+    if (child.parentId !== item.id || oldCol === -1 || oldCol === col || !item.childItems[col]) return false;
     const oldId = item.childItems[col];
     const oldItem = this.getDataById(oldId);
-    const oldCol = child.col;
+    if (!oldItem) return false;
     // eslint-disable-next-line no-param-reassign
     item.childItems[oldCol] = oldId; oldItem.col = oldCol;
     // eslint-disable-next-line no-param-reassign
@@ -145,43 +140,38 @@ export default class Preview extends React.Component {
 
   setAsChild(item, child, col, isBusy) {
     const { data } = this.state;
-    if (!item || !child || item.id === child.id) {
-      return;
-    }
+    if (!item || !child || item.id === child.id || !Array.isArray(item.childItems)) return false;
     let ancestor = item;
     while (ancestor?.parentId) {
       ancestor = this.getDataById(ancestor.parentId);
       if (!ancestor || ancestor.id === child.id) {
-        return;
+        return false;
       }
     }
     if (this.swapChildren(data, item, child, col)) {
-      return;
-    } if (isBusy) {
-      return;
+      return true;
     }
-    const oldParent = this.getDataById(child.parentId);
-    const oldCol = child.col;
-    // eslint-disable-next-line no-param-reassign
-    item.childItems[col] = child.id; child.col = col;
-    // eslint-disable-next-line no-param-reassign
+    if (isBusy && item.childItems[col] !== child.id) {
+      return false;
+    }
+
+    // Enforce one parent slot per item. Removing stale references before the
+    // insertion prevents duplicate rendering after moves across nested groups.
+    data.forEach((candidate) => {
+      if (Array.isArray(candidate?.childItems)) {
+        candidate.childItems = candidate.childItems.map(id => (id === child.id ? null : id));
+      }
+    });
+    item.childItems[col] = child.id;
+    child.col = col;
     child.parentId = item.id;
-    // eslint-disable-next-line no-param-reassign
     child.parentIndex = data.indexOf(item);
-    if (oldParent) {
-      oldParent.childItems[oldCol] = null;
-    }
-    const list = data.filter(x => x && x.parentId === item.id);
-    const toRemove = list.filter(x => item.childItems.indexOf(x.id) === -1);
-    let newData = [...data];
-    if (toRemove.length) {
-      // console.log('toRemove', toRemove);
-      newData = newData.filter(x => toRemove.indexOf(x) === -1);
-    }
+    const newData = [...data];
     if (!this.getDataById(child.id)) {
       newData.push(child);
     }
     store.dispatch('updateOrder', newData);
+    return true;
   }
 
   removeChild(item, col) {
@@ -201,24 +191,21 @@ export default class Preview extends React.Component {
 
   restoreCard(item, id, hoverIndex) {
     const { data } = this.state;
-    const parent = this.getDataById(item.data.parentId);
     const oldItem = this.getDataById(id);
-    if (parent && oldItem) {
-      // Remove oldItem from its parent
-      parent.childItems[oldItem.col] = null;
-      delete oldItem.parentId;
-      delete item.setAsChild;
-      delete item.parentIndex;
-      
-      // We must also move it to the correct hoverIndex in the data array
-      const newData = data.filter(x => x !== oldItem);
-      newData.splice(hoverIndex, 0, oldItem);
-      
-      item.index = hoverIndex;
-      this.seq = this.seq > 100000 ? 0 : this.seq + 1;
-      store.dispatch('updateOrder', newData);
-      this.setState({ data: newData });
-    }
+    if (!oldItem) return;
+    data.forEach((candidate) => {
+      if (Array.isArray(candidate?.childItems)) {
+        candidate.childItems = candidate.childItems.map(childId => (childId === oldItem.id ? null : childId));
+      }
+    });
+    delete oldItem.parentId;
+    delete oldItem.parentIndex;
+    delete oldItem.col;
+    const newData = data.filter(x => x !== oldItem);
+    newData.splice(Math.max(0, Math.min(hoverIndex, newData.length)), 0, oldItem);
+    this.seq = this.seq > 100000 ? 0 : this.seq + 1;
+    store.dispatch('updateOrder', newData);
+    this.setState({ data: newData });
   }
 
   insertCard(item, hoverIndex, id) {
@@ -226,8 +213,10 @@ export default class Preview extends React.Component {
     if (id) {
       this.restoreCard(item, id, hoverIndex);
     } else {
-      data.splice(hoverIndex, 0, item);
-      this.saveData(item, hoverIndex, hoverIndex);
+      const newData = [...data];
+      newData.splice(Math.max(0, Math.min(hoverIndex, newData.length)), 0, item);
+      this.setState({ data: newData });
+      store.dispatch('updateOrder', newData);
       store.dispatch('insertItem', item);
     }
   }
