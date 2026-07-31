@@ -31,11 +31,17 @@ So: Judge this project by its architecture, code quality, documentation, and use
 - **Mapping Inspector** — Inspect and customize openEHR paths, RM types, metadata, and field mappings directly within the designer.
 - **Portable Form Definitions** — Create reusable, versioned form packages that can be shared, embedded, and deployed across different applications.
 
+- <img width="855" height="613" alt="image" src="https://github.com/user-attachments/assets/985746b8-0795-448b-a43f-41eeb88d21df" />
+
+
 ### Runtime
 
 - **Embedded Form Engine** — Run forms directly inside your own applications with support for create, edit, view, and draft workflows.
 - **Live Data Capture** — Load existing patient data, manage drafts with autosave, and submit Compositions to openEHR repositories such as EHRbase.
 - **Form Scripting Engine** — Implement calculations, conditional logic, validation rules, API calls, and lifecycle events using TypeScript.
+
+<img width="833" height="414" alt="image" src="https://github.com/user-attachments/assets/4c185cc1-05f2-4067-a723-9acdabc99f58" />
+
 
 ### Platform
 
@@ -56,7 +62,7 @@ Plugins are ordinary TypeScript/JavaScript npm packages using the shared `plugin
 - **`formbuilder-plugin-aql-prefill`**: Allows querying EHRbase via AQL to automatically prefill form data. Configurable on a form, group, or field level directly via the form designer.
 - **`formbuilder-plugin-iframe`**: A frontend custom field plugin that allows form designers to embed an Iframe anywhere in the form. Demonstrates how to register custom layout fields and runtime renderers.
 - **`formbuilder-example-n8n-plugin`**: Demonstrates integration with [n8n](https://n8n.io/) to trigger external orchestration workflows upon form events (e.g. `afterSubmit`).
-- **`formbuilder-example-vitals-plugin`**: A reference plugin adding custom clinical widgets and lifecycle hooks.
+
 
 ### Extending the SDK (Frontend Custom Fields)
 The SDK supports powerful UI injections:
