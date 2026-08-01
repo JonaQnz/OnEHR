@@ -58,6 +58,7 @@ interface InitMessage {
   };
   requiredFields: string[];
   context: Record<string, unknown>;
+  runtimeFunctions: Array<{ packageName: string; name: string; source: string }>;
 }
 
 type HostMessage =
@@ -683,7 +684,7 @@ function completeApiRequest(message: Extract<HostMessage, { type: 'api:response'
   }
 }
 
-function createSdk() {
+function createSdk(functions: Record<string, any> = buildGlobalFunctionsObject()) {
   const form = {
     get values() {
       return { ...values };
@@ -841,7 +842,7 @@ function createSdk() {
     ui,
     events,
     context,
-    functions: buildGlobalFunctionsObject(),
+    functions,
     state: {
       get: (key: string) => stateValues.get(key),
       set: (key: string, value: unknown) => stateValues.set(key, value),
@@ -870,6 +871,26 @@ function createSdk() {
       },
     },
   };
+}
+
+function setNestedFunction(target: Record<string, any>, packageName: string, name: string, fn: unknown): void {
+  if (typeof fn !== 'function') throw new Error(`Custom function ${packageName}.${name} does not export a function.`);
+  if (!target[packageName]) target[packageName] = {};
+  target[packageName][name] = fn;
+}
+
+async function loadRuntimeFunctions(definitions: InitMessage['runtimeFunctions']): Promise<Record<string, any>> {
+  const functions = buildGlobalFunctionsObject();
+  for (const definition of definitions) {
+    const moduleUrl = URL.createObjectURL(new Blob([definition.source], { type: 'text/javascript' }));
+    try {
+      const module = await import(/* @vite-ignore */ moduleUrl);
+      setNestedFunction(functions, definition.packageName, definition.name, module[definition.name]);
+    } finally {
+      URL.revokeObjectURL(moduleUrl);
+    }
+  }
+  return functions;
 }
 
 async function runLifecycle(name: LifecycleName): Promise<{ cancelled: boolean; message?: string }> {
@@ -911,13 +932,14 @@ for (const key of ["fetch", "XMLHttpRequest", "WebSocket", "EventSource", "Worke
   try { Object.defineProperty(globalThis, key, { value: undefined, configurable: false, writable: false }); } catch {}
 }
 `;
+  const functions = await loadRuntimeFunctions(message.runtimeFunctions || []);
   const moduleUrl = URL.createObjectURL(new Blob([prelude, '\n', message.compiled], { type: 'text/javascript' }));
   try {
     const loaded = await import(/* @vite-ignore */ moduleUrl);
     if (typeof loaded.default !== 'function') {
       throw new Error('Das Form Script muss defineFormScript(...) als Default Export bereitstellen.');
     }
-    await loaded.default(createSdk());
+    await loaded.default(createSdk(functions));
     assertNoComputedCycle();
     await runAllComputed();
     await waitForIdle();

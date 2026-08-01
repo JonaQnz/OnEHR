@@ -22,6 +22,14 @@ type ProviderHttp = Pick<AxiosInstance, 'get' | 'post' | 'put'>;
 type ProviderConfig = ReturnType<typeof getConfig>;
 type ProviderResponse = { data: any; headers?: Record<string, any>; status?: number };
 
+export interface LatestCompositionContext {
+  ehrId: string;
+  templateId: string;
+  reference?: string;
+  flat: Record<string, unknown>;
+  loadedAt: string;
+}
+
 export class EhrbaseProviderError extends Error {
   public readonly status?: number;
   public readonly code: string;
@@ -281,6 +289,37 @@ export class EhrbaseDataProvider implements FormDataProvider {
       reference: mode !== 'prefill' && composition ? (versionUid || referenceFrom(response)) : undefined,
       metadata: { ehrId, templateId: id },
     };
+  }
+
+  /**
+   * Loads the complete latest Flat Composition independently from form value
+   * mapping. This is used as read-only script context on session start.
+   */
+  public async loadLatestCompositionContext(
+    input: Pick<FormDataProviderLoadInput, 'context' | 'form'>,
+  ): Promise<LatestCompositionContext | undefined> {
+    try {
+      const ehrId = await this.resolveEhrId(input.context);
+      const id = templateId(input.form);
+      const versionUid = await this.findLatestCompositionVersion(ehrId, id);
+      if (!versionUid) return undefined;
+      const response = await this.http.get(
+        `${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(versionUid)}`,
+        { ...(await this.requestOptions()), params: { format: 'FLAT' } },
+      ) as ProviderResponse;
+      const composition = latestComposition(response.data);
+      if (!composition) return undefined;
+      return {
+        ehrId,
+        templateId: id,
+        reference: versionUid || referenceFrom(response),
+        flat: composition,
+        loadedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      if ((error as any)?.response?.status === 404) return undefined;
+      return this.handleError(error);
+    }
   }
 
   public async submit(input: FormDataProviderSubmitInput): Promise<FormDataProviderSubmitResult> {

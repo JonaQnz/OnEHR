@@ -32,6 +32,7 @@ interface FormScriptClientOptions {
   groupFields: Record<string, string[]>;
   requiredFields: string[];
   context: Record<string, unknown>;
+  runtimeFunctions?: Array<{ packageName: string; name: string; source: string }>;
   onSetValue(id: string, value: unknown, persist: boolean): void;
   onUpdateValues(values: RuntimeValues, persist: boolean): void;
   onValidationErrors(errors: Record<string, string>): void;
@@ -78,6 +79,7 @@ export class FormScriptClient {
       ids: { ...options.ids, groupFields: options.groupFields },
       requiredFields: options.requiredFields,
       context: options.context,
+      runtimeFunctions: options.runtimeFunctions || [],
     });
     this.initializationTimer = setTimeout(() => {
       if (this.terminated) return;

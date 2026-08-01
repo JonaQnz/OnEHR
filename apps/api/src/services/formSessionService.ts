@@ -7,6 +7,7 @@ import {
   type FormDataProviderContext,
   type FormRuntimeMode,
   type FormSession,
+  type FormSessionRuntimeContext,
   type FormSessionMessage,
   type FormSessionPatchInput,
   type FormSessionStatus,
@@ -23,6 +24,7 @@ import { getPluginSettings } from './configService';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 import type { PluginHookName, PluginHookResult } from 'plugin-api';
 import { resolvePatientReference } from './patientService';
+import { buildSessionRuntimeContext } from './aqlFunctionService';
 
 export interface SessionActor {
   userId: string;
@@ -71,6 +73,34 @@ function sessionValidation(value: unknown): SessionValidationIssue[] {
       ...(severity ? { severity } : {}),
     }];
   });
+}
+
+function runtimeContext(value: unknown): FormSessionRuntimeContext {
+  if (!isObject(value)) return { aql: {}, codeFunctions: [] };
+  const aql = isObject(value.aql) ? value.aql : {};
+  const composition = isObject(value.composition) && isObject(value.composition.flat)
+    && typeof value.composition.ehrId === 'string'
+    && typeof value.composition.templateId === 'string'
+    && typeof value.composition.loadedAt === 'string'
+    ? {
+      ehrId: value.composition.ehrId,
+      templateId: value.composition.templateId,
+      ...(typeof value.composition.reference === 'string' ? { reference: value.composition.reference } : {}),
+      flat: value.composition.flat,
+      loadedAt: value.composition.loadedAt,
+    }
+    : undefined;
+  const errors: FormSessionRuntimeContext['errors'] = Array.isArray(value.errors) ? value.errors.flatMap((item) => (
+    isObject(item) && (item.source === 'composition' || item.source === 'aql') && typeof item.message === 'string'
+      ? [{ source: item.source as 'composition' | 'aql', ...(typeof item.function === 'string' ? { function: item.function } : {}), message: item.message }]
+      : []
+  )) : undefined;
+  const codeFunctions = Array.isArray(value.codeFunctions) ? value.codeFunctions.flatMap((item) => (
+    isObject(item) && typeof item.packageName === 'string' && typeof item.name === 'string' && typeof item.source === 'string'
+      ? [{ packageName: item.packageName, name: item.name, source: item.source }]
+      : []
+  )) : [];
+  return { ...(composition ? { composition } : {}), aql, codeFunctions, ...(errors && errors.length > 0 ? { errors } : {}) };
 }
 
 function persistedStatus(value: unknown): FormSessionStatus {
@@ -245,6 +275,7 @@ function publicSession(
     authMode: record.authMode,
     status,
     values: sessionValues(record.values),
+    runtimeContext: runtimeContext(record.runtimeContext),
     validation: sessionValidation(record.validation),
     ...(messages && messages.length > 0 ? { messages } : {}),
     revision: record.revision,
@@ -281,11 +312,22 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
     status: 'draft',
     values: (input.values || {}) as any,
     validation: [] as any,
+    runtimeContext: { aql: {}, codeFunctions: [] } as any,
     revision: 0,
     providerId: input.providerId || null,
     providerReference: input.providerReference || null,
   } });
-  return publicSession(record, undefined, patient);
+  const definition = migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id);
+  const context = providerContext(patient, record.id, actor, mode);
+  const loadedContext = await buildSessionRuntimeContext(
+    { id: form.id, version: form.version, definition },
+    context,
+  );
+  const updated = await prisma.formSession.update({
+    where: { id: record.id },
+    data: { runtimeContext: loadedContext as any },
+  });
+  return publicSession(updated, undefined, patient);
 }
 
 export async function getFormSession(id: string, actor: SessionActor): Promise<FormSession> {

@@ -60,6 +60,7 @@ model FormSession {
   status             FormSessionStatus @default(draft)
   values             Json
   validation         Json
+  runtimeContext     Json     @default("{}") @map("runtime_context")
   revision           Int      @default(0)
   providerId         String?  @map("provider_id")
   providerReference  String?  @map("provider_reference")
@@ -70,6 +71,38 @@ model FormSession {
   @@index([formId])
   @@index([userId])
   @@map("form_sessions")
+}
+
+model AqlFunction {
+  id          String   @id @default(uuid())
+  packageName String   @map("package_name")
+  name        String
+  description String   @default("")
+  query       String
+  parameters  Json     @default("{}")
+  autoload    Boolean  @default(true)
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([packageName, name])
+  @@index([enabled, autoload])
+  @@map("aql_functions")
+}
+
+model CodeFunction {
+  id          String   @id @default(uuid())
+  packageName String   @map("package_name")
+  name        String
+  description String   @default("")
+  source      String
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([packageName, name])
+  @@index([enabled])
+  @@map("code_functions")
 }
 
 model Patient {

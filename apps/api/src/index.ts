@@ -17,6 +17,7 @@ import dataProviderRoutes from './routes/dataProviderRoutes';
 import patientRoutes from './routes/patientRoutes';
 import scriptConnectorRoutes from './routes/scriptConnectorRoutes';
 import formLaunchRoutes from './routes/formLaunchRoutes';
+import functionRoutes from './routes/functionRoutes';
 
 // Resolve the API-local environment file, independent of the process working
 // directory (for example when started as `node apps/api/dist/index.js`).
@@ -66,6 +67,7 @@ app.use('/api/form-launches', formLaunchRoutes);
 app.use('/api/data-providers', dataProviderRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/script-connectors', scriptConnectorRoutes);
+app.use('/api/functions', functionRoutes);
 
 app.use('/api/forms', formRoutes);
 app.use('/api/templates', templateRoutes);

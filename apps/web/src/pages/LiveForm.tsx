@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { FORM_LAUNCH_PROTOCOL_VERSION, type FormDefinitionV1, type FormEmbedEventName, type RuntimeValues } from 'core';
+import { FORM_LAUNCH_PROTOCOL_VERSION, type FormDefinitionV1, type FormEmbedEventName, type RuntimeValues, type FormSessionRuntimeContext } from 'core';
 import FormRuntime, { type FormRuntimeHandle } from '../components/FormRuntime';
 import PluginHost from '../components/PluginHost';
 
@@ -15,6 +15,7 @@ interface SessionRecord {
   ehrId?: string;
   status: 'draft' | 'in_progress' | 'ready' | 'submitted' | 'failed' | 'cancelled';
   values: RuntimeValues;
+  runtimeContext: FormSessionRuntimeContext;
   revision: number;
   providerReference?: string;
 }
@@ -253,6 +254,7 @@ export default function LiveForm() {
             ehrId={session.ehrId}
             encounterId={searchParams.get('encounterId') || undefined}
             sessionId={session.id}
+            runtimeContext={session.runtimeContext}
             readOnly={submitted || (session as any).mode === 'view'} 
             busy={busy} 
             submitLabel={submitted ? 'Abgesendet' : 'Absenden'} 

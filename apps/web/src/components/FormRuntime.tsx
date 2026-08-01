@@ -16,6 +16,7 @@ import type {
   RuntimeFieldDescriptor,
   RuntimeValues,
   RuntimeValidationIssue,
+  FormSessionRuntimeContext,
 } from 'core';
 import * as CoreRuntime from 'core';
 import { ExtensionSlot, ExtensionWrapperSlot, useFrontendPlugins } from './FrontendPluginRegistry';
@@ -57,6 +58,8 @@ export interface FormRuntimeProps {
   ehrId?: string;
   encounterId?: string;
   sessionId?: string;
+  /** Server-loaded data such as the last Flat Composition; never merged into form values. */
+  runtimeContext?: FormSessionRuntimeContext;
   rendererOverrides?: Record<string, RuntimeRenderer>;
   onValuesChange?: (values: RuntimeValues) => void;
   mode?: 'create' | 'edit' | 'view' | 'preview' | 'prefill';
@@ -110,6 +113,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   ehrId,
   encounterId,
   sessionId,
+  runtimeContext,
   rendererOverrides = {},
   onValuesChange,
   onSubmit,
@@ -151,6 +155,10 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     () => fields.filter((field) => field.required).map((field) => field.id),
     [fields],
   );
+  const scriptRuntimeContext = useMemo(() => ({
+    ...(runtimeContext?.composition ? { composition: runtimeContext.composition } : {}),
+    aql: runtimeContext?.aql || {},
+  }), [runtimeContext]);
 
   const persistentValues = (): RuntimeValues => Object.fromEntries(
     Object.entries(valuesRef.current).filter(([id]) => !nonPersistedIdsRef.current.has(id)),
@@ -197,7 +205,9 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
         locale: definition.settings?.defaultLocale || 'de-DE',
         mode,
         user: { roles: [] },
+        ...scriptRuntimeContext,
       },
+      runtimeFunctions: runtimeContext?.codeFunctions || [],
       onSetValue: (id, value, persist) => {
         if (persist) nonPersistedIdsRef.current.delete(id);
         else nonPersistedIdsRef.current.add(id);
@@ -254,6 +264,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     sessionId,
     requiredFieldIds,
     scriptIds,
+    scriptRuntimeContext,
   ]);
 
   useImperativeHandle(ref, () => ({

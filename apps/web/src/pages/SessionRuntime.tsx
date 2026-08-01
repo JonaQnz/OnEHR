@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Download, Save, Send, UserRound } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { FormDefinitionV1, RuntimeValues } from 'core';
+import type { FormDefinitionV1, RuntimeValues, FormSessionRuntimeContext } from 'core';
 import FormRuntime, { type FormRuntimeHandle } from '../components/FormRuntime';
 import PluginHost from '../components/PluginHost';
 
@@ -16,6 +16,7 @@ interface SessionRecord {
   ehrId?: string;
   status: 'draft' | 'in_progress' | 'ready' | 'submitted' | 'failed' | 'cancelled';
   values: RuntimeValues;
+  runtimeContext: FormSessionRuntimeContext;
   validation: Array<{ path?: string; code: string; message: string }>;
   messages?: Array<{ severity: 'info' | 'warning' | 'error'; code?: string; path?: string; message: string }>;
   revision: number;
@@ -264,7 +265,7 @@ export default function SessionRuntime() {
         </div>
         <button className="btn btn-secondary" type="button" disabled={busy || submitted} onClick={() => void saveOnly()}><Save size={16} /> Entwurf speichern</button>
       </div>
-      <FormRuntime ref={runtimeRef} definition={form.canonical_json} initialValues={session.values} patientId={session.patientId} ehrId={session.ehrId} sessionId={session.id} readOnly={submitted} busy={busy} submitLabel={submitted ? 'Abgesendet' : 'Speichern und absenden'} onValuesChange={setDraftValues} onSubmit={validateAndSubmit} mode="edit" />
+      <FormRuntime ref={runtimeRef} definition={form.canonical_json} initialValues={session.values} patientId={session.patientId} ehrId={session.ehrId} sessionId={session.id} runtimeContext={session.runtimeContext} readOnly={submitted} busy={busy} submitLabel={submitted ? 'Abgesendet' : 'Speichern und absenden'} onValuesChange={setDraftValues} onSubmit={validateAndSubmit} mode="edit" />
       <PluginHost slot="runtime" title="Runtime-Erweiterungen" disabled={busy || submitted} context={{ formId: id, patientId: session.patientId, sessionId: session.id, form: form.canonical_json as unknown as Record<string, unknown>, data: draftValues as unknown as Record<string, unknown>, metadata: { status: session.status } }} onResult={(result) => { if (result.data) setDraftValues(result.data as RuntimeValues); if (result.message) setNotice(result.message); if (result.messages?.length) { setSession((current) => current ? { ...current, messages: [...(current.messages || []), ...result.messages!] } : current); const firstError = result.messages.find((item) => item.severity === 'error'); if (firstError) setError(firstError.message); } }} />
       {submitted && <div className="card" style={{ maxWidth: '960px', margin: '1rem auto 0', borderColor: '#86efac', color: '#15803d' }}>Diese Session wurde abgesendet und ist schreibgeschützt.</div>}
     </>}

@@ -433,6 +433,16 @@ ${connectorCatalogProperties}
     locale: string;
     mode: "create" | "edit" | "view" | "preview";
     user: { id?: string; displayName?: string; roles: string[] };
+    /** Latest Flat Composition for the form template. It is read-only context, never field values. */
+    composition?: {
+      ehrId: string;
+      templateId: string;
+      reference?: string;
+      flat: Record<string, unknown>;
+      loadedAt: string;
+    };
+    /** Results of enabled, autoloaded AQL functions, keyed as "package.name". */
+    aql: Record<string, unknown>;
   }
 
   export interface StateApi {
@@ -474,6 +484,8 @@ ${connectorCatalogProperties}
     ui: UiApi;
     api: Api;
     context: FormScriptContext;
+    /** Synchronous, browser-safe functions contributed by installed function packages. */
+    functions: Record<string, Record<string, (...args: unknown[]) => unknown>>;
     state: StateApi;
     events: EventApi;
     logger: LoggerApi;

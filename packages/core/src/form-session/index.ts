@@ -48,6 +48,24 @@ export interface FormSessionValues {
   [fieldId: string]: unknown;
 }
 
+/**
+ * Immutable data loaded when a session starts. It is intentionally separate
+ * from `values`: scripts may read it, but it never fills fields by itself.
+ */
+export interface FormSessionRuntimeContext {
+  composition?: {
+    ehrId: string;
+    templateId: string;
+    reference?: string;
+    flat: Record<string, unknown>;
+    loadedAt: string;
+  };
+  aql: Record<string, unknown>;
+  /** Enabled custom JavaScript functions, loaded only inside the form-script worker. */
+  codeFunctions: Array<{ packageName: string; name: string; source: string }>;
+  errors?: Array<{ source: 'composition' | 'aql'; function?: string; message: string }>;
+}
+
 export interface FormSession {
   id: string;
   formId: string;
@@ -60,6 +78,7 @@ export interface FormSession {
   authMode: UserAuthMode;
   status: FormSessionStatus;
   values: FormSessionValues;
+  runtimeContext: FormSessionRuntimeContext;
   validation: SessionValidationIssue[];
   messages?: FormSessionMessage[];
   revision: number;

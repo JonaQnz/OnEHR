@@ -4,13 +4,13 @@ import type { FunctionPackageDefinition, FunctionDefinition } from 'plugin-api';
 // declared public entry point rather than an implementation file.
 import clinicalScoresPackage from 'formbuilder-plugin-clinical-scores';
 
-const packages: FunctionPackageDefinition[] = [
+export const registeredFunctionPackages: FunctionPackageDefinition[] = [
   clinicalScoresPackage
 ];
 
 export const registeredFunctions: Record<string, FunctionDefinition> = {};
 
-packages.forEach((pkg) => {
+registeredFunctionPackages.forEach((pkg) => {
   pkg.functions.forEach((func) => {
     registeredFunctions[func.name] = func;
   });
