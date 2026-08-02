@@ -23,6 +23,7 @@ export interface FormScriptDocument {
 }
 
 export const FORM_SCRIPTING_EXTENSION_KEY = 'formbuilder.scripting' as const;
+export const FORM_FUNCTION_IMPORTS_EXTENSION_KEY = 'formbuilder.function-imports' as const;
 
 export interface FormScriptJsonSchema {
   type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null';
@@ -46,6 +47,11 @@ export interface FormScriptConnectorOperationDefinition {
 export interface FormScriptConnectorConfiguration {
   allowedOperations: string[];
   operations: FormScriptConnectorOperationDefinition[];
+}
+
+export interface FormFunctionImportConfiguration {
+  codePackages: string[];
+  aqlFunctionIds: string[];
 }
 
 export const DEFAULT_FORM_SCRIPT_SOURCE = `import { defineFormScript } from "@formbuilder/runtime";
@@ -146,6 +152,21 @@ export function getFormScriptConnectorConfiguration(
   return {
     allowedOperations,
     operations: operations.filter((operation) => allowedOperations.includes(operation.id)),
+  };
+}
+
+export function getFormFunctionImportConfiguration(
+  form: Pick<CanonicalForm, 'layout'> & { extensions?: Record<string, unknown> },
+): FormFunctionImportConfiguration {
+  const raw = form.extensions?.[FORM_FUNCTION_IMPORTS_EXTENSION_KEY];
+  if (!isRecord(raw)) return { codePackages: [], aqlFunctionIds: [] };
+  return {
+    codePackages: Array.isArray(raw.codePackages)
+      ? [...new Set(raw.codePackages.filter((item): item is string => typeof item === 'string'))].sort()
+      : [],
+    aqlFunctionIds: Array.isArray(raw.aqlFunctionIds)
+      ? [...new Set(raw.aqlFunctionIds.filter((item): item is string => typeof item === 'string'))].sort()
+      : [],
   };
 }
 

@@ -1,6 +1,5 @@
 import axios from 'axios';
-import { getConfig } from './configService';
-import { getValidToken } from './authService';
+import { getEhrbaseRequestConfig } from './ehrbaseConnectionPlugins';
 
 export interface EhrbaseTemplateSummary {
   template_id: string;
@@ -8,28 +7,6 @@ export interface EhrbaseTemplateSummary {
   concept: string;
   archetype_id: string;
   created_timestamp: string;
-}
-
-async function getEhrbaseRequestConfig() {
-  const config = getConfig();
-  const headers: Record<string, string> = {
-    'Accept': 'application/json',
-    'Content-Type': 'application/json'
-  };
-  let auth: any = undefined;
-
-  if (config.authMode === 'keycloak') {
-    const token = await getValidToken();
-    headers['Authorization'] = `Bearer ${token}`;
-  } else {
-    auth = {
-      username: config.ehrbaseUser!,
-      password: config.ehrbasePass!
-    };
-  }
-
-  const ehrbaseUrl = config.ehrbaseUrl!.replace(/\/$/, '');
-  return { ehrbaseUrl, headers, auth };
 }
 
 export async function listRemoteTemplates(): Promise<EhrbaseTemplateSummary[]> {

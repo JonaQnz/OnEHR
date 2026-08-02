@@ -15,7 +15,7 @@ import {
   toOpenEhrFlatComposition,
 } from 'openehr-engine';
 import { getConfig } from './configService';
-import { getValidToken } from './authService';
+import { getEhrbaseRequestConfig } from './ehrbaseConnectionPlugins';
 import { getRemoteWebTemplate } from './ehrbaseService';
 
 type ProviderHttp = Pick<AxiosInstance, 'get' | 'post' | 'put'>;
@@ -136,15 +136,23 @@ export class EhrbaseDataProvider implements FormDataProvider {
     return this.configOverride || getConfig();
   }
 
-  private async requestOptions(): Promise<Record<string, any>> {
+  private async connectionRequestConfig(): Promise<{ ehrbaseUrl: string; headers: Record<string, string>; auth?: { username: string; password: string } }> {
+    if (!this.configOverride) return getEhrbaseRequestConfig();
     const headers: Record<string, string> = { Accept: 'application/json', 'Content-Type': 'application/json' };
-    let auth: { username: string; password: string } | undefined;
-    if (this.config.authMode === 'keycloak') {
-      const token = await getValidToken();
-      headers.Authorization = `Bearer ${token}`;
-    } else if (this.config.ehrbaseUser && this.config.ehrbasePass) {
-      auth = { username: this.config.ehrbaseUser, password: this.config.ehrbasePass };
+    if (this.configOverride.authMode === 'keycloak') {
+      throw new EhrbaseProviderError('Keycloak test configuration requires an explicit connection plugin', 'EHRBASE_NOT_CONFIGURED', 503);
     }
+    const auth = this.configOverride.ehrbaseUser && this.configOverride.ehrbasePass
+      ? { username: this.configOverride.ehrbaseUser, password: this.configOverride.ehrbasePass } : undefined;
+    return { ehrbaseUrl: baseUrl(this.configOverride), headers, ...(auth ? { auth } : {}) };
+  }
+
+  private async providerBaseUrl(): Promise<string> {
+    return (await this.connectionRequestConfig()).ehrbaseUrl;
+  }
+
+  private async requestOptions(): Promise<Record<string, any>> {
+    const { headers, auth } = await this.connectionRequestConfig();
     return { headers, ...(auth ? { auth } : {}) };
   }
 
@@ -158,7 +166,7 @@ export class EhrbaseDataProvider implements FormDataProvider {
     // `context/start_time` expresses the clinical event time and is the
     // established fallback ordering for forms that have no explicit reference.
     const aql = `SELECT c/uid/value, c/context/start_time/value FROM EHR e [ehr_id/value='${ehrId}'] CONTAINS COMPOSITION c WHERE c/archetype_details/template_id/value='${templateId}' ORDER BY c/context/start_time/value DESC LIMIT 1`;
-    const response = await this.http.post(`${baseUrl(this.config)}/query/aql`, { q: aql }, await this.requestOptions()) as ProviderResponse;
+    const response = await this.http.post(`${await this.providerBaseUrl()}/query/aql`, { q: aql }, await this.requestOptions()) as ProviderResponse;
     const candidate = response.data?.rows?.[0]?.[0];
     return text(candidate);
   }
@@ -177,7 +185,7 @@ export class EhrbaseDataProvider implements FormDataProvider {
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (rawId) {
       try {
-        const response = await this.http.get(`${baseUrl(this.config)}/ehr`, {
+        const response = await this.http.get(`${await this.providerBaseUrl()}/ehr`, {
           ...(await this.requestOptions()),
           params: {
             subject_id: rawId,
@@ -200,7 +208,7 @@ export class EhrbaseDataProvider implements FormDataProvider {
       // after subject lookup did not resolve the value as a patient identifier.
       if (UUID_REGEX.test(rawId)) {
         try {
-          await this.http.get(`${baseUrl(this.config)}/ehr/${encodeURIComponent(rawId)}`, {
+          await this.http.get(`${await this.providerBaseUrl()}/ehr/${encodeURIComponent(rawId)}`, {
             ...(await this.requestOptions()),
           });
           console.info('[EhrbaseDataProvider] Target EHR resolved', {
@@ -270,7 +278,7 @@ export class EhrbaseDataProvider implements FormDataProvider {
       }
 
       if (versionUid) {
-        response = await this.http.get(`${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(versionUid)}`, {
+        response = await this.http.get(`${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(versionUid)}`, {
           ...(await this.requestOptions()),
           params: { format: 'FLAT' },
         }) as ProviderResponse;
@@ -304,7 +312,7 @@ export class EhrbaseDataProvider implements FormDataProvider {
       const versionUid = await this.findLatestCompositionVersion(ehrId, id);
       if (!versionUid) return undefined;
       const response = await this.http.get(
-        `${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(versionUid)}`,
+        `${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(versionUid)}`,
         { ...(await this.requestOptions()), params: { format: 'FLAT' } },
       ) as ProviderResponse;
       const composition = latestComposition(response.data);
@@ -366,7 +374,7 @@ export class EhrbaseDataProvider implements FormDataProvider {
         }
         try {
           const baseUid = versionUid.split('::')[0];
-          response = await this.http.put(`${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(baseUid)}`, flatBody, {
+          response = await this.http.put(`${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(baseUid)}`, flatBody, {
             ...options,
             params: { templateId: id, format: 'FLAT' },
             headers: { ...options.headers, 'If-Match': versionUid, Prefer: 'return=representation' },
@@ -381,7 +389,7 @@ export class EhrbaseDataProvider implements FormDataProvider {
           throw putErr;
         }
       } else {
-        response = await this.http.post(`${baseUrl(this.config)}/ehr/${encodeURIComponent(ehrId)}/composition`, flatBody, {
+        response = await this.http.post(`${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/composition`, flatBody, {
           ...options,
           params: { templateId: id, format: 'FLAT' },
           headers: { ...options.headers, Prefer: 'return=representation' },

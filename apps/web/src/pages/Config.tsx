@@ -1,13 +1,26 @@
 import { useEffect, useState } from 'react';
-import { Save, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Save, CheckCircle2, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import PluginSettingsHost from '../components/PluginSettingsHost';
+
+type ConnectionDraft = {
+  id: string;
+  name: string;
+  url: string;
+  authPlugin: 'none' | 'basic' | 'hip-keycloak';
+  username?: string;
+  password?: string;
+  keycloakBaseUrl?: string;
+  keycloakRealm?: string;
+  keycloakClientId?: string;
+  keycloakGrantType?: string;
+  subjectNamespace?: string;
+  defaultEhrId?: string;
+};
 
 export default function Config() {
   const [config, setConfig] = useState<any>({
-    ehrbaseUrl: '',
-    ehrbaseUser: '',
-    ehrbasePass: '',
-    authMode: 'basic',
+    ehrbaseConnections: [],
+    activeEhrbaseConnectionId: '',
     userAuthMode: 'local',
     localUsername: '',
     localPassword: '',
@@ -47,6 +60,22 @@ export default function Config() {
       ...config,
       [e.target.name]: e.target.value
     });
+  };
+
+  const connections: ConnectionDraft[] = Array.isArray(config.ehrbaseConnections) ? config.ehrbaseConnections : [];
+  const updateConnection = (id: string, key: keyof ConnectionDraft, value: string) => {
+    setConfig({ ...config, ehrbaseConnections: connections.map((connection) => connection.id === id ? { ...connection, [key]: value } : connection) });
+  };
+  const addConnection = () => {
+    if (connections.length >= 2) return;
+    const id = `ehrbase-${Date.now()}`;
+    const connection: ConnectionDraft = { id, name: connections.length === 0 ? 'Testsystem' : 'Livesystem', url: '', authPlugin: 'none', subjectNamespace: 'default' };
+    setConfig({ ...config, ehrbaseConnections: [...connections, connection], activeEhrbaseConnectionId: config.activeEhrbaseConnectionId || id });
+  };
+  const removeConnection = (id: string) => {
+    if (connections.length <= 1) return;
+    const remaining = connections.filter((connection) => connection.id !== id);
+    setConfig({ ...config, ehrbaseConnections: remaining, activeEhrbaseConnectionId: config.activeEhrbaseConnectionId === id ? remaining[0].id : config.activeEhrbaseConnectionId });
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -190,70 +219,35 @@ export default function Config() {
         </div>
 
         <div className="card">
-          <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '1.25rem', fontSize: '1.1rem' }}>openEHR Server (EHRbase)</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label className="form-label">EHRbase REST URL</label>
-              <input type="text" name="ehrbaseUrl" value={config.ehrbaseUrl} onChange={handleChange} className="form-input" required />
-            </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label className="form-label">Test / Default EHR-ID (Optional)</label>
-              <input type="text" name="defaultEhrId" value={config.defaultEhrId || ''} onChange={handleChange} className="form-input" placeholder="z. B. 838d21b7-781e-450f-9f7a-8dd2d1234567 oder patient-123" />
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Wird im Formular-Runtime automatisch als Standard-EHRID / Kontext verwendet.</span>
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '1.25rem' }}>
             <div>
-              <label className="form-label">Authentication Mode</label>
-              <select name="authMode" value={config.authMode} onChange={handleChange} className="form-input">
-                <option value="basic">Basic Auth</option>
-                <option value="keycloak">Keycloak OAuth2</option>
-              </select>
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>EHRbase Connections</h3>
+              <p style={{ color: 'var(--text-muted)', margin: '0.4rem 0 0' }}>Eine Verbindung ist aktiv. Formulare, AQLs und Patienten verwenden immer dieses System.</p>
             </div>
-            {config.authMode === 'basic' && (
-              <>
-                <div>
-                  <label className="form-label">Username</label>
-                  <input type="text" name="ehrbaseUser" value={config.ehrbaseUser} onChange={handleChange} className="form-input" />
-                </div>
-                <div>
-                  <label className="form-label">Password</label>
-                  <input type="password" name="ehrbasePass" value={config.ehrbasePass} onChange={handleChange} className="form-input" placeholder="••••••••" />
-                </div>
-              </>
-            )}
+            <button type="button" className="btn secondary" onClick={addConnection} disabled={connections.length >= 2} title="Maximal zwei Systeme"><Plus size={16} /> System hinzufügen</button>
           </div>
+          {connections.map((connection) => (
+            <section key={connection.id} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem', marginBottom: '1rem', background: connection.id === config.activeEhrbaseConnectionId ? 'var(--surface-hover)' : undefined }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
+                <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontWeight: 600, cursor: 'pointer' }}>
+                  <input type="radio" checked={connection.id === config.activeEhrbaseConnectionId} onChange={() => setConfig({ ...config, activeEhrbaseConnectionId: connection.id })} />
+                  {connection.id === config.activeEhrbaseConnectionId ? 'Aktives System' : 'Dieses System aktivieren'}
+                </label>
+                <button type="button" className="btn secondary" onClick={() => removeConnection(connection.id)} disabled={connections.length <= 1} title="System entfernen"><Trash2 size={16} /> Entfernen</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div><label className="form-label">Name</label><input className="form-input" value={connection.name} onChange={(event) => updateConnection(connection.id, 'name', event.target.value)} placeholder="Testsystem" /></div>
+                <div><label className="form-label">Authentisierungs-Plugin</label><select className="form-input" value={connection.authPlugin} onChange={(event) => updateConnection(connection.id, 'authPlugin', event.target.value)}><option value="none">Keine Authentisierung</option><option value="basic">HTTP Basic Auth</option><option value="hip-keycloak">HIP / Keycloak OAuth2</option></select></div>
+                <div style={{ gridColumn: '1 / -1' }}><label className="form-label">EHRbase REST URL</label><input className="form-input" type="url" value={connection.url} onChange={(event) => updateConnection(connection.id, 'url', event.target.value)} placeholder="https://ehrbase.example/rest/openehr/v1" required /></div>
+                <div><label className="form-label">Subject Namespace</label><input className="form-input" value={connection.subjectNamespace || ''} onChange={(event) => updateConnection(connection.id, 'subjectNamespace', event.target.value)} placeholder="default" /></div>
+                <div><label className="form-label">Default EHR-ID (optional)</label><input className="form-input" value={connection.defaultEhrId || ''} onChange={(event) => updateConnection(connection.id, 'defaultEhrId', event.target.value)} placeholder="Für Test-Formulare" /></div>
+                {connection.authPlugin === 'none' && <span style={{ gridColumn: '1 / -1', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Für diese EHRbase wird nur die URL verwendet; es werden keine Credentials gesendet.</span>}
+                {connection.authPlugin === 'basic' && <><div><label className="form-label">Username</label><input className="form-input" value={connection.username || ''} onChange={(event) => updateConnection(connection.id, 'username', event.target.value)} /></div><div><label className="form-label">Password</label><input className="form-input" type="password" value={connection.password || ''} onChange={(event) => updateConnection(connection.id, 'password', event.target.value)} placeholder="••••••••" /></div></>}
+                {connection.authPlugin === 'hip-keycloak' && <><div style={{ gridColumn: '1 / -1' }}><label className="form-label">Keycloak Base URL</label><input className="form-input" type="url" value={connection.keycloakBaseUrl || ''} onChange={(event) => updateConnection(connection.id, 'keycloakBaseUrl', event.target.value)} placeholder="https://hip.example" /></div><div><label className="form-label">Realm</label><input className="form-input" value={connection.keycloakRealm || ''} onChange={(event) => updateConnection(connection.id, 'keycloakRealm', event.target.value)} /></div><div><label className="form-label">Client ID</label><input className="form-input" value={connection.keycloakClientId || ''} onChange={(event) => updateConnection(connection.id, 'keycloakClientId', event.target.value)} /></div><div><label className="form-label">Grant Type</label><input className="form-input" value={connection.keycloakGrantType || 'password'} onChange={(event) => updateConnection(connection.id, 'keycloakGrantType', event.target.value)} /></div><div><label className="form-label">Username</label><input className="form-input" value={connection.username || ''} onChange={(event) => updateConnection(connection.id, 'username', event.target.value)} /></div><div><label className="form-label">Password</label><input className="form-input" type="password" value={connection.password || ''} onChange={(event) => updateConnection(connection.id, 'password', event.target.value)} placeholder="••••••••" /></div></>}
+              </div>
+            </section>
+          ))}
         </div>
-
-        {config.authMode === 'keycloak' && (
-          <div className="card">
-            <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '1.25rem', fontSize: '1.1rem' }}>Keycloak Settings</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Keycloak API URL</label>
-                <input type="text" name="keycloakApi" value={config.keycloakApi} onChange={handleChange} className="form-input" />
-              </div>
-              <div>
-                <label className="form-label">Tenant / Realm Name</label>
-                <input type="text" name="keycloakTenantName" value={config.keycloakTenantName} onChange={handleChange} className="form-input" />
-              </div>
-              <div>
-                <label className="form-label">Client ID</label>
-                <input type="text" name="keycloakClientId" value={config.keycloakClientId} onChange={handleChange} className="form-input" />
-              </div>
-              <div>
-                <label className="form-label">Grant Type</label>
-                <input type="text" name="keycloakGrantType" value={config.keycloakGrantType} onChange={handleChange} className="form-input" />
-              </div>
-              <div>
-                <label className="form-label">Username</label>
-                <input type="text" name="ehrbaseUser" value={config.ehrbaseUser} onChange={handleChange} className="form-input" />
-              </div>
-              <div>
-                <label className="form-label">Password</label>
-                <input type="password" name="ehrbasePass" value={config.ehrbasePass} onChange={handleChange} className="form-input" placeholder="••••••••" />
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className="card">
           <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '1.25rem', fontSize: '1.1rem' }}>Interoperability & Mapping</h3>

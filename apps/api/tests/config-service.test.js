@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { getConfig, getSafeConfig } = require('../dist/services/configService');
+const { getEhrbaseRequestConfig } = require('../dist/services/ehrbaseConnectionPlugins');
 
 test('configuration never falls back to a source-code EHRbase password', () => {
   const previous = process.env.EHRBASE_PASS;
@@ -44,4 +45,19 @@ test('AI provider keys remain server-only and are masked in safe configuration',
     if (previousOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = previousOpenAiKey;
   }
+});
+
+test('connection plugins keep no-auth requests credential-free and isolate Basic Auth', async () => {
+  const noAuth = await getEhrbaseRequestConfig({
+    id: 'test-no-auth', name: 'No auth', url: 'http://ehrbase.test/rest/openehr/v1/', authPlugin: 'none',
+  });
+  assert.equal(noAuth.ehrbaseUrl, 'http://ehrbase.test/rest/openehr/v1');
+  assert.equal(noAuth.auth, undefined);
+  assert.equal(noAuth.headers.Authorization, undefined);
+
+  const basic = await getEhrbaseRequestConfig({
+    id: 'test-basic', name: 'Basic', url: 'http://ehrbase.test/rest/openehr/v1', authPlugin: 'basic', username: 'test-user', password: 'test-secret',
+  });
+  assert.deepEqual(basic.auth, { username: 'test-user', password: 'test-secret' });
+  assert.equal(basic.headers.Authorization, undefined);
 });

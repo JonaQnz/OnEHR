@@ -1,9 +1,8 @@
 import axios from 'axios';
 import prisma from '../db/prisma';
-import type { FormDataProviderContext, FormDataProviderForm } from 'core';
+import { getFormFunctionImportConfiguration, type FormDataProviderContext, type FormDataProviderForm } from 'core';
 import { HttpError } from '../middleware/errorHandler';
-import { getConfig } from './configService';
-import { getValidToken } from './authService';
+import { getEhrbaseRequestConfig } from './ehrbaseConnectionPlugins';
 import { EhrbaseDataProvider, type LatestCompositionContext } from './ehrbaseDataProvider';
 
 const IDENTIFIER = /^[A-Za-z][A-Za-z0-9_]*$/;
@@ -154,24 +153,12 @@ export function bindAqlParameters(query: string, parameters: Record<string, unkn
   return bound;
 }
 
-async function ehrbaseRequestOptions(): Promise<{ headers: Record<string, string>; auth?: { username: string; password: string } }> {
-  const config = getConfig();
-  const headers: Record<string, string> = { Accept: 'application/json', 'Content-Type': 'application/json' };
-  if (config.authMode === 'keycloak') {
-    headers.Authorization = `Bearer ${await getValidToken()}`;
-    return { headers };
-  }
-  if (!config.ehrbaseUser || !config.ehrbasePass) throw new HttpError(503, 'EHRbase credentials are not configured');
-  return { headers, auth: { username: config.ehrbaseUser, password: config.ehrbasePass } };
-}
-
 export async function executeAqlQuery(query: string, parameters: Record<string, unknown>): Promise<unknown> {
-  const config = getConfig();
-  if (!config.ehrbaseUrl) throw new HttpError(503, 'EHRbase URL is not configured');
+  const { ehrbaseUrl, headers, auth } = await getEhrbaseRequestConfig();
   const response = await axios.post(
-    `${config.ehrbaseUrl.replace(/\/$/, '')}/query/aql`,
+    `${ehrbaseUrl}/query/aql`,
     { q: bindAqlParameters(query, parameters) },
-    await ehrbaseRequestOptions(),
+    { headers, ...(auth ? { auth } : {}) },
   );
   return response.data?.rows ?? [];
 }
@@ -239,7 +226,10 @@ export async function buildSessionRuntimeContext(
     }
   }
 
-  const functions = await prisma.aqlFunction.findMany({ where: { enabled: true, autoload: true }, orderBy: [{ packageName: 'asc' }, { name: 'asc' }] });
+  const imports = getFormFunctionImportConfiguration(form.definition);
+  const functions = imports.aqlFunctionIds.length > 0
+    ? await prisma.aqlFunction.findMany({ where: { enabled: true, id: { in: imports.aqlFunctionIds } }, orderBy: [{ packageName: 'asc' }, { name: 'asc' }] })
+    : [];
   const templateId = form.definition.sourceTemplates?.[0]?.id;
   for (const definition of functions) {
     const qualifiedName = qualifiedAqlFunctionName(definition.packageName, definition.name);
@@ -259,7 +249,9 @@ export async function buildSessionRuntimeContext(
       result.errors.push({ source: 'aql', function: qualifiedName, message: error?.message || 'AQL function failed' });
     }
   }
-  const codeFunctions = await prisma.codeFunction.findMany({ where: { enabled: true }, orderBy: [{ packageName: 'asc' }, { name: 'asc' }] });
+  const codeFunctions = imports.codePackages.length > 0
+    ? await prisma.codeFunction.findMany({ where: { enabled: true, packageName: { in: imports.codePackages } }, orderBy: [{ packageName: 'asc' }, { name: 'asc' }] })
+    : [];
   result.codeFunctions = codeFunctions.map((item) => ({ packageName: item.packageName, name: item.name, source: item.source }));
   return result.errors.length > 0
     ? result

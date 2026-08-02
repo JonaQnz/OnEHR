@@ -8,6 +8,8 @@ import type {
 import {
   collectFormScriptSchemaIds,
   FORM_SCRIPTING_EXTENSION_KEY,
+  FORM_FUNCTION_IMPORTS_EXTENSION_KEY,
+  getFormFunctionImportConfiguration,
   getFormScriptConnectorConfiguration,
 } from 'core';
 
@@ -44,6 +46,8 @@ interface CompletionState {
   quote: '"' | "'";
   items: string[];
 }
+interface CodeFunction { id: string; packageName: string; name: string; description: string; }
+interface AqlFunction { id: string; packageName: string; name: string; description: string; }
 
 interface ScriptEditorProps {
   formId: string;
@@ -78,18 +82,29 @@ export default function ScriptEditor({ formId, definition, onSaved }: ScriptEdit
   const [allowedOperations, setAllowedOperations] = useState(
     getFormScriptConnectorConfiguration(definition).allowedOperations,
   );
+  const savedImports = getFormFunctionImportConfiguration(definition);
+  const [codeFunctions, setCodeFunctions] = useState<CodeFunction[]>([]);
+  const [aqlFunctions, setAqlFunctions] = useState<AqlFunction[]>([]);
+  const [functionSearch, setFunctionSearch] = useState('');
+  const [codePackages, setCodePackages] = useState(savedImports.codePackages);
+  const [aqlFunctionIds, setAqlFunctionIds] = useState(savedImports.aqlFunctionIds);
   const checkSequence = useRef(0);
   const codeInput = useRef<HTMLTextAreaElement>(null);
   const savedAllowedOperations = getFormScriptConnectorConfiguration(definition).allowedOperations;
   const schemaIds = useMemo(() => collectFormScriptSchemaIds(definition), [definition.layout]);
   const dirty = source !== definition.formScript.source
-    || JSON.stringify(allowedOperations) !== JSON.stringify(savedAllowedOperations);
+    || JSON.stringify(allowedOperations) !== JSON.stringify(savedAllowedOperations)
+    || JSON.stringify(codePackages) !== JSON.stringify(savedImports.codePackages)
+    || JSON.stringify(aqlFunctionIds) !== JSON.stringify(savedImports.aqlFunctionIds);
 
   useEffect(() => {
     setSource(definition.formScript.source);
     setDiagnostics(definition.formScript.diagnostics);
     setGeneratedTypes(definition.formScript.generatedTypes);
     setAllowedOperations(getFormScriptConnectorConfiguration(definition).allowedOperations);
+    const imports = getFormFunctionImportConfiguration(definition);
+    setCodePackages(imports.codePackages);
+    setAqlFunctionIds(imports.aqlFunctionIds);
     setAiCandidate(null);
     setCompletion(null);
   }, [definition.extensions, definition.formScript]);
@@ -109,6 +124,18 @@ export default function ScriptEditor({ formId, definition, onSaved }: ScriptEdit
         setStatusError(true);
         setStatus(error.message);
       });
+  }, []);
+
+  useEffect(() => {
+    void Promise.all([
+      fetch(`${API}/functions/code`, { credentials: 'include' }),
+      fetch(`${API}/functions/aql`, { credentials: 'include' }),
+    ]).then(async ([codeResponse, aqlResponse]) => {
+      const [codeBody, aqlBody] = await Promise.all([readJson(codeResponse), readJson(aqlResponse)]);
+      if (!codeResponse.ok || !aqlResponse.ok) throw new Error('Function-Bibliothek konnte nicht geladen werden.');
+      setCodeFunctions(Array.isArray(codeBody.functions) ? codeBody.functions as unknown as CodeFunction[] : []);
+      setAqlFunctions(Array.isArray(aqlBody.functions) ? aqlBody.functions as unknown as AqlFunction[] : []);
+    }).catch((error: Error) => { setStatusError(true); setStatus(error.message); });
   }, []);
 
   const errorCount = useMemo(
@@ -172,6 +199,7 @@ export default function ScriptEditor({ formId, definition, onSaved }: ScriptEdit
             [FORM_SCRIPTING_EXTENSION_KEY]: {
               allowedOperations,
             },
+            [FORM_FUNCTION_IMPORTS_EXTENSION_KEY]: { codePackages, aqlFunctionIds },
           },
           formScript: {
             ...definition.formScript,
@@ -291,6 +319,19 @@ export default function ScriptEditor({ formId, definition, onSaved }: ScriptEdit
     });
   };
 
+  const insertSnippet = (snippet: string) => {
+    const element = codeInput.current;
+    const start = element?.selectionStart ?? source.length;
+    const end = element?.selectionEnd ?? start;
+    const prefix = start > 0 && !source.slice(0, start).endsWith('\n') ? '\n' : '';
+    const next = `${source.slice(0, start)}${prefix}${snippet}${source.slice(end)}`;
+    setSource(next);
+    window.requestAnimationFrame(() => { codeInput.current?.focus(); const cursor = start + prefix.length + snippet.length; codeInput.current?.setSelectionRange(cursor, cursor); });
+  };
+  const filteredCode = codeFunctions.filter((item) => `${item.packageName} ${item.name} ${item.description}`.toLowerCase().includes(functionSearch.toLowerCase()));
+  const filteredAql = aqlFunctions.filter((item) => `${item.packageName} ${item.name} ${item.description}`.toLowerCase().includes(functionSearch.toLowerCase()));
+  const codePackageNames = [...new Set(codeFunctions.map((item) => item.packageName))].sort();
+
   return (
     <section className="script-editor-shell" aria-label="TypeScript Form Script">
       <div className="script-editor-toolbar">
@@ -341,6 +382,38 @@ export default function ScriptEditor({ formId, definition, onSaved }: ScriptEdit
                 </span>
               </label>
             ))}
+        </div>
+      </details>
+
+      <details className="script-connectors" open>
+        <summary>Functions & AQL importieren ({codePackages.length} Pakete · {aqlFunctionIds.length} AQLs)</summary>
+        <p>Code-Pakete werden im isolierten Form-Script-Worker verfügbar. Ausgewählte AQLs werden beim Start dieser Form-Session serverseitig ausgeführt und als Kontext bereitgestellt.</p>
+        <input
+          className="script-ai-instruction"
+          aria-label="Functions und AQLs durchsuchen"
+          value={functionSearch}
+          onChange={(event) => setFunctionSearch(event.target.value)}
+          placeholder="Packages, Functions oder AQLs suchen …"
+          style={{ minHeight: 0, marginBottom: '0.65rem' }}
+        />
+        <div className="script-connector-list">
+          <strong style={{ gridColumn: '1 / -1' }}>Code-Pakete</strong>
+          {codePackageNames.filter((packageName) => packageName.toLowerCase().includes(functionSearch.toLowerCase()) || filteredCode.some((item) => item.packageName === packageName)).map((packageName) => {
+            const functions = filteredCode.filter((item) => item.packageName === packageName);
+            const selected = codePackages.includes(packageName);
+            return <label className="script-connector-option" key={packageName}>
+              <input type="checkbox" checked={selected} onChange={(event) => setCodePackages((current) => event.target.checked ? [...new Set([...current, packageName])].sort() : current.filter((item) => item !== packageName))} />
+              <span><strong>{packageName}</strong><code>functions.{packageName}.*</code><small>{functions.map((item) => item.name).join(', ')}</small>{selected && functions.map((item) => <button key={item.id} type="button" className="btn-workbench secondary" onClick={() => insertSnippet(`functions.${item.packageName}.${item.name}({});`)} style={{ margin: '0.25rem 0.35rem 0 0', padding: '0.2rem 0.45rem', fontSize: '0.72rem' }}>+ {item.name}</button>)}</span>
+            </label>;
+          })}
+          <strong style={{ gridColumn: '1 / -1', marginTop: '0.45rem' }}>AQL-Kontext</strong>
+          {filteredAql.map((item) => {
+            const selected = aqlFunctionIds.includes(item.id);
+            return <label className="script-connector-option" key={item.id}>
+              <input type="checkbox" checked={selected} onChange={(event) => setAqlFunctionIds((current) => event.target.checked ? [...new Set([...current, item.id])].sort() : current.filter((id) => id !== item.id))} />
+              <span><strong>{item.packageName}.{item.name}</strong><code>context.aql['{item.packageName}.{item.name}']</code><small>{item.description}</small>{selected && <button type="button" className="btn-workbench secondary" onClick={() => insertSnippet(`const ${item.name} = context.aql['${item.packageName}.${item.name}'];`)} style={{ marginTop: '0.25rem', padding: '0.2rem 0.45rem', fontSize: '0.72rem' }}>+ Kontext-Code</button>}</span>
+            </label>;
+          })}
         </div>
       </details>
 

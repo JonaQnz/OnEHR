@@ -1,7 +1,7 @@
 import axios from 'axios';
 import prisma from '../db/prisma';
-import { getConfig } from './configService';
-import { getValidToken } from './authService';
+import { getActiveEhrbaseConnection } from './configService';
+import { getEhrbaseRequestConfig } from './ehrbaseConnectionPlugins';
 
 export interface CreatePatientInput {
   patientId: string;
@@ -13,8 +13,8 @@ export interface CreatePatientInput {
 }
 
 export async function createPatient(input: CreatePatientInput) {
-  const config = getConfig();
-  const namespace = input.patientNamespace || config.ehrbaseSubjectNamespace || 'default';
+  const connection = getActiveEhrbaseConnection();
+  const namespace = input.patientNamespace || connection.subjectNamespace || 'default';
   
   // 1. Check if patient already exists locally
   const existing = await prisma.patient.findUnique({
@@ -34,24 +34,9 @@ export async function createPatient(input: CreatePatientInput) {
   let ehrId: string;
   
   try {
-    const headers: Record<string, string> = {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'Prefer': 'return=representation'
-    };
-    let auth: any = undefined;
-
-    if (config.authMode === 'keycloak') {
-      const token = await getValidToken();
-      headers['Authorization'] = `Bearer ${token}`;
-    } else {
-      auth = {
-        username: config.ehrbaseUser!,
-        password: config.ehrbasePass!
-      };
-    }
-
-    const ehrbaseUrl = config.ehrbaseUrl!.replace(/\/$/, '');
+    const requestConfig = await getEhrbaseRequestConfig(connection);
+    const headers = { ...requestConfig.headers, Prefer: 'return=representation' };
+    const { auth, ehrbaseUrl } = requestConfig;
     
     // Check if EHR already exists
     try {

@@ -2,12 +2,32 @@ import fs from 'fs';
 import path from 'path';
 
 export type UserAuthMode = 'local' | 'hip';
+export type EhrbaseAuthPluginId = 'none' | 'basic' | 'hip-keycloak';
+
+/** A separately selectable openEHR endpoint. Secrets are persisted server-side
+ * and are masked before this model is returned through the settings API. */
+export interface EhrbaseConnection {
+    id: string;
+    name: string;
+    url: string;
+    authPlugin: EhrbaseAuthPluginId;
+    username?: string;
+    password?: string;
+    keycloakBaseUrl?: string;
+    keycloakRealm?: string;
+    keycloakClientId?: string;
+    keycloakGrantType?: string;
+    subjectNamespace?: string;
+    defaultEhrId?: string;
+}
 
 export interface AppConfig {
     ehrbaseUrl?: string;
     ehrbaseUser?: string;
     ehrbasePass?: string;
     ehrbaseSubjectNamespace?: string;
+    ehrbaseConnections?: EhrbaseConnection[];
+    activeEhrbaseConnectionId?: string;
     authMode?: 'basic' | 'keycloak';
     keycloakApi?: string;
     keycloakTenantName?: string;
@@ -57,6 +77,90 @@ function getSaveConfigFile(): string {
 
 let persistedConfig: AppConfig = {};
 
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function normalizeConnection(value: unknown): EhrbaseConnection | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const id = stringValue(raw.id);
+  const url = stringValue(raw.url);
+  if (!id || !url) return undefined;
+  const plugin = raw.authPlugin === 'basic' || raw.authPlugin === 'hip-keycloak' || raw.authPlugin === 'none'
+    ? raw.authPlugin : 'none';
+  return {
+    id,
+    name: stringValue(raw.name) || id,
+    url,
+    authPlugin: plugin,
+    ...(stringValue(raw.username) ? { username: stringValue(raw.username) } : {}),
+    ...(stringValue(raw.password) ? { password: stringValue(raw.password) } : {}),
+    ...(stringValue(raw.keycloakBaseUrl) ? { keycloakBaseUrl: stringValue(raw.keycloakBaseUrl) } : {}),
+    ...(stringValue(raw.keycloakRealm) ? { keycloakRealm: stringValue(raw.keycloakRealm) } : {}),
+    ...(stringValue(raw.keycloakClientId) ? { keycloakClientId: stringValue(raw.keycloakClientId) } : {}),
+    ...(stringValue(raw.keycloakGrantType) ? { keycloakGrantType: stringValue(raw.keycloakGrantType) } : {}),
+    ...(stringValue(raw.subjectNamespace) ? { subjectNamespace: stringValue(raw.subjectNamespace) } : {}),
+    ...(stringValue(raw.defaultEhrId) ? { defaultEhrId: stringValue(raw.defaultEhrId) } : {}),
+  };
+}
+
+function legacyConnection(): EhrbaseConnection {
+  const url = persistedConfig.ehrbaseUrl || process.env.EHRBASE_URL || 'http://localhost:8080/ehrbase/rest/openehr/v1';
+  const authPlugin: EhrbaseAuthPluginId = (persistedConfig.authMode || process.env.AUTH_MODE) === 'keycloak'
+    ? 'hip-keycloak'
+    : (persistedConfig.ehrbasePass || process.env.EHRBASE_PASS ? 'basic' : 'none');
+  return {
+    id: 'legacy-current',
+    name: 'Aktuelles System',
+    url,
+    authPlugin,
+    username: persistedConfig.ehrbaseUser || process.env.EHRBASE_USER,
+    password: persistedConfig.ehrbasePass || process.env.EHRBASE_PASS,
+    keycloakBaseUrl: persistedConfig.keycloakApi || process.env.KEYCLOAK_API,
+    keycloakRealm: persistedConfig.keycloakTenantName || process.env.KEYCLOAK_TENANT_NAME,
+    keycloakClientId: persistedConfig.keycloakClientId || process.env.KEYCLOAK_CLIENT_ID,
+    keycloakGrantType: persistedConfig.keycloakGrantType || process.env.KEYCLOAK_GRANT_TYPE || 'password',
+    subjectNamespace: persistedConfig.ehrbaseSubjectNamespace || process.env.EHRBASE_SUBJECT_NAMESPACE || 'default',
+    defaultEhrId: persistedConfig.defaultEhrId || process.env.DEFAULT_EHR_ID || process.env.EHRBASE_DEFAULT_EHR_ID,
+  };
+}
+
+/** Returns saved connections, while presenting a legacy installation as one
+ * HIP/Basic/no-auth connection until it is first saved from the new settings UI. */
+export function getEhrbaseConnections(): EhrbaseConnection[] {
+  const saved = Array.isArray(persistedConfig.ehrbaseConnections)
+    ? persistedConfig.ehrbaseConnections.map(normalizeConnection).filter((value): value is EhrbaseConnection => Boolean(value))
+    : [];
+  return saved.length ? saved : [legacyConnection()];
+}
+
+export function getActiveEhrbaseConnection(): EhrbaseConnection {
+  const connections = getEhrbaseConnections();
+  return connections.find((connection) => connection.id === persistedConfig.activeEhrbaseConnectionId) || connections[0];
+}
+
+function mergeMaskedConnections(updates: unknown): EhrbaseConnection[] | undefined {
+  if (!Array.isArray(updates)) return undefined;
+  if (updates.length === 0 || updates.length > 2) throw new Error('Configure one or two EHRbase connections');
+  const existing = new Map(getEhrbaseConnections().map((connection) => [connection.id, connection]));
+  const ids = new Set<string>();
+  return updates.map((entry) => {
+    const normalized = normalizeConnection(entry);
+    if (!normalized) throw new Error('Every EHRbase connection requires an id and URL');
+    if (ids.has(normalized.id)) throw new Error('EHRbase connection IDs must be unique');
+    ids.add(normalized.id);
+    const raw = entry as Record<string, unknown>;
+    const previous = existing.get(normalized.id);
+    if (raw.password === '***' && previous?.password) normalized.password = previous.password;
+    return normalized;
+  });
+}
+
+function safeConnection(connection: EhrbaseConnection): EhrbaseConnection {
+  return { ...connection, password: connection.password ? '***' : '' };
+}
+
 export function initConfig() {
   const candidates = getCandidateConfigFiles();
   for (const file of candidates) {
@@ -79,18 +183,19 @@ export function getConfig(): AppConfig {
         return fallback;
     };
 
+    const activeConnection = getActiveEhrbaseConnection();
     return {
-        ehrbaseUrl: resolve(persistedConfig.ehrbaseUrl, process.env.EHRBASE_URL, 'http://localhost:8080/ehrbase/rest/openehr/v1'),
-        ehrbaseUser: resolve(persistedConfig.ehrbaseUser, process.env.EHRBASE_USER, 'admin'),
+        ehrbaseUrl: activeConnection.url,
+        ehrbaseUser: activeConnection.username,
         // Never ship a usable credential in source code. Operators must configure this
         // explicitly through the environment, a secret store, or the admin UI.
-        ehrbasePass: resolve(persistedConfig.ehrbasePass, process.env.EHRBASE_PASS),
-        ehrbaseSubjectNamespace: resolve(persistedConfig.ehrbaseSubjectNamespace, process.env.EHRBASE_SUBJECT_NAMESPACE, 'default'),
-        authMode: resolve(persistedConfig.authMode, process.env.AUTH_MODE, 'basic') as 'basic' | 'keycloak',
-        keycloakApi: resolve(persistedConfig.keycloakApi, process.env.KEYCLOAK_API),
-        keycloakTenantName: resolve(persistedConfig.keycloakTenantName, process.env.KEYCLOAK_TENANT_NAME),
-        keycloakClientId: resolve(persistedConfig.keycloakClientId, process.env.KEYCLOAK_CLIENT_ID),
-        keycloakGrantType: resolve(persistedConfig.keycloakGrantType, process.env.KEYCLOAK_GRANT_TYPE, 'password'),
+        ehrbasePass: activeConnection.password,
+        ehrbaseSubjectNamespace: activeConnection.subjectNamespace || 'default',
+        authMode: activeConnection.authPlugin === 'hip-keycloak' ? 'keycloak' : 'basic',
+        keycloakApi: activeConnection.keycloakBaseUrl,
+        keycloakTenantName: activeConnection.keycloakRealm,
+        keycloakClientId: activeConnection.keycloakClientId,
+        keycloakGrantType: activeConnection.keycloakGrantType || 'password',
         mappingServiceApi: resolve(persistedConfig.mappingServiceApi, process.env.MAPPING_SERVICE_API),
         pluginPackages: Array.isArray(persistedConfig.pluginPackages) ? persistedConfig.pluginPackages.filter((value): value is string => typeof value === 'string') : [],
         userAuthMode: resolve(persistedConfig.userAuthMode, process.env.USER_AUTH_MODE, 'local') as UserAuthMode,
@@ -104,16 +209,27 @@ export function getConfig(): AppConfig {
         hipClientSecret: resolve(undefined, process.env.HIP_CLIENT_SECRET),
         hipRedirectUri: resolve(persistedConfig.hipRedirectUri, process.env.HIP_REDIRECT_URI, 'http://localhost:3001/api/auth/callback/hip'),
         hipScopes: resolve(persistedConfig.hipScopes, process.env.HIP_SCOPES, 'openid profile email'),
-        defaultEhrId: resolve(persistedConfig.defaultEhrId, process.env.DEFAULT_EHR_ID || process.env.EHRBASE_DEFAULT_EHR_ID),
+        defaultEhrId: activeConnection.defaultEhrId,
         sessionCookieSecure: resolve(undefined, process.env.SESSION_COOKIE_SECURE, 'false') === 'true',
         scriptAiBaseUrl: resolve(persistedConfig.scriptAiBaseUrl, process.env.FORM_SCRIPT_AI_BASE_URL),
         scriptAiApiKey: resolve(undefined, process.env.FORM_SCRIPT_AI_API_KEY || process.env.OPENAI_API_KEY),
         scriptAiModel: resolve(persistedConfig.scriptAiModel, process.env.FORM_SCRIPT_AI_MODEL),
+        ehrbaseConnections: getEhrbaseConnections(),
+        activeEhrbaseConnectionId: activeConnection.id,
     };
 }
 
 export function saveConfig(updates: AppConfig) {
     const cleanUpdates = { ...updates };
+    const connections = mergeMaskedConnections(cleanUpdates.ehrbaseConnections);
+    if (connections) {
+      cleanUpdates.ehrbaseConnections = connections;
+      const activeId = typeof cleanUpdates.activeEhrbaseConnectionId === 'string'
+        ? cleanUpdates.activeEhrbaseConnectionId : persistedConfig.activeEhrbaseConnectionId;
+      if (!activeId || !connections.some((connection) => connection.id === activeId)) {
+        cleanUpdates.activeEhrbaseConnectionId = connections[0].id;
+      }
+    }
     // Filter out masked passwords
     Object.keys(cleanUpdates).forEach(key => {
         if ((cleanUpdates as any)[key] === '***') {
@@ -172,16 +288,21 @@ export function getSafePluginSettings(pluginId: string, secretKeys: readonly str
 
 export function getSafeConfig(): Partial<AppConfig> {
     const full = getConfig();
+    const activeConnection = getActiveEhrbaseConnection();
     return {
-        ehrbaseUrl: full.ehrbaseUrl,
-        ehrbaseUser: full.ehrbaseUser,
-        ehrbasePass: full.ehrbasePass ? '***' : '',
-        ehrbaseSubjectNamespace: full.ehrbaseSubjectNamespace || 'default',
-        authMode: full.authMode || 'basic',
-        keycloakApi: full.keycloakApi || '',
-        keycloakTenantName: full.keycloakTenantName || '',
-        keycloakClientId: full.keycloakClientId || '',
-        keycloakGrantType: full.keycloakGrantType || '',
+        // Legacy fields remain available to older clients but mirror the active
+        // connection. New callers use ehrbaseConnections instead.
+        ehrbaseUrl: activeConnection.url,
+        ehrbaseUser: activeConnection.username || '',
+        ehrbasePass: activeConnection.password ? '***' : '',
+        ehrbaseSubjectNamespace: activeConnection.subjectNamespace || 'default',
+        authMode: activeConnection.authPlugin === 'hip-keycloak' ? 'keycloak' : 'basic',
+        keycloakApi: activeConnection.keycloakBaseUrl || '',
+        keycloakTenantName: activeConnection.keycloakRealm || '',
+        keycloakClientId: activeConnection.keycloakClientId || '',
+        keycloakGrantType: activeConnection.keycloakGrantType || '',
+        ehrbaseConnections: full.ehrbaseConnections?.map(safeConnection) || [],
+        activeEhrbaseConnectionId: activeConnection.id,
         mappingServiceApi: full.mappingServiceApi || '',
         pluginPackages: full.pluginPackages || [],
         userAuthMode: full.userAuthMode || 'local',
@@ -195,7 +316,7 @@ export function getSafeConfig(): Partial<AppConfig> {
         hipClientSecret: full.hipClientSecret ? '***' : '',
         hipRedirectUri: full.hipRedirectUri || '',
         hipScopes: full.hipScopes || 'openid profile email',
-        defaultEhrId: full.defaultEhrId || '',
+        defaultEhrId: activeConnection.defaultEhrId || full.defaultEhrId || '',
         sessionCookieSecure: full.sessionCookieSecure || false,
         scriptAiBaseUrl: full.scriptAiBaseUrl || '',
         scriptAiApiKey: full.scriptAiApiKey ? '***' : '',

@@ -17,6 +17,7 @@ import dataProviderRoutes from './routes/dataProviderRoutes';
 import patientRoutes from './routes/patientRoutes';
 import scriptConnectorRoutes from './routes/scriptConnectorRoutes';
 import formLaunchRoutes from './routes/formLaunchRoutes';
+import { ensureDefaultFunctionLibrary } from './services/functionLibraryBootstrap';
 import functionRoutes from './routes/functionRoutes';
 
 // Resolve the API-local environment file, independent of the process working
@@ -78,6 +79,7 @@ app.use(errorHandler);
 
 async function start() {
   await loadConfiguredPlugins();
+  await ensureDefaultFunctionLibrary();
   app.listen(port, () => {
     console.log(`API Server running at http://localhost:${port}`);
   });
