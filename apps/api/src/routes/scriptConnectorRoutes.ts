@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { migrateCanonicalFormToV1 } from 'core';
 import prisma from '../db/prisma';
-import { requireAuth } from '../middleware/auth';
+import { requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import {
   ScriptConnectorError,
@@ -10,7 +10,7 @@ import {
 
 const router = Router();
 
-router.use(requireAuth);
+router.use(requirePermission('form.execute'));
 
 router.get('/', (_req, res) => {
   res.json({ operations: scriptConnectorRegistry.list() });
@@ -42,14 +42,13 @@ router.post('/forms/:formId/call', asyncHandler(async (req, res) => {
       {
         formId,
         form,
-        userId: req.auth?.id || 'anonymous',
-        authMode: req.auth?.authMode || 'local',
+        userId: req.principal?.userId || 'anonymous',
+        authMode: req.principal?.authSource === 'oidc' ? 'hip' : 'local',
+        principal: req.principal,
         patientId: typeof callContext.patientId === 'string' ? callContext.patientId : undefined,
         ehrId: typeof callContext.ehrId === 'string' ? callContext.ehrId : undefined,
         encounterId: typeof callContext.encounterId === 'string' ? callContext.encounterId : undefined,
         sessionId: typeof callContext.sessionId === 'string' ? callContext.sessionId : undefined,
-        authorization: req.headers.authorization
-          || (req.auth?.accessToken ? `Bearer ${req.auth.accessToken}` : undefined),
       },
       abortController.signal,
       typeof req.body?.timeoutMs === 'number' ? req.body.timeoutMs : undefined,

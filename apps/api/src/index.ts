@@ -19,6 +19,9 @@ import scriptConnectorRoutes from './routes/scriptConnectorRoutes';
 import formLaunchRoutes from './routes/formLaunchRoutes';
 import { ensureDefaultFunctionLibrary } from './services/functionLibraryBootstrap';
 import functionRoutes from './routes/functionRoutes';
+import userAdminRoutes from './routes/userAdminRoutes';
+import auditRoutes from './routes/auditRoutes';
+import { ensureBootstrapAdmin } from './services/userAuthService';
 
 // Resolve the API-local environment file, independent of the process working
 // directory (for example when started as `node apps/api/dist/index.js`).
@@ -69,6 +72,8 @@ app.use('/api/data-providers', dataProviderRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/script-connectors', scriptConnectorRoutes);
 app.use('/api/functions', functionRoutes);
+app.use('/api/admin', userAdminRoutes);
+app.use('/api/admin/audit', auditRoutes);
 
 app.use('/api/forms', formRoutes);
 app.use('/api/templates', templateRoutes);
@@ -78,6 +83,7 @@ app.use('/api/plugins', pluginRoutes);
 app.use(errorHandler);
 
 async function start() {
+  await ensureBootstrapAdmin();
   await loadConfiguredPlugins();
   await ensureDefaultFunctionLibrary();
   app.listen(port, () => {

@@ -120,3 +120,83 @@ model Patient {
   @@unique([patientNamespace, patientId])
   @@map("patients")
 }
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum ApplicationRole {
+  USER
+  ADMIN
+}
+
+model ApplicationUser {
+  id           String      @id @default(uuid())
+  username     String?     @unique
+  displayName  String?     @map("display_name")
+  email        String?
+  passwordHash String?     @map("password_hash")
+  status       UserStatus  @default(active)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  lastLoginAt  DateTime?   @map("last_login_at")
+  roles        RoleAssignment[]
+  identities   IdentityLink[]
+  sessions     ApplicationSession[]
+  auditEvents  AuditEvent[] @relation("AuditActor")
+
+  @@map("application_users")
+}
+
+model RoleAssignment {
+  userId String          @map("user_id")
+  role   ApplicationRole
+  user   ApplicationUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+  @@map("role_assignments")
+}
+
+model IdentityLink {
+  id              String          @id @default(uuid())
+  issuer          String
+  externalSubject String          @map("external_subject")
+  localUserId     String          @map("local_user_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  lastSeenAt      DateTime        @default(now()) @map("last_seen_at")
+  user            ApplicationUser @relation(fields: [localUserId], references: [id], onDelete: Cascade)
+
+  @@unique([issuer, externalSubject])
+  @@index([localUserId])
+  @@map("identity_links")
+}
+
+model ApplicationSession {
+  id         String          @id
+  userId     String          @map("user_id")
+  expiresAt  DateTime        @map("expires_at")
+  revokedAt  DateTime?       @map("revoked_at")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  lastSeenAt DateTime        @default(now()) @map("last_seen_at")
+  user       ApplicationUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("application_sessions")
+}
+
+model AuditEvent {
+  id          String           @id @default(uuid())
+  actorUserId String?          @map("actor_user_id")
+  action      String
+  resourceType String           @map("resource_type")
+  resourceId  String?          @map("resource_id")
+  metadata    Json             @default("{}")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  actor       ApplicationUser? @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([action])
+  @@map("audit_events")
+}

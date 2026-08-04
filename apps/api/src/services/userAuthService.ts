@@ -1,211 +1,63 @@
-import axios from 'axios';
-import { createHash, randomBytes, timingSafeEqual } from 'crypto';
+import { randomBytes } from 'crypto';
+import type { Principal } from 'core';
 import type { Request } from 'express';
+import prisma from '../db/prisma';
 import { getConfig, type AppConfig, type UserAuthMode } from './configService';
-
-export interface AuthenticatedUser {
-  id: string;
-  name?: string;
-  email?: string;
-  authMode: UserAuthMode;
-}
-
-export interface AuthContext extends AuthenticatedUser {
-  accessToken?: string;
-}
-
-interface StoredSession {
-  context: AuthContext;
-  expiresAt: number;
-}
-
-interface PendingHipLogin {
-  state: string;
-  codeVerifier: string;
-  returnTo: string;
-  createdAt: number;
-}
+import { authenticateActiveHipLogin } from './ehrbaseConnectionPlugins';
+import { writeAuditEvent } from './auditService';
+import { createLocalUser, resolveExternalIdentity, UserServiceError, verifyLocalPassword } from './userService';
+import { permissionsForRoles } from './authorizationService';
 
 const SESSION_COOKIE = 'forms_session';
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-const LOGIN_STATE_TTL_MS = 10 * 60 * 1000;
-const sessions = new Map<string, StoredSession>();
-const pendingHipLogins = new Map<string, PendingHipLogin>();
+export interface AuthContext { principal: Principal; sessionId: string; }
+export class UserAuthError extends Error { constructor(public readonly status: number, message: string) { super(message); } }
 
-export class UserAuthError extends Error {
-  constructor(public readonly status: number, message: string) {
-    super(message);
-    this.name = 'UserAuthError';
-  }
+function base64Url(value: Buffer): string { return value.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, ''); }
+function randomId(): string { return base64Url(randomBytes(32)); }
+function parseCookies(header: string | undefined): Record<string, string> { return header ? Object.fromEntries(header.split(';').map((entry) => { const [key, ...value] = entry.trim().split('='); return [key, decodeURIComponent(value.join('='))]; }).filter(([key]) => Boolean(key))) : {}; }
+function cookieFlags(config: AppConfig): string { return `HttpOnly; Path=/; SameSite=Lax${config.sessionCookieSecure ? '; Secure' : ''}`; }
+function sessionLifetimeMs(config: AppConfig): number { return Math.max(5, Math.min(7 * 24 * 60, config.sessionLifetimeMinutes || 480)) * 60_000; }
+function localIssuer(): string { return 'forms:local'; }
+function isHipConfigured(config: AppConfig = getConfig()): boolean {
+  const connections = config.ehrbaseConnections || [];
+  const active = connections.find((connection) => connection.id === config.activeEhrbaseConnectionId) || connections[0];
+  return Boolean(active?.authPlugin === 'hip-keycloak' && active.keycloakBaseUrl && active.keycloakRealm && active.keycloakClientId);
 }
 
-function base64Url(value: Buffer): string {
-  return value.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+export function getUserAuthMode(config: AppConfig = getConfig()): UserAuthMode { return config.userAuthMode === 'hip' ? 'hip' : config.userAuthMode === 'disabled-development-only' ? 'disabled-development-only' : 'local'; }
+export function isUserAuthConfigured(config: AppConfig = getConfig()): boolean { if (getUserAuthMode(config) === 'disabled-development-only') return process.env.NODE_ENV !== 'production'; return getUserAuthMode(config) !== 'hip' || isHipConfigured(config); }
+export function frontendSafePrincipal(context: AuthContext | null) { if (!context) return null; const { principal } = context; return { user: { id: principal.userId, displayName: principal.displayName || principal.subject, authSource: principal.authSource, ...(principal.email ? { email: principal.email } : {}) }, roles: principal.roles, permissions: principal.permissions }; }
+
+async function createSession(principal: Principal, config = getConfig()): Promise<{ context: AuthContext; cookie: string }> { const sessionId = randomId(); await prisma.applicationSession.create({ data: { id: sessionId, userId: principal.userId, expiresAt: new Date(Date.now() + sessionLifetimeMs(config)) } }); return { context: { principal, sessionId }, cookie: `${SESSION_COOKIE}=${encodeURIComponent(sessionId)}; Max-Age=${Math.floor(sessionLifetimeMs(config) / 1000)}; ${cookieFlags(config)}` }; }
+function sessionIdFromRequest(req: Request): string | undefined { return parseCookies(req.headers.cookie)[SESSION_COOKIE]; }
+export async function getCurrentAuthContext(req: Request): Promise<AuthContext | null> {
+  const sessionId = sessionIdFromRequest(req); if (!sessionId) return null;
+  const session = await prisma.applicationSession.findUnique({ where: { id: sessionId }, include: { user: { include: { roles: true, identities: true } } } });
+  if (!session || session.revokedAt || session.expiresAt <= new Date() || session.user.status !== 'active') return null;
+  const roles = session.user.roles.map((item) => item.role);
+  const identity = session.user.identities[0];
+  const principal: Principal = { userId: session.user.id, subject: session.user.username || identity?.externalSubject || session.user.id, issuer: identity?.issuer || localIssuer(), authSource: identity?.issuer.startsWith('hip-keycloak:') ? 'plugin:hip-keycloak' : identity ? 'oidc' : 'local', ...(session.user.displayName ? { displayName: session.user.displayName } : {}), ...(session.user.email ? { email: session.user.email } : {}), roles, permissions: permissionsForRoles(roles) };
+  void prisma.applicationSession.update({ where: { id: session.id }, data: { lastSeenAt: new Date() } }).catch(() => undefined);
+  return { principal, sessionId: session.id };
 }
 
-function randomId(): string {
-  return base64Url(randomBytes(32));
-}
+export async function ensureBootstrapAdmin(): Promise<void> { const config = getConfig(); const username = config.bootstrapAdminUsername || config.localUsername; const password = config.bootstrapAdminPassword || config.localPassword; if (!username || !password) return; if (password.length < 12 && process.env.NODE_ENV === 'production') throw new UserAuthError(400, 'A production bootstrap administrator password must contain at least 12 characters'); const admins = await prisma.roleAssignment.count({ where: { role: 'ADMIN' } }); if (admins > 0) return; await createLocalUser({ username, password, displayName: config.bootstrapAdminDisplayName || username, roles: ['ADMIN'], allowWeakBootstrapPassword: password.length < 12 }); console.info('[AUTH] Bootstrap administrator created from explicit environment configuration'); }
 
-function constantTimeEqual(left: string, right: string): boolean {
-  const a = Buffer.from(left);
-  const b = Buffer.from(right);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
+export async function loginLocal(username: string, password: string): Promise<{ context: AuthContext; cookie: string }> { if (getUserAuthMode() !== 'local') throw new UserAuthError(400, 'Local login is disabled'); const principal = await verifyLocalPassword(username, password); if (!principal) { await writeAuditEvent({ action: 'auth.login.failed', resourceType: 'auth', metadata: { source: 'local' } }); throw new UserAuthError(401, 'Invalid username or password'); } const session = await createSession(principal); await writeAuditEvent({ actorUserId: principal.userId, action: 'auth.login.success', resourceType: 'session', resourceId: session.context.sessionId, metadata: { source: 'local' } }); return session; }
 
-function parseCookies(header: string | undefined): Record<string, string> {
-  if (!header) return {};
-  return Object.fromEntries(header.split(';').map((entry) => {
-    const [key, ...value] = entry.trim().split('=');
-    return [key, decodeURIComponent(value.join('='))];
-  }).filter(([key]) => Boolean(key)));
-}
-
-function cookieFlags(config: AppConfig): string {
-  return `HttpOnly; Path=/; SameSite=Lax${config.sessionCookieSecure ? '; Secure' : ''}`;
-}
-
-function createSession(context: AuthContext, config: AppConfig): { sessionId: string; cookie: string } {
-  const sessionId = randomId();
-  sessions.set(sessionId, { context, expiresAt: Date.now() + SESSION_TTL_MS });
-  return { sessionId, cookie: `${SESSION_COOKIE}=${encodeURIComponent(sessionId)}; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}; ${cookieFlags(config)}` };
-}
-
-function getSessionId(req: Request): string | undefined {
-  return parseCookies(req.headers.cookie)[SESSION_COOKIE];
-}
-
-function getSessionContext(req: Request): AuthContext | null {
-  const sessionId = getSessionId(req);
-  if (!sessionId) return null;
-  const stored = sessions.get(sessionId);
-  if (!stored) return null;
-  if (stored.expiresAt <= Date.now()) {
-    sessions.delete(sessionId);
-    return null;
-  }
-  return stored.context;
-}
-
-function isLocalConfigured(config: AppConfig): boolean {
-  return Boolean(config.localUsername && config.localPassword);
-}
-
-function isHipConfigured(config: AppConfig): boolean {
-  return Boolean(config.hipClientId && config.hipRedirectUri && (config.hipIssuerUrl || (config.hipAuthorizationUrl && config.hipTokenUrl)));
-}
-
-export function isUserAuthConfigured(config: AppConfig = getConfig()): boolean {
-  return config.userAuthMode === 'hip' ? isHipConfigured(config) : isLocalConfigured(config);
-}
-
-export function getUserAuthMode(config: AppConfig = getConfig()): UserAuthMode {
-  return config.userAuthMode === 'hip' ? 'hip' : 'local';
-}
-
-export function getCurrentAuthContext(req: Request): AuthContext | null {
-  return getSessionContext(req);
-}
-
-export function createAnonymousContext(config: AppConfig = getConfig()): AuthContext {
-  return { id: 'anonymous', name: 'Local user', authMode: getUserAuthMode(config) };
-}
-
-export function loginLocal(username: string, password: string, config: AppConfig = getConfig()): { context: AuthContext; cookie: string } {
-  if (getUserAuthMode(config) !== 'local') throw new UserAuthError(400, 'Local login is disabled');
-  if (!isLocalConfigured(config)) throw new UserAuthError(503, 'Local authentication is not configured');
-  if (!constantTimeEqual(username, config.localUsername || '') || !constantTimeEqual(password, config.localPassword || '')) {
-    throw new UserAuthError(401, 'Invalid username or password');
-  }
-  const context: AuthContext = { id: username, name: username, authMode: 'local' };
-  return { context, cookie: createSession(context, config).cookie };
-}
-
-async function discoverHip(config: AppConfig): Promise<{ authorization_endpoint: string; token_endpoint: string; userinfo_endpoint?: string }> {
-  if (config.hipAuthorizationUrl && config.hipTokenUrl) {
-    return { authorization_endpoint: config.hipAuthorizationUrl, token_endpoint: config.hipTokenUrl, userinfo_endpoint: config.hipUserInfoUrl };
-  }
-  if (!config.hipIssuerUrl) throw new UserAuthError(503, 'HIP issuer is not configured');
+export async function loginHip(username: string, password: string): Promise<{ context: AuthContext; cookie: string }> {
+  if (getUserAuthMode() !== 'hip' || !isHipConfigured()) throw new UserAuthError(503, 'HIP login is not configured for the active system connection');
   try {
-    const response = await axios.get(`${config.hipIssuerUrl.replace(/\/$/, '')}/.well-known/openid-configuration`, { timeout: 10000 });
-    return response.data;
-  } catch (error: any) {
-    throw new UserAuthError(502, `Unable to discover HIP login endpoints: ${error.response?.status || error.message}`);
+    const identity = await authenticateActiveHipLogin(username, password);
+    const principal = await resolveExternalIdentity(identity);
+    const session = await createSession({ ...principal, authSource: 'plugin:hip-keycloak' });
+    await writeAuditEvent({ actorUserId: principal.userId, action: 'auth.login.success', resourceType: 'session', resourceId: session.context.sessionId, metadata: { source: 'hip-keycloak', issuer: identity.issuer } });
+    return session;
+  } catch (error) {
+    await writeAuditEvent({ action: 'auth.login.failed', resourceType: 'auth', metadata: { source: 'hip-keycloak' } });
+    if (error instanceof UserServiceError) throw error;
+    throw new UserAuthError(401, 'HIP login failed');
   }
 }
 
-export async function beginHipLogin(returnTo = '/'): Promise<string> {
-  const config = getConfig();
-  if (getUserAuthMode(config) !== 'hip') throw new UserAuthError(400, 'HIP login is disabled');
-  if (!isHipConfigured(config)) throw new UserAuthError(503, 'HIP authentication is not configured');
-  const endpoints = await discoverHip(config);
-  const state = randomId();
-  const codeVerifier = base64Url(randomBytes(48));
-  const challenge = base64Url(createHash('sha256').update(codeVerifier).digest());
-  const safeReturnTo = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
-  pendingHipLogins.set(state, { state, codeVerifier, returnTo: safeReturnTo, createdAt: Date.now() });
-  const url = new URL(endpoints.authorization_endpoint);
-  url.searchParams.set('response_type', 'code');
-  url.searchParams.set('client_id', config.hipClientId!);
-  url.searchParams.set('redirect_uri', config.hipRedirectUri!);
-  url.searchParams.set('scope', config.hipScopes || 'openid profile email');
-  url.searchParams.set('state', state);
-  url.searchParams.set('code_challenge', challenge);
-  url.searchParams.set('code_challenge_method', 'S256');
-  return url.toString();
-}
-
-function formEncode(values: Record<string, string>): string {
-  return new URLSearchParams(values).toString();
-}
-
-function readJwtPayload(token: string): Record<string, any> | null {
-  try {
-    const payload = token.split('.')[1];
-    if (!payload) return null;
-    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-  } catch {
-    return null;
-  }
-}
-
-export async function completeHipLogin(state: string, code: string): Promise<{ context: AuthContext; cookie: string; returnTo: string }> {
-  const config = getConfig();
-  const pending = pendingHipLogins.get(state);
-  pendingHipLogins.delete(state);
-  if (!pending || pending.createdAt + LOGIN_STATE_TTL_MS < Date.now()) throw new UserAuthError(400, 'HIP login state is invalid or expired');
-  if (!code) throw new UserAuthError(400, 'HIP did not return an authorization code');
-  const endpoints = await discoverHip(config);
-  try {
-    const response = await axios.post(endpoints.token_endpoint, formEncode({
-      grant_type: 'authorization_code',
-      code,
-      client_id: config.hipClientId!,
-      redirect_uri: config.hipRedirectUri!,
-      code_verifier: pending.codeVerifier,
-      ...(config.hipClientSecret ? { client_secret: config.hipClientSecret } : {}),
-    }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 });
-    const accessToken = response.data?.access_token;
-    if (!accessToken) throw new UserAuthError(502, 'HIP token response did not contain an access token');
-    let profile: Record<string, any> = {};
-    if (endpoints.userinfo_endpoint) {
-      const profileResponse = await axios.get(endpoints.userinfo_endpoint, { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 });
-      profile = profileResponse.data || {};
-    } else {
-      profile = readJwtPayload(response.data?.id_token || '') || {};
-    }
-    if (!profile.sub) throw new UserAuthError(502, 'HIP did not return a user identity');
-    const context: AuthContext = { id: String(profile.sub), name: profile.name || profile.preferred_username, email: profile.email, authMode: 'hip', accessToken };
-    const session = createSession(context, config);
-    return { context, cookie: session.cookie, returnTo: pending.returnTo };
-  } catch (error: any) {
-    if (error instanceof UserAuthError) throw error;
-    throw new UserAuthError(502, `HIP login failed: ${error.response?.data?.error_description || error.response?.status || error.message}`);
-  }
-}
-
-export function clearSession(req: Request, config: AppConfig = getConfig()): string {
-  const sessionId = getSessionId(req);
-  if (sessionId) sessions.delete(sessionId);
-  return `${SESSION_COOKIE}=; Max-Age=0; ${cookieFlags(config)}`;
-}
+export async function clearSession(req: Request): Promise<string> { const id = sessionIdFromRequest(req); if (id) { const session = await prisma.applicationSession.findUnique({ where: { id } }); await prisma.applicationSession.updateMany({ where: { id, revokedAt: null }, data: { revokedAt: new Date() } }); if (session) await writeAuditEvent({ actorUserId: session.userId, action: 'auth.logout', resourceType: 'session', resourceId: id }); } return `${SESSION_COOKIE}=; Max-Age=0; ${cookieFlags(getConfig())}`; }

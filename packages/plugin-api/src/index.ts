@@ -5,6 +5,7 @@ import type {
   FormIssue as CoreFormIssue,
   ValidationIssue as CoreValidationIssue,
 } from 'core';
+import type { Principal } from 'core';
 
 export type JsonPrimitive = CoreJsonPrimitive;
 export type JsonValue = CoreJsonValue;
@@ -215,6 +216,8 @@ export interface PluginHookContext {
   patientId?: string;
   sessionId?: string;
   userId?: string;
+  /** Trusted server-side caller context. Frontend plugins never construct it. */
+  principal?: Principal;
   form: JsonObject;
   data?: JsonObject;
   metadata?: JsonObject;

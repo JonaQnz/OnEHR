@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import type { FormLaunchRequest } from 'core';
-import { requireAuth } from '../middleware/auth';
+import { requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { launchForm } from '../services/formLaunchService';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requirePermission('form.execute'));
 
 router.post('/', asyncHandler(async (req, res) => {
-  const actor = { userId: req.auth?.id || 'anonymous', authMode: req.auth?.authMode || 'local' as const };
+  const actor: { userId: string; authMode: 'local' | 'hip' } = { userId: req.principal?.userId || 'anonymous', authMode: req.principal?.authSource === 'oidc' ? 'hip' : 'local' };
   res.status(201).json(await launchForm((req.body || {}) as FormLaunchRequest, actor));
 }));
 

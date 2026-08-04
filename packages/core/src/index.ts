@@ -6,3 +6,4 @@ export * from './form-session';
 export * from './form-launch';
 export * from './form-data';
 export * from './form-scripting';
+export * from './auth';

@@ -17,7 +17,7 @@ import {
   hydrateFormScriptConnectors,
   ScriptConnectorError,
 } from '../services/scriptConnectorRegistry';
-import { requireAuth } from '../middleware/auth';
+import { requirePermission } from '../middleware/auth';
 import {
   FormScriptAiError,
   formScriptAiRateLimiter,
@@ -25,6 +25,7 @@ import {
 } from '../scripting/formScriptAiService';
 
 const router = Router();
+router.use((req, res, next) => requirePermission(req.method === 'GET' ? 'form.execute' : 'form.design')(req, res, next));
 
 function assertScriptCompiles(result: FormScriptCompileResult): void {
   if (result.valid) return;
@@ -162,7 +163,7 @@ router.post('/:id/script/check', asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
-router.post('/:id/script/generate', requireAuth, asyncHandler(async (req, res) => {
+router.post('/:id/script/generate', asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
   if (typeof req.body?.source !== 'string') throw new HttpError(400, '"source" must be a string');
   if (typeof req.body?.instruction !== 'string') throw new HttpError(400, '"instruction" must be a string');
@@ -174,7 +175,7 @@ router.post('/:id/script/generate', requireAuth, asyncHandler(async (req, res) =
   const stored = await prisma.form.findUnique({ where: { id: formId } });
   if (!stored) throw new HttpError(404, 'Form not found');
 
-  const userId = req.auth?.id || 'anonymous';
+  const userId = req.principal?.userId || 'anonymous';
   const definition = prepareConnectors(
     migrateCanonicalFormToV1({ ...(stored.canonical_json as any), id: stored.id }, stored.id),
     allowedOperations,

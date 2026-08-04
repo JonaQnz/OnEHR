@@ -1,0 +1,57 @@
+services:
+  debug-ehrbase-db:
+    profiles: [debug-ehrbase]
+    image: ehrbase/ehrbase-v2-postgres:16.2
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      EHRBASE_USER_ADMIN: ehrbase
+      EHRBASE_PASSWORD_ADMIN: ehrbase
+      EHRBASE_USER: ehrbase_restricted
+      EHRBASE_PASSWORD: ehrbase_restricted
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes: [debug_ehrbase_data:/var/lib/postgresql/data]
+
+  debug-ehrbase:
+    profiles: [debug-ehrbase]
+    image: ehrbase/ehrbase:2.30.0
+    depends_on:
+      debug-ehrbase-db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://debug-ehrbase-db:5432/ehrbase
+      DB_USER_ADMIN: ehrbase
+      DB_PASS_ADMIN: ehrbase
+      DB_USER: ehrbase_restricted
+      DB_PASS: ehrbase_restricted
+      SECURITY_AUTHUSER: ehrbase-user
+      SECURITY_AUTHPASSWORD: SuperSecretPassword
+      SECURITY_AUTHADMINUSER: ehrbase-admin
+      SECURITY_AUTHADMINPASSWORD: EvenMoreSecretPassword
+    ports: ["8082:8080"]
+
+  debug-ehrbase-templates:
+    profiles: [debug-ehrbase]
+    image: curlimages/curl:8.10.1
+    depends_on: [debug-ehrbase]
+    volumes:
+      - ./debug/ehrbase/templates:/templates:ro
+      - ./debug/ehrbase/import-templates.sh:/import-templates.sh:ro
+    entrypoint: ["/bin/sh", "/import-templates.sh"]
+    restart: "no"
+
+  api:
+    profiles: [debug-ehrbase]
+    environment:
+      DEBUG_EHRBASE_URL: http://debug-ehrbase:8080
+      DEBUG_EHRBASE_ACTIVE: "true"
+    depends_on:
+      debug-ehrbase:
+        condition: service_started
+
+volumes:
+  debug_ehrbase_data:

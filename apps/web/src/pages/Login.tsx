@@ -23,40 +23,23 @@ export default function Login({ mode, onAuthenticated }: LoginProps) {
       const response = await fetch('http://localhost:3001/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
+        credentials: 'include',
         body: JSON.stringify({ username, password }),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'Login failed');
+      if (!response.ok) throw new Error('Invalid username or password');
       onAuthenticated();
     } catch (loginError: any) {
-      setError(loginError.message || 'Login failed');
+      setError('Invalid username or password');
     } finally {
       setBusy(false);
     }
   };
 
-  if (mode === 'hip') {
-    return (
-      <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-body)' }}>
-        <section className="card" style={{ width: 'min(420px, calc(100vw - 2rem))', padding: '2rem', textAlign: 'center' }}>
-          <h1 style={{ marginTop: 0 }}>Sign in</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Continue with your HIP account.</p>
-          {error && <p style={{ color: 'var(--danger-hover)' }}>{error}</p>}
-          <button className="btn" style={{ width: '100%', justifyContent: 'center' }} onClick={() => {
-            const returnTo = `${window.location.pathname}${window.location.search}`;
-            window.location.assign(`http://localhost:3001/api/auth/login/hip?returnTo=${encodeURIComponent(returnTo)}`);
-          }}>Continue to HIP</button>
-        </section>
-      </main>
-    );
-  }
-
   return (
     <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-body)' }}>
       <form className="card" style={{ width: 'min(420px, calc(100vw - 2rem))', padding: '2rem' }} onSubmit={submit}>
         <h1 style={{ marginTop: 0 }}>Sign in</h1>
-        <p style={{ color: 'var(--text-muted)' }}>Use your Forms Builder account.</p>
+        <p style={{ color: 'var(--text-muted)' }}>{mode === 'hip' ? 'Sign in with your HIP account. Forms verifies the credentials through the active HIP / Keycloak system plugin.' : 'Use your Forms Builder account.'}</p>
         {error && <p style={{ color: 'var(--danger-hover)' }}>{error}</p>}
         <label className="form-label" htmlFor="login-username">Username</label>
         <input id="login-username" className="form-input" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" required />

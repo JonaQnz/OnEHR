@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
-import { requireAuth } from '../middleware/auth';
+import { requirePermission } from '../middleware/auth';
 import { createFormSession, getFormSession, listFormSessions, loadFormSessionFromProvider, patchFormSession, submitFormSession, submitFormSessionToProvider, validateFormSession } from '../services/formSessionService';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requirePermission('form.execute'));
 
-function actor(req: Express.Request) {
-  return { userId: req.auth?.id || 'anonymous', authMode: req.auth?.authMode || 'local' as const };
+function actor(req: Express.Request): { userId: string; authMode: 'local' | 'hip' } {
+  return { userId: req.principal?.userId || 'anonymous', authMode: req.principal?.authSource === 'oidc' ? 'hip' : 'local' };
 }
 
 router.get('/', asyncHandler(async (req, res) => {

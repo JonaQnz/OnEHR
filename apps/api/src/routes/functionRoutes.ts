@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth';
+import { requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createAqlFunction, createCodeFunction, deleteAqlFunction, deleteCodeFunction, listAqlFunctions, listCodeFunctions, updateAqlFunction, updateCodeFunction } from '../services/aqlFunctionService';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requirePermission('form.design'));
 
 router.get('/aql', asyncHandler(async (_req, res) => res.json({ functions: await listAqlFunctions() })));
 router.post('/aql', asyncHandler(async (req, res) => res.status(201).json(await createAqlFunction(req.body))));

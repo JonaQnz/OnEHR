@@ -1,37 +1,33 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const {
-  createAnonymousContext,
-  isUserAuthConfigured,
-  loginLocal,
-  getUserAuthMode,
-} = require('../dist/services/userAuthService');
+const { permissionsForRoles, hasPermission, requirePermission, AuthorizationError } = require('../dist/services/authorizationService');
+const { getUserAuthMode, isUserAuthConfigured } = require('../dist/services/userAuthService');
 
-const localConfig = {
-  userAuthMode: 'local',
-  localUsername: 'alice',
-  localPassword: 'secret',
-  sessionCookieSecure: false,
-};
-
-test('local auth is configurable without adding a permissions engine', () => {
-  assert.equal(getUserAuthMode(localConfig), 'local');
-  assert.equal(isUserAuthConfigured(localConfig), true);
-  assert.equal(createAnonymousContext({ userAuthMode: 'local' }).id, 'anonymous');
+test('roles are permission bundles and ADMIN includes USER permissions', () => {
+  const user = permissionsForRoles(['USER']);
+  const admin = permissionsForRoles(['ADMIN']);
+  assert.ok(user.includes('form.execute'));
+  assert.ok(!user.includes('form.design'));
+  assert.ok(admin.includes('form.execute'));
+  assert.ok(admin.includes('form.design'));
+  assert.ok(admin.includes('user.manage'));
 });
 
-test('local login creates an HttpOnly session cookie', () => {
-  const result = loginLocal('alice', 'secret', localConfig);
-  assert.equal(result.context.id, 'alice');
-  assert.equal(result.context.authMode, 'local');
-  assert.match(result.cookie, /^forms_session=.+HttpOnly/);
+test('permission checks use only the normalized Principal', () => {
+  const principal = { userId: 'user-1', subject: 'alice', issuer: 'forms:local', authSource: 'local', roles: ['USER'], permissions: permissionsForRoles(['USER']) };
+  assert.equal(hasPermission(principal, 'patient.read'), true);
+  assert.throws(() => requirePermission(principal, 'system.configure'), (error) => error instanceof AuthorizationError && error.status === 403);
 });
 
-test('invalid local credentials are rejected', () => {
-  assert.throws(() => loginLocal('alice', 'wrong', localConfig), (error) => error.status === 401);
-});
-
-test('HIP mode is not considered configured until its basic OIDC settings exist', () => {
+test('HIP mode is configured exclusively through the active HIP / Keycloak connection plugin', () => {
+  assert.equal(getUserAuthMode({ userAuthMode: 'local' }), 'local');
   assert.equal(isUserAuthConfigured({ userAuthMode: 'hip' }), false);
-  assert.equal(isUserAuthConfigured({ userAuthMode: 'hip', hipClientId: 'forms', hipRedirectUri: 'http://localhost/callback', hipIssuerUrl: 'https://hip.example' }), true);
+  assert.equal(isUserAuthConfigured({ userAuthMode: 'hip', activeEhrbaseConnectionId: 'hip', ehrbaseConnections: [{ id: 'hip', name: 'HIP', url: 'https://ehr.example', authPlugin: 'hip-keycloak', keycloakBaseUrl: 'https://hip.example', keycloakRealm: 'forms', keycloakClientId: 'forms-ui' }] }), true);
+});
+
+test('development-only disabled authentication is never configured in production', () => {
+  const previous = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  try { assert.equal(isUserAuthConfigured({ userAuthMode: 'disabled-development-only' }), false); }
+  finally { if (previous === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previous; }
 });

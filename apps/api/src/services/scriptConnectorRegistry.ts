@@ -3,6 +3,7 @@ import type {
   FormScriptConnectorOperationDefinition,
   FormScriptJsonSchema,
 } from 'core';
+import type { Principal } from 'core';
 import {
   FORM_SCRIPTING_EXTENSION_KEY,
   getFormScriptConnectorConfiguration,
@@ -15,7 +16,8 @@ export interface ScriptConnectorContext {
   formId: string;
   form: FormDefinitionV1;
   userId: string;
-  authMode: UserAuthMode;
+  authMode: Exclude<UserAuthMode, 'disabled-development-only'>;
+  principal?: Principal;
   patientId?: string;
   ehrId?: string;
   encounterId?: string;

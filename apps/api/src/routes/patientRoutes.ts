@@ -1,17 +1,18 @@
 import { Router } from 'express';
 import { asyncHandler, HttpError } from '../middleware/errorHandler';
 import { createPatient, listPatients, getPatient } from '../services/patientService';
+import { requirePermission } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', asyncHandler(async (_req, res) => {
+router.get('/', requirePermission('patient.search'), asyncHandler(async (_req, res) => {
   const patients = await listPatients();
   res.json(patients);
 }));
 
 import { requireNonEmptyString } from '../validation/formValidation';
 
-router.get('/:id', asyncHandler(async (req, res) => {
+router.get('/:id', requirePermission('patient.read'), asyncHandler(async (req, res) => {
   const id = requireNonEmptyString(req.params.id, 'id');
   const patient = await getPatient(id);
   if (!patient) {
@@ -20,7 +21,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
   res.json(patient);
 }));
 
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', requirePermission('patient.search'), asyncHandler(async (req, res) => {
   const { patientId, firstName, lastName, birthDate, gender } = req.body;
   if (!patientId || !firstName || !lastName) {
     throw new HttpError(400, 'Missing required fields: patientId, firstName, lastName');

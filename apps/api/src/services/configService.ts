@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 
-export type UserAuthMode = 'local' | 'hip';
+/** `disabled-development-only` is intentionally explicit and is rejected in production. */
+export type UserAuthMode = 'local' | 'hip' | 'disabled-development-only';
 export type EhrbaseAuthPluginId = 'none' | 'basic' | 'hip-keycloak';
 
 /** A separately selectable openEHR endpoint. Secrets are persisted server-side
@@ -37,16 +38,12 @@ export interface AppConfig {
     mappingServiceApi?: string;
     pluginPackages?: string[];
     userAuthMode?: UserAuthMode;
+    sessionLifetimeMinutes?: number;
+    bootstrapAdminUsername?: string;
+    bootstrapAdminPassword?: string;
+    bootstrapAdminDisplayName?: string;
     localUsername?: string;
     localPassword?: string;
-    hipIssuerUrl?: string;
-    hipAuthorizationUrl?: string;
-    hipTokenUrl?: string;
-    hipUserInfoUrl?: string;
-    hipClientId?: string;
-    hipClientSecret?: string;
-    hipRedirectUri?: string;
-    hipScopes?: string;
     defaultEhrId?: string;
     sessionCookieSecure?: boolean;
     scriptAiBaseUrl?: string;
@@ -132,20 +129,32 @@ export function getEhrbaseConnections(): EhrbaseConnection[] {
   const saved = Array.isArray(persistedConfig.ehrbaseConnections)
     ? persistedConfig.ehrbaseConnections.map(normalizeConnection).filter((value): value is EhrbaseConnection => Boolean(value))
     : [];
-  return saved.length ? saved : [legacyConnection()];
+  const configured = saved.length ? saved : [legacyConnection()];
+  // Debug EHRbase is injected only while the explicit development profile is
+  // active. It is never written into the operator-managed config file.
+  const debugUrl = process.env.DEBUG_EHRBASE_URL?.trim().replace(/\/$/, '');
+  if (!debugUrl || configured.some((connection) => connection.id === 'debug-ehrbase')) return configured;
+  return [...configured, { id: 'debug-ehrbase', name: 'Lokale Debug-EHRbase', url: `${debugUrl}/ehrbase/rest/openehr/v1`, authPlugin: 'none', subjectNamespace: 'debug' }];
 }
 
 export function getActiveEhrbaseConnection(): EhrbaseConnection {
   const connections = getEhrbaseConnections();
+  if (process.env.DEBUG_EHRBASE_ACTIVE === 'true') {
+    const debug = connections.find((connection) => connection.id === 'debug-ehrbase');
+    if (debug) return debug;
+  }
   return connections.find((connection) => connection.id === persistedConfig.activeEhrbaseConnectionId) || connections[0];
 }
 
 function mergeMaskedConnections(updates: unknown): EhrbaseConnection[] | undefined {
   if (!Array.isArray(updates)) return undefined;
-  if (updates.length === 0 || updates.length > 2) throw new Error('Configure one or two EHRbase connections');
+  // The injected debug connection is runtime-only and must never consume one
+  // of the two persisted operator connection slots.
+  const persistedUpdates = updates.filter((entry) => (entry as Record<string, unknown>)?.id !== 'debug-ehrbase');
+  if (persistedUpdates.length === 0 || persistedUpdates.length > 2) throw new Error('Configure one or two EHRbase connections');
   const existing = new Map(getEhrbaseConnections().map((connection) => [connection.id, connection]));
   const ids = new Set<string>();
-  return updates.map((entry) => {
+  return persistedUpdates.map((entry) => {
     const normalized = normalizeConnection(entry);
     if (!normalized) throw new Error('Every EHRbase connection requires an id and URL');
     if (ids.has(normalized.id)) throw new Error('EHRbase connection IDs must be unique');
@@ -199,16 +208,14 @@ export function getConfig(): AppConfig {
         mappingServiceApi: resolve(persistedConfig.mappingServiceApi, process.env.MAPPING_SERVICE_API),
         pluginPackages: Array.isArray(persistedConfig.pluginPackages) ? persistedConfig.pluginPackages.filter((value): value is string => typeof value === 'string') : [],
         userAuthMode: resolve(persistedConfig.userAuthMode, process.env.USER_AUTH_MODE, 'local') as UserAuthMode,
+        sessionLifetimeMinutes: Number(resolve(persistedConfig.sessionLifetimeMinutes?.toString(), process.env.SESSION_LIFETIME_MINUTES, '480')) || 480,
+        // Legacy values are only used once by the bootstrap migration path; no
+        // local credential is ever read by request-time authentication.
         localUsername: resolve(persistedConfig.localUsername, process.env.LOCAL_AUTH_USERNAME),
         localPassword: resolve(undefined, process.env.LOCAL_AUTH_PASSWORD),
-        hipIssuerUrl: resolve(persistedConfig.hipIssuerUrl, process.env.HIP_ISSUER_URL),
-        hipAuthorizationUrl: resolve(persistedConfig.hipAuthorizationUrl, process.env.HIP_AUTHORIZATION_URL),
-        hipTokenUrl: resolve(persistedConfig.hipTokenUrl, process.env.HIP_TOKEN_URL),
-        hipUserInfoUrl: resolve(persistedConfig.hipUserInfoUrl, process.env.HIP_USERINFO_URL),
-        hipClientId: resolve(persistedConfig.hipClientId, process.env.HIP_CLIENT_ID),
-        hipClientSecret: resolve(undefined, process.env.HIP_CLIENT_SECRET),
-        hipRedirectUri: resolve(persistedConfig.hipRedirectUri, process.env.HIP_REDIRECT_URI, 'http://localhost:3001/api/auth/callback/hip'),
-        hipScopes: resolve(persistedConfig.hipScopes, process.env.HIP_SCOPES, 'openid profile email'),
+        bootstrapAdminUsername: resolve(undefined, process.env.FORMS_BOOTSTRAP_ADMIN_USERNAME),
+        bootstrapAdminPassword: resolve(undefined, process.env.FORMS_BOOTSTRAP_ADMIN_PASSWORD),
+        bootstrapAdminDisplayName: resolve(undefined, process.env.FORMS_BOOTSTRAP_ADMIN_DISPLAY_NAME),
         defaultEhrId: activeConnection.defaultEhrId,
         sessionCookieSecure: resolve(undefined, process.env.SESSION_COOKIE_SECURE, 'false') === 'true',
         scriptAiBaseUrl: resolve(persistedConfig.scriptAiBaseUrl, process.env.FORM_SCRIPT_AI_BASE_URL),
@@ -239,8 +246,16 @@ export function saveConfig(updates: AppConfig) {
     // Authentication secrets are supplied through the environment/secret store,
     // never persisted in the editable JSON configuration.
     delete (cleanUpdates as any).localPassword;
+    delete (cleanUpdates as any).hipIssuerUrl;
+    delete (cleanUpdates as any).hipAuthorizationUrl;
+    delete (cleanUpdates as any).hipTokenUrl;
+    delete (cleanUpdates as any).hipUserInfoUrl;
+    delete (cleanUpdates as any).hipClientId;
     delete (cleanUpdates as any).hipClientSecret;
+    delete (cleanUpdates as any).hipRedirectUri;
+    delete (cleanUpdates as any).hipScopes;
     delete (cleanUpdates as any).scriptAiApiKey;
+    delete (cleanUpdates as any).bootstrapAdminPassword;
 
     persistedConfig = { ...persistedConfig, ...cleanUpdates };
 
@@ -306,16 +321,9 @@ export function getSafeConfig(): Partial<AppConfig> {
         mappingServiceApi: full.mappingServiceApi || '',
         pluginPackages: full.pluginPackages || [],
         userAuthMode: full.userAuthMode || 'local',
+        sessionLifetimeMinutes: full.sessionLifetimeMinutes || 480,
         localUsername: full.localUsername || '',
         localPassword: full.localPassword ? '***' : '',
-        hipIssuerUrl: full.hipIssuerUrl || '',
-        hipAuthorizationUrl: full.hipAuthorizationUrl || '',
-        hipTokenUrl: full.hipTokenUrl || '',
-        hipUserInfoUrl: full.hipUserInfoUrl || '',
-        hipClientId: full.hipClientId || '',
-        hipClientSecret: full.hipClientSecret ? '***' : '',
-        hipRedirectUri: full.hipRedirectUri || '',
-        hipScopes: full.hipScopes || 'openid profile email',
         defaultEhrId: activeConnection.defaultEhrId || full.defaultEhrId || '',
         sessionCookieSecure: full.sessionCookieSecure || false,
         scriptAiBaseUrl: full.scriptAiBaseUrl || '',

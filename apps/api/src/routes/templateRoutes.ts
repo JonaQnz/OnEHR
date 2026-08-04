@@ -3,6 +3,7 @@ import { parseWebTemplate, isContextOrIgnoredNode } from '../parsers/webTemplate
 import prisma from '../db/prisma';
 import { listRemoteTemplates, getRemoteWebTemplate } from '../services/ehrbaseService';
 import { asyncHandler, HttpError } from '../middleware/errorHandler';
+import { requirePermission } from '../middleware/auth';
 
 const router = Router();
 
@@ -15,16 +16,16 @@ function getClinicalTemplateVersion(webTemplate: any): string {
   return versionedId?.[1] || '1.0.0';
 }
 
-router.get('/', asyncHandler(async (_req, res) => {
+router.get('/', requirePermission('form.execute'), asyncHandler(async (_req, res) => {
   const templates = await prisma.template.findMany();
   res.json(templates);
 }));
 
-router.get('/remote', asyncHandler(async (_req, res) => {
+router.get('/remote', requirePermission('form.design'), asyncHandler(async (_req, res) => {
   res.json(await listRemoteTemplates());
 }));
 
-router.post('/remote/:templateId/import', asyncHandler(async (req, res) => {
+router.post('/remote/:templateId/import', requirePermission('form.design'), asyncHandler(async (req, res) => {
   const templateId = typeof req.params.templateId === 'string' ? req.params.templateId : undefined;
   if (!templateId) throw new HttpError(400, 'templateId is required');
   const webTemplate = await getRemoteWebTemplate(templateId);
@@ -41,7 +42,7 @@ router.post('/remote/:templateId/import', asyncHandler(async (req, res) => {
   res.json({ message: 'Template imported from EHRbase', template });
 }));
 
-router.post('/import', asyncHandler(async (req, res) => {
+router.post('/import', requirePermission('form.design'), asyncHandler(async (req, res) => {
   const webTemplate = req.body;
   const parsed = parseWebTemplate(webTemplate);
   const template = await prisma.template.create({
@@ -56,7 +57,7 @@ router.post('/import', asyncHandler(async (req, res) => {
   res.json({ message: 'Template imported', template });
 }));
 
-router.get('/:id/fields', asyncHandler(async (req, res) => {
+router.get('/:id/fields', requirePermission('form.execute'), asyncHandler(async (req, res) => {
   const templateId = typeof req.params.id === 'string' ? req.params.id : undefined;
   if (!templateId) throw new HttpError(400, 'id is required');
   const template = await prisma.template.findUnique({ where: { id: templateId } });

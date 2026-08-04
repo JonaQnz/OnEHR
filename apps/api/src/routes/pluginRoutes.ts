@@ -3,7 +3,7 @@ import type { PluginActionContext } from 'plugin-api';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 import { getConfig, getPluginSettings, getSafePluginSettings, saveConfig, savePluginSettings } from '../services/configService';
 import { getPluginPackageStatuses, loadPluginPackage, unloadPluginPackage } from '../plugins/pluginRegistry';
-import { requireAuth } from '../middleware/auth';
+import { requirePermission } from '../middleware/auth';
 import prisma from '../db/prisma';
 import { asyncHandler } from '../middleware/errorHandler';
 
@@ -19,11 +19,13 @@ function declaredSettingsKeys(contribution: any): string[] | undefined {
   return Object.keys(properties);
 }
 
-router.get('/', (_req, res) => {
+// Runtime clients need the catalog to render declared form contributions, but
+// changing plugin packages remains an administrative operation.
+router.get('/', requirePermission('form.execute'), (_req, res) => {
   res.json({ ...pluginRegistry.snapshot(), packages: getPluginPackageStatuses() });
 });
 
-router.get('/settings/:pluginId', (req, res) => {
+router.get('/settings/:pluginId', requirePermission('plugin.configure'), (req, res) => {
   const pluginId = typeof req.params.pluginId === 'string' ? req.params.pluginId : '';
   const contribution = globalSettingsContribution(pluginId);
   if (!contribution) return res.status(404).json({ error: 'Global plugin settings are not declared' });
@@ -34,7 +36,7 @@ router.get('/settings/:pluginId', (req, res) => {
   });
 });
 
-router.post('/settings/:pluginId', (req, res) => {
+router.post('/settings/:pluginId', requirePermission('plugin.configure'), (req, res) => {
   const pluginId = typeof req.params.pluginId === 'string' ? req.params.pluginId : '';
   const contribution = globalSettingsContribution(pluginId);
   if (!contribution) return res.status(404).json({ error: 'Global plugin settings are not declared' });
@@ -50,7 +52,7 @@ router.post('/settings/:pluginId', (req, res) => {
   });
 });
 
-router.post('/actions/:pluginId/:actionId', requireAuth, asyncHandler(async (req, res) => {
+router.post('/actions/:pluginId/:actionId', requirePermission('form.execute'), asyncHandler(async (req, res) => {
   const pluginId = typeof req.params.pluginId === 'string' ? req.params.pluginId : '';
   const actionId = typeof req.params.actionId === 'string' ? req.params.actionId : '';
   console.log(`[PluginRoutes] POST /actions/${pluginId}/${actionId} received`);
@@ -66,14 +68,14 @@ router.post('/actions/:pluginId/:actionId', requireAuth, asyncHandler(async (req
     formId: typeof body.formId === 'string' ? body.formId : undefined,
     patientId: typeof body.patientId === 'string' ? body.patientId : undefined,
     sessionId: typeof body.sessionId === 'string' ? body.sessionId : undefined,
-    userId: req.auth?.id,
+    userId: req.principal?.userId,
+    principal: req.principal,
     form: body.form && typeof body.form === 'object' && !Array.isArray(body.form) ? body.form : {},
     data: body.data && typeof body.data === 'object' && !Array.isArray(body.data) ? body.data : {},
     metadata: {
       ...(body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {}),
-      authMode: req.auth?.authMode || 'local',
+      authSource: req.principal?.authSource || 'local',
       pluginSettings: getPluginSettings(contribution.pluginId),
-      authorization: req.headers.authorization,
     },
   };
   try {
@@ -100,7 +102,7 @@ router.post('/actions/:pluginId/:actionId', requireAuth, asyncHandler(async (req
   }
 }));
 
-router.post('/load', asyncHandler(async (req, res) => {
+router.post('/load', requirePermission('plugin.configure'), asyncHandler(async (req, res) => {
   const packageName = typeof req.body?.packageName === 'string' ? req.body.packageName.trim() : '';
   if (!packageName) return res.status(400).json({ error: 'packageName is required' });
 
@@ -115,7 +117,7 @@ router.post('/load', asyncHandler(async (req, res) => {
   }
 }));
 
-router.post('/unload', (req, res) => {
+router.post('/unload', requirePermission('plugin.configure'), (req, res) => {
   const packageName = typeof req.body?.packageName === 'string' ? req.body.packageName.trim() : '';
   if (!packageName) return res.status(400).json({ error: 'packageName is required' });
 

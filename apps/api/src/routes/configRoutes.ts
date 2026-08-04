@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { getSafeConfig, saveConfig } from '../services/configService';
-import { requireAuth } from '../middleware/auth';
+import { requirePermission } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', (req, res) => {
+router.get('/', requirePermission('system.configure'), (req, res) => {
   try {
     res.json(getSafeConfig());
   } catch (error: any) {
@@ -12,7 +12,7 @@ router.get('/', (req, res) => {
   }
 });
 
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requirePermission('system.configure'), (req, res) => {
   try {
     saveConfig(req.body);
     res.json({ message: 'Configuration saved successfully', config: getSafeConfig() });
