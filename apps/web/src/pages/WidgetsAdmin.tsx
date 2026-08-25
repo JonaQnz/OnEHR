@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Braces, Database, Plus, Save, Trash2 } from 'lucide-react';
+import { BarChart3, Braces, Database, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
+import type { CompositionDataBlock } from 'core';
+import { WidgetDataCard, type WidgetDataState } from '../components/WidgetDataCard';
 
 const API = 'http://localhost:3001/api';
 type Display = 'line' | 'area' | 'bar' | 'metric' | 'table' | 'text';
@@ -8,7 +10,22 @@ type Range = { min?: number; max?: number; criticalLow?: number; criticalHigh?: 
 type Widget = { id: string; name: string; description: string; aqlFunctionId: string; enabled: boolean; configuration: { display: Display; valueColumn?: string; labelColumn?: string; timeColumn?: string; limit?: number; referenceRange?: Range; packageName?: string } };
 type WidgetPackage = { id: string; label: string; available: boolean; widgets: Array<{ id: string; title: string; available: boolean; aqlFunction?: { packageName: string; name: string }; aqlFunctionId?: string; columns: { value: string; label?: string; time?: string }; chart: { type: string } }> };
 type Editable = Widget | Omit<Widget, 'id'>;
+type PatientOption = { id: string; patientId: string; patientNamespace?: string; namespace?: string; ehrId?: string | null; firstName?: string; lastName?: string };
 const empty = (): Omit<Widget, 'id'> => ({ name: 'Neues klinisches Widget', description: '', aqlFunctionId: '', enabled: true, configuration: { display: 'line', limit: 100 } });
+/** Maps a widget's display config to the shape WidgetDataCard (built for
+ * Composition data blocks) actually expects - same conversion
+ * CompositionBuilder.tsx already does when dropping a widget onto a page. */
+function toPreviewBlock(editor: Editable): CompositionDataBlock {
+  const display = editor.configuration.display === 'metric' ? 'metric' : editor.configuration.display === 'text' ? 'text' : editor.configuration.display === 'table' ? 'list' : 'trend';
+  return {
+    id: 'preview', type: 'data', title: editor.name || 'Vorschau',
+    ...('id' in editor ? { widgetId: editor.id } : {}),
+    display,
+    ...(['line', 'area', 'bar'].includes(editor.configuration.display) ? { chartType: editor.configuration.display as 'line' | 'area' | 'bar' } : {}),
+    valueColumn: editor.configuration.valueColumn, labelColumn: editor.configuration.labelColumn, timeColumn: editor.configuration.timeColumn,
+    referenceRange: editor.configuration.referenceRange, limit: editor.configuration.limit,
+  };
+}
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API}${path}`, { ...options, credentials: 'include', headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) } });
@@ -29,7 +46,12 @@ export default function WidgetsAdmin() {
   const [editor, setEditor] = useState<Editable>(empty());
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  
+  const [previewPatients, setPreviewPatients] = useState<PatientOption[]>([]);
+  const [previewPatientId, setPreviewPatientId] = useState('');
+  const [previewNamespace, setPreviewNamespace] = useState('');
+  const [previewEhrId, setPreviewEhrId] = useState('');
+  const [previewData, setPreviewData] = useState<WidgetDataState>({});
+
   const sanitizeName = (str: string, prefix: string) => {
     let sanitized = (str || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     if (!sanitized || !/^[a-z]/.test(sanitized)) sanitized = `${prefix}-${sanitized || 'widget'}`;
@@ -53,6 +75,40 @@ export default function WidgetsAdmin() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Widgets konnten nicht geladen werden.'); }
   };
   useEffect(() => { void load(); }, []);
+  // Preview context: pull the registered patients plus the operator's
+  // configured "always test against this patient" EHR-ID (Settings ->
+  // EHRbase connection -> Default EHR-ID), then default the picker to
+  // whichever patient actually has that EHR-ID - so a widget author sees
+  // real data immediately without hunting for the right patient first.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [patients, defaults] = await Promise.all([
+          request<PatientOption[]>('/patients'),
+          request<{ defaultEhrId: string }>('/widgets/preview-defaults'),
+        ]);
+        setPreviewPatients(Array.isArray(patients) ? patients : []);
+        const defaultEhrId = defaults.defaultEhrId?.trim();
+        const matched = defaultEhrId ? patients.find((item) => item.ehrId === defaultEhrId) : undefined;
+        if (matched) {
+          setPreviewPatientId(matched.patientId); setPreviewNamespace(matched.patientNamespace || matched.namespace || ''); setPreviewEhrId(matched.ehrId || '');
+        } else if (defaultEhrId) {
+          setPreviewEhrId(defaultEhrId);
+        }
+      } catch { /* Preview context is a convenience, not required to use the rest of the page. */ }
+    })();
+  }, []);
+  const runPreview = async (widgetId: string) => {
+    if (!previewPatientId.trim()) { setPreviewData({ error: 'Bitte einen Patienten wählen oder eine Patient-ID eingeben.' }); return; }
+    setPreviewData({ loading: true });
+    try {
+      const result = await request<{ rows: Record<string, unknown>[] }>(`/widgets/${encodeURIComponent(widgetId)}/query`, {
+        method: 'POST',
+        body: JSON.stringify({ patientId: previewPatientId.trim(), ...(previewNamespace.trim() ? { patientNamespace: previewNamespace.trim() } : {}), ...(previewEhrId.trim() ? { ehrId: previewEhrId.trim() } : {}) }),
+      });
+      setPreviewData({ rows: result.rows });
+    } catch (reason) { setPreviewData({ error: reason instanceof Error ? reason.message : 'Vorschau fehlgeschlagen.' }); }
+  };
   const selectedAql = useMemo(() => aql.find((item) => item.id === editor.aqlFunctionId), [aql, editor.aqlFunctionId]);
   const columns = useMemo(() => aliases(selectedAql?.query), [selectedAql?.query]);
   const patch = (next: Partial<Widget>) => setEditor((current) => ({ ...current, ...next }));
@@ -78,7 +134,7 @@ export default function WidgetsAdmin() {
   };
   const remove = async () => {
     if (!('id' in editor)) return;
-    try { await request(`/widgets/${editor.id}`, { method: 'DELETE' }); await load(); setEditor(empty()); setNotice('Widget gelöscht.'); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Löschen fehlgeschlagen.'); }
+    try { await request(`/widgets/${editor.id}`, { method: 'DELETE' }); await load(); setEditor(empty()); setPreviewData({}); setNotice('Widget gelöscht.'); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Löschen fehlgeschlagen.'); }
   };
   const selectColumn = (value: string | undefined, set: (next: string | undefined) => void, label: string) => <label className="form-label">{label}<select className="form-input" value={value || ''} onChange={(event) => set(event.target.value || undefined)}><option value="">Nicht verwendet</option>{columns.map((column) => <option key={column} value={column}>{column}</option>)}</select></label>;
 
@@ -116,11 +172,11 @@ export default function WidgetsAdmin() {
             <div key={pkg} style={{ padding: '.55rem', borderRadius: 6, background: '#f1f5f9', marginBottom: '.45rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.35rem' }}>
                 <strong style={{ fontSize: '.84rem', color: '#334155' }}>{pkg}</strong>
-                <button className="btn btn-secondary" style={{ padding: '.1rem .3rem' }} title="Widget hinzufügen" onClick={() => { setEditor({ ...empty(), configuration: { ...empty().configuration, packageName: pkg } }); setError(''); }}><Plus size={14} /></button>
+                <button className="btn btn-secondary" style={{ padding: '.1rem .3rem' }} title="Widget hinzufügen" onClick={() => { setEditor({ ...empty(), configuration: { ...empty().configuration, packageName: pkg } }); setError(''); setPreviewData({}); }}><Plus size={14} /></button>
               </div>
               {widgets.filter(w => (w.configuration.packageName || 'Konfigurierte Widgets') === pkg).length === 0 && <small style={{ color: 'var(--text-muted)' }}>Leer</small>}
               {widgets.filter(w => (w.configuration.packageName || 'Konfigurierte Widgets') === pkg).map(widget => (
-                <button key={widget.id} onClick={() => { setEditor(widget); setError(''); }} style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, borderRadius: 4, background: 'transparent', padding: '.35rem', cursor: 'pointer', outline: 'none' }}>
+                <button key={widget.id} onClick={() => { setEditor(widget); setError(''); setPreviewData({}); }} style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, borderRadius: 4, background: 'transparent', padding: '.35rem', cursor: 'pointer', outline: 'none' }}>
                   <div style={{ fontSize: '.82rem', fontWeight: 500 }}>{widget.name}</div>
                   <small style={{ color: 'var(--text-muted)' }}>{widget.configuration.display} · {widget.enabled ? 'aktiv' : 'inaktiv'}</small>
                 </button>
@@ -158,6 +214,31 @@ export default function WidgetsAdmin() {
         <div style={{ display: 'flex', gap: '.6rem', marginTop: '1rem' }}><button className="btn btn-secondary" disabled={!('id' in editor)} onClick={() => void remove()}><Trash2 size={15} /> Löschen</button><button className="btn" onClick={() => void save()}><Save size={15} /> Speichern</button></div>
       </main>
       <aside style={{ padding: '1rem', borderLeft: '1px solid var(--border)', overflow: 'auto' }}><div style={{ fontSize: '.72rem', fontWeight: 800, letterSpacing: '.08em', color: 'var(--text-muted)', marginBottom: '.65rem' }}>WIDGET-SUMMARY</div><strong>{editor.name || 'Unbenannt'}</strong><p style={{ color: 'var(--text-muted)', fontSize: '.84rem', lineHeight: 1.45 }}>{editor.description || 'Keine Beschreibung.'}</p><dl style={{ margin: 0, display: 'grid', gap: '.6rem', fontSize: '.82rem' }}><div><dt style={{ color: 'var(--text-muted)' }}>AQL</dt><dd style={{ margin: '.15rem 0 0' }}>{selectedAql ? `${selectedAql.packageName}.${selectedAql.name}` : 'nicht gewählt'}</dd></div><div><dt style={{ color: 'var(--text-muted)' }}>Mapping</dt><dd style={{ margin: '.15rem 0 0' }}>Wert: <code>{editor.configuration.valueColumn || '—'}</code><br />Zeit: <code>{editor.configuration.timeColumn || '—'}</code><br />Label: <code>{editor.configuration.labelColumn || '—'}</code></dd></div><div><dt style={{ color: 'var(--text-muted)' }}>Runtime</dt><dd style={{ margin: '.15rem 0 0' }}>Patient und EHR-ID sind verpflichtend. Die AQL läuft ausschließlich serverseitig.</dd></div></dl></aside>
+    </div>
+    <div className="card" style={{ marginTop: '1rem', padding: '1.15rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.8rem' }}><BarChart3 size={17} color="var(--primary)" /><strong>Vorschau</strong><span style={{ color: 'var(--text-muted)', fontSize: '.8rem' }}>Führt die AQL live gegen einen echten Patienten aus.</span></div>
+      {!('id' in editor) ? (
+        <p style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>Speichere das Widget zuerst, um eine Vorschau mit echten Daten zu sehen.</p>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '.6rem', alignItems: 'end', marginBottom: '.9rem' }}>
+            <label className="form-label">Test-Patient
+              <select className="form-input" value={previewPatients.find((item) => item.patientId === previewPatientId)?.id || ''} onChange={(event) => {
+                const selected = previewPatients.find((item) => item.id === event.target.value);
+                if (selected) { setPreviewPatientId(selected.patientId); setPreviewNamespace(selected.patientNamespace || selected.namespace || ''); setPreviewEhrId(selected.ehrId || ''); }
+              }}>
+                <option value="">Patient wählen…</option>
+                {previewPatients.map((item) => <option key={item.id} value={item.id}>{[item.lastName, item.firstName].filter(Boolean).join(', ') || item.patientId} · {item.patientId}</option>)}
+              </select>
+              <input className="form-input" style={{ marginTop: '.35rem' }} value={previewPatientId} onChange={(event) => setPreviewPatientId(event.target.value)} placeholder="oder Patient-ID manuell" />
+            </label>
+            <label className="form-label">Namespace<input className="form-input" value={previewNamespace} onChange={(event) => setPreviewNamespace(event.target.value)} /></label>
+            <label className="form-label">EHR-ID (Override)<input className="form-input" value={previewEhrId} onChange={(event) => setPreviewEhrId(event.target.value)} placeholder="nur falls kein lokaler Patient" /></label>
+            <button className="btn" onClick={() => void runPreview(editor.id)} disabled={previewData.loading}><RefreshCw size={15} /> {previewData.loading ? 'Lädt…' : 'Vorschau laden'}</button>
+          </div>
+          {(previewData.rows || previewData.error || previewData.loading) && <WidgetDataCard block={toPreviewBlock(editor)} state={previewData} />}
+        </>
+      )}
     </div>
   </div>;
 }
