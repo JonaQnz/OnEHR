@@ -41,7 +41,30 @@ export async function getCurrentAuthContext(req: Request): Promise<AuthContext |
   return { principal, sessionId: session.id };
 }
 
-export async function ensureBootstrapAdmin(): Promise<void> { const config = getConfig(); const username = config.bootstrapAdminUsername || config.localUsername; const password = config.bootstrapAdminPassword || config.localPassword; if (!username || !password) return; if (password.length < 12 && process.env.NODE_ENV === 'production') throw new UserAuthError(400, 'A production bootstrap administrator password must contain at least 12 characters'); const admins = await prisma.roleAssignment.count({ where: { role: 'ADMIN' } }); if (admins > 0) return; await createLocalUser({ username, password, displayName: config.bootstrapAdminDisplayName || username, roles: ['ADMIN'], allowWeakBootstrapPassword: password.length < 12 }); console.info('[AUTH] Bootstrap administrator created from explicit environment configuration'); }
+export interface BootstrapAdminInput { username: string; password: string; displayName: string; email?: string; allowWeakPassword: boolean; }
+
+/** Pure decision of whether/how to bootstrap an admin from config, split out
+ * of `ensureBootstrapAdmin` so it's unit-testable without a database: `null`
+ * means "nothing configured, do nothing"; otherwise the normalized input to
+ * create the account with, or a thrown UserAuthError for a production policy
+ * violation. Does not know whether an admin already exists - that DB check
+ * stays in `ensureBootstrapAdmin`. */
+export function resolveBootstrapAdminInput(config: AppConfig, isProduction: boolean): BootstrapAdminInput | null {
+  const username = config.bootstrapAdminUsername || config.localUsername;
+  const password = config.bootstrapAdminPassword || config.localPassword;
+  if (!username || !password) return null;
+  if (password.length < 12 && isProduction) throw new UserAuthError(400, 'A production bootstrap administrator password must contain at least 12 characters');
+  return { username, password, displayName: config.bootstrapAdminDisplayName || username, ...(config.bootstrapAdminEmail ? { email: config.bootstrapAdminEmail } : {}), allowWeakPassword: password.length < 12 };
+}
+
+export async function ensureBootstrapAdmin(): Promise<void> {
+  const input = resolveBootstrapAdminInput(getConfig(), process.env.NODE_ENV === 'production');
+  if (!input) return;
+  const admins = await prisma.roleAssignment.count({ where: { role: 'ADMIN' } });
+  if (admins > 0) return;
+  await createLocalUser({ username: input.username, password: input.password, displayName: input.displayName, ...(input.email ? { email: input.email } : {}), roles: ['ADMIN'], allowWeakBootstrapPassword: input.allowWeakPassword });
+  console.info('[AUTH] Bootstrap administrator created from explicit environment configuration');
+}
 
 export async function loginLocal(username: string, password: string): Promise<{ context: AuthContext; cookie: string }> { if (getUserAuthMode() !== 'local') throw new UserAuthError(400, 'Local login is disabled'); const principal = await verifyLocalPassword(username, password); if (!principal) { await writeAuditEvent({ action: 'auth.login.failed', resourceType: 'auth', metadata: { source: 'local' } }); throw new UserAuthError(401, 'Invalid username or password'); } const session = await createSession(principal); await writeAuditEvent({ actorUserId: principal.userId, action: 'auth.login.success', resourceType: 'session', resourceId: session.context.sessionId, metadata: { source: 'local' } }); return session; }
 

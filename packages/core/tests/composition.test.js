@@ -1,0 +1,130 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const {
+  COMPOSITION_SCHEMA_VERSION,
+  createEmptyCompositionScript,
+  generateCompositionScriptTypes,
+  insertCompositionBlock,
+  moveCompositionBlock,
+  normalizeCompositionDefinition,
+  summarizeCompositionSession,
+} = require('../dist');
+
+test('normalizes a multi-page composition with forms and EHRbase data blocks', () => {
+  const composition = normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [
+      { id: 'overview', title: 'Übersicht', blocks: [
+        { id: 'person', type: 'form', formId: 'person-form', mode: 'edit', load: 'provider', hiddenFieldIds: ['internal-note'] },
+        { id: 'labs', type: 'data', title: 'Letzte Laborwerte', aqlFunctionId: 'lab-query', display: 'trend', valueColumn: 'value', timeColumn: 'time', limit: 12 },
+      ] },
+      { id: 'notes', title: 'Notizen', blocks: [{ id: 'note', type: 'text', content: 'Bitte Befund prüfen.' }] },
+    ],
+  });
+  assert.equal(composition.pages.length, 2);
+  assert.equal(composition.pages[0].blocks[0].type, 'form');
+  assert.deepEqual(composition.pages[0].blocks[0].hiddenFieldIds, ['internal-note']);
+});
+
+test('persists explicitly enabled widget packages and preserves their named mappings', () => {
+  const composition = normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    widgetPackageIds: ['org.vita.labs:results'],
+    pages: [{ id: 'overview', title: 'Overview', blocks: [{
+      id: 'potassium-trend', type: 'data', title: 'Potassium',
+      widgetPackageId: 'org.vita.labs:results', aqlFunctionId: 'aql-potassium',
+      display: 'trend', valueColumn: 'value', timeColumn: 'sampled_at',
+    }] }],
+  });
+  assert.deepEqual(composition.widgetPackageIds, ['org.vita.labs:results']);
+  assert.equal(composition.pages[0].blocks[0].widgetPackageId, 'org.vita.labs:results');
+  assert.equal(composition.pages[0].blocks[0].valueColumn, 'value');
+});
+
+test('rejects invalid data displays and duplicate ids', () => {
+  assert.throws(() => normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'page', title: 'One', blocks: [{ id: 'page', type: 'data', title: 'x', aqlFunctionId: 'aql', display: 'pie' }] }],
+  }), /duplicated|invalid display/i);
+});
+
+test('moves composition blocks transactionally without duplicates or mutation', () => {
+  const definition = {
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [
+      { id: 'one', title: 'One', blocks: [
+        { id: 'a', type: 'text', content: 'A' },
+        { id: 'b', type: 'text', content: 'B' },
+        { id: 'c', type: 'text', content: 'C' },
+      ] },
+      { id: 'two', title: 'Two', blocks: [] },
+    ],
+  };
+  const moved = moveCompositionBlock(definition, { sourcePageId: 'one', blockId: 'a', targetPageId: 'one', targetIndex: 3 });
+  assert.deepEqual(moved.pages[0].blocks.map((block) => block.id), ['b', 'c', 'a']);
+  assert.deepEqual(definition.pages[0].blocks.map((block) => block.id), ['a', 'b', 'c']);
+
+  const transferred = moveCompositionBlock(moved, { sourcePageId: 'one', blockId: 'c', targetPageId: 'two', targetIndex: 0 });
+  assert.deepEqual(transferred.pages[0].blocks.map((block) => block.id), ['b', 'a']);
+  assert.deepEqual(transferred.pages[1].blocks.map((block) => block.id), ['c']);
+});
+
+test('inserts a composition block at a clamped target index', () => {
+  const definition = { schemaVersion: COMPOSITION_SCHEMA_VERSION, pages: [{ id: 'one', title: 'One', blocks: [] }] };
+  const result = insertCompositionBlock(definition, 'one', { id: 'notice', type: 'text', content: 'Hi' }, 99);
+  assert.deepEqual(result.pages[0].blocks.map((block) => block.id), ['notice']);
+  assert.deepEqual(result.pages[0].layout.map((entry) => entry.blockId), ['notice']);
+});
+
+test('migrates legacy flat blocks into persisted layout slots', () => {
+  const composition = normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'legacy', title: 'Legacy', blocks: [{ id: 'note', type: 'text', content: 'Kept' }] }],
+  });
+  assert.deepEqual(composition.pages[0].layout, [{ id: 'layout/legacy/note', element: 'block', blockId: 'note' }]);
+});
+
+test('keeps nested Form-Builder primitives and requires every clinical block exactly once', () => {
+  const composition = normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{
+      id: 'layout-page', title: 'Layout', blocks: [{ id: 'person', type: 'form', formId: 'person-form' }],
+      layout: [
+        { id: 'columns', element: 'TwoColumnRow' },
+        { id: 'caption', element: 'Header', label: 'Aufnahme', parentId: 'columns', column: 1 },
+        { id: 'person-slot', element: 'block', blockId: 'person', parentId: 'columns', column: 2 },
+      ],
+    }],
+  });
+  assert.equal(composition.pages[0].layout[1].parentId, 'columns');
+  assert.throws(() => normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'missing', title: 'Missing', blocks: [{ id: 'person', type: 'form', formId: 'person-form' }], layout: [] }],
+  }), /missing from page/i);
+});
+
+test('derives the central Composition status from child form sessions', () => {
+  assert.deepEqual(summarizeCompositionSession([]), {
+    progress: { total: 0, started: 0, ready: 0, submitted: 0 }, status: 'draft',
+  });
+  assert.equal(summarizeCompositionSession([{ status: 'draft' }, { status: 'ready' }]).status, 'in_progress');
+  assert.equal(summarizeCompositionSession([{ status: 'ready' }, { status: 'submitted' }]).status, 'ready');
+  assert.equal(summarizeCompositionSession([{ status: 'submitted' }, { status: 'submitted' }]).status, 'submitted');
+  assert.equal(summarizeCompositionSession([{ status: 'failed' }, { status: 'ready' }]).status, 'failed');
+});
+
+test('composition scripts expose pages and blocks but never embedded form fields', () => {
+  const definition = normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'overview', title: 'Overview', blocks: [
+      { id: 'person-form', type: 'form', formId: 'person' },
+      { id: 'labs', type: 'data', title: 'Labs', aqlFunctionId: 'labs', display: 'trend' },
+    ] }],
+  });
+  const generated = generateCompositionScriptTypes(definition);
+  assert.match(generated, /"overview"/);
+  assert.match(generated, /"person-form"/);
+  assert.match(generated, /"labs"/);
+  assert.doesNotMatch(generated, /setValue|form\.field/);
+  assert.equal(createEmptyCompositionScript(definition).source.includes('defineCompositionScript'), true);
+});

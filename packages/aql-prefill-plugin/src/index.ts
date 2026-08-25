@@ -105,19 +105,11 @@ export const plugin: FormBuilderPlugin = {
       const env = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env || {};
       const pluginSettings = actionContext.metadata?.pluginSettings as Record<string, unknown> | undefined;
 
-      const loadHostService = (serviceName: string) => {
-        try {
-          const req = eval('require');
-          try { return req(`../../apps/api/dist/services/${serviceName}`); } catch (_e) {}
-          try { return req(`../../../apps/api/dist/services/${serviceName}`); } catch (_e) {}
-          try { return req(`../apps/api/dist/services/${serviceName}`); } catch (_e) {}
-        } catch (_e) {}
-        return undefined;
-      };
-
-      const configService = loadHostService('configService');
-      const cfg = configService?.getConfig?.();
-      const configuredUrl = cfg?.ehrbaseUrl;
+      // The host (apps/api) resolves the active EHRbase connection's URL and
+      // Authorization header before invoking this action - see pluginRoutes.ts
+      // and scriptConnectorRegistry.ts - so this plugin never needs its own
+      // copy of connection-plugin/credential logic.
+      const configuredUrl = typeof actionContext.metadata?.ehrbaseUrl === 'string' ? actionContext.metadata.ehrbaseUrl : undefined;
 
       const ehrbaseUrl =
         (typeof pluginSettings?.ehrbaseUrl === 'string' ? pluginSettings.ehrbaseUrl : undefined) ||
@@ -134,22 +126,6 @@ export const plugin: FormBuilderPlugin = {
         customHeaders['Authorization'] = `Bearer ${actionContext.metadata.authToken}`;
       } else if (actionContext.metadata?.bearerToken) {
         customHeaders['Authorization'] = `Bearer ${actionContext.metadata.bearerToken}`;
-      }
-
-      // Auto-fetch valid token if running in backend server environment without Authorization header
-      if (!customHeaders['Authorization']) {
-        const authService = loadHostService('authService');
-        if (cfg?.authMode === 'keycloak' && authService?.getValidToken) {
-          try {
-            const token = await authService.getValidToken();
-            if (token) customHeaders['Authorization'] = `Bearer ${token}`;
-          } catch (err) {
-            console.warn('⚠️ [AQL Plugin] getValidToken failed:', err instanceof Error ? err.message : String(err));
-          }
-        } else if (cfg?.ehrbaseUser && cfg?.ehrbasePass) {
-          const credentials = Buffer.from(`${cfg.ehrbaseUser}:${cfg.ehrbasePass}`).toString('base64');
-          customHeaders['Authorization'] = `Basic ${credentials}`;
-        }
       }
 
       console.log('🚀 [AQL Plugin] Executing AQL query:', {

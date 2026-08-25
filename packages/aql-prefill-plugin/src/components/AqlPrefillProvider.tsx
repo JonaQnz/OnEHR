@@ -64,7 +64,7 @@ export function AqlPrefillProvider({
     patientId: patientId || ehrId || '',
     ehrId: ehrId || patientId || '',
     encounterId: encounterId || '',
-    templateId: definition?.templateId || definition?.template_id || definition?.webTemplate?.templateId,
+    templateId: definition?.templateId || definition?.template_id || definition?.webTemplate?.templateId || definition?.sourceTemplates?.[0]?.id,
     formValues: values,
     formFields: (definition?.layout ? collectFields(definition.layout) : []).map((f: any) => ({
       id: f.id,

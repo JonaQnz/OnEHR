@@ -77,19 +77,19 @@ function isPropertyName(node: ts.Identifier): boolean {
     || (ts.isPropertyDeclaration(parent) && parent.name === node);
 }
 
-function securityDiagnostics(source: string): FormScriptDiagnostic[] {
+function securityDiagnostics(source: string, allowedModule: string, subject: string): FormScriptDiagnostic[] {
   const file = ts.createSourceFile(SCRIPT_FILE, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
   const diagnostics: FormScriptDiagnostic[] = [];
 
   const visit = (node: ts.Node): void => {
     if (ts.isImportDeclaration(node)) {
       const moduleName = ts.isStringLiteral(node.moduleSpecifier) ? node.moduleSpecifier.text : '';
-      if (moduleName !== ALLOWED_MODULE) {
+      if (moduleName !== allowedModule) {
         diagnostics.push(securityDiagnostic(
           file,
           node,
           'SCRIPT_IMPORT_NOT_ALLOWED',
-          `Importe aus "${moduleName || 'unbekannt'}" sind im Form Script nicht erlaubt.`,
+          `Importe aus "${moduleName || 'unbekannt'}" sind im ${subject} nicht erlaubt.`,
         ));
       }
     }
@@ -99,7 +99,7 @@ function securityDiagnostics(source: string): FormScriptDiagnostic[] {
         file,
         node,
         'SCRIPT_DYNAMIC_IMPORT',
-        'Dynamische Imports sind im Form Script nicht erlaubt.',
+        `Dynamische Imports sind im ${subject} nicht erlaubt.`,
       ));
     }
 
@@ -108,7 +108,7 @@ function securityDiagnostics(source: string): FormScriptDiagnostic[] {
         file,
         node,
         'SCRIPT_FORBIDDEN_GLOBAL',
-        `"${node.text}" ist in der isolierten Form Runtime nicht verfügbar.`,
+        `"${node.text}" ist in der isolierten ${subject}-Runtime nicht verfügbar.`,
       ));
     }
 
@@ -153,7 +153,7 @@ function typeScriptDiagnostics(source: string, generatedTypes: string): FormScri
     .map(compilerDiagnostic);
 }
 
-function emitJavaScript(source: string): string {
+function emitJavaScript(source: string, allowedModule: string): string {
   const result = ts.transpileModule(source, {
     fileName: SCRIPT_FILE,
     compilerOptions: {
@@ -165,27 +165,31 @@ function emitJavaScript(source: string): string {
     },
   });
 
-  return result.outputText.replace(
-    /^\s*import\s+\{[^}]*\}\s+from\s+["']@formbuilder\/runtime["'];?\s*$/gm,
-    '',
-  );
+  const escapedModule = allowedModule.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return result.outputText.replace(new RegExp(
+    `^\\s*import\\s+\\{[^}]*\\}\\s+from\\s+["']${escapedModule}["'];?\\s*$`,
+    'gm',
+  ), '');
 }
 
-export function compileFormScript(
-  form: Pick<FormDefinitionV1, 'layout'>,
-  source: string,
-): FormScriptCompileResult {
-  const generatedTypes = generateFormScriptTypes(form);
+export interface IsolatedScriptCompileOptions {
+  allowedModule: string;
+  generatedTypes: string;
+  subject: string;
+}
+
+/** Shared compiler for document-specific, browser-isolated scripting APIs. */
+export function compileIsolatedScript(source: string, options: IsolatedScriptCompileOptions): FormScriptCompileResult {
   const diagnostics: FormScriptDiagnostic[] = [];
   if (source.length > MAX_SCRIPT_LENGTH) {
     diagnostics.push({
       code: 'SCRIPT_TOO_LARGE',
       severity: 'error',
-      message: `Das Form Script darf höchstens ${MAX_SCRIPT_LENGTH} Zeichen enthalten.`,
+      message: `Das ${options.subject} darf höchstens ${MAX_SCRIPT_LENGTH} Zeichen enthalten.`,
     });
   } else {
-    diagnostics.push(...securityDiagnostics(source));
-    diagnostics.push(...typeScriptDiagnostics(source, generatedTypes));
+    diagnostics.push(...securityDiagnostics(source, options.allowedModule, options.subject));
+    diagnostics.push(...typeScriptDiagnostics(source, options.generatedTypes));
   }
 
   const uniqueDiagnostics = diagnostics.filter((item, index, all) => (
@@ -203,12 +207,23 @@ export function compileFormScript(
     document: {
       language: 'typescript',
       source,
-      compiled: valid ? emitJavaScript(source) : '',
-      generatedTypes,
+      compiled: valid ? emitJavaScript(source, options.allowedModule) : '',
+      generatedTypes: options.generatedTypes,
       diagnostics: uniqueDiagnostics,
       ...(valid ? { compiledAt: new Date().toISOString() } : {}),
     },
   };
+}
+
+export function compileFormScript(
+  form: Pick<FormDefinitionV1, 'layout'>,
+  source: string,
+): FormScriptCompileResult {
+  return compileIsolatedScript(source, {
+    allowedModule: ALLOWED_MODULE,
+    generatedTypes: generateFormScriptTypes(form),
+    subject: 'Form Script',
+  });
 }
 
 export function compileFormDefinitionScript(form: FormDefinitionV1): FormScriptCompileResult {

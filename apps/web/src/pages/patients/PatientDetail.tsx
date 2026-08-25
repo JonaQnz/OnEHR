@@ -46,10 +46,25 @@ interface StoredForm {
   canonical_json?: {
     layout?: FormLayoutElement;
     sourceTemplates?: Array<{ id?: string }>;
+    extensions?: Record<string, unknown>;
   };
 }
 
 type SessionStatus = 'draft' | 'in_progress' | 'ready' | 'submitted' | 'failed' | 'cancelled';
+
+interface CompositionSessionRecord {
+  id: string;
+  compositionFormId: string;
+  compositionVersion: string;
+  patientId: string;
+  patientNamespace?: string;
+  ehrId?: string;
+  mode: FormRuntimeMode;
+  status: SessionStatus;
+  progress: { total: number; started: number; ready: number; submitted: number };
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface FormSessionRecord {
   id: string;
@@ -72,13 +87,14 @@ interface FieldDescriptor {
   options: Map<string, string>;
 }
 
-type PatientTab = 'documents' | 'overview' | 'data' | 'versions' | 'kis';
+type PatientTab = 'documents' | 'overview' | 'data' | 'versions' | 'kis' | 'clinicalCompositions';
 
 const TABS: Array<{ id: PatientTab; label: string }> = [
   { id: 'documents', label: 'Formulare und Dokumente' },
   { id: 'overview', label: 'Übersicht' },
   { id: 'data', label: 'Daten' },
   { id: 'versions', label: 'Versionen' },
+  { id: 'clinicalCompositions', label: 'Klinische Compositions' },
   { id: 'kis', label: 'KIS-Arbeitsplatz' },
 ];
 
@@ -139,6 +155,25 @@ function formatDateTime(value?: string): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value));
+}
+
+function isCompositionForm(form: StoredForm): boolean {
+  return Boolean(form.canonical_json?.extensions?.['watehr.composition']);
+}
+
+function patientFormUrl(form: StoredForm, patient: PatientRecord, returnUrl: string): string {
+  const parameters = new URLSearchParams({
+    patientId: patient.patientId,
+    forceNew: 'true',
+    returnUrl,
+  });
+  if (patient.namespace) parameters.set('patientNamespace', patient.namespace);
+  if (patient.ehrId) parameters.set('ehrId', patient.ehrId);
+
+  if (isCompositionForm(form)) {
+    return `/compositions/${form.id}?${parameters.toString()}`;
+  }
+  return `/live/${form.parent_id || form.id}?${parameters.toString()}`;
 }
 
 function collectFieldDescriptors(
@@ -213,6 +248,8 @@ export default function PatientDetail() {
   const [patient, setPatient] = useState<PatientRecord | null>(null);
   const [forms, setForms] = useState<StoredForm[]>([]);
   const [sessions, setSessions] = useState<FormSessionRecord[]>([]);
+  const [compositionSessions, setCompositionSessions] = useState<CompositionSessionRecord[]>([]);
+  const [clinicalCompositions, setClinicalCompositions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showFormModal, setShowFormModal] = useState(false);
@@ -234,16 +271,26 @@ export default function PatientDetail() {
           `/patients/${encodeURIComponent(id)}`,
           controller.signal,
         );
-        const [formData, sessionData] = await Promise.all([
+        const [formData, sessionData, compSessionData, compSessionData2] = await Promise.all([
           request<StoredForm[]>('/forms', controller.signal),
           request<FormSessionRecord[]>(
             `/form-sessions?patientId=${encodeURIComponent(patientData.patientId)}`,
+            controller.signal,
+          ),
+          request<CompositionSessionRecord[]>(
+            `/composition-sessions?patientId=${encodeURIComponent(patientData.patientId)}`,
+            controller.signal,
+          ),
+          request<any[]>(
+            `/patients/${encodeURIComponent(id)}/compositions`,
             controller.signal,
           ),
         ]);
         setPatient(patientData);
         setForms(formData);
         setSessions(sessionData);
+        setCompositionSessions(compSessionData);
+        setClinicalCompositions(compSessionData2);
         const firstWithData = sessionData.find((session) => Object.keys(session.values || {}).length > 0);
         setSelectedDataSessionId(firstWithData?.id || '');
       } catch (reason) {
@@ -263,6 +310,13 @@ export default function PatientDetail() {
     () => new Map(forms.map((form) => [form.id, form])),
     [forms],
   );
+
+  const allSessions = useMemo(() => {
+    return [
+      ...sessions.map((s) => ({ ...s, type: 'form' as const })),
+      ...compositionSessions.map((s) => ({ ...s, type: 'composition' as const })),
+    ].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  }, [sessions, compositionSessions]);
 
   const publishedForms = useMemo(() => {
     const grouped = new Map<string, StoredForm>();
@@ -356,7 +410,7 @@ export default function PatientDetail() {
 
   const renderDocuments = () => (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-      {sessions.length === 0 ? (
+      {allSessions.length === 0 ? (
         <EmptyState
           icon={<Activity size={48} style={{ margin: '0 auto' }} />}
           title="Bisher keine Formulardaten erfasst."
@@ -365,11 +419,11 @@ export default function PatientDetail() {
       ) : (
         <div>
           <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            {sessions.length} {sessions.length === 1 ? 'Formular-Session' : 'Formular-Sessions'}
+            {allSessions.length} {allSessions.length === 1 ? 'Session' : 'Sessions'}
           </div>
-          {sessions.map((session) => {
+          {allSessions.map((session) => {
             const expanded = expandedSessionId === session.id;
-            const entries = sessionEntries(session);
+            const entries = session.type === 'form' ? sessionEntries(session as FormSessionRecord) : [];
             return (
               <article key={session.id} style={{ borderBottom: '1px solid var(--border)' }}>
                 <button
@@ -393,9 +447,9 @@ export default function PatientDetail() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
                     <FileText size={21} color="var(--primary)" style={{ flexShrink: 0 }} />
                     <div style={{ minWidth: 0 }}>
-                      <strong style={{ display: 'block' }}>{formName(session)}</strong>
+                      <strong style={{ display: 'block' }}>{session.type === 'form' ? formName(session as FormSessionRecord) : formsById.get((session as CompositionSessionRecord).compositionFormId)?.name || 'Composition'}</strong>
                       <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                        Version {session.formVersion} · geändert {formatDateTime(session.updatedAt)}
+                        Version {session.type === 'form' ? (session as FormSessionRecord).formVersion : (session as CompositionSessionRecord).compositionVersion} · geändert {formatDateTime(session.updatedAt)}
                       </span>
                     </div>
                   </div>
@@ -408,7 +462,7 @@ export default function PatientDetail() {
                   <div style={{ padding: '0 1.25rem 1.25rem 3.35rem' }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem 1.5rem', color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: entries.length ? '1rem' : 0 }}>
                       <span>Session: <code>{session.id}</code></span>
-                      <span>Revision: {session.revision}</span>
+                      {session.type === 'form' && <span>Revision: {(session as FormSessionRecord).revision}</span>}
                       <span>{entries.length} ausgefüllte Felder</span>
                       {session.ehrId && <span>EHR: <code>{session.ehrId}</code></span>}
                     </div>
@@ -426,10 +480,20 @@ export default function PatientDetail() {
                         ))}
                       </div>
                     )}
-                    {session.providerReference && (
+                    {session.type === 'composition' && (
+                      <div style={{ display: 'flex', gap: '1rem', marginTop: '0.9rem', flexWrap: 'wrap' }}>
+                        <Link
+                          to={`/compositions/${(session as CompositionSessionRecord).compositionFormId}/live?patientId=${encodeURIComponent(patient.patientId)}&ehrId=${encodeURIComponent(session.ehrId || '')}`}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 500 }}
+                        >
+                          Fortsetzen
+                        </Link>
+                      </div>
+                    )}
+                    {session.type === 'form' && (session as FormSessionRecord).providerReference && (
                       <div style={{ display: 'flex', gap: '1rem', marginTop: '0.9rem', flexWrap: 'wrap' }}>
                         <a
-                          href={`/live/${session.formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent(session.providerReference)}&mode=view&exactVersion=true`}
+                          href={`/live/${(session as FormSessionRecord).formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent((session as FormSessionRecord).providerReference!)}&mode=view&exactVersion=true`}
                           target="_blank"
                           rel="noreferrer"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 500 }}
@@ -437,7 +501,7 @@ export default function PatientDetail() {
                           Ansehen
                         </a>
                         <a
-                          href={`/live/${session.formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent(session.providerReference)}&mode=edit&exactVersion=true`}
+                          href={`/live/${(session as FormSessionRecord).formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent((session as FormSessionRecord).providerReference!)}&mode=edit&exactVersion=true`}
                           target="_blank"
                           rel="noreferrer"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 500 }}
@@ -445,7 +509,7 @@ export default function PatientDetail() {
                           Bearbeiten
                         </a>
                         <a
-                          href={`/live/${session.formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent(session.providerReference)}&mode=prefill&exactVersion=true`}
+                          href={`/live/${(session as FormSessionRecord).formId}?patientId=${encodeURIComponent(patient.patientId)}&reference=${encodeURIComponent((session as FormSessionRecord).providerReference!)}&mode=prefill&exactVersion=true`}
                           target="_blank"
                           rel="noreferrer"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 500 }}
@@ -453,7 +517,7 @@ export default function PatientDetail() {
                           Werte übernehmen
                         </a>
                         <a
-                          href={session.providerReference}
+                          href={(session as FormSessionRecord).providerReference!}
                           target="_blank"
                           rel="noreferrer"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--text-muted)', fontSize: '0.82rem', overflowWrap: 'anywhere' }}
@@ -467,6 +531,36 @@ export default function PatientDetail() {
               </article>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderClinicalCompositions = () => (
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>Klinische Compositions (aus EHRbase)</h3>
+      {clinicalCompositions.length === 0 ? (
+        <span style={{ color: 'var(--text-muted)' }}>Keine Compositions vorhanden.</span>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+            <thead>
+              <tr>
+                {Object.keys(clinicalCompositions[0] || {}).map((key) => (
+                  <th key={key} style={{ textAlign: 'left', padding: '0.5rem', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>{key}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {clinicalCompositions.map((comp, idx) => (
+                <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                  {Object.values(comp).map((val, colIdx) => (
+                    <td key={colIdx} style={{ padding: '0.5rem' }}>{String(val ?? '—')}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -576,11 +670,28 @@ export default function PatientDetail() {
 
   const renderKis = () => (
     <div style={{ display: 'grid', gap: '1.25rem' }}>
-      <div className="card">
-        <h3 style={{ marginTop: 0 }}>Klinischer Arbeitsplatz</h3>
-        <p style={{ margin: '0.35rem 0 0', color: 'var(--text-muted)' }}>
-          Diese Karten nutzen die öffentliche Form-Launch-Schnittstelle. Die Zuordnung erfolgt über die Template-ID — nicht über fest codierte Formular-IDs.
-        </p>
+      <div className="card" style={{ background: 'linear-gradient(135deg, #eff6ff, #fff)', borderColor: '#bfdbfe' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div><span style={{ color: 'var(--primary)', fontSize: '.78rem', fontWeight: 700, letterSpacing: '.08em' }}>KIS · PATIENTENKONTEXT</span><h3 style={{ margin: '.35rem 0' }}>{patient.firstName} {patient.lastName}</h3><span style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>{patient.patientId} · {patient.ehrId ? `EHR ${patient.ehrId.slice(0, 8)}…` : 'EHR wird aufgelöst'}</span></div>
+          <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}><span className="badge badge-published">{openCount} offene Arbeit{openCount === 1 ? '' : 'en'}</span><span className="badge badge-published" style={{ background: '#f1f5f9', color: '#475569' }}>{submittedCount} dokumentiert</span></div>
+        </div>
+        <p style={{ margin: '1rem 0 0', color: 'var(--text-muted)' }}>Die Aktionen starten Formulare über die öffentliche Launch-Schnittstelle mit Patienten-ID, Namespace, EHR-Kontext, Modus und Ladepolitik. Die Zuordnung erfolgt über Template-ID statt über fest kodierte Formular-IDs.</p>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, .8fr) minmax(420px, 1.6fr)', gap: '1.25rem', alignItems: 'start' }}>
+        <div className="card">
+          <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Arbeitsliste</h3>
+          {sessions.filter((session) => ['draft', 'in_progress', 'ready', 'failed'].includes(session.status)).length === 0 ? <span style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>Keine offenen Formularvorgänge.</span> : sessions.filter((session) => ['draft', 'in_progress', 'ready', 'failed'].includes(session.status)).slice(0, 5).map((session) => <div key={session.id} style={{ padding: '.7rem 0', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: '.5rem' }}><div><strong style={{ display: 'block', fontSize: '.88rem' }}>{formName(session)}</strong><span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{formatDateTime(session.updatedAt)}</span></div>{statusBadge(session.status)}</div>)}
+          <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem' }} onClick={() => setActiveTab('documents')}>Vorgänge öffnen</button>
+        </div>
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)' }}><strong>Formular-Integration</strong><div style={{ color: 'var(--text-muted)', fontSize: '.8rem', marginTop: '.25rem' }}>Einbettung im KIS, Create/Edit/Prefill und Provider-Laden</div></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '.75rem', padding: '1rem' }}>
+            {KIS_WORKFLOWS.filter((workflow) => ['service-request', 'observation-lab', 'diagnosis', 'person'].includes(workflow.id)).map((workflow) => {
+              const form = formForTemplate(workflow.templateId); const starting = launchingWorkflow === workflow.id;
+              return <article key={workflow.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '.85rem', display: 'flex', flexDirection: 'column', gap: '.55rem' }}><strong>{workflow.title}</strong><span style={{ color: 'var(--text-muted)', fontSize: '.78rem', minHeight: '2.3rem' }}>{workflow.detail}</span><span style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>{workflow.mode} · {workflow.load === 'provider' ? 'bestehende Daten laden' : 'neuer Vorgang'}</span>{form ? <button className="btn" disabled={starting} onClick={() => void launchKisWorkflow(workflow)}><FileText size={15} /> {starting ? 'Starte…' : 'Im KIS öffnen'}</button> : <span style={{ color: '#a16207', fontSize: '.78rem' }}>Kein publiziertes Formular</span>}</article>;
+            })}
+          </div>
+        </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
         {KIS_WORKFLOWS.map((workflow) => {
@@ -729,6 +840,7 @@ export default function PatientDetail() {
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'data' && renderData()}
         {activeTab === 'versions' && renderVersions()}
+        {activeTab === 'clinicalCompositions' && renderClinicalCompositions()}
         {activeTab === 'kis' && renderKis()}
       </div>
 
@@ -742,7 +854,7 @@ export default function PatientDetail() {
               ) : publishedForms.map((form) => (
                 <a
                   key={form.id}
-                  href={`/live/${form.parent_id || form.id}?patientId=${encodeURIComponent(patient.patientId)}&returnUrl=${encodeURIComponent(`/patients/${id}`)}`}
+                  href={patientFormUrl(form, patient, `/patients/${id}`)}
                   target="_blank"
                   rel="noreferrer"
                   style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--border)', borderRadius: '6px', textDecoration: 'none', color: 'inherit' }}

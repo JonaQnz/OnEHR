@@ -42,13 +42,28 @@ export interface AppConfig {
     bootstrapAdminUsername?: string;
     bootstrapAdminPassword?: string;
     bootstrapAdminDisplayName?: string;
+    bootstrapAdminEmail?: string;
+    /** Emails/subjects that are always granted ADMIN on HIP / Keycloak login,
+     * regardless of what the Keycloak token's own role claims say. Forms has
+     * no way to define "Forms admin" inside EHRbase/Keycloak, so this is the
+     * explicit override for that gap. Comma-separated, case-insensitive. */
+    hipAdminIdentities?: string[];
     localUsername?: string;
     localPassword?: string;
     defaultEhrId?: string;
     sessionCookieSecure?: boolean;
+    patientRegistryAql?: string;
+    patientRegistryPersonTemplateId?: string;
     scriptAiBaseUrl?: string;
     scriptAiApiKey?: string;
     scriptAiModel?: string;
+}
+
+/** Comma-separated env value -> lowercase, trimmed, de-blanked list. Shared
+ * shape for every "list of admin identities" env var (currently just
+ * FORMS_HIP_ADMIN_EMAILS); pure so it's unit-testable on its own. */
+export function parseAdminAllowlist(value: string | undefined): string[] {
+  return (value || '').split(',').map((entry) => entry.trim().toLowerCase()).filter(Boolean);
 }
 
 function getCandidateConfigFiles(): string[] {
@@ -216,8 +231,12 @@ export function getConfig(): AppConfig {
         bootstrapAdminUsername: resolve(undefined, process.env.FORMS_BOOTSTRAP_ADMIN_USERNAME),
         bootstrapAdminPassword: resolve(undefined, process.env.FORMS_BOOTSTRAP_ADMIN_PASSWORD),
         bootstrapAdminDisplayName: resolve(undefined, process.env.FORMS_BOOTSTRAP_ADMIN_DISPLAY_NAME),
+        bootstrapAdminEmail: resolve(undefined, process.env.FORMS_BOOTSTRAP_ADMIN_EMAIL),
+        hipAdminIdentities: parseAdminAllowlist(resolve(undefined, process.env.FORMS_HIP_ADMIN_EMAILS)),
         defaultEhrId: activeConnection.defaultEhrId,
         sessionCookieSecure: resolve(undefined, process.env.SESSION_COOKIE_SECURE, 'false') === 'true',
+        patientRegistryPersonTemplateId: resolve(persistedConfig.patientRegistryPersonTemplateId, process.env.PATIENT_REGISTRY_PERSON_TEMPLATE_ID, 'vg_Person.v1.1.1'),
+        patientRegistryAql: resolve(persistedConfig.patientRegistryAql, process.env.PATIENT_REGISTRY_AQL, 'SELECT ehr/ehr_id/value AS ehrId FROM EHR ehr CONTAINS COMPOSITION c WHERE c/archetype_details/template_id/value = :personTemplateId'),
         scriptAiBaseUrl: resolve(persistedConfig.scriptAiBaseUrl, process.env.FORM_SCRIPT_AI_BASE_URL),
         scriptAiApiKey: resolve(undefined, process.env.FORM_SCRIPT_AI_API_KEY || process.env.OPENAI_API_KEY),
         scriptAiModel: resolve(persistedConfig.scriptAiModel, process.env.FORM_SCRIPT_AI_MODEL),
@@ -326,6 +345,8 @@ export function getSafeConfig(): Partial<AppConfig> {
         localPassword: full.localPassword ? '***' : '',
         defaultEhrId: activeConnection.defaultEhrId || full.defaultEhrId || '',
         sessionCookieSecure: full.sessionCookieSecure || false,
+        patientRegistryPersonTemplateId: full.patientRegistryPersonTemplateId || 'vg_Person.v1.1.1',
+        patientRegistryAql: full.patientRegistryAql || '',
         scriptAiBaseUrl: full.scriptAiBaseUrl || '',
         scriptAiApiKey: full.scriptAiApiKey ? '***' : '',
         scriptAiModel: full.scriptAiModel || '',

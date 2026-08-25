@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Plus, FileEdit, Download, Copy, UploadCloud, FolderOpen, ExternalLink, Archive, RotateCcw, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { Search, Plus, FileEdit, Download, Copy, UploadCloud, FolderOpen, ExternalLink, Archive, RotateCcw, ChevronDown, ChevronRight, Trash2, LayoutPanelTop } from 'lucide-react';
 
 export default function Dashboard() {
   const [forms, setForms] = useState<any[]>([]);
@@ -51,9 +51,20 @@ export default function Dashboard() {
       .then(res => res.json())
       .then(data => {
         if (data.form) {
-          navigate(`/forms/${data.form.id}/builder`);
+          const isComposition = Boolean(data.form.canonical_json?.extensions?.['watehr.composition']);
+          navigate(isComposition ? `/compositions/${data.form.id}/builder` : `/forms/${data.form.id}/builder`);
         }
       });
+  };
+
+  const handleCreateComposition = () => {
+    const name = prompt('Name der Composition:', 'Klinische Übersicht');
+    if (!name) return;
+    fetch('http://localhost:3001/api/forms', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ name, kind: 'composition' }),
+    }).then((res) => res.json()).then((data) => {
+      if (data.form) navigate(`/compositions/${data.form.id}/builder`);
+    }).catch(() => alert('Composition konnte nicht erstellt werden.'));
   };
 
   const handleImportClick = () => {
@@ -104,12 +115,12 @@ export default function Dashboard() {
       .then(() => fetchForms());
   };
 
-  const handleCreateDraft = (id: string) => {
+  const handleCreateDraft = (id: string, isComposition: boolean) => {
     fetch(`http://localhost:3001/api/forms/${id}/create-draft`, { method: 'POST' })
       .then(res => res.json())
       .then(data => {
         if (data.form) {
-          navigate(`/forms/${data.form.id}/builder`);
+          navigate(isComposition ? `/compositions/${data.form.id}/builder` : `/forms/${data.form.id}/builder`);
         }
       });
   };
@@ -120,13 +131,13 @@ export default function Dashboard() {
       .then(() => fetchForms());
   };
 
-  const handleRestore = (id: string) => {
+  const handleRestore = (id: string, isComposition: boolean) => {
     if (!confirm('Are you sure you want to restore this version? It will create a new draft from this layout.')) return;
     fetch(`http://localhost:3001/api/forms/${id}/restore`, { method: 'POST' })
       .then(res => res.json())
       .then(data => {
         if (data.form) {
-          navigate(`/forms/${data.form.id}/builder`);
+          navigate(isComposition ? `/compositions/${data.form.id}/builder` : `/forms/${data.form.id}/builder`);
         }
       });
   };
@@ -188,6 +199,9 @@ export default function Dashboard() {
           </button>
           <button className="btn" onClick={handleCreateForm}>
             <Plus size={18} /> Create New Form
+          </button>
+          <button className="btn btn-secondary" onClick={handleCreateComposition}>
+            <LayoutPanelTop size={18} /> Neue Composition
           </button>
         </div>
       </div>
@@ -254,6 +268,7 @@ export default function Dashboard() {
                 const tpl = f.canonical_json?.sourceTemplates?.[0];
                 const templateId = tpl ? tpl.id : f.canonical_json?.templateId;
                 const isTemplateOnServer = templateId ? remoteTemplates.some((t: any) => t.template_id === templateId) : false;
+                const isComposition = Boolean(f.canonical_json?.extensions?.['watehr.composition']);
 
                 return (
                   <li key={groupId} style={{ borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
@@ -272,6 +287,7 @@ export default function Dashboard() {
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
                             <strong style={{ fontSize: '1.05rem', color: 'var(--text-main)' }}>{f.name}</strong>
+                            {isComposition && <span className="badge badge-published" style={{ background: '#eef2ff', color: '#4338ca' }}>composition</span>}
                             <span className={`badge ${f.status === 'published' ? 'badge-published' : f.status === 'archived' ? 'badge-archived' : f.status === 'deleted' ? 'badge-archived' : 'badge-draft'}`}>
                               {f.status}
                             </span>
@@ -299,7 +315,7 @@ export default function Dashboard() {
                       <div style={{ display: 'flex', gap: '0.5rem', paddingRight: '0.5rem' }}>
                         {f.status === 'draft' && (
                           <>
-                            <Link to={`/forms/${f.id}/builder`} className="btn btn-secondary btn-icon" title="Edit Draft">
+                            <Link to={isComposition ? `/compositions/${f.id}/builder` : `/forms/${f.id}/builder`} className="btn btn-secondary btn-icon" title="Edit Draft">
                               <FileEdit size={16} /> Edit
                             </Link>
                             <button className="btn btn-icon" onClick={() => handlePublish(f.id)} title="Publish Form">
@@ -312,10 +328,10 @@ export default function Dashboard() {
                         )}
                         {f.status === 'published' && (
                           <>
-                            <Link to={`/live/${groupId}`} target="_blank" className="btn btn-secondary btn-icon" title="Open Live Form">
+                            <Link to={isComposition ? `/compositions/${f.id}` : `/live/${groupId}`} target="_blank" className="btn btn-secondary btn-icon" title="Open Live Form">
                               <ExternalLink size={16} /> Live
                             </Link>
-                            <button className="btn btn-secondary btn-icon" onClick={() => handleCreateDraft(f.id)} title="Create New Draft from Published">
+                            <button className="btn btn-secondary btn-icon" onClick={() => handleCreateDraft(f.id, isComposition)} title="Create New Draft from Published">
                               <Copy size={16} /> New Draft
                             </button>
                             <button className="btn btn-secondary btn-icon" onClick={() => handleArchive(f.id)} title="Archive / Shut Off">
@@ -328,7 +344,7 @@ export default function Dashboard() {
                         )}
                         {f.status === 'archived' && (
                           <>
-                            <button className="btn btn-secondary btn-icon" onClick={() => handleRestore(f.id)} title="Restore as Draft">
+                            <button className="btn btn-secondary btn-icon" onClick={() => handleRestore(f.id, isComposition)} title="Restore as Draft">
                               <RotateCcw size={16} /> Restore
                             </button>
                             <button className="btn btn-secondary btn-icon" onClick={() => handleDelete(f.id)} title="Delete Form" style={{ color: '#b91c1c' }}>
@@ -337,7 +353,7 @@ export default function Dashboard() {
                           </>
                         )}
                         {f.status === 'deleted' && (
-                          <button className="btn btn-secondary btn-icon" onClick={() => handleRestore(f.id)} title="Restore as Draft">
+                          <button className="btn btn-secondary btn-icon" onClick={() => handleRestore(f.id, isComposition)} title="Restore as Draft">
                             <RotateCcw size={16} /> Restore
                           </button>
                         )}
@@ -372,8 +388,8 @@ export default function Dashboard() {
                                 )}
                                 {v.status !== 'deleted' && (
                                   <>
-                                    <button className="btn btn-secondary btn-icon" onClick={() => handleRestore(v.id)} title="Restore to new Draft">
-                                      <RotateCcw size={14} />
+                                    <button className="btn btn-secondary btn-icon" onClick={() => handleRestore(v.id, isComposition)} title="Restore to new Draft">
+                                      <RotateCcw size={16} />
                                     </button>
                                     <button className="btn btn-secondary btn-icon" onClick={() => handleDelete(v.id)} title="Delete Form" style={{ color: '#b91c1c' }}>
                                       <Trash2 size={14} />
@@ -381,8 +397,8 @@ export default function Dashboard() {
                                   </>
                                 )}
                                 {v.status === 'deleted' && (
-                                  <button className="btn btn-secondary btn-icon" onClick={() => handleRestore(v.id)} title="Restore to new Draft">
-                                    <RotateCcw size={14} />
+                                  <button className="btn btn-secondary btn-icon" onClick={() => handleRestore(v.id, isComposition)} title="Restore to new Draft">
+                                    <RotateCcw size={16} />
                                   </button>
                                 )}
                                 <Link to={`/forms/${v.id}/export`} className="btn btn-secondary btn-icon" title="Export">

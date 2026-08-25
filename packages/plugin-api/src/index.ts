@@ -26,6 +26,7 @@ export const PLUGIN_EXTENSION_POINTS = [
   'workflow',
   'lifecycle',
   'ui',
+  'widget',
 ] as const;
 
 export type PluginExtensionPoint = (typeof PLUGIN_EXTENSION_POINTS)[number];
@@ -181,6 +182,12 @@ export interface UIExtensionContribution {
   slot: string;
 }
 
+/** A plugin may publish several reusable clinical widgets as one package. */
+export interface WidgetPackageContribution {
+  extensionPoint: 'widget'; key: string; packageId: string; label: string;
+  widgets: readonly { id: string; title: string; aqlFunction: { packageName: string; name: string }; requiredContext: readonly ['ehrId']; columns: { value: string; label?: string; time?: string; unit?: string }; chart: { type: 'line' | 'area' | 'bar' | 'metric' | 'table' | 'text'; x?: string; y?: string } }[];
+}
+
 export type PluginContribution =
   | FieldContribution
   | SettingsContribution
@@ -191,7 +198,8 @@ export type PluginContribution =
   | ScriptingOperationContribution
   | DataProviderContribution
   | WorkflowContribution
-  | UIExtensionContribution;
+  | UIExtensionContribution
+  | WidgetPackageContribution;
 
 export type RegisteredContribution = PluginContribution & {
   pluginId: string;
@@ -299,6 +307,7 @@ export interface PluginActivationContext {
     handler: PluginAction,
   ): void;
   registerDataProvider(contribution: Omit<DataProviderContribution, 'extensionPoint'>): void;
+  registerWidgetPackage(contribution: Omit<WidgetPackageContribution, 'extensionPoint'>): void;
   registerWorkflow(contribution: Omit<WorkflowContribution, 'extensionPoint'>): void;
   registerUIExtension(contribution: Omit<UIExtensionContribution, 'extensionPoint'>): void;
   registerHook(name: PluginHookName, handler: PluginHook): void;
@@ -381,6 +390,41 @@ function validateContribution(contribution: PluginContribution): void {
   if (!contribution.key || !/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(contribution.key)) {
     throw new Error('Plugin contribution key must be a lowercase namespace identifier');
   }
+  if (contribution.extensionPoint === 'widget') {
+    if (!contribution.packageId || !/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(contribution.packageId)) throw new Error('Widget packageId must be a lowercase namespace identifier');
+    if (!contribution.label?.trim() || !Array.isArray(contribution.widgets) || contribution.widgets.length === 0) throw new Error('Widget package must declare a label and at least one widget');
+    const widgetIds = new Set<string>();
+    for (const widget of contribution.widgets) {
+      if (!widget || !/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(widget.id) || widgetIds.has(widget.id)) throw new Error('Widget package widget ids must be unique lowercase namespace identifiers');
+      widgetIds.add(widget.id);
+      if (!widget.title?.trim() || !widget.aqlFunction?.packageName?.trim() || !widget.aqlFunction?.name?.trim()) throw new Error('Widget package widgets require a title and qualified AQL function');
+      if (widget.requiredContext.length !== 1 || widget.requiredContext[0] !== 'ehrId') throw new Error('Widget package widgets must require ehrId context');
+      if (!widget.columns?.value?.trim() || !widget.chart || !['line', 'area', 'bar', 'metric', 'table', 'text'].includes(widget.chart.type)) throw new Error('Widget package widgets require named columns and a supported chart type');
+    }
+  }
+}
+
+/** Plugins run in-process with no sandbox (see pluginRegistry.ts on the host
+ * side) - there is no way to forcibly stop a plugin's code once it's
+ * running, only to stop *waiting* on it. A real fix is isolating plugin
+ * execution in its own process/worker, which is a bigger architectural step;
+ * until then, racing a timeout at least keeps one hung plugin from stalling
+ * every request or the whole server startup indefinitely. The original
+ * promise is left to settle in the background - this bounds the wait, not
+ * the work.
+ * Default of 10s mirrors the existing script-connector timeout (see
+ * scriptConnectorRegistry.ts), which is the only other place in this
+ * codebase that already had to solve the same problem for plugin code. */
+const DEFAULT_PLUGIN_TIMEOUT_MS = 10_000;
+
+export function withTimeout<T>(promise: Promise<T>, timeoutMs: number, describe: () => string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${describe()} timed out after ${timeoutMs}ms`)), timeoutMs);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); },
+    );
+  });
 }
 
 export class PluginRegistry {
@@ -389,7 +433,10 @@ export class PluginRegistry {
   private readonly hooks = new Map<PluginHookName, Array<{ pluginId: string; handler: PluginHook }>>();
   private readonly actions = new Map<string, { pluginId: string; handler: PluginAction }>();
 
-  public constructor(private readonly logger: PluginLogger = console) {}
+  public constructor(
+    private readonly logger: PluginLogger = console,
+    private readonly pluginTimeoutMs: number = DEFAULT_PLUGIN_TIMEOUT_MS,
+  ) {}
 
   public async register(plugin: FormBuilderPlugin): Promise<void> {
     validateManifest(plugin?.manifest);
@@ -438,6 +485,7 @@ export class PluginRegistry {
         pendingActions.push({ actionId, handler });
       },
       registerDataProvider: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'dataProvider' }),
+      registerWidgetPackage: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'widget' }),
       registerWorkflow: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'workflow' }),
       registerUIExtension: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'ui' }),
       registerHook: (name, handler) => {
@@ -455,7 +503,11 @@ export class PluginRegistry {
       },
     };
 
-    await plugin.activate(context);
+    await withTimeout(
+      Promise.resolve(plugin.activate(context)),
+      this.pluginTimeoutMs,
+      () => `Plugin ${plugin.manifest.id} activate()`,
+    );
     const pendingKeys = new Set<string>();
     for (const contribution of pendingContributions) {
       const key = `${contribution.extensionPoint}:${contribution.key}`;
@@ -519,7 +571,11 @@ export class PluginRegistry {
     let stopMessage: string | undefined;
     for (const registered of this.hooks.get(name) || []) {
       try {
-        const result = await registered.handler({ ...context, data });
+        const result = await withTimeout(
+          Promise.resolve(registered.handler({ ...context, data })),
+          this.pluginTimeoutMs,
+          () => `Plugin ${registered.pluginId} hook ${name}`,
+        );
         if (result?.data) data = result.data;
         if (result?.errors) errors.push(...result.errors);
         if (result?.errors) notices.push(...result.errors.map((error) => ({ severity: 'error' as const, path: error.path, message: error.message })));
@@ -543,7 +599,11 @@ export class PluginRegistry {
     const action = this.actions.get(`${pluginId}:${actionId}`);
     if (!action) throw new Error(`Plugin action ${pluginId}:${actionId} is not registered`);
     try {
-      return (await action.handler(context)) || {};
+      return (await withTimeout(
+        Promise.resolve(action.handler(context)),
+        this.pluginTimeoutMs,
+        () => `Plugin ${pluginId} action ${actionId}`,
+      )) || {};
     } catch (error) {
       this.logger.error('Plugin action failed', { pluginId, actionId, error: error instanceof Error ? error.message : String(error) });
       return { errors: [{ path: `plugin:${pluginId}`, message: `Plugin ${pluginId} failed during action ${actionId}` }] };

@@ -1,0 +1,24 @@
+{
+  "name": "formbuilder-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server exposing onEHR's Form Builder, Composition Builder, patient, and form-runtime APIs as tools for an AI agent.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "bin": {
+    "formbuilder-mcp-server": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "dotenv": "^16.4.7",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "typescript": "^5.7.3"
+  }
+}

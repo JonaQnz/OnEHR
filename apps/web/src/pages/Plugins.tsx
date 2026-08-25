@@ -46,7 +46,7 @@ export default function Plugins() {
 
   const loadOverview = () => {
     setLoading(true);
-    fetch(API)
+    fetch(API, { credentials: 'include' })
       .then(async (response) => {
         const body = await response.json();
         if (!response.ok) throw new Error(body.error || 'Unable to load plugins');
@@ -70,6 +70,7 @@ export default function Plugins() {
     setError('');
     fetch(`${API}/load`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageName: requested }),
     })
@@ -92,6 +93,7 @@ export default function Plugins() {
     setError('');
     fetch(`${API}/unload`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ packageName: name }),
     })

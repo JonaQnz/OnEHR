@@ -9,7 +9,8 @@ import {
   getFormScriptConnectorConfiguration,
 } from 'core';
 import type { UserAuthMode } from './configService';
-import { getPluginSettings } from './configService';
+import { getConfig, getPluginSettings } from './configService';
+import { resolveActiveEhrbaseAuthorizationHeader } from './ehrbaseConnectionPlugins';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 
 export interface ScriptConnectorContext {
@@ -216,6 +217,9 @@ export class ScriptConnectorRegistry {
     if (!contribution) {
       throw new ScriptConnectorError(404, 'SCRIPT_CONNECTOR_UNKNOWN', `Unknown script connector operation: ${operationId}`);
     }
+    // See pluginRoutes.ts for why this is resolved here rather than by the
+    // plugin itself.
+    const needsEhrbaseAuth = contribution.pluginId === 'org.openehr.aql-prefill';
     const result = await pluginRegistry.runAction(contribution.pluginId, contribution.actionId, {
       formId: context.formId,
       patientId: context.patientId,
@@ -228,7 +232,8 @@ export class ScriptConnectorRegistry {
         ...(context.ehrId ? { ehrId: context.ehrId } : {}),
         ...(context.encounterId ? { encounterId: context.encounterId } : {}),
         pluginSettings: getPluginSettings(contribution.pluginId) as any,
-        ...(context.authorization ? { authorization: context.authorization } : {}),
+        ...(context.authorization ? { authorization: context.authorization } : (needsEhrbaseAuth ? { authorization: await resolveActiveEhrbaseAuthorizationHeader().catch(() => undefined) } : {})),
+        ...(needsEhrbaseAuth ? { ehrbaseUrl: getConfig().ehrbaseUrl } : {}),
         source: 'form-script',
       },
     });

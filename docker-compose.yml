@@ -3,6 +3,7 @@ version: '3.8'
 services:
   db:
     image: postgres:15-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password
@@ -21,6 +22,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
+    # Pairs with the process.on('uncaughtException', ...) handler in
+    # index.ts: that handler exits deliberately rather than limping on with
+    # possibly-corrupted state, and this is what turns that exit into an
+    # automatic few-second restart instead of the API staying down.
+    restart: unless-stopped
     ports:
       - "3001:3001"
     extra_hosts:
@@ -33,12 +39,32 @@ services:
       - N8N_API_KEY=${N8N_API_KEY:-}
       - N8N_PUBLIC_URL=${N8N_PUBLIC_URL:-http://localhost:5678}
       - N8N_EHRBASE_URL=${N8N_EHRBASE_URL:-http://ehrbase:8080/ehrbase/rest/openehr/v1}
+      # First-start admin bootstrap: creates one ADMIN account if (and only if)
+      # no ADMIN role exists yet. Safe to leave set after that - it becomes a
+      # no-op. Set FORMS_BOOTSTRAP_ADMIN_PASSWORD in a .env file next to this
+      # compose file (gitignored); never hardcode a real password here.
+      - FORMS_BOOTSTRAP_ADMIN_USERNAME=${FORMS_BOOTSTRAP_ADMIN_USERNAME:-jona.kunze}
+      - FORMS_BOOTSTRAP_ADMIN_PASSWORD=${FORMS_BOOTSTRAP_ADMIN_PASSWORD:?Set FORMS_BOOTSTRAP_ADMIN_PASSWORD (12+ chars) in a .env file next to docker-compose.yml before first start}
+      - FORMS_BOOTSTRAP_ADMIN_DISPLAY_NAME=${FORMS_BOOTSTRAP_ADMIN_DISPLAY_NAME:-Jona Kunze}
+      - FORMS_BOOTSTRAP_ADMIN_EMAIL=${FORMS_BOOTSTRAP_ADMIN_EMAIL:-jona.kunze@vitagroup.ag}
+      # HIP / Keycloak login admin override: comma-separated emails (or Keycloak
+      # subjects/usernames) that always become ADMIN on HIP login, regardless of
+      # what the Keycloak token's own role claims say. Applies (and re-syncs)
+      # on every HIP login, not just account creation.
+      - FORMS_HIP_ADMIN_EMAILS=${FORMS_HIP_ADMIN_EMAILS:-jona.kunze@vitagroup.ag}
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./data:/app/data
       - ./apps/api/dist:/app/apps/api/dist
+      # Keep the runtime Core package in sync with the mounted API build.
+      # Otherwise API code compiled against newer Core exports can call an old
+      # Core image layer during local development.
+      - ./packages/core/dist:/app/packages/core/dist
+      # Prisma schema is mounted so the API container can regenerate its client
+      # when local development adds a persisted model.
+      - ./apps/api/prisma:/app/apps/api/prisma
       - ./packages/aql-prefill-plugin/dist:/app/packages/aql-prefill-plugin/dist
 
   web:

@@ -20,6 +20,7 @@ import type {
 } from 'core';
 import * as CoreRuntime from 'core';
 import { ExtensionSlot, ExtensionWrapperSlot, useFrontendPlugins } from './FrontendPluginRegistry';
+import { ClinicalGrid } from './layout/ClinicalLayout';
 import {
   FormScriptClient,
   type FormScriptLifecycleResult,
@@ -58,6 +59,8 @@ export interface FormRuntimeProps {
   ehrId?: string;
   encounterId?: string;
   sessionId?: string;
+  /** Trusted host override. Required fields are deliberately never hidden. */
+  hiddenFieldIds?: string[];
   /** Server-loaded data such as the last Flat Composition; never merged into form values. */
   runtimeContext?: FormSessionRuntimeContext;
   rendererOverrides?: Record<string, RuntimeRenderer>;
@@ -113,6 +116,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   ehrId,
   encounterId,
   sessionId,
+  hiddenFieldIds = [],
   runtimeContext,
   rendererOverrides = {},
   onValuesChange,
@@ -455,7 +459,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     if (!id) return null;
     const field = fieldById.get(id);
     const dynamic = uiStates[`fields:${id}`];
-    if (!field || !CoreRuntime.isRuntimeFieldVisible(field, values) || dynamic?.visible === false) return null;
+    if (!field || (!field.required && hiddenFieldIds.includes(id)) || !CoreRuntime.isRuntimeFieldVisible(field, values) || dynamic?.visible === false) return null;
     const effectiveField: RuntimeFieldDescriptor = {
       ...field,
       label: dynamic?.label || field.label,
@@ -531,7 +535,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     if (node.type === 'header') return <h2 key={key}>{node.content}</h2>;
     if (node.type === 'paragraph' || node.type === 'text') return <p key={key} style={{ color: '#475569' }}>{node.content}</p>;
     if (node.type === 'line-break') return <hr key={key} />;
-    if (node.type === 'row') return <div key={key} style={{ display: 'grid', gridTemplateColumns: `repeat(${node.children?.length || 1}, minmax(0, 1fr))`, gap: '1rem', marginBottom: '0.5rem' }}>{node.children?.map((child, index) => renderNode(child, `${key}-${index}`, groupContext))}</div>;
+    if (node.type === 'row') return <ClinicalGrid key={key} columns={Math.min(3, Math.max(1, node.children?.length || 1)) as 1 | 2 | 3} style={{ marginBottom: '0.5rem' }}>{node.children?.map((child, index) => renderNode(child, `${key}-${index}`, groupContext))}</ClinicalGrid>;
     if (node.type === 'column') return <div key={key} style={{ minWidth: 0 }}>{node.children?.map((child, index) => renderNode(child, `${key}-${index}`, groupContext))}</div>;
     if (node.type === 'container' || node.type === 'form' || node.type === 'section' || node.type === 'tab') {
       const componentKind = node.type === 'container' ? 'groups' : node.type === 'section' ? 'sections' : node.type === 'tab' ? 'tabs' : 'forms';

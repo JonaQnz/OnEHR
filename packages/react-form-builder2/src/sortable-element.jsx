@@ -15,6 +15,9 @@ const useDragAndDrop = (props) => {
   // Setup drag
   const [{ isDragging }, drag, preview] = useDrag({
     type: ItemTypes.CARD,
+    // Composition pages are protected roots: they accept children but cannot
+    // themselves be dragged out of the only valid page container.
+    canDrag: () => props.data?.custom_metadata?.protectedRoot !== true,
     item: () => ({
       itemType: ItemTypes.CARD,
       id: props.id,
@@ -172,6 +175,7 @@ const DraggableCard = (props) => {
   const ComposedComponent = props.component;
 
   const handleClick = (e) => {
+    if (props.data?.custom_metadata?.protectedRoot === true) return;
     // Skip if clicking delete button or drag handle
     const target = e.target;
     if (

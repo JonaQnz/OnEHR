@@ -7,3 +7,5 @@ export * from './form-launch';
 export * from './form-data';
 export * from './form-scripting';
 export * from './auth';
+export * from './composition';
+export * from './composition-scripting';

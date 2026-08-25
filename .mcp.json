@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "formbuilder": {
+      "command": "node",
+      "args": ["packages/mcp-server/dist/index.js"],
+      "env": {
+        "FORMBUILDER_API_URL": "http://localhost:3001"
+      }
+    }
+  }
+}

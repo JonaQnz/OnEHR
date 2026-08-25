@@ -10,7 +10,23 @@ Before the first start with local authentication, set these environment variable
 FORMS_BOOTSTRAP_ADMIN_USERNAME=admin-name
 FORMS_BOOTSTRAP_ADMIN_PASSWORD=a-long-unique-password-of-at-least-12-characters
 FORMS_BOOTSTRAP_ADMIN_DISPLAY_NAME=Forms Administrator
+FORMS_BOOTSTRAP_ADMIN_EMAIL=admin-name@example.com
 ```
+
+`FORMS_BOOTSTRAP_ADMIN_EMAIL` is optional and only sets the account's contact email; it is never used as the login username (usernames may not contain `@`).
+
+## Granting admin in HIP / Keycloak mode
+
+In `USER_AUTH_MODE=hip`, Forms accounts are shadow users created from a successful Keycloak login (see Modes below) - there is no local password to bootstrap. EHRbase/Keycloak generally has no notion of "Forms admin" role, so two mechanisms decide it, checked on **every** HIP login (not just the first):
+
+1. **Token role claims.** If the Keycloak access token's `realm_access.roles` or the roles for this connection's `resource_access[client_id]` contain anything matching `/admin/i`, the user is granted ADMIN.
+2. **`FORMS_HIP_ADMIN_EMAILS`** - a comma-separated, case-insensitive allowlist of emails (or Keycloak subjects/usernames) that are always granted ADMIN on HIP login, regardless of what the token itself claims:
+
+```text
+FORMS_HIP_ADMIN_EMAILS=jona.kunze@vitagroup.ag,another-admin@example.com
+```
+
+Roles are re-synced from these two sources on every login, so removing an identity from the allowlist (and it having no admin token role) demotes it back to USER on its next login. Both the decoded claim summary (subject, email, realm/client roles, and which mechanism granted ADMIN) and role changes are logged - role changes as `user.role-changed` audit events with `source: "hip-keycloak-login"`, claim details as `[AUTH][HIP] Keycloak login` API log lines - so the actual token shape for a given IdP is visible without guessing.
 
 The API creates the account only when no ADMIN role exists. It hashes the password with Argon2id and does not log it. Remove `FORMS_BOOTSTRAP_ADMIN_PASSWORD` after the first successful start; subsequent administrators are managed in **Users**.
 

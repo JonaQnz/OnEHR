@@ -1,4 +1,4 @@
-import { FormDefinitionV1, migrateCanonicalFormToV1 } from 'core';
+import { COMPOSITION_EXTENSION_KEY, FormDefinitionV1, migrateCanonicalFormToV1, normalizeCompositionDefinition } from 'core';
 import { HttpError } from '../middleware/errorHandler';
 
 export function requireNonEmptyString(value: unknown, field: string): string {
@@ -34,7 +34,11 @@ export function normalizeCanonicalFormPayload(payload: unknown, formId: string):
   }
 
   try {
-    return migrateCanonicalFormToV1({ ...form, id: formId, name, version }, formId);
+    const definition = migrateCanonicalFormToV1({ ...form, id: formId, name, version }, formId);
+    if (definition.extensions[COMPOSITION_EXTENSION_KEY] !== undefined) {
+      normalizeCompositionDefinition(definition.extensions[COMPOSITION_EXTENSION_KEY]);
+    }
+    return definition;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid FormDefinition';
     throw new HttpError(400, message);

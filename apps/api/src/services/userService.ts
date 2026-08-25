@@ -106,13 +106,35 @@ export async function resetPassword(id: string, password: string, actorUserId?: 
 }
 export async function revokeUserSessions(id: string, actorUserId?: string): Promise<void> { await prisma.$transaction(async (tx) => { await tx.applicationSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }); await tx.auditEvent.create({ data: { ...(actorUserId ? { actorUserId } : {}), action: 'auth.session.revoked', resourceType: 'user', resourceId: id } }); }); }
 
+/** Pure core of "should an existing user's stored roles be overwritten by
+ * what the identity provider just asserted": no roles asserted (undefined)
+ * means the caller isn't a source of truth for roles and nothing changes;
+ * otherwise the DB is only touched when the resulting set actually differs,
+ * so a login doesn't churn out no-op writes/audit events every time. */
+export function computeRoleSync(currentRoles: ApplicationRole[], inputRoles: ApplicationRole[] | undefined): { desiredRoles?: DbRole[]; changed: boolean } {
+  if (inputRoles === undefined) return { changed: false };
+  const desiredRoles: DbRole[] = inputRoles.includes('ADMIN') ? [DbRole.ADMIN] : [DbRole.USER];
+  const changed = desiredRoles.length !== currentRoles.length || desiredRoles.some((role) => !currentRoles.includes(role as ApplicationRole));
+  return { desiredRoles, changed };
+}
+
 export async function resolveExternalIdentity(input: { issuer: string; subject: string; displayName?: string; email?: string; roles?: string[] }): Promise<Principal> {
   const existing = await prisma.identityLink.findUnique({ where: { issuer_externalSubject: { issuer: input.issuer, externalSubject: input.subject } }, include: { user: { include: { roles: true } } } });
   if (existing) {
     const user = existing.user as UserWithRoles;
     if (user.status !== 'active') throw new UserServiceError(403, 'User account is inactive');
-    await prisma.$transaction([prisma.identityLink.update({ where: { id: existing.id }, data: { lastSeenAt: new Date() } }), prisma.applicationUser.update({ where: { id: user.id }, data: { displayName: input.displayName || user.displayName, email: input.email || user.email, lastLoginAt: new Date() } })]);
-    return toPrincipal(user, 'oidc', input.subject, input.issuer);
+    // The identity provider (Keycloak/HIP) is the source of truth for this
+    // user's roles on every login, not just at account creation - otherwise a
+    // role granted (or revoked) upstream after the first login would never
+    // take effect here.
+    const { desiredRoles, changed: rolesChanged } = computeRoleSync(rolesOf(user), input.roles as ApplicationRole[] | undefined);
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.identityLink.update({ where: { id: existing.id }, data: { lastSeenAt: new Date() } });
+      const result = await tx.applicationUser.update({ where: { id: user.id }, data: { displayName: input.displayName || user.displayName, email: input.email || user.email, lastLoginAt: new Date(), ...(rolesChanged ? { roles: { deleteMany: {}, create: desiredRoles!.map((role) => ({ role })) } } : {}) }, include: { roles: true } });
+      if (rolesChanged) await tx.auditEvent.create({ data: { actorUserId: user.id, action: 'user.role-changed', resourceType: 'user', resourceId: user.id, metadata: { roles: desiredRoles, source: 'hip-keycloak-login' } } });
+      return result;
+    });
+    return toPrincipal(updated as unknown as UserWithRoles, 'oidc', input.subject, input.issuer);
   }
   const created = await prisma.$transaction(async (tx) => {
     const user = await tx.applicationUser.create({ data: { displayName: input.displayName || null, email: input.email || null, roles: { create: [{ role: input.roles?.includes('ADMIN') ? 'ADMIN' : 'USER' }] }, identities: { create: { issuer: input.issuer, externalSubject: input.subject } }, lastLoginAt: new Date() }, include: { roles: true } });

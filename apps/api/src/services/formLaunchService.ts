@@ -72,6 +72,12 @@ export async function launchForm(input: FormLaunchRequest, actor: SessionActor):
   const query = new URLSearchParams({ sessionId: session.id });
   if (input.encounterId) query.set('encounterId', nonEmptyText(input.encounterId, 'encounterId'));
   if (input.launchId) query.set('launchId', nonEmptyText(input.launchId, 'launchId'));
+  if (input.hiddenFieldIds) {
+    if (!Array.isArray(input.hiddenFieldIds) || input.hiddenFieldIds.some((id) => typeof id !== 'string' || !id.trim())) {
+      throw new HttpError(400, 'hiddenFieldIds must be a string array');
+    }
+    query.set('hiddenFieldIds', input.hiddenFieldIds.map((id) => id.trim()).join(','));
+  }
   return {
     protocolVersion: FORM_LAUNCH_PROTOCOL_VERSION,
     session,

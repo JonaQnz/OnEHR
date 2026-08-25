@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { decodeJwt } from 'jose';
-import { getActiveEhrbaseConnection, type EhrbaseAuthPluginId, type EhrbaseConnection } from './configService';
+import { getActiveEhrbaseConnection, getConfig, type EhrbaseAuthPluginId, type EhrbaseConnection } from './configService';
 
 export interface EhrbaseRequestConfig {
   ehrbaseUrl: string;
@@ -14,6 +14,7 @@ export interface HipLoginIdentity {
   subject: string;
   displayName?: string;
   email?: string;
+  roles?: string[];
 }
 
 export interface EhrbaseConnectionAuthPlugin {
@@ -62,6 +63,28 @@ async function requestHipToken(connection: EhrbaseConnection, credentials?: { us
   }
 }
 
+/** Pure, unit-testable core of the HIP admin decision: which Keycloak realm/
+ * client roles a decoded token carries. Split out of `authenticateLogin` so
+ * it can be tested without a real Keycloak token endpoint. */
+export function extractKeycloakRoles(claims: Record<string, unknown>, clientId: string | undefined): { realmRoles: string[]; clientRoles: string[] } {
+  const realmRoles = Array.isArray((claims.realm_access as any)?.roles) ? (claims.realm_access as any).roles as string[] : [];
+  const clientRoles = clientId && Array.isArray((claims.resource_access as any)?.[clientId]?.roles)
+    ? (claims.resource_access as any)[clientId].roles as string[] : [];
+  return { realmRoles, clientRoles };
+}
+
+/** Pure, unit-testable core of the HIP admin decision: whether a login should
+ * be granted ADMIN, given the token's own roles and the Forms-side allowlist
+ * (`FORMS_HIP_ADMIN_EMAILS`). Forms has no way to define "Forms admin" inside
+ * EHRbase/Keycloak, so the allowlist exists as an explicit override alongside
+ * best-effort detection of a role literally named like "admin" on the token. */
+export function determineHipAdminAccess(input: { realmRoles: string[]; clientRoles: string[]; email?: string; subject: string; username: string; allowlist: string[] }): { isAdmin: boolean; tokenGrantsAdmin: boolean; allowlistGrantsAdmin: boolean } {
+  const tokenGrantsAdmin = [...input.realmRoles, ...input.clientRoles].some((role) => /admin/i.test(role));
+  const allowlistGrantsAdmin = input.allowlist.length > 0 && [input.email, input.subject, input.username]
+    .some((value) => typeof value === 'string' && input.allowlist.includes(value.toLowerCase()));
+  return { isAdmin: tokenGrantsAdmin || allowlistGrantsAdmin, tokenGrantsAdmin, allowlistGrantsAdmin };
+}
+
 const nonePlugin: EhrbaseConnectionAuthPlugin = { id: 'none', displayName: 'Keine Authentisierung', async createRequestConfig() { return { headers: {} }; } };
 const basicPlugin: EhrbaseConnectionAuthPlugin = {
   id: 'basic', displayName: 'HTTP Basic Auth',
@@ -88,11 +111,23 @@ const hipKeycloakPlugin: EhrbaseConnectionAuthPlugin = {
     try { claims = decodeJwt(result.token); } catch { /* opaque tokens still prove a successful Keycloak login */ }
     const baseUrl = connection.keycloakBaseUrl!.trim().replace(/\/$/, '');
     const subject = typeof claims.sub === 'string' && claims.sub ? claims.sub : credentials.username;
+    const email = typeof claims.email === 'string' ? claims.email : undefined;
+
+    const { realmRoles, clientRoles } = extractKeycloakRoles(claims, connection.keycloakClientId);
+    const allowlist = getConfig().hipAdminIdentities || [];
+    const access = determineHipAdminAccess({ realmRoles, clientRoles, email, subject, username: credentials.username, allowlist });
+
+    // Logged every HIP login so the actual token shape (which realm/client
+    // roles, if any, Keycloak is sending for this user) is visible in the API
+    // logs - use this to see what's available before tightening the rule above.
+    console.info('[AUTH][HIP] Keycloak login', { subject, email, realmRoles, clientRoles, ...access });
+
     return {
       issuer: `hip-keycloak:${baseUrl}/realms/${connection.keycloakRealm}`,
       subject,
       ...(typeof claims.name === 'string' ? { displayName: claims.name } : typeof claims.preferred_username === 'string' ? { displayName: claims.preferred_username } : { displayName: credentials.username }),
-      ...(typeof claims.email === 'string' ? { email: claims.email } : {}),
+      ...(email ? { email } : {}),
+      roles: access.isAdmin ? ['ADMIN'] : ['USER'],
     };
   },
 };
@@ -119,4 +154,16 @@ export async function getActiveEhrbaseBearerToken(): Promise<string> {
   const header = config.headers.Authorization;
   if (!header?.startsWith('Bearer ')) throw new Error('The active EHRbase connection does not use bearer authentication');
   return header.slice('Bearer '.length);
+}
+
+/** A ready-to-send `Authorization` header value for the active EHRbase
+ * connection, covering both bearer (HIP/Keycloak) and Basic Auth plugins, or
+ * `undefined` for the `none` plugin. For handing a pre-resolved header to
+ * plugin action handlers that need to call EHRbase themselves, so they don't
+ * need their own copy of the connection-plugin/credential logic. */
+export async function resolveActiveEhrbaseAuthorizationHeader(): Promise<string | undefined> {
+  const config = await getEhrbaseRequestConfig();
+  if (config.headers.Authorization) return config.headers.Authorization;
+  if (config.auth) return `Basic ${Buffer.from(`${config.auth.username}:${config.auth.password}`).toString('base64')}`;
+  return undefined;
 }

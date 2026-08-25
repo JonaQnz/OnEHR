@@ -48,6 +48,37 @@ enum FormSessionStatus {
   cancelled
 }
 
+enum CompositionSessionStatus {
+  draft
+  in_progress
+  ready
+  submitted
+  failed
+  cancelled
+}
+
+model CompositionSession {
+  id                 String                   @id @default(uuid())
+  compositionFormId  String                   @map("composition_form_id")
+  compositionVersion String                   @map("composition_version")
+  patientId          String                   @map("patient_id")
+  patientNamespace   String?                  @map("patient_namespace")
+  ehrId              String?                  @map("ehr_id")
+  userId             String                   @map("user_id")
+  authMode           String                   @map("auth_mode")
+  mode               FormSessionMode          @default(create)
+  status             CompositionSessionStatus @default(draft)
+  // Block id -> child FormSession id. Values remain in the child session.
+  childSessions      Json                     @default("{}") @map("child_sessions")
+  revision           Int                      @default(0)
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime                 @updatedAt @map("updated_at")
+
+  @@index([compositionFormId, patientId])
+  @@index([userId, updatedAt])
+  @@map("composition_sessions")
+}
+
 model FormSession {
   id                 String   @id @default(uuid())
   formId             String   @map("form_id")
@@ -88,6 +119,20 @@ model AqlFunction {
   @@unique([packageName, name])
   @@index([enabled, autoload])
   @@map("aql_functions")
+}
+
+model DataWidget {
+  id            String   @id @default(uuid())
+  name          String
+  description   String   @default("")
+  aqlFunctionId String   @map("aql_function_id")
+  configuration Json     @default("{}")
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([aqlFunctionId, enabled])
+  @@map("data_widgets")
 }
 
 model CodeFunction {

@@ -29,6 +29,6 @@ export function isFormEmbedEvent(value: unknown): value is FormEmbedEvent {
   if (!value || typeof value !== 'object') return false;
   const event = value as Partial<FormEmbedEvent>;
   return event.protocolVersion === FORM_LAUNCH_PROTOCOL_VERSION
-    && (event.event === 'loaded' || event.event === 'submitted' || event.event === 'error')
+    && (event.event === 'loaded' || event.event === 'submitted' || event.event === 'error' || event.event === 'resize')
     && typeof event.formId === 'string';
 }

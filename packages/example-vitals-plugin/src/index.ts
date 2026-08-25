@@ -7,8 +7,8 @@ const plugin: FormBuilderPlugin = {
     apiVersion: '1.0',
     name: 'Example Vitals',
     description: 'A tiny plugin used to verify loading, settings, fields, actions, and hooks.',
-    extensionPoints: ['field', 'settings', 'form', 'designer', 'runtime', 'dataProvider', 'lifecycle'],
-    permissions: ['form:read', 'form:write'],
+    extensionPoints: ['field', 'settings', 'form', 'designer', 'runtime', 'dataProvider', 'lifecycle', 'widget'],
+    permissions: ['form:read', 'form:write', 'ehrbase:read'],
   },
   activate(context) {
     context.registerFieldType({
@@ -47,6 +47,34 @@ const plugin: FormBuilderPlugin = {
       providerId: 'org.example.vitals.provider',
       label: 'Example Vitals provider',
       capabilities: ['load'],
+    });
+    context.registerWidgetPackage({
+      key: 'org.example.vitals.clinical',
+      packageId: 'clinical',
+      label: 'Klinische Übersicht',
+      widgets: [
+        {
+          id: 'laboratory-analytes', title: 'Laborwerte im Verlauf',
+          aqlFunction: { packageName: 'laboratory', name: 'analyteResults' },
+          requiredContext: ['ehrId'],
+          columns: { value: 'magnitude', label: 'analyteName', time: 'recordedAt', unit: 'unit' },
+          chart: { type: 'line', x: 'recordedAt', y: 'magnitude' },
+        },
+        {
+          id: 'recent-laboratory-reports', title: 'Aktuelle Laborbefunde',
+          aqlFunction: { packageName: 'laboratory', name: 'labReportTimeline' },
+          requiredContext: ['ehrId'],
+          columns: { value: 'entryName', label: 'recordedAt', time: 'recordedAt' },
+          chart: { type: 'table' },
+        },
+        {
+          id: 'recent-diagnoses', title: 'Aktuelle Diagnosen',
+          aqlFunction: { packageName: 'clinicalOverview', name: 'diagnosisHistory' },
+          requiredContext: ['ehrId'],
+          columns: { value: 'entryName', label: 'recordedAt', time: 'recordedAt' },
+          chart: { type: 'table' },
+        },
+      ],
     });
     context.registerHook('beforeFormSave', ({ data }) => {
       const currentExtensions = data?.extensions;

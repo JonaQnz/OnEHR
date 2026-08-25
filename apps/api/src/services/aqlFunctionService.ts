@@ -96,7 +96,7 @@ export function validateAqlFunctionInput(value: unknown): {
   const name = typeof value.name === 'string' ? value.name.trim() : '';
   const query = typeof value.query === 'string' ? value.query.trim() : '';
   if (!QUALIFIED_NAME.test(`${packageName}.${name}`)) {
-    throw new HttpError(400, 'packageName and name must form a lower-case qualified function name');
+    throw new HttpError(400, 'packageName and name must form a lower-case qualified function name: ' + packageName + '.' + name);
   }
   if (!/^SELECT\b/i.test(query) || UNSAFE_AQL.test(query) || query.includes(';')) {
     throw new HttpError(400, 'Only one read-only SELECT AQL query is allowed');
@@ -160,7 +160,20 @@ export async function executeAqlQuery(query: string, parameters: Record<string, 
     { q: bindAqlParameters(query, parameters) },
     { headers, ...(auth ? { auth } : {}) },
   );
-  return response.data?.rows ?? [];
+  
+  const data = response.data;
+  if (!data || !Array.isArray(data.rows) || !Array.isArray(data.columns)) {
+    return data?.rows ?? [];
+  }
+  
+  const columns = data.columns.map((c: any) => c.name);
+  return data.rows.map((row: any[]) => {
+    const obj: Record<string, any> = {};
+    columns.forEach((col: string, idx: number) => {
+      obj[col] = row[idx];
+    });
+    return obj;
+  });
 }
 
 export async function listAqlFunctions(): Promise<AqlFunctionDefinition[]> {

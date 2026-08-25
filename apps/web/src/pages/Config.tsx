@@ -15,7 +15,7 @@ export default function Config() {
   const [error, setError] = useState('');
 
   useEffect(() => { fetch('http://localhost:3001/api/config', { credentials: 'include' }).then((res) => res.json()).then((data) => setConfig(data)).catch(() => setError('Configuration could not be loaded.')).finally(() => setLoading(false)); }, []);
-  const change = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setConfig({ ...config, [event.target.name]: event.target.value });
+  const change = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setConfig({ ...config, [event.target.name]: event.target.value });
   const connections: ConnectionDraft[] = Array.isArray(config.ehrbaseConnections) ? config.ehrbaseConnections : [];
   const updateConnection = (id: string, key: keyof ConnectionDraft, value: string) => setConfig({ ...config, ehrbaseConnections: connections.map((item) => item.id === id ? { ...item, [key]: value } : item) });
   const addConnection = () => {
@@ -73,6 +73,15 @@ export default function Config() {
         <div><label className="form-label">Form Script AI model</label><input name="scriptAiModel" value={config.scriptAiModel || ''} onChange={change} className="form-input" placeholder="Optional" /></div>
         <button type="submit" className="btn" style={{ alignSelf: 'flex-end' }}><Save size={18} /> Save Configuration</button>
       </form>
+    </div>
+    <div className="card" style={{ marginBottom: '1.5rem' }}>
+      <h3 style={{ marginTop: 0 }}>KIS-Patientensynchronisierung</h3>
+      <p style={{ color: 'var(--text-muted)' }}>Beim Öffnen der Patientenliste wird diese AQL höchstens einmal pro Minute ausgeführt. <code>:personTemplateId</code> wird sicher mit der unten gewählten Template-ID gebunden. Jede Zeile mit <code>ehrId</code> repräsentiert eine Person; das EHR wird anschließend geladen.</p>
+      <label className="form-label">Person-Template-ID</label>
+      <input name="patientRegistryPersonTemplateId" value={config.patientRegistryPersonTemplateId || ''} onChange={change} className="form-input" placeholder="vg_Person.v1.1.1" />
+      <label className="form-label" style={{ marginTop: '1rem' }}>Patienten-AQL</label>
+      <textarea name="patientRegistryAql" value={config.patientRegistryAql || ''} onChange={change} className="form-input" rows={7} spellCheck={false} />
+      <p style={{ color: 'var(--text-muted)', fontSize: '.85rem', marginBottom: 0 }}>Pflichtalias: <code>ehrId</code>. Optional: <code>patientId</code>, <code>patientNamespace</code>, <code>firstName</code>, <code>lastName</code>, <code>birthDate</code>, <code>gender</code>. Fehlen optionale Werte, nutzt Forms die EHR-Subject-ID und neutrale Anzeigenamen.</p>
     </div>
     <div className="card"><h3 style={{ marginTop: 0 }}>Plugin Settings</h3><PluginSettingsHost title="Globale Plugin Settings" /></div>
   </div>;

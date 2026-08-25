@@ -1,3 +1,4 @@
+import path from 'path';
 import { FormBuilderPlugin, PluginLogger, PluginManifest, PluginRegistry } from 'plugin-api';
 import { getConfig } from '../services/configService';
 
@@ -81,12 +82,34 @@ export async function loadPluginPackage(packageName: string): Promise<PluginMani
   }
 }
 
+/** Node caches every file a `require()`d package pulls in (not just its
+ * entry point), keyed by resolved absolute path - so without this, unloading
+ * a plugin and loading it again would silently keep running the exact same
+ * cached code, not whatever changed on disk since. Only the plugin's own
+ * package directory is cleared, not its private node_modules if it has one,
+ * to avoid disturbing dependencies that may be shared elsewhere. */
+function clearPluginRequireCache(packageName: string): void {
+  let packageRoot: string;
+  try {
+    packageRoot = path.dirname(require.resolve(`${packageName}/package.json`));
+  } catch {
+    try { packageRoot = path.dirname(require.resolve(packageName)); }
+    catch { return; }
+  }
+  for (const cachedPath of Object.keys(require.cache)) {
+    if (cachedPath === packageRoot || cachedPath.startsWith(packageRoot + path.sep)) {
+      delete require.cache[cachedPath];
+    }
+  }
+}
+
 export function unloadPluginPackage(packageName: string): boolean {
   const normalizedName = normalizePackageName(packageName);
   const pluginId = loadedPackages.get(normalizedName);
   if (!pluginId) return false;
   loadedPackages.delete(normalizedName);
   failedPackages.delete(normalizedName);
+  clearPluginRequireCache(normalizedName);
   return pluginRegistry.unregister(pluginId);
 }
 

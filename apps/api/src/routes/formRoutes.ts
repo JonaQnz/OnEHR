@@ -5,19 +5,23 @@ import { exportToCambioForm } from '../exporters/cambioExporter';
 import { exportMappings } from '../exporters/mappingExporter';
 import { asyncHandler, HttpError } from '../middleware/errorHandler';
 import { normalizeCanonicalFormPayload, requireNonEmptyString } from '../validation/formValidation';
-import { FORM_DEFINITION_SCHEMA_VERSION, migrateCanonicalFormToV1 } from 'core';
+import { COMPOSITION_EXTENSION_KEY, COMPOSITION_SCHEMA_VERSION, COMPOSITION_SCRIPTING_EXTENSION_KEY, FORM_DEFINITION_SCHEMA_VERSION, getCompositionDefinition, migrateCanonicalFormToV1, normalizeCompositionScript } from 'core';
 import { generateCanonicalForm } from '../services/formGenerator';
 import {
   FormScriptCompileResult,
   compileFormDefinitionScript,
   compileFormScript,
 } from '../scripting/formScriptCompiler';
+import { compileCompositionScript } from '../scripting/compositionScriptCompiler';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 import {
   hydrateFormScriptConnectors,
   ScriptConnectorError,
 } from '../services/scriptConnectorRegistry';
 import { requirePermission } from '../middleware/auth';
+import { executeAqlQuery } from '../services/aqlFunctionService';
+import { executeDataWidget } from '../services/dataWidgetService';
+import { resolvePatientReference } from '../services/patientService';
 import {
   FormScriptAiError,
   formScriptAiRateLimiter,
@@ -25,9 +29,9 @@ import {
 } from '../scripting/formScriptAiService';
 
 const router = Router();
-router.use((req, res, next) => requirePermission(req.method === 'GET' ? 'form.execute' : 'form.design')(req, res, next));
+router.use((req, res, next) => requirePermission(req.method === 'GET' || /\/composition-data$/.test(req.path) ? 'form.execute' : 'form.design')(req, res, next));
 
-function assertScriptCompiles(result: FormScriptCompileResult): void {
+function assertScriptCompiles(result: Pick<FormScriptCompileResult, 'valid' | 'document'>): void {
   if (result.valid) return;
   throw new HttpError(422, 'Das Form Script enthält TypeScript- oder Sicherheitsfehler.', {
     code: 'FORM_SCRIPT_INVALID',
@@ -40,6 +44,27 @@ function assertScriptCompiles(result: FormScriptCompileResult): void {
       message: diagnostic.message,
     })),
   });
+}
+
+function compileDefinitionScripts(definition: ReturnType<typeof migrateCanonicalFormToV1>) {
+  const formCompilation = compileFormDefinitionScript(definition);
+  assertScriptCompiles(formCompilation);
+  const withFormScript = { ...definition, formScript: formCompilation.document };
+  const composition = getCompositionDefinition(withFormScript.extensions);
+  if (!composition) return withFormScript;
+  const script = normalizeCompositionScript(
+    withFormScript.extensions?.[COMPOSITION_SCRIPTING_EXTENSION_KEY],
+    composition,
+  );
+  const compositionCompilation = compileCompositionScript(composition, script.source);
+  assertScriptCompiles(compositionCompilation);
+  return {
+    ...withFormScript,
+    extensions: {
+      ...withFormScript.extensions,
+      [COMPOSITION_SCRIPTING_EXTENSION_KEY]: compositionCompilation.document,
+    },
+  };
 }
 
 function prepareConnectors(definition: ReturnType<typeof migrateCanonicalFormToV1>, allowedOverride?: string[]) {
@@ -58,9 +83,7 @@ function prepareConnectors(definition: ReturnType<typeof migrateCanonicalFormToV
 
 function prepareNewDefinition(input: Record<string, unknown>, formId: string) {
   const definition = prepareConnectors(migrateCanonicalFormToV1(input, formId));
-  const compilation = compileFormDefinitionScript(definition);
-  assertScriptCompiles(compilation);
-  return { ...definition, formScript: compilation.document };
+  return compileDefinitionScripts(definition);
 }
 
 function generateDefinitionFromTemplate(template: any, formId: string, formName?: string) {
@@ -88,6 +111,41 @@ function generateDefinitionFromTemplate(template: any, formId: string, formName?
   }, formId);
 }
 
+/** A published Composition is immutable in intent: all referenced building blocks must be executable now. */
+async function assertCompositionDependencies(definition: ReturnType<typeof migrateCanonicalFormToV1>, compositionId: string): Promise<void> {
+  const composition = getCompositionDefinition(definition.extensions);
+  if (!composition) return;
+  const formIds = composition.pages.flatMap((page) => page.blocks)
+    .filter((block): block is Extract<typeof block, { type: 'form' }> => block.type === 'form')
+    .map((block) => block.formId);
+  if (formIds.includes(compositionId)) throw new HttpError(422, 'A Composition cannot include itself');
+  if (formIds.length > 0) {
+    const forms = await prisma.form.findMany({ where: { id: { in: [...new Set(formIds)] } }, select: { id: true, status: true } });
+    const unavailable = formIds.filter((id) => !forms.some((form) => form.id === id && form.status === 'published'));
+    if (unavailable.length > 0) throw new HttpError(422, 'A Composition can only include published forms', { code: 'COMPOSITION_FORM_UNAVAILABLE', messages: unavailable.map((id) => ({ severity: 'error', path: 'extensions.watehr.composition', message: `Embedded form ${id} is not published` })) });
+  }
+  const widgetIds = composition.pages.flatMap((page) => page.blocks)
+    .filter((block): block is Extract<typeof block, { type: 'data' }> => block.type === 'data')
+    .map((block) => block.widgetId)
+    .filter((id): id is string => Boolean(id));
+  if (widgetIds.length > 0) {
+    const widgets = await prisma.dataWidget.findMany({ where: { id: { in: [...new Set(widgetIds)] }, enabled: true }, select: { id: true } });
+    const unavailable = widgetIds.filter((id) => !widgets.some((widget) => widget.id === id));
+    if (unavailable.length > 0) throw new HttpError(422, 'A Composition can only use enabled widgets', { code: 'COMPOSITION_WIDGET_UNAVAILABLE', messages: unavailable.map((id) => ({ severity: 'error', path: 'extensions.watehr.composition', message: `Widget ${id} is unavailable` })) });
+  }
+  // Kept while old definitions are migrated. New data blocks always use widgetId.
+  const functionIds = composition.pages.flatMap((page) => page.blocks)
+    .filter((block): block is Extract<typeof block, { type: 'data' }> => block.type === 'data')
+    .filter((block) => !block.widgetId)
+    .map((block) => block.aqlFunctionId)
+    .filter((id): id is string => Boolean(id));
+  if (functionIds.length > 0) {
+    const functions = await prisma.aqlFunction.findMany({ where: { id: { in: [...new Set(functionIds)] }, enabled: true }, select: { id: true } });
+    const unavailable = functionIds.filter((id) => !functions.some((fn) => fn.id === id));
+    if (unavailable.length > 0) throw new HttpError(422, 'A Composition can only use enabled AQL functions', { code: 'COMPOSITION_AQL_UNAVAILABLE', messages: unavailable.map((id) => ({ severity: 'error', path: 'extensions.watehr.composition', message: `AQL function ${id} is unavailable` })) });
+  }
+}
+
 router.get('/', asyncHandler(async (_req, res) => {
   res.json(await prisma.form.findMany());
 }));
@@ -95,7 +153,12 @@ router.get('/', asyncHandler(async (_req, res) => {
 router.post('/', asyncHandler(async (req, res) => {
   const name = req.body?.name === undefined ? 'New Form' : requireNonEmptyString(req.body.name, 'name');
   const id = uuidv4();
-  const canonicalForm = prepareNewDefinition({ id, name, version: '0.1.0-draft', schemaVersion: FORM_DEFINITION_SCHEMA_VERSION, revision: 0, extensions: {}, sourceTemplates: [], layout: { type: 'form', children: [{ type: 'container', children: [] }] }, bindings: {}, locales: { en: {} } }, id);
+  const composition = req.body?.kind === 'composition';
+  const canonicalForm = prepareNewDefinition({
+    id, name, version: '0.1.0-draft', schemaVersion: FORM_DEFINITION_SCHEMA_VERSION, revision: 0,
+    extensions: composition ? { [COMPOSITION_EXTENSION_KEY]: { schemaVersion: COMPOSITION_SCHEMA_VERSION, pages: [{ id: 'page-1', title: 'Seite 1', blocks: [] }] } } : {},
+    sourceTemplates: [], layout: { type: 'form', children: [{ type: 'container', children: [] }] }, bindings: {}, locales: { en: {} },
+  }, id);
   const form = await prisma.form.create({ data: { id, parent_id: id, name, version: canonicalForm.version, status: 'draft', canonical_json: canonicalForm as any } });
   res.status(201).json({ message: 'Empty form created', form });
 }));
@@ -118,9 +181,7 @@ router.post('/:id/apply-template', asyncHandler(async (req, res) => {
     ...(current.formScript ? { formScript: current.formScript } : {}),
   };
   canonicalForm = prepareConnectors(migrateCanonicalFormToV1(canonicalForm, formRecord.id)) as any;
-  const compilation = compileFormDefinitionScript(canonicalForm);
-  assertScriptCompiles(compilation);
-  canonicalForm.formScript = compilation.document;
+  canonicalForm = compileDefinitionScripts(canonicalForm) as typeof canonicalForm;
   const form = await prisma.form.update({ where: { id: formRecord.id }, data: { canonical_json: canonicalForm as any, name: canonicalForm.name, version: canonicalForm.version } });
   res.json({ message: 'Template applied', form });
 }));
@@ -134,6 +195,54 @@ router.post('/generate-from-template', asyncHandler(async (req, res) => {
   const canonicalForm = generateDefinitionFromTemplate(template, uuidv4(), formName);
   const form = await prisma.form.create({ data: { id: canonicalForm.id, parent_id: canonicalForm.id, name: canonicalForm.name, version: canonicalForm.version, status: 'draft', canonical_json: canonicalForm as any } });
   res.status(201).json({ message: 'Form generated', form });
+}));
+
+/**
+ * Executes only AQL functions explicitly referenced by a published Composition.
+ * The browser never receives raw AQL nor EHRbase credentials.
+ */
+router.post('/:id/composition-data', asyncHandler(async (req, res) => {
+  const formId = requireNonEmptyString(req.params.id, 'id');
+  const blockId = requireNonEmptyString(req.body?.blockId, 'blockId');
+  const patientId = requireNonEmptyString(req.body?.patient?.id, 'patient.id');
+  const record = await prisma.form.findUnique({ where: { id: formId } });
+  if (!record) throw new HttpError(404, 'Composition not found');
+  if (record.status !== 'published') throw new HttpError(409, 'Only published compositions can query clinical data');
+  const definition = migrateCanonicalFormToV1({ ...(record.canonical_json as any), id: record.id }, record.id);
+  const composition = getCompositionDefinition(definition.extensions);
+  if (!composition) throw new HttpError(422, 'Form is not a Composition');
+  const block = composition.pages.flatMap((page) => page.blocks).find((candidate) => candidate.id === blockId && candidate.type === 'data');
+  if (!block || block.type !== 'data') throw new HttpError(404, 'Composition data block not found');
+  // Resolve ehrId server-side from the patient record instead of trusting the
+  // client-supplied value directly - otherwise any form.execute user could
+  // read another patient's clinical data by editing the ehrId in the URL.
+  // Same fallback rule as compositionSessionService.startCompositionSession:
+  // only trust the client's ehrId when no local patient record exists yet.
+  const requestedNamespace = typeof req.body?.patient?.namespace === 'string' && req.body.patient.namespace.trim() ? req.body.patient.namespace.trim() : undefined;
+  const patient = await resolvePatientReference(patientId, requestedNamespace);
+  const ehrId = patient?.ehrId || (typeof req.body?.ehrId === 'string' && req.body.ehrId.trim() ? req.body.ehrId.trim() : undefined);
+  if (block.widgetId) {
+    if (!ehrId) throw new HttpError(422, 'A patient EHR ID is required to load a Composition widget');
+    const result = await executeDataWidget(block.widgetId, {
+      patientId,
+      ...(typeof req.body?.patient?.namespace === 'string' && req.body.patient.namespace.trim() ? { patientNamespace: req.body.patient.namespace.trim() } : {}),
+      ehrId,
+    });
+    res.json({ blockId, widget: result.widget, rows: result.rows });
+    return;
+  }
+  const aqlFunction = await prisma.aqlFunction.findFirst({ where: { id: block.aqlFunctionId, enabled: true } });
+  if (!aqlFunction) throw new HttpError(422, 'The selected AQL function is unavailable');
+  const specs = (aqlFunction.parameters && typeof aqlFunction.parameters === 'object' && !Array.isArray(aqlFunction.parameters)) ? aqlFunction.parameters as Record<string, any> : {};
+  const parameters: Record<string, unknown> = Object.fromEntries(Object.entries(specs)
+    .filter(([, value]) => value && typeof value === 'object' && 'default' in value)
+    .map(([key, value]) => [key, (value as { default: unknown }).default]));
+  parameters.patientId = patientId;
+  if (typeof req.body?.patient?.namespace === 'string' && req.body.patient.namespace.trim()) parameters.patientNamespace = req.body.patient.namespace.trim();
+  if (ehrId) parameters.ehrId = ehrId;
+  if (typeof req.body?.encounterId === 'string' && req.body.encounterId.trim()) parameters.encounterId = req.body.encounterId.trim();
+  const rows = await executeAqlQuery(aqlFunction.query, parameters);
+  res.json({ blockId, rows: Array.isArray(rows) ? rows.slice(0, block.limit || 100) : [] });
 }));
 
 router.get('/:id', asyncHandler(async (req, res) => {
@@ -161,6 +270,17 @@ router.post('/:id/script/check', asyncHandler(async (req, res) => {
   );
   const result = compileFormScript(definition, source);
   res.json(result);
+}));
+
+router.post('/:id/composition-script/check', asyncHandler(async (req, res) => {
+  const formId = requireNonEmptyString(req.params.id, 'id');
+  if (typeof req.body?.source !== 'string') throw new HttpError(400, '"source" must be a string');
+  const stored = await prisma.form.findUnique({ where: { id: formId } });
+  if (!stored) throw new HttpError(404, 'Form not found');
+  const definition = migrateCanonicalFormToV1({ ...(stored.canonical_json as any), id: stored.id }, stored.id);
+  const composition = getCompositionDefinition(definition.extensions);
+  if (!composition) throw new HttpError(422, 'Form is not a Composition');
+  res.json(compileCompositionScript(composition, req.body.source));
 }));
 
 router.post('/:id/script/generate', asyncHandler(async (req, res) => {
@@ -235,9 +355,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
   const storedDefinition = migrateCanonicalFormToV1(stored.canonical_json, formId);
   canonicalForm.revision = storedDefinition.revision + 1;
   canonicalForm = prepareConnectors(canonicalForm);
-  const compilation = compileFormDefinitionScript(canonicalForm);
-  assertScriptCompiles(compilation);
-  canonicalForm.formScript = compilation.document;
+  canonicalForm = compileDefinitionScripts(canonicalForm) as typeof canonicalForm;
   const form = await prisma.form.update({ where: { id: formId }, data: { canonical_json: canonicalForm as any, name: canonicalForm.name, version: canonicalForm.version, status: canonicalForm.status || 'draft' } });
   await pluginRegistry.runHook('afterFormSave', { form: canonicalForm as Record<string, any>, data: canonicalForm as Record<string, any>, formId });
   res.json(form);
@@ -264,12 +382,11 @@ router.post('/:id/publish', asyncHandler(async (req, res) => {
     version: newVersion,
     status: 'published',
   }, formId));
-  const compilation = compileFormDefinitionScript(canonicalForm);
-  assertScriptCompiles(compilation);
-  canonicalForm.formScript = compilation.document;
+  await assertCompositionDependencies(canonicalForm, formId);
+  const compiledDefinition = compileDefinitionScripts(canonicalForm);
   const published = await prisma.form.update({ 
     where: { id: formId }, 
-    data: { status: 'published', version: newVersion, canonical_json: canonicalForm as any }
+    data: { status: 'published', version: newVersion, canonical_json: compiledDefinition as any }
   });
   res.json({ message: 'Form published', form: published });
 }));

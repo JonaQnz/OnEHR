@@ -173,6 +173,44 @@ test('isolates lifecycle hook failures and continues with later plugins', async 
   assert.equal(result.errors[0].path, 'plugin:org.example.failing-hook');
 });
 
+test('a hung activate() times out instead of blocking registration forever', async () => {
+  const registry = new PluginRegistry(silentLogger, 20);
+  await assert.rejects(
+    registry.register({
+      manifest: manifest({ id: 'org.example.hung-activate' }),
+      activate: () => new Promise(() => {}),
+    }),
+    /activate\(\) timed out after 20ms/,
+  );
+  assert.equal(registry.snapshot().plugins.length, 0);
+});
+
+test('a hung lifecycle hook times out as a plugin error instead of blocking the hook chain forever', async () => {
+  const registry = new PluginRegistry(silentLogger, 20);
+  await registry.register({
+    manifest: manifest({ id: 'org.example.hung-hook', extensionPoints: ['lifecycle'] }),
+    activate(context) {
+      context.registerHook('beforeFormSave', () => new Promise(() => {}));
+    },
+  });
+  const result = await registry.runHook('beforeFormSave', { form: {}, data: {} });
+  assert.equal(result.errors.length, 1);
+  assert.equal(result.errors[0].path, 'plugin:org.example.hung-hook');
+});
+
+test('a hung action times out as an error result instead of blocking the caller forever', async () => {
+  const registry = new PluginRegistry(silentLogger, 20);
+  await registry.register({
+    manifest: manifest({ id: 'org.example.hung-action', extensionPoints: ['runtime'] }),
+    activate(context) {
+      context.registerAction('run', () => new Promise(() => {}));
+    },
+  });
+  const result = await registry.runAction('org.example.hung-action', 'run', {});
+  assert.equal(result.errors.length, 1);
+  assert.equal(result.errors[0].path, 'plugin:org.example.hung-action');
+});
+
 test('aggregates plugin notices, transforms returned data, and stops the hook chain', async () => {
   const registry = new PluginRegistry(silentLogger);
   await registry.register({

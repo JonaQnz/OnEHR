@@ -24,6 +24,8 @@ export interface FormLaunchRequest {
   /** Opaque host correlation value, returned in browser events but never persisted as clinical data. */
   launchId?: string;
   encounterId?: string;
+  /** Optional non-required fields hidden by a trusted Composition host. */
+  hiddenFieldIds?: string[];
 }
 
 export interface FormLaunchResult {
@@ -32,7 +34,7 @@ export interface FormLaunchResult {
   launchUrl: string;
 }
 
-export type FormEmbedEventName = 'loaded' | 'submitted' | 'error';
+export type FormEmbedEventName = 'loaded' | 'submitted' | 'error' | 'resize';
 
 export interface FormEmbedEvent {
   protocolVersion: typeof FORM_LAUNCH_PROTOCOL_VERSION;
@@ -41,4 +43,5 @@ export interface FormEmbedEvent {
   sessionId?: string;
   launchId?: string;
   message?: string;
+  height?: number;
 }

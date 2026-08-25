@@ -21,7 +21,35 @@ import { ensureDefaultFunctionLibrary } from './services/functionLibraryBootstra
 import functionRoutes from './routes/functionRoutes';
 import userAdminRoutes from './routes/userAdminRoutes';
 import auditRoutes from './routes/auditRoutes';
+import ehrbaseAdminRoutes from './routes/ehrbaseAdminRoutes';
+import compositionSessionRoutes from './routes/compositionSessionRoutes';
+import dataWidgetRoutes from './routes/dataWidgetRoutes';
 import { ensureBootstrapAdmin } from './services/userAuthService';
+
+// Backend plugins run in-process via require() with no sandbox (see
+// pluginRegistry.ts) - a real isolation boundary would run each plugin in its
+// own process/worker so a crash there can be killed without touching the
+// host. Until that exists, these are the process-wide safety net: without
+// them, one unguarded `.then()` anywhere in a plugin (or in our own code)
+// takes the entire API down for every user, since Node terminates the
+// process on an unhandled rejection by default.
+//
+// - unhandledRejection: overwhelmingly these are recoverable bugs (a promise
+//   nobody awaited/caught), not corrupted process state. Log and keep running
+//   rather than let one loose promise take everyone down.
+// - uncaughtException: a synchronous throw escaped everything, which Node's
+//   own docs say can leave process state inconsistent - continuing is not
+//   safe. Log and exit so a supervisor (Docker's `restart: unless-stopped`,
+//   see docker-compose.yml) brings the process back in seconds instead of
+//   limping on in an unknown state.
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL][unhandledRejection] Unhandled promise rejection (likely a bug in a plugin or backend service); continuing.', reason);
+});
+process.on('uncaughtException', (error) => {
+  console.error('[FATAL][uncaughtException] Uncaught exception; exiting for the container supervisor to restart the process.', error);
+  process.exitCode = 1;
+  process.exit(1);
+});
 
 // Resolve the API-local environment file, independent of the process working
 // directory (for example when started as `node apps/api/dist/index.js`).
@@ -67,13 +95,16 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 app.use('/api/form-sessions', formSessionRoutes);
+app.use('/api/composition-sessions', compositionSessionRoutes);
 app.use('/api/form-launches', formLaunchRoutes);
 app.use('/api/data-providers', dataProviderRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/script-connectors', scriptConnectorRoutes);
 app.use('/api/functions', functionRoutes);
+app.use('/api/widgets', dataWidgetRoutes);
 app.use('/api/admin', userAdminRoutes);
 app.use('/api/admin/audit', auditRoutes);
+app.use('/api/admin/ehrbase', ehrbaseAdminRoutes);
 
 app.use('/api/forms', formRoutes);
 app.use('/api/templates', templateRoutes);

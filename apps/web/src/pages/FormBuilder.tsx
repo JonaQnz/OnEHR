@@ -4,8 +4,7 @@ import FormBuilders, { ReactFormBuilder, FormElementsEdit } from 'react-form-bui
 const ElementStore = FormBuilders.ElementStore;
 import { IntlProvider } from 'react-intl';
 import enMessages from '../../../../packages/react-form-builder2/src/language-provider/locales/en-us.json';
-import { DndProvider, useDrag } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
+import { useDrag } from 'react-dnd';
 import 'react-form-builder2/dist/app.css';
 import '../styles/builder-theme.css';
 import '../styles/workbench.css';
@@ -16,6 +15,7 @@ import { ExtensionSlot, useFrontendPlugins } from '../components/FrontendPluginR
 import FormRuntime from '../components/FormRuntime';
 import ScriptEditor from '../scripting/editor/ScriptEditor';
 import ScriptLogs from '../scripting/editor/ScriptLogs';
+import { DesignerShell } from '../designer/DesignerShell';
 
 function LiveJsonEditor({ form, onSave }: { form: any, onSave: (f: any, items: any[]) => void }) {
   const [jsonString, setJsonString] = useState('');
@@ -427,9 +427,9 @@ function DraggableLayoutNode({ item }: { item: any }) {
 
 export default function FormBuilder() {
   return (
-    <DndProvider backend={HTML5Backend}>
+    <DesignerShell kind="clinical-form" dragAndDrop>
       <FormBuilderContent />
-    </DndProvider>
+    </DesignerShell>
   );
 }
 
@@ -1167,6 +1167,7 @@ function FormBuilderContent() {
           </div>
         </div>
         <div className="workbench-actions-area">
+          <ExtensionSlot name="designer:toolbar" context={{ documentId: String(id || ''), kind: 'clinical-form' }} />
           <nav className="workbench-view-tabs" aria-label="Formular-Arbeitsbereich">
             <button type="button" className={`btn-workbench secondary ${previewMode === 'edit' ? 'active' : ''}`} onClick={() => setPreviewMode('edit')}>Designer</button>
             <button type="button" className={`btn-workbench secondary ${previewMode === 'json' ? 'active' : ''}`} onClick={() => setPreviewMode('json')}>Live JSON</button>
@@ -1380,6 +1381,7 @@ function FormBuilderContent() {
                   </div>
                 )}
               </div>
+              <ExtensionSlot name="designer:toolbox" context={{ documentId: String(id || ''), kind: 'clinical-form', activeTab: leftTab }} />
             </div>
 
             {/* Center Panel: Form Canvas */}
@@ -1431,6 +1433,7 @@ function FormBuilderContent() {
                     />
                   );
                 })()}
+                <ExtensionSlot name="designer:canvas" context={{ documentId: String(id || ''), kind: 'clinical-form', activeElementId: activeEditElement?.id || null }} />
               </div>
             </div>
 
@@ -1452,6 +1455,7 @@ function FormBuilderContent() {
                 </button>
               </div>
               <PluginHost slot="designer" title="Plugin Designer" context={{ formId: id, form: form.canonical_json, data: form.canonical_json }} />
+              <ExtensionSlot name="designer:inspector" context={{ documentId: String(id || ''), kind: 'clinical-form', activeElementId: activeEditElement?.id || null, scope: inspectorScope }} />
 
               {inspectorScope === 'field' ? (
                 <>

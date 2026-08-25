@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { getConfig, getSafeConfig } = require('../dist/services/configService');
+const { getConfig, getSafeConfig, parseAdminAllowlist } = require('../dist/services/configService');
 const { getEhrbaseRequestConfig } = require('../dist/services/ehrbaseConnectionPlugins');
 
 test('configuration never falls back to a source-code EHRbase password', () => {
@@ -60,4 +60,11 @@ test('connection plugins keep no-auth requests credential-free and isolate Basic
   });
   assert.deepEqual(basic.auth, { username: 'test-user', password: 'test-secret' });
   assert.equal(basic.headers.Authorization, undefined);
+});
+
+test('parseAdminAllowlist normalizes a comma-separated env value: trims, lowercases, drops blanks', () => {
+  assert.deepEqual(parseAdminAllowlist('Jona.Kunze@VitaGroup.ag, another@example.com ,, '), ['jona.kunze@vitagroup.ag', 'another@example.com']);
+  assert.deepEqual(parseAdminAllowlist(undefined), []);
+  assert.deepEqual(parseAdminAllowlist(''), []);
+  assert.deepEqual(parseAdminAllowlist('   '), []);
 });

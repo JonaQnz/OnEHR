@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { FORM_LAUNCH_PROTOCOL_VERSION, type FormDefinitionV1, type FormEmbedEventName, type RuntimeValues, type FormSessionRuntimeContext } from 'core';
 import FormRuntime, { type FormRuntimeHandle } from '../components/FormRuntime';
@@ -59,13 +59,15 @@ export default function LiveForm() {
   const [session, setSession] = useState<SessionRecord | null>(null);
   const [draftValues, setDraftValues] = useState<RuntimeValues>({});
   
+  const isEmbedded = useMemo(() => Boolean(searchParams.get('hostOrigin')), [searchParams]);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const runtimeRef = useRef<FormRuntimeHandle>(null);
 
-  const publishEmbedEvent = (event: FormEmbedEventName, formId: string, sessionId?: string, message?: string) => {
+  const publishEmbedEvent = (event: FormEmbedEventName, formId: string, sessionId?: string, message?: string, height?: number) => {
     if (window.parent === window) return;
     let targetOrigin = window.location.origin;
     const requestedOrigin = searchParams.get('hostOrigin');
@@ -79,6 +81,7 @@ export default function LiveForm() {
       ...(sessionId ? { sessionId } : {}),
       ...(searchParams.get('launchId') ? { launchId: searchParams.get('launchId') } : {}),
       ...(message ? { message } : {}),
+      ...(height !== undefined ? { height } : {}),
     }, targetOrigin);
   };
 
@@ -116,7 +119,8 @@ export default function LiveForm() {
           try {
             const query = `?patientId=${encodeURIComponent(patientId)}&formId=${encodeURIComponent(formData.id)}`;
             const existing = await request<SessionRecord[]>(`/form-sessions${query}`);
-            const reusable = existing.find((item) => 
+            const forceNew = searchParams.get('forceNew') === 'true';
+            const reusable = forceNew ? undefined : existing.find((item) => 
               !['submitted', 'cancelled'].includes(item.status) &&
               (!reference || item.providerReference === reference) &&
               ((item as any).mode === mode)
@@ -202,12 +206,33 @@ export default function LiveForm() {
     }
   };
 
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'EXTERNAL_FORM_SUBMIT') {
+        handleSubmit(runtimeRef.current?.getValues() || draftValues);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [session, busy, submitted, draftValues]);
+
+  useEffect(() => {
+    if (!isEmbedded || !form || !session) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        publishEmbedEvent('resize', form.id, session.id, undefined, entry.contentRect.height);
+      }
+    });
+    observer.observe(document.body);
+    return () => observer.disconnect();
+  }, [isEmbedded, form?.id, session?.id]);
+
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif' }}>Lade Live Formular...</div>;
   if (error) return <div style={{ padding: '2rem', color: '#b91c1c', fontFamily: 'sans-serif' }}>{error}</div>;
   if (!form) return <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>Formular nicht gefunden.</div>;
 
   return (
-    <div style={{ width: '100vw', minHeight: '100vh', background: '#f8fafc', padding: '1rem', boxSizing: 'border-box' }}>
+    <div style={isEmbedded ? { width: '100%', height: '100%', background: '#f8fafc', boxSizing: 'border-box' } : { width: '100vw', minHeight: '100vh', background: '#f8fafc', padding: '1rem', boxSizing: 'border-box' }}>
       {!session ? (
         <div style={{ maxWidth: '640px', margin: '2rem auto', padding: '2rem', background: '#fff', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
           <h1 style={{ margin: '0 0 1rem 0', fontFamily: 'sans-serif' }}>{form.name}</h1>
@@ -218,7 +243,7 @@ export default function LiveForm() {
           </p>
         </div>
       ) : (
-        <div style={{ maxWidth: '960px', margin: '0 auto' }}>
+        <div style={isEmbedded ? { width: '100%' } : { maxWidth: '960px', margin: '0 auto' }}>
           {submitted && (
             <div style={{ padding: '1.5rem', marginBottom: '1.5rem', background: '#dcfce7', color: '#15803d', borderRadius: '8px', border: '1px solid #bbf7d0', fontFamily: 'sans-serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
@@ -254,10 +279,12 @@ export default function LiveForm() {
             ehrId={session.ehrId}
             encounterId={searchParams.get('encounterId') || undefined}
             sessionId={session.id}
+            hiddenFieldIds={(searchParams.get('hiddenFieldIds') || '').split(',').map((id) => id.trim()).filter(Boolean)}
             runtimeContext={session.runtimeContext}
             readOnly={submitted || (session as any).mode === 'view'} 
             busy={busy} 
             submitLabel={submitted ? 'Abgesendet' : 'Absenden'} 
+            showSubmit={!isEmbedded}
             onValuesChange={setDraftValues} 
             onSubmit={handleSubmit} 
             mode={(session as any).mode || 'create'}
