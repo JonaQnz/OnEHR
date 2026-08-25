@@ -471,6 +471,61 @@ export async function loadFormSessionFromProvider(id: string, providerId: string
   return { session: publicSession(updated, [...beforeLoad.messages, ...afterLoad.messages], input.patient), provider: result };
 }
 
+/**
+ * Persists an in-progress, possibly-incomplete set of values as the
+ * session's running draft. Unlike patchFormSession (local DB only), this
+ * also best-effort pushes the same values to the session's data provider
+ * (e.g. EHRbase) as a real, versioned composition update - so a draft
+ * genuinely lives on the server that ultimately owns the data, not only in
+ * Forms' own database. The local write always happens first and always
+ * succeeds independently of the provider push: it's the fast/resilient
+ * mirror, never the sole record, so a transient provider failure can never
+ * lose what the user just typed - the next debounced autosave retries.
+ * No validation gate here (that's what distinguishes a draft from a real
+ * submit): providerInput()'s assertSessionIsEditable is the only guard.
+ */
+export async function autosaveFormSessionDraft(id: string, providerId: string, actor: SessionActor, values: FormSessionValues): Promise<FormSession> {
+  const input = await providerInput(id, providerId, actor);
+  if (persistedMode(input.session.mode) === 'view') throw new HttpError(403, 'Session is in view mode and cannot be autosaved');
+  const form = input.form.definition as unknown as Record<string, unknown>;
+  const beforeSave = await runRequiredHook({ name: 'beforeSave', formId: input.form.id, form, data: values, patientId: input.session.patientId, sessionId: input.session.id, actor, metadata: { status: 'in_progress', draft: true } });
+  const draftValues = beforeSave.data;
+  const status = transitionStatus(persistedStatus(input.session.status), 'in_progress');
+  let updated = await prisma.formSession.update({ where: { id: input.session.id }, data: {
+    values: draftValues as any,
+    status,
+    revision: { increment: 1 },
+  } });
+  let providerResult: unknown;
+  if (input.provider.capabilities.includes('draft') && input.provider.draft) {
+    // Continue this session's own prior draft if one exists. Otherwise, for
+    // an edit-mode session, seed from providerReference (the composition
+    // actually being edited) so autosave progressively updates that same
+    // record instead of spawning a separate draft composition. A
+    // create/prefill-mode session with no draft yet gets no seed - its
+    // providerReference, if any, is a prefill *source* that must never be
+    // silently overwritten by autosave.
+    const seedReference = updated.draftReference || (persistedMode(updated.mode) === 'edit' ? updated.providerReference : undefined) || undefined;
+    try {
+      const result = await input.provider.draft({
+        context: input.context,
+        form: input.form,
+        values: draftValues,
+        ...(seedReference ? { reference: seedReference } : {}),
+      });
+      providerResult = result;
+      updated = await prisma.formSession.update({ where: { id: input.session.id }, data: {
+        providerId: result.providerId,
+        draftReference: result.reference || seedReference || null,
+      } });
+    } catch (error) {
+      console.warn(`[formSessionService] Draft autosave to provider '${providerId}' failed for session ${input.session.id}; local draft was still saved:`, error instanceof Error ? error.message : error);
+    }
+  }
+  const afterSave = await runBestEffortHook({ name: 'afterSave', formId: input.form.id, form, data: (updated.values || {}) as Record<string, unknown>, patientId: input.session.patientId, sessionId: input.session.id, actor, metadata: { status: updated.status, draft: true } });
+  return publicSession(updated, [...beforeSave.messages, ...afterSave.messages, ...(providerResult ? messagesFromProvider(providerResult) : [])], input.patient);
+}
+
 export async function submitFormSessionToProvider(id: string, providerId: string, actor: SessionActor, options: { validatedRevision?: number } = {}): Promise<{ session: FormSession; provider: unknown }> {
   const input = await providerInput(id, providerId, actor);
   if (persistedMode(input.session.mode) === 'view') throw new HttpError(403, 'Session is in view mode and cannot be submitted');
@@ -491,13 +546,21 @@ export async function submitFormSessionToProvider(id: string, providerId: string
   const form = input.form.definition as unknown as Record<string, unknown>;
   const beforeSubmit = await runRequiredHook({ name: 'beforeSubmit', formId: input.form.id, form, data: validation.session.values as Record<string, unknown>, patientId: input.session.patientId, sessionId: input.session.id, actor, metadata: { providerId } });
   const submitValues = beforeSubmit.data;
+  // Prefer this session's own autosaved draft over providerReference: for a
+  // create/prefill-mode session that's been autosaving, providerReference
+  // (if set at all) is a prefill *source*, not something to update - the
+  // draft is what should be finalized. continuesDraft is what tells the
+  // provider it's safe to update that reference outside edit mode.
+  const draftReference = input.session.draftReference || undefined;
+  const submitReference = draftReference || input.session.providerReference || undefined;
   let result;
   try {
     result = await input.provider.submit({
       context: input.context,
       form: input.form,
       values: submitValues,
-      ...(input.session.providerReference ? { reference: input.session.providerReference } : {}),
+      ...(submitReference ? { reference: submitReference } : {}),
+      continuesDraft: Boolean(draftReference),
     });
   } catch (error) {
     return mapProviderError(error);
@@ -508,7 +571,8 @@ export async function submitFormSessionToProvider(id: string, providerId: string
     status: 'submitted',
     providerId: result.providerId,
     values: afterSubmit.data as any,
-    providerReference: result.reference || input.session.providerReference || null,
+    providerReference: result.reference || submitReference || null,
+    draftReference: null, // finalized - providerReference above is now authoritative
     revision: { increment: 1 },
   } });
   return {

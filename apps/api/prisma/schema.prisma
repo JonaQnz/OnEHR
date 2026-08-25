@@ -95,6 +95,14 @@ model FormSession {
   revision           Int      @default(0)
   providerId         String?  @map("provider_id")
   providerReference  String?  @map("provider_reference")
+  // This session's OWN self-created draft composition on the provider, set
+  // only by autosaveFormSessionDraft - distinct from providerReference,
+  // which for a prefill-mode session is the SOURCE composition it copied
+  // from and must never be silently overwritten. submitFormSessionToProvider
+  // prefers this over providerReference precisely so a create/prefill-mode
+  // session that's been autosaving keeps updating its own draft instead of
+  // creating a second, disconnected composition at final submit.
+  draftReference     String?  @map("draft_reference")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 

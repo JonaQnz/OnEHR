@@ -74,6 +74,17 @@ export interface FormDataProviderSubmitInput {
   form: FormDataProviderForm;
   values: FormSessionValues;
   reference?: string;
+  /**
+   * True when `reference` is this exact session's own previously-drafted
+   * composition, not an externally-sourced reference (e.g. a prefill's
+   * source composition). Only meaningful for submit(): it tells the
+   * provider to update `reference` even outside edit mode, because doing
+   * so continues this session's own draft rather than risking silently
+   * overwriting someone else's composition. draft() always treats its own
+   * `reference` as an update target regardless of this flag - it's only
+   * ever handed a reference the caller already knows is safe to continue.
+   */
+  continuesDraft?: boolean;
 }
 
 export interface FormDataProviderSubmitResult {
@@ -85,7 +96,16 @@ export interface FormDataProviderSubmitResult {
 export interface FormDataProvider {
   readonly id: string;
   readonly displayName: string;
-  readonly capabilities: readonly ('load' | 'submit')[];
+  readonly capabilities: readonly ('load' | 'submit' | 'draft')[];
   load(input: FormDataProviderLoadInput): Promise<FormDataProviderLoadResult>;
   submit(input: FormDataProviderSubmitInput): Promise<FormDataProviderSubmitResult>;
+  /**
+   * Persists an in-progress (possibly incomplete) set of values as the
+   * session's running draft - same input/output shape as submit(), but
+   * without submit's validation gate. Optional: a provider that can't or
+   * shouldn't hold drafts (e.g. a workflow-trigger provider like n8n) just
+   * omits 'draft' from capabilities and this method; callers must check
+   * capabilities before calling it.
+   */
+  draft?(input: FormDataProviderSubmitInput): Promise<FormDataProviderSubmitResult>;
 }

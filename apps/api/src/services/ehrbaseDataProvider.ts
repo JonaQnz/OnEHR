@@ -122,7 +122,7 @@ async function getWebTemplateTree(tplId: string): Promise<any> {
 export class EhrbaseDataProvider implements FormDataProvider {
   public readonly id = 'ehrbase';
   public readonly displayName = 'EHRbase';
-  public readonly capabilities = ['load', 'submit'] as const;
+  public readonly capabilities = ['load', 'submit', 'draft'] as const;
 
   private readonly http: ProviderHttp;
   private readonly configOverride?: ProviderConfig;
@@ -331,6 +331,23 @@ export class EhrbaseDataProvider implements FormDataProvider {
   }
 
   public async submit(input: FormDataProviderSubmitInput): Promise<FormDataProviderSubmitResult> {
+    return this.commitComposition(input, 'submit');
+  }
+
+  /**
+   * Persists the current (possibly incomplete) values as the session's
+   * running draft - same create-vs-update targeting as submit(), so a
+   * session that already has a draft composition keeps writing new versions
+   * of that same composition rather than spawning a new one on every
+   * autosave. The eventual submit() reuses that same reference too, once
+   * one exists, so "draft, then finalize" lands as one continuous version
+   * history, not two disconnected compositions.
+   */
+  public async draft(input: FormDataProviderSubmitInput): Promise<FormDataProviderSubmitResult> {
+    return this.commitComposition(input, 'draft');
+  }
+
+  private async commitComposition(input: FormDataProviderSubmitInput, label: 'submit' | 'draft'): Promise<FormDataProviderSubmitResult> {
     const mode = input.context.mode;
     if (mode === 'view') {
       throw new EhrbaseProviderError('A composition cannot be submitted from view mode', 'FORM_MODE_READ_ONLY', 403);
@@ -353,9 +370,19 @@ export class EhrbaseDataProvider implements FormDataProvider {
     let response: ProviderResponse;
     const options = await this.requestOptions();
 
-    const updatesExistingComposition = mode === 'edit';
+    // draft() always trusts its given reference as an update target - the
+    // caller (formSessionService) only ever hands it a reference it already
+    // knows is safe to continue (this session's own prior draft, or, when
+    // seeding an edit-mode session's first draft, the composition actually
+    // being edited). submit()'s policy is stricter and unchanged in the
+    // normal case (only edit mode updates in place) precisely so a
+    // prefill's source composition, or any other externally-supplied
+    // reference, is never silently overwritten - continuesDraft is the one
+    // explicit exception, set only when the reference is this session's own
+    // autosaved draft.
+    const updatesExistingComposition = label === 'draft' ? Boolean(input.reference) : (mode === 'edit' || Boolean(input.continuesDraft));
     let versionUid = updatesExistingComposition ? versionUidFromReference(input.reference) : undefined;
-    console.info('[EhrbaseDataProvider] Submitting composition', {
+    console.info(`[EhrbaseDataProvider] ${label === 'draft' ? 'Autosaving draft composition' : 'Submitting composition'}`, {
       ehrId,
       templateId: id,
       fieldCount: Object.keys(flatBody).filter((key) => !key.startsWith('ctx/')).length,
@@ -367,26 +394,38 @@ export class EhrbaseDataProvider implements FormDataProvider {
       if (updatesExistingComposition) {
         versionUid = versionUid || await this.findLatestCompositionVersion(ehrId, id);
         if (!versionUid) {
-          throw new EhrbaseProviderError(`No existing composition found for template '${id}'; edit mode cannot create one`, 'COMPOSITION_NOT_FOUND_FOR_EDIT', 404);
-        }
-        if (typeof this.http.put !== 'function') {
-          throw new EhrbaseProviderError('The configured EHRbase transport does not support versioned composition updates', 'EHRBASE_UPDATE_UNSUPPORTED', 502);
-        }
-        try {
-          const baseUid = versionUid.split('::')[0];
-          response = await this.http.put(`${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(baseUid)}`, flatBody, {
-            ...options,
-            params: { templateId: id, format: 'FLAT' },
-            headers: { ...options.headers, 'If-Match': versionUid, Prefer: 'return=representation' },
-          }) as ProviderResponse;
-        } catch (putErr: any) {
-          if (putErr?.response?.status === 412) {
-            throw new EhrbaseProviderError('The composition changed since it was loaded. Reload the form before saving.', 'COMPOSITION_VERSION_CONFLICT', 409);
+          if (label === 'draft') {
+            // No composition to update yet (e.g. edit-mode session whose
+            // provider data hasn't loaded) - a draft write degrades to a
+            // create instead of hard-failing the autosave.
+            response = await this.http.post(`${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/composition`, flatBody, {
+              ...options,
+              params: { templateId: id, format: 'FLAT' },
+              headers: { ...options.headers, Prefer: 'return=representation' },
+            }) as ProviderResponse;
+          } else {
+            throw new EhrbaseProviderError(`No existing composition found for template '${id}'; edit mode cannot create one`, 'COMPOSITION_NOT_FOUND_FOR_EDIT', 404);
           }
-          if (putErr?.response?.status === 404) {
-            throw new EhrbaseProviderError(`The composition selected for template '${id}' no longer exists`, 'COMPOSITION_NOT_FOUND_FOR_EDIT', 404);
+        } else {
+          if (typeof this.http.put !== 'function') {
+            throw new EhrbaseProviderError('The configured EHRbase transport does not support versioned composition updates', 'EHRBASE_UPDATE_UNSUPPORTED', 502);
           }
-          throw putErr;
+          try {
+            const baseUid = versionUid.split('::')[0];
+            response = await this.http.put(`${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(baseUid)}`, flatBody, {
+              ...options,
+              params: { templateId: id, format: 'FLAT' },
+              headers: { ...options.headers, 'If-Match': versionUid, Prefer: 'return=representation' },
+            }) as ProviderResponse;
+          } catch (putErr: any) {
+            if (putErr?.response?.status === 412) {
+              throw new EhrbaseProviderError('The composition changed since it was loaded. Reload the form before saving.', 'COMPOSITION_VERSION_CONFLICT', 409);
+            }
+            if (putErr?.response?.status === 404) {
+              throw new EhrbaseProviderError(`The composition selected for template '${id}' no longer exists`, 'COMPOSITION_NOT_FOUND_FOR_EDIT', 404);
+            }
+            throw putErr;
+          }
         }
       } else {
         response = await this.http.post(`${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/composition`, flatBody, {

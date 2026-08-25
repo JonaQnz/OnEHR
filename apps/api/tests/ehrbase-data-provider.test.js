@@ -165,6 +165,70 @@ test('create and prefill submit new compositions even when given an old referenc
   }
 });
 
+test('draft creates on first write and updates the same composition on subsequent writes', async () => {
+  const calls = [];
+  const versionOne = '55555555-5555-5555-5555-555555555555::vitals.v1::1';
+  const versionTwo = '55555555-5555-5555-5555-555555555555::vitals.v1::2';
+  const http = {
+    async get(url) {
+      calls.push({ method: 'GET', url });
+      return { data: { ehr_id: { value: 'ehr-1' } } };
+    },
+    async post(url, body, options) {
+      calls.push({ method: 'POST', url, body, options });
+      return { data: {}, headers: { location: `/ehr/ehr-1/composition/${versionOne}` } };
+    },
+    async put(url, body, options) {
+      calls.push({ method: 'PUT', url, body, options });
+      return { data: {}, headers: { location: `/ehr/ehr-1/composition/${versionTwo}` } };
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic', ehrbaseSubjectNamespace: 'demo' } });
+  const input = { context: { patientId: 'patient-1', patientNamespace: 'demo', userId: 'alice', mode: 'create' }, form: { id: 'form-1', version: '1.0.0', definition: definition() } };
+
+  const first = await provider.draft({ ...input, values: { name: 'Ada' } });
+  assert.equal(calls.filter((call) => call.method === 'POST' && /\/composition$/.test(call.url)).length, 1, 'first draft creates');
+  assert.equal(calls.filter((call) => call.method === 'PUT').length, 0);
+  assert.equal(first.reference, `/ehr/ehr-1/composition/${versionOne}`);
+
+  const second = await provider.draft({ ...input, values: { name: 'Ada Grace' }, reference: first.reference });
+  const update = calls.find((call) => call.method === 'PUT');
+  assert.ok(update, 'second draft updates via PUT');
+  assert.equal(second.reference, `/ehr/ehr-1/composition/${versionTwo}`);
+  assert.equal(calls.filter((call) => call.method === 'POST' && /\/composition$/.test(call.url)).length, 1, 'still only one create');
+});
+
+test('submit reuses a session\'s own draft reference in create mode when continuesDraft is set', async () => {
+  const calls = [];
+  const versionOne = '66666666-6666-6666-6666-666666666666::vitals.v1::1';
+  const versionTwo = '66666666-6666-6666-6666-666666666666::vitals.v1::2';
+  const http = {
+    async get(url) {
+      calls.push({ method: 'GET', url });
+      return { data: { ehr_id: { value: 'ehr-1' } } };
+    },
+    async post(url, body, options) {
+      calls.push({ method: 'POST', url, body, options });
+      throw new Error('unexpected POST - final submit should update the drafted composition, not create a new one');
+    },
+    async put(url, body, options) {
+      calls.push({ method: 'PUT', url, body, options });
+      return { data: {}, headers: { location: `/ehr/ehr-1/composition/${versionTwo}` } };
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic', ehrbaseSubjectNamespace: 'demo' } });
+
+  const submitted = await provider.submit({
+    context: { patientId: 'patient-1', patientNamespace: 'demo', userId: 'alice', mode: 'create' },
+    form: { id: 'form-1', version: '1.0.0', definition: definition() },
+    values: { name: 'Grace' },
+    reference: `/ehr/ehr-1/composition/${versionOne}`,
+    continuesDraft: true,
+  });
+  assert.equal(submitted.reference, `/ehr/ehr-1/composition/${versionTwo}`);
+  assert.equal(calls.filter((call) => call.method === 'PUT').length, 1);
+});
+
 test('view mode cannot submit a composition', async () => {
   const provider = new EhrbaseDataProvider();
   await assert.rejects(

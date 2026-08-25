@@ -60,6 +60,11 @@ export default function LiveForm() {
   const [draftValues, setDraftValues] = useState<RuntimeValues>({});
   
   const isEmbedded = useMemo(() => Boolean(searchParams.get('hostOrigin')), [searchParams]);
+  const hostOrigin = useMemo(() => {
+    const requested = searchParams.get('hostOrigin');
+    if (!requested) return undefined;
+    try { return new URL(requested).origin; } catch { return undefined; }
+  }, [searchParams]);
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -208,13 +213,56 @@ export default function LiveForm() {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // A Composition host is the only legitimate sender of this control
+      // message; the embed URL is only ever handed to that trusted parent.
+      if (event.origin !== window.location.origin && event.origin !== hostOrigin) return;
       if (event.data?.type === 'EXTERNAL_FORM_SUBMIT') {
         handleSubmit(runtimeRef.current?.getValues() || draftValues);
       }
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [session, busy, submitted, draftValues]);
+  }, [session, busy, submitted, draftValues, hostOrigin]);
+
+  // A fresh session load sets draftValues to whatever was already there -
+  // that's not a user edit and shouldn't trigger a write. Only genuine
+  // subsequent changes (the user actually typing) should autosave.
+  const skipNextAutosave = useRef(true);
+  useEffect(() => { skipNextAutosave.current = true; }, [session?.id]);
+
+  // Read via a ref inside the timer, not the `session` state variable
+  // directly: the autosave below itself updates `session.revision` on
+  // success, and depending on `session` (whose identity changes on every
+  // such update) would re-trigger this effect and schedule a redundant
+  // autosave of the same unchanged values every 2.5s forever. Depending
+  // only on `session?.id`/`mode` (stable across a revision bump) avoids that.
+  const sessionRef = useRef(session);
+  useEffect(() => { sessionRef.current = session; }, [session]);
+
+  useEffect(() => {
+    if (!session || submitted || busy || (session as any).mode === 'view') return;
+    if (skipNextAutosave.current) { skipNextAutosave.current = false; return; }
+    // Debounced whole-form save: EHRbase commits a brand-new immutable
+    // VERSION on every write, so this waits for a pause in editing rather
+    // than pushing on every keystroke or field blur.
+    const timer = setTimeout(() => {
+      const current = sessionRef.current;
+      if (!current) return;
+      const providerId = form?.canonical_json?.settings?.submission?.providerId || 'ehrbase';
+      request<SessionRecord>(`/form-sessions/${current.id}/provider/draft`, {
+        method: 'POST',
+        body: JSON.stringify({ providerId, values: draftValues }),
+      }).then((updated) => {
+        // Only the bookkeeping revision needs to stay in sync (so the
+        // eventual final submit's optimistic-concurrency check doesn't
+        // spuriously conflict with what autosave already persisted) - not
+        // the displayed values, which would disrupt whatever the user is
+        // still typing.
+        setSession((latest) => (latest && latest.id === updated.id ? { ...latest, revision: updated.revision } : latest));
+      }).catch((e) => console.warn('[autosave] Draft could not be persisted to the provider (will retry on the next edit):', e));
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [draftValues, session?.id, (session as any)?.mode, submitted, busy, form]); // eslint-disable-line react-hooks/exhaustive-deps -- reads sessionRef.current, not `session`, on purpose (see comment above)
 
   useEffect(() => {
     if (!isEmbedded || !form || !session) return;

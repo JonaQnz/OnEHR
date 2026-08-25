@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import { requirePermission } from '../middleware/auth';
-import { createFormSession, getFormSession, listFormSessions, loadFormSessionFromProvider, patchFormSession, submitFormSession, submitFormSessionToProvider, validateFormSession } from '../services/formSessionService';
+import { autosaveFormSessionDraft, createFormSession, getFormSession, listFormSessions, loadFormSessionFromProvider, patchFormSession, submitFormSession, submitFormSessionToProvider, validateFormSession } from '../services/formSessionService';
 
 const router = Router();
 router.use(requirePermission('form.execute'));
@@ -27,6 +27,11 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
 router.patch('/:id', asyncHandler(async (req, res) => {
   res.json(await patchFormSession(String(req.params.id), req.body || {}, actor(req)));
+}));
+
+router.post('/:id/provider/draft', asyncHandler(async (req, res) => {
+  const providerId = typeof req.body?.providerId === 'string' ? req.body.providerId : 'ehrbase';
+  res.json(await autosaveFormSessionDraft(String(req.params.id), providerId, actor(req), req.body?.values || {}));
 }));
 
 router.post('/:id/provider/load', asyncHandler(async (req, res) => {
