@@ -22,11 +22,15 @@ function severity(value: number | undefined, block: CompositionDataBlock): 'norm
 
 function Metric({ value, level }: { value: number | undefined; level: 'normal' | 'warning' | 'critical' }) { const color = level === 'critical' ? '#b91c1c' : level === 'warning' ? '#a16207' : '#0f172a'; return <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center', fontSize: '2rem', fontWeight: 700, color }}>{level !== 'normal' && <AlertTriangle size={22} />}{value ?? '—'}</div>; }
 
-function Trend({ points, block, onPick }: { points: Array<{ row: Record<string, unknown>; value: number; time: number }>; block: CompositionDataBlock; onPick: (row: Record<string, unknown>) => void }) {
+function Trend({ points, block, onPick }: { points: Array<{ row: Record<string, unknown>; value: number; time?: number; label?: string }>; block: CompositionDataBlock; onPick: (row: Record<string, unknown>) => void }) {
+  // A bar chart is the one "trend" chart type that isn't actually about
+  // time - block.labelColumn (categories, e.g. analyte names) is its x-axis,
+  // not block.timeColumn. Line/area stay genuinely time-based.
+  const categorical = block.chartType === 'bar' && !block.timeColumn;
   const chartData = points.map((point) => ({
     value: point.value,
-    recordedAt: new Date(point.time).toLocaleDateString('de-DE'),
-    recordedAtFull: new Date(point.time).toLocaleString('de-DE'),
+    recordedAt: categorical ? (point.label ?? '') : new Date(point.time!).toLocaleDateString('de-DE'),
+    recordedAtFull: categorical ? (point.label ?? '') : new Date(point.time!).toLocaleString('de-DE'),
     row: point.row,
   }));
   const Chart = block.chartType === 'area' ? AreaChart : block.chartType === 'bar' ? BarChart : LineChart;
@@ -41,6 +45,15 @@ function Trend({ points, block, onPick }: { points: Array<{ row: Record<string, 
 export function WidgetDataCard({ block, state }: { block: CompositionDataBlock; state?: WidgetDataState }) {
   const [period, setPeriod] = useState<'all' | '7d' | '30d' | '90d'>('all'); const [selected, setSelected] = useState<Record<string, unknown> | null>(null);
   const rows = state?.rows || []; const filtered = useMemo(() => { if (period === 'all' || !block.timeColumn) return rows; const start = Date.now() - ({ '7d': 7, '30d': 30, '90d': 90 }[period] * 86400000); return rows.filter((row) => (date(row, block.timeColumn) || 0) >= start); }, [rows, period, block.timeColumn]);
-  const points = useMemo(() => filtered.map((row) => ({ row, value: number(row, block.valueColumn), time: date(row, block.timeColumn) })).filter((item): item is { row: Record<string, unknown>; value: number; time: number } => item.value !== undefined && item.time !== undefined).sort((a, b) => a.time - b.time), [filtered, block.valueColumn, block.timeColumn]);
+  // A bar chart with no timeColumn is categorical (block.labelColumn is its
+  // x-axis, e.g. one bar per analyte) rather than a time series - it never
+  // had a time value to require or sort by in the first place.
+  const categoricalBar = block.chartType === 'bar' && !block.timeColumn;
+  const points = useMemo(() => {
+    const mapped = filtered.map((row) => ({ row, value: number(row, block.valueColumn), time: date(row, block.timeColumn), label: String(first(row, block.labelColumn)) }));
+    return categoricalBar
+      ? mapped.filter((item): item is typeof item & { value: number } => item.value !== undefined)
+      : mapped.filter((item): item is typeof item & { value: number; time: number } => item.value !== undefined && item.time !== undefined).sort((a, b) => a.time! - b.time!);
+  }, [filtered, block.valueColumn, block.timeColumn, block.labelColumn, categoricalBar]);
   return <section className="card"><div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.8rem' }}><BarChart3 size={18} color="#2563eb" /><strong>{block.title}</strong><label style={{ marginLeft: 'auto', fontSize: '.78rem', color: '#64748b' }}>Zeitraum <select value={period} onChange={(event) => setPeriod(event.target.value as typeof period)} style={{ marginLeft: '.35rem' }}><option value="all">Alle</option><option value="7d">7 Tage</option><option value="30d">30 Tage</option><option value="90d">90 Tage</option></select></label></div>{state?.loading && <span style={{ color: '#64748b' }}>Daten werden abgefragt…</span>}{state?.error && <span style={{ color: '#b91c1c' }}>{state.error}</span>}{!state?.loading && !state?.error && filtered.length === 0 && <span style={{ color: '#64748b' }}>Keine Daten im gewählten Zeitraum.</span>}{block.referenceRange && <div style={{ fontSize: '.78rem', color: '#64748b', marginBottom: '.7rem' }}>Referenz: {block.referenceRange.min ?? '−∞'} bis {block.referenceRange.max ?? '+∞'}{block.referenceRange.criticalLow !== undefined || block.referenceRange.criticalHigh !== undefined ? ` · kritisch außerhalb ${block.referenceRange.criticalLow ?? '−∞'}–${block.referenceRange.criticalHigh ?? '+∞'}` : ''}</div>}{block.display === 'metric' && filtered[0] && <Metric value={number(filtered[0], block.valueColumn)} level={severity(number(filtered[0], block.valueColumn), block)} />}{block.display === 'text' && filtered.map((row, index) => <p key={index} style={{ margin: '.4rem 0', color: severity(number(row, block.valueColumn), block) === 'critical' ? '#b91c1c' : undefined }}>{String(first(row, block.labelColumn))}: <strong>{String(first(row, block.valueColumn))}</strong></p>)}{block.display === 'trend' && points.length > 0 && <Trend points={points} block={block} onPick={(row) => setSelected(row)} />}{block.display === 'list' && filtered.length > 0 && <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.85rem' }}><thead><tr>{Object.keys(filtered[0]).map((key) => <th key={key} style={{ textAlign: 'left', color: '#64748b', padding: '.45rem', borderBottom: '1px solid #e2e8f0' }}>{key}</th>)}</tr></thead><tbody>{filtered.map((row, index) => <tr key={index} onClick={() => setSelected(row)} style={{ cursor: 'pointer', background: severity(number(row, block.valueColumn), block) === 'critical' ? '#fef2f2' : severity(number(row, block.valueColumn), block) === 'warning' ? '#fffbeb' : undefined }}>{Object.keys(filtered[0]).map((key) => <td key={key} style={{ padding: '.45rem', borderBottom: '1px solid #f1f5f9' }}>{String(row[key] ?? '—')}</td>)}</tr>)}</tbody></table></div>}{selected && <details open style={{ marginTop: '.9rem', borderTop: '1px solid #e2e8f0', paddingTop: '.7rem' }}><summary style={{ cursor: 'pointer', fontWeight: 600 }}>Composition-Version / Datendetails</summary><pre style={{ overflow: 'auto', background: '#f8fafc', padding: '.75rem', fontSize: '.75rem' }}>{JSON.stringify(selected, null, 2)}</pre></details>}</section>;
 }
