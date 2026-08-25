@@ -1,4 +1,5 @@
-import { CanonicalForm, FormElementLayout } from 'core';
+import { CanonicalForm, FormElementLayout, OpenEhrBinding } from 'core';
+import { parseOpenEhrAqlPath } from 'openehr-engine';
 
 export function getElementText(element: string, label: string): string {
   if (!label) return element;
@@ -93,7 +94,20 @@ export function canonicalToFormBuilder(form: CanonicalForm): any[] {
     const fieldName = node.name || 'field';
     const labelSelector = `[name='${fieldName}']`;
     const label = form.locales?.en?.[labelSelector]?.label || node.label || fieldName;
-    const binding = form.bindings?.[fieldName]?.openehr || node.binding;
+    // node.binding is the single source of truth going forward (see
+    // packages/core/canonical's OpenEhrBinding doc comment) - the legacy
+    // top-level bindings map is only a fallback for a node that predates
+    // this consolidation and hasn't been through migrateCanonicalFormToV1's
+    // backfill yet.
+    const rawBinding = node.binding || form.bindings?.[fieldName]?.openehr;
+    // A form saved before the parser started extracting
+    // archetypeNodeId/archetypeId/rmVersion has a binding with a real path
+    // but none of those - derive them on the fly so the Developer Inspector
+    // (and anything else reading this) is useful immediately on an
+    // existing form too, not only on one freshly re-imported.
+    const binding = rawBinding && rawBinding.path && !rawBinding.archetypeNodeId
+      ? { ...rawBinding, ...parseOpenEhrAqlPath(rawBinding.path) }
+      : rawBinding;
 
     let element = node.uiElement;
     if (!element) {
@@ -396,8 +410,26 @@ export function formBuilderToCanonical(items: any[], originalForm: CanonicalForm
   function mapLeafItemToLayoutNode(item: any): FormElementLayout {
     const meta = item.custom_metadata || {};
     const fieldName = item.field_name || `field_${item.id}`;
-    const binding = meta.binding || {};
-    const archetypeNodeId = binding.path?.match(/\[(at\d+)\]/)?.[1] || '';
+    const rawBinding = meta.binding || {};
+    // Real single source going forward: parseOpenEhrAqlPath (the one place
+    // that scrapes archetypeNodeId/archetypeId/rmVersion out of a raw path
+    // string - see openehr-engine/metadata.ts). Only falls back to it when
+    // the binding itself doesn't already carry these (e.g. a field whose
+    // custom_metadata.binding predates this consolidation) - a binding that
+    // already came from the parser or a prior save keeps its own values
+    // rather than re-deriving them.
+    const parsedPath = rawBinding.path ? parseOpenEhrAqlPath(rawBinding.path) : {};
+    const binding: OpenEhrBinding | undefined = rawBinding.path ? {
+      templateAlias: rawBinding.templateAlias || '',
+      path: rawBinding.path,
+      rmType: rawBinding.rmType || '',
+      ...(rawBinding.flatPath ? { flatPath: rawBinding.flatPath } : {}),
+      ...((rawBinding.archetypeNodeId || parsedPath.archetypeNodeId) ? { archetypeNodeId: rawBinding.archetypeNodeId || parsedPath.archetypeNodeId } : {}),
+      ...((rawBinding.archetypeId || parsedPath.archetypeId) ? { archetypeId: rawBinding.archetypeId || parsedPath.archetypeId } : {}),
+      ...((rawBinding.rmVersion || parsedPath.rmVersion) ? { rmVersion: rawBinding.rmVersion || parsedPath.rmVersion } : {}),
+      ...(rawBinding.templateId ? { templateId: rawBinding.templateId } : {}),
+      ...(rawBinding.templateVersion ? { templateVersion: rawBinding.templateVersion } : {}),
+    } : undefined;
 
     let type = meta.type || 'input-text';
     if (meta.type === 'button' || item.element === 'Button') {
@@ -427,10 +459,11 @@ export function formBuilderToCanonical(items: any[], originalForm: CanonicalForm
       dateFormat: item.element === 'DatePicker' ? (item.dateFormat || 'dd.MM.yyyy') : undefined,
       timeFormat: item.element === 'DatePicker' ? (item.timeFormat || 'HH:mm') : undefined,
       defaultValue: item.defaultValue ?? item.default_value,
-      semanticType: binding.rmType || '',
       unit: (meta.unitOptions && meta.unitOptions[0]) ? (typeof meta.unitOptions[0] === 'string' ? meta.unitOptions[0] : meta.unitOptions[0].unit) : '',
-      archetypeNodeId: archetypeNodeId,
-      binding: binding.path ? binding : undefined,
+      // rmType/archetypeNodeId live on `binding` now, not as separate
+      // top-level fields (see OpenEhrBinding) - binding is the single
+      // source of truth for a field's whole openEHR identity.
+      binding,
       validation: {
         min: item.min_value,
         max: item.max_value,

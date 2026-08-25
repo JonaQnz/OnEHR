@@ -1,6 +1,20 @@
 import type { CanonicalForm, FormSessionValues, JsonValue } from 'core';
 
-export * from './metadata';
+// Named (not `export *`) so this re-export is statically analyzable by
+// Rollup/cjs-module-lexer when consumed from apps/web's Vite build - a
+// wildcard re-export of a locally-compiled `__exportStar` helper isn't
+// reliably detected there.
+export {
+  parseOpenEhrAqlPath,
+  toArchetypePath,
+  getElementMetadata,
+  getArchetypePath,
+  getTemplatePath,
+  getAqlPath,
+  resolveElementByPath,
+  resolveElementsByNodeId,
+  type ParsedOpenEhrPath,
+} from './metadata';
 
 export const OPEN_EHR_FORM_EXTENSION = 'org.openehr.form' as const;
 

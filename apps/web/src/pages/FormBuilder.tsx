@@ -81,6 +81,23 @@ function getUniqueFieldName(baseName: string, usedNames?: Set<string>): string {
   return name;
 }
 
+/** The one place that turns a template-panel FieldRegistryItem into an
+ * OpenEhrBinding for a freshly-dropped field - used by both drag paths
+ * below (single field, whole-group), so they can no longer silently
+ * diverge in which sub-fields they carry. */
+function fieldBinding(field: any) {
+  return {
+    templateAlias: field.templateAlias,
+    path: field.openehrPath,
+    rmType: field.rmType,
+    ...(field.flatPath ? { flatPath: field.flatPath } : {}),
+    ...(field.archetypeNodeId ? { archetypeNodeId: field.archetypeNodeId } : {}),
+    ...(field.archetypeId ? { archetypeId: field.archetypeId } : {}),
+    ...(field.rmVersion ? { rmVersion: field.rmVersion } : {}),
+    ...(field.templateId ? { templateId: field.templateId } : {}),
+  };
+}
+
 // Draggable node for openEHR Template tree fields
 function DraggableFieldNode({ field, inForm }: { field: any; inForm: boolean }) {
   const rm = field.rmType || '';
@@ -115,10 +132,12 @@ function DraggableFieldNode({ field, inForm }: { field: any; inForm: boolean }) 
         field_name: field.fieldName + '_',
         custom_metadata: {
           type: customType,
-          binding: {
-            path: field.openehrPath,
-            rmType: field.rmType
-          },
+          // The field's full openEHR identity, straight from the parser
+          // (see webTemplateParser.ts) - not just path/rmType. Carries
+          // archetypeNodeId/archetypeId/rmVersion/templateId through from
+          // the moment a field is dropped onto the canvas, matching what
+          // formBuilderToCanonical now writes back into node.binding.
+          binding: fieldBinding(field),
           unitOptions: (field.constraints?.unitOptions && field.constraints.unitOptions.length > 0)
             ? field.constraints.unitOptions
             : (field.rmType === 'DV_QUANTITY' ? [{ unit: 'cm' }] : undefined),
@@ -293,11 +312,11 @@ function DraggableFolderHeader({
                 showTimeSelectOnly: isTime ? true : undefined,
                 custom_metadata: {
                   type: childCustomType,
-                  binding: {
-                    path: field.openehrPath,
-                    rmType: field.rmType,
-                    flatPath: field.flatPath
-                  }
+                  // Same full binding shape as the single-field drag path
+                  // (DraggableFieldNode above) - previously this omitted
+                  // templateAlias/archetypeNodeId/archetypeId/rmVersion/
+                  // templateId that the other path already carried.
+                  binding: fieldBinding(field),
                 },
                 options: isChoice ? ((field.options?.map((opt: any) => ({
                   value: opt.value,
@@ -1988,23 +2007,63 @@ function FormBuilderContent() {
                         {/* OPENEHR TAB */}
                         {rightTab === 'openehr' && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <h4>openEHR Metadata</h4>
+                            <h4>Developer Inspector</h4>
                             {activeEditElement.custom_metadata?.binding ? (
                               <div className="inspector-read-only-box">
+                                <div className="inspector-read-only-row">
+                                  <span className="inspector-read-only-label">Label:</span>
+                                  <span className="inspector-read-only-value">{activeEditElement.label}</span>
+                                </div>
+                                <div className="inspector-read-only-row">
+                                  <span className="inspector-read-only-label">Internal ID:</span>
+                                  <span className="inspector-read-only-value" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>{activeEditElement.id}</span>
+                                </div>
                                 <div className="inspector-read-only-row">
                                   <span className="inspector-read-only-label">Field Name:</span>
                                   <span className="inspector-read-only-value">{activeEditElement.field_name}</span>
                                 </div>
                                 <div className="inspector-read-only-row">
                                   <span className="inspector-read-only-label">RM Type:</span>
-                                  <span className="inspector-read-only-value">{activeEditElement.custom_metadata.binding.rmType}</span>
+                                  <span className="inspector-read-only-value">{activeEditElement.custom_metadata.binding.rmType || '—'}</span>
+                                </div>
+                                <div className="inspector-read-only-row">
+                                  <span className="inspector-read-only-label">Archetype Node ID:</span>
+                                  <span className="inspector-read-only-value" style={{ fontFamily: 'monospace' }}>{activeEditElement.custom_metadata.binding.archetypeNodeId || '—'}</span>
+                                </div>
+                                <div className="inspector-read-only-row">
+                                  <span className="inspector-read-only-label">Archetype:</span>
+                                  <span className="inspector-read-only-value" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>{activeEditElement.custom_metadata.binding.archetypeId || '—'}</span>
+                                </div>
+                                <div className="inspector-read-only-row">
+                                  <span className="inspector-read-only-label">RM Version:</span>
+                                  <span className="inspector-read-only-value">{activeEditElement.custom_metadata.binding.rmVersion || '—'}</span>
                                 </div>
                                 <div className="inspector-read-only-row">
                                   <span className="inspector-read-only-label">AQL Path:</span>
                                   <span className="inspector-read-only-value" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                                    {activeEditElement.custom_metadata.binding.path}
+                                    {activeEditElement.custom_metadata.binding.path || '—'}
                                   </span>
                                 </div>
+                                <div className="inspector-read-only-row">
+                                  <span className="inspector-read-only-label">Template Path:</span>
+                                  <span className="inspector-read-only-value" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                                    {activeEditElement.custom_metadata.binding.flatPath || '—'}
+                                  </span>
+                                </div>
+                                <div className="inspector-read-only-row">
+                                  <span className="inspector-read-only-label">Template ID:</span>
+                                  <span className="inspector-read-only-value" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>{activeEditElement.custom_metadata.binding.templateId || '—'}</span>
+                                </div>
+                                <div className="inspector-read-only-row">
+                                  <span className="inspector-read-only-label">Template Version:</span>
+                                  <span className="inspector-read-only-value">{activeEditElement.custom_metadata.binding.templateVersion || '—'}</span>
+                                </div>
+                                {activeEditElement.default_value !== undefined && activeEditElement.default_value !== '' && (
+                                  <div className="inspector-read-only-row">
+                                    <span className="inspector-read-only-label">Default Value:</span>
+                                    <span className="inspector-read-only-value">{String(activeEditElement.default_value)}</span>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <p style={{ color: '#64748b', fontSize: '0.85rem' }}>This is a layout element. No openEHR binding is present.</p>
