@@ -1,0 +1,17 @@
+{
+  "name": "formbuilder-plugin-postal-lookup",
+  "version": "1.0.0",
+  "description": "Looks up city/state from a German/Austrian/Swiss/Liechtenstein postal code via the open-source OpenPLZ API, for use in a form's formScript.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "plugin-api": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
