@@ -1,5 +1,19 @@
 Category: bug
 
+**Status: fixed.** Root cause: the vendored editor
+(`packages/react-form-builder2/src/form-elements-edit.jsx`) always bound
+its "Field Label" input to `label`, but Header/Paragraph elements render
+`content` (per `formBuilderAdapter.ts`) - so nothing ever edited the
+property that's actually displayed. For `Header`/`Paragraph`, that input
+now reads/writes `content` instead (relabeled "Heading Text"/"Paragraph
+Text", the latter as a multi-line textarea), leaving every other element
+type untouched. Also suppressed the irrelevant "AQL Prefill (HIP)
+Mapping" section in `apps/web/src/pages/FormBuilder.tsx` for
+Header/Paragraph/LineBreak - nothing to prefill into static content.
+Verified live: dragged a Header onto a form, edited its text through the
+panel, and watched both the canvas and the Live JSON's `content` field
+update correctly.
+
 ## What I was trying to do
 
 Hands-on UX audit of the FormBuilder designer's drag-and-drop layout

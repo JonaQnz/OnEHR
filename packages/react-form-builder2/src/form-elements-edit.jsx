@@ -341,16 +341,43 @@ export default class FormElementsEdit extends React.Component {
             <div className="inspector-section-title">
               <span className="section-emoji">✏️</span> Label & Text
             </div>
-            <div className="inspector-field-group">
-              <label>Field Label</label>
-              <input
-                type="text"
-                className="inspector-input"
-                defaultValue={this.props.element.label || this.props.element.text}
-                onBlur={this.updateElement.bind(this)}
-                onChange={this.editElementProp.bind(this, 'label', 'value')}
-              />
-            </div>
+            {/* Header/Paragraph render `content`, not `label` (see
+                formBuilderAdapter.ts's mapItemOrRowToLayoutNode) - editing
+                "Field Label" here used to silently do nothing visible,
+                since nothing downstream reads a static element's label. */}
+            { ['Header', 'Paragraph'].includes(this.state.element.element) ? (
+              <div className="inspector-field-group">
+                <label>{this.state.element.element === 'Header' ? 'Heading Text' : 'Paragraph Text'}</label>
+                {this.state.element.element === 'Header' ? (
+                  <input
+                    type="text"
+                    className="inspector-input"
+                    defaultValue={this.props.element.content || ''}
+                    onBlur={this.updateElement.bind(this)}
+                    onChange={this.editElementProp.bind(this, 'content', 'value')}
+                  />
+                ) : (
+                  <TextAreaAutosize
+                    className="inspector-input"
+                    minRows={3}
+                    defaultValue={this.props.element.content || ''}
+                    onBlur={this.updateElement.bind(this)}
+                    onChange={this.editElementProp.bind(this, 'content', 'value')}
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="inspector-field-group">
+                <label>Field Label</label>
+                <input
+                  type="text"
+                  className="inspector-input"
+                  defaultValue={this.props.element.label || this.props.element.text}
+                  onBlur={this.updateElement.bind(this)}
+                  onChange={this.editElementProp.bind(this, 'label', 'value')}
+                />
+              </div>
+            )}
 
             { !['Checkboxes', 'RadioButtons', 'Range', 'Rating', 'Header', 'Paragraph', 'LineBreak'].includes(this.state.element.element) && (
               <div className="inspector-field-group">

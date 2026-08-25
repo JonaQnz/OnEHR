@@ -1,5 +1,13 @@
 Category: bug
 
+**Status: fixed.** `apps/web/src/adapters/formBuilderAdapter.ts` now maps
+`node.alwaysHidden` to `item.hidden` when loading a form into the builder,
+and `item.hidden` back to `layoutNode.alwaysHidden` when saving - both
+directions round-trip correctly through the existing checkbox. Verified
+live: toggled the checkbox on a real field, confirmed
+`"alwaysHidden": true` in the Live JSON tab, reopened the form and the
+checkbox stayed checked.
+
 ## What I was trying to do
 
 Hands-on UX audit of the FormBuilder designer (drag-and-drop a new form

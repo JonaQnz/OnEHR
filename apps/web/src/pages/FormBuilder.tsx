@@ -1763,7 +1763,9 @@ function FormBuilderContent() {
                                  </div>
                                </div>
                              )}
-                             {/* AQL PREFILL PROPERTY INSPECTOR */}
+                             {/* AQL PREFILL PROPERTY INSPECTOR - meaningless for static
+                                 content elements (nothing to prefill into a heading/paragraph/divider). */}
+                             {!['Header', 'Paragraph', 'LineBreak'].includes(activeEditElement.element) && (
                              <div className="inspector-section" style={{ marginTop: '0.75rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
                                <div className="inspector-section-title" style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.4rem' }}>
                                  🔍 AQL Prefill (HIP) Mapping
@@ -1865,6 +1867,7 @@ function FormBuilderContent() {
                                  </div>
                                )}
                              </div>
+                             )}
                            </div>
                          )}
 

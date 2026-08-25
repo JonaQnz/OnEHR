@@ -131,6 +131,11 @@ export function canonicalToFormBuilder(form: CanonicalForm): any[] {
       description: node.description || '',
       required: node.required ?? false,
       readOnly: node.readOnly || false,
+      // Round-trips through the builder's own "Hidden by default" checkbox
+      // (react-form-builder2 reads/writes `element.hidden` directly - see
+      // form-elements-edit.jsx). Distinct from alwaysHidden's canonical name
+      // only because that's what the vendored library already calls it.
+      hidden: node.alwaysHidden === true,
       custom_metadata: {
         type: node.type,
         binding: binding,
@@ -460,6 +465,10 @@ export function formBuilderToCanonical(items: any[], originalForm: CanonicalForm
       if (item.hideDefaultProperties) {
         layoutNode.props!.hideDefaultProperties = true;
       }
+    }
+
+    if (item.hidden === true) {
+      layoutNode.alwaysHidden = true;
     }
 
     return layoutNode;
