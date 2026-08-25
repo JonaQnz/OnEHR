@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Plus, FileEdit, Download, Copy, UploadCloud, FolderOpen, ExternalLink, Archive, RotateCcw, ChevronDown, ChevronRight, Trash2, LayoutPanelTop } from 'lucide-react';
+import { CreateFormModal } from '../components/CreateFormModal';
 
 export default function Dashboard() {
   const [forms, setForms] = useState<any[]>([]);
@@ -9,6 +10,7 @@ export default function Dashboard() {
   const [filter, setFilter] = useState<'all' | 'draft' | 'published'>('all');
   const [viewDeleted, setViewDeleted] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [createModalKind, setCreateModalKind] = useState<'form' | 'composition' | null>(null);
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,32 +41,10 @@ export default function Dashboard() {
     }
   };
 
-  const handleCreateForm = () => {
-    const name = prompt('Enter form name:', 'New Clinical Form');
-    if (!name) return;
-
-    fetch('http://localhost:3001/api/forms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.form) {
-          const isComposition = Boolean(data.form.canonical_json?.extensions?.['watehr.composition']);
-          navigate(isComposition ? `/compositions/${data.form.id}/builder` : `/forms/${data.form.id}/builder`);
-        }
-      });
-  };
-
-  const handleCreateComposition = () => {
-    const name = prompt('Name der Composition:', 'Klinische Übersicht');
-    if (!name) return;
-    fetch('http://localhost:3001/api/forms', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ name, kind: 'composition' }),
-    }).then((res) => res.json()).then((data) => {
-      if (data.form) navigate(`/compositions/${data.form.id}/builder`);
-    }).catch(() => alert('Composition konnte nicht erstellt werden.'));
+  const handleFormCreated = (form: any) => {
+    setCreateModalKind(null);
+    const isComposition = Boolean(form.canonical_json?.extensions?.['watehr.composition']);
+    navigate(isComposition ? `/compositions/${form.id}/builder` : `/forms/${form.id}/builder`);
   };
 
   const handleImportClick = () => {
@@ -197,10 +177,10 @@ export default function Dashboard() {
           <button className="btn btn-secondary" onClick={handleImportClick}>
             <UploadCloud size={18} /> Import Form
           </button>
-          <button className="btn" onClick={handleCreateForm}>
+          <button className="btn" onClick={() => setCreateModalKind('form')}>
             <Plus size={18} /> Create New Form
           </button>
-          <button className="btn btn-secondary" onClick={handleCreateComposition}>
+          <button className="btn btn-secondary" onClick={() => setCreateModalKind('composition')}>
             <LayoutPanelTop size={18} /> Neue Composition
           </button>
         </div>
@@ -417,6 +397,14 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {createModalKind && (
+        <CreateFormModal
+          kind={createModalKind}
+          onClose={() => setCreateModalKind(null)}
+          onCreated={handleFormCreated}
+        />
+      )}
     </div>
   );
 }

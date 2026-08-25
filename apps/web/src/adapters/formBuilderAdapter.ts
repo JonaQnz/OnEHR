@@ -162,6 +162,13 @@ export function canonicalToFormBuilder(form: CanonicalForm): any[] {
         ...opt,
         key: opt.key || `${node.id || fieldName}_option_${index}`
       }));
+    } else if (needsOptions) {
+      // Dropdown/Checkboxes/RadioButtons/Tags all iterate element.options
+      // unconditionally in react-form-builder2's own renderers - leaving it
+      // undefined (e.g. an input-boolean or input-ordinal field whose
+      // parsed WebTemplate never produced an options list) crashes the
+      // canvas outright instead of just rendering an empty choice list.
+      item.options = [];
     }
 
     if (node.showTimeSelect !== undefined) {
