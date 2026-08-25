@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler, HttpError } from '../middleware/errorHandler';
-import { createPatient, listPatients, getPatient, syncPatientsFromPersonCompositions } from '../services/patientService';
+import { createPatient, listPatients, getPatient, syncPatientsFromEhrbase } from '../services/patientService';
 import { requirePermission } from '../middleware/auth';
 
 const router = Router();
@@ -11,7 +11,7 @@ router.get('/', requirePermission('patient.search'), asyncHandler(async (_req, r
 }));
 
 router.post('/sync', requirePermission('patient.search'), asyncHandler(async (_req, res) => {
-  const synchronized = await syncPatientsFromPersonCompositions(true);
+  const synchronized = await syncPatientsFromEhrbase(true);
   res.json({ synchronized, patients: await listPatients(false) });
 }));
 

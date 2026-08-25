@@ -158,19 +158,38 @@ model CodeFunction {
 }
 
 model Patient {
-  id               String   @id @default(uuid())
-  patientId        String   @map("patient_id")
-  patientNamespace String   @map("patient_namespace")
-  firstName        String   @map("first_name")
-  lastName         String   @map("last_name")
-  birthDate        String?  @map("birth_date")
+  id               String        @id @default(uuid())
+  patientId        String        @map("patient_id")
+  patientNamespace String        @map("patient_namespace")
+  firstName        String        @map("first_name")
+  lastName         String        @map("last_name")
+  birthDate        String?       @map("birth_date")
   gender           String?
-  ehrId            String   @unique @map("ehr_id")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  ehrId            String        @unique @map("ehr_id")
+  // Where this record came from: "native" was created here in Forms
+  // (create_patient / the "Patient anlegen" button); "imported" was
+  // discovered on EHRbase (an EHR with no Forms-authored data behind it
+  // yet) by syncPatientsFromEhrbase. An imported patient flips to native
+  // the moment a form is actually added for them (createFormSession) -
+  // it never flips back the other way.
+  origin           PatientOrigin @default(native)
+  // Whether syncPatientsFromEhrbase last found a real openEHR-EHR-CLUSTER.
+  // person.v1 (vg_Person template) composition for this EHR - i.e. whether
+  // firstName/lastName/birthDate/gender above are genuine EHRbase data or
+  // just a placeholder ("Unbekannt"). Drives the "needs assignment" split
+  // in the Patient overview; re-evaluated (and can flip back to false, e.g.
+  // a template rename) on every sync, unlike origin.
+  hasPersonArchetype Boolean      @default(false) @map("has_person_archetype")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
 
   @@unique([patientNamespace, patientId])
   @@map("patients")
+}
+
+enum PatientOrigin {
+  native
+  imported
 }
 
 enum UserStatus {

@@ -217,6 +217,8 @@ interface ResolvedSessionPatient {
   patientId: string;
   patientNamespace?: string;
   ehrId?: string;
+  id?: string;
+  origin?: string;
 }
 
 async function resolveSessionPatient(
@@ -234,6 +236,8 @@ async function resolveSessionPatient(
     patientId: patient.patientId,
     patientNamespace: patient.patientNamespace,
     ehrId: patient.ehrId,
+    id: patient.id,
+    origin: patient.origin,
   };
 }
 
@@ -297,6 +301,13 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
     requestedPatientId,
     typeof input.patientNamespace === 'string' ? input.patientNamespace.trim() || undefined : undefined,
   );
+  // Adding a form to a patient is the "this patient is really being used in
+  // Forms now" moment - an imported-from-EHRbase stub graduates to native
+  // here and stays native from then on (syncPatientsFromEhrbase never
+  // downgrades it back).
+  if (patient.id && patient.origin === 'imported') {
+    await prisma.patient.update({ where: { id: patient.id }, data: { origin: 'native' } });
+  }
   const form = await prisma.form.findUnique({ where: { id: formId } });
   if (!form) throw new HttpError(404, 'Form not found');
   const mode = input.mode === undefined ? 'create' : input.mode;

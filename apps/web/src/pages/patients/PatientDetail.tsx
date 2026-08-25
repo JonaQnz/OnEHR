@@ -25,6 +25,8 @@ interface PatientRecord {
   birthDate?: string | null;
   gender?: string | null;
   ehrId?: string | null;
+  origin?: 'native' | 'imported';
+  hasPersonArchetype?: boolean;
   createdAt: string;
 }
 
@@ -589,6 +591,7 @@ export default function PatientDetail() {
           <div><span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Patienten-ID</span><strong style={{ display: 'block', marginTop: '0.2rem' }}>{patient.patientId}</strong></div>
           <div><span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Namensraum</span><strong style={{ display: 'block', marginTop: '0.2rem' }}>{patient.namespace || 'default'}</strong></div>
           <div><span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>EHR-ID</span><code style={{ display: 'block', marginTop: '0.2rem', overflowWrap: 'anywhere' }}>{patient.ehrId || 'Nicht hinterlegt'}</code></div>
+          <div><span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Herkunft</span><strong style={{ display: 'block', marginTop: '0.2rem' }}>{patient.origin === 'imported' ? 'Importiert (aus EHRbase)' : 'Nativ (in Forms angelegt)'}</strong></div>
           <div><span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Letzte Aktivität</span><strong style={{ display: 'block', marginTop: '0.2rem' }}>{formatDateTime(latestSession?.updatedAt)}</strong></div>
         </div>
       </div>
@@ -788,7 +791,17 @@ export default function PatientDetail() {
       <div className="card" style={{ marginBottom: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
           <div>
-            <h1 style={{ margin: '0 0 0.5rem 0' }}>{patient.firstName} {patient.lastName}</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+              <h1 style={{ margin: 0 }}>{patient.firstName} {patient.lastName}</h1>
+              {patient.origin === 'imported' ? (
+                <span className="badge" style={{ background: '#fffbeb', color: '#a16207', borderColor: '#fde68a' }} title="Auf EHRbase gefunden, noch kein Formular in Forms erfasst">Importiert</span>
+              ) : (
+                <span className="badge" style={{ background: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' }} title="In Forms angelegt bzw. bereits dokumentiert">Nativ</span>
+              )}
+              {!patient.hasPersonArchetype && (
+                <span className="badge" style={{ background: '#fef2f2', color: '#b91c1c', borderColor: '#fecaca' }} title="Kein Person-Archetyp (vg_Person) auf EHRbase gefunden - Name/Geburtsdatum ggf. nur vorläufig">Kein Person-Archetyp</span>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: '1rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
               <span>{patient.patientId}</span>
               <span>•</span>

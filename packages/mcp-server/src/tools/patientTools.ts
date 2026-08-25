@@ -4,13 +4,20 @@ import type { FormbuilderApiClient } from '../apiClient.js';
 import { toResult } from '../toolResult.js';
 
 /** Patient registry tools. Patients are Forms' own local record, kept in
- * sync with (but distinct from) EHRbase's Person compositions - a patient
- * always carries an ehrId once synced, which is what launch_form and the
- * runtime tools need to actually record clinical data against. */
+ * sync with (but distinct from) EHRbase. sync_patients discovers *every*
+ * EHR that exists on the active EHRbase connection - not just ones Forms
+ * already knew about - and reads real demographics from a Person
+ * Composition where one exists, falling back to a bare stub (name
+ * "Unbekannt") for an EHR that has none yet. Each patient carries an
+ * `origin`: "native" was created in Forms (create_patient); "imported" was
+ * discovered on EHRbase by sync_patients and has no Forms-authored data
+ * yet. An imported patient automatically becomes native the moment a form
+ * is actually launched/created for them - that flip is one-way, a later
+ * sync never reverts it back to imported. */
 export function registerPatientTools(server: McpServer, api: FormbuilderApiClient): void {
   server.registerTool('list_patients', {
     title: 'List patients',
-    description: 'Lists every patient known to Forms\' local registry, each with its ehrId if already synced to EHRbase.',
+    description: 'Lists every patient known to Forms\' local registry - both natively created ones and ones discovered on EHRbase via sync_patients - each with its ehrId, `origin` ("native"/"imported"), and demographics where known.',
     inputSchema: {},
   }, () => toResult(() => api.get('/api/patients')));
 
@@ -22,7 +29,7 @@ export function registerPatientTools(server: McpServer, api: FormbuilderApiClien
 
   server.registerTool('create_patient', {
     title: 'Create a patient',
-    description: 'Registers a new patient in Forms\' local registry. This does not by itself create anything in EHRbase - a patient only gets an ehrId once a Person Composition exists for them there and sync_patients (or the normal EHRbase-side registration flow) picks it up.',
+    description: 'Registers a new patient in Forms\' local registry with origin "native" and creates its EHR on EHRbase right away (unlike an imported patient, a native one does not need sync_patients to get an ehrId).',
     inputSchema: {
       patientId: z.string().describe('A stable external patient identifier (e.g. an MRN), not a database id.'),
       firstName: z.string(),
@@ -34,7 +41,7 @@ export function registerPatientTools(server: McpServer, api: FormbuilderApiClien
 
   server.registerTool('sync_patients', {
     title: 'Sync patients from EHRbase',
-    description: 'Re-reads Person Compositions from the active EHRbase connection and updates Forms\' local patient registry (in particular, filling in ehrId for patients that now have one). Run this after a patient gets an EHR record in EHRbase, before trying to launch a form for them.',
+    description: 'Discovers every EHR on the active EHRbase connection (via `SELECT e/ehr_id/value FROM EHR e`, not just ones with Forms-recognizable data) and upserts Forms\' local patient registry: real demographics where a Person Composition exists, a bare "Unbekannt" stub with origin "imported" otherwise. Never downgrades a patient that has already become "native". Run this to pick up patients/EHRs that originated outside Forms, or after a patient gets an EHR record in EHRbase, before trying to launch a form for them.',
     inputSchema: {},
   }, () => toResult(() => api.post('/api/patients/sync')));
 
