@@ -104,4 +104,5 @@ export class FormbuilderApiClient {
   post<T>(path: string, body?: unknown): Promise<T> { return this.request<T>('POST', path, body ?? {}); }
   put<T>(path: string, body: unknown): Promise<T> { return this.request<T>('PUT', path, body); }
   patch<T>(path: string, body: unknown): Promise<T> { return this.request<T>('PATCH', path, body); }
+  delete<T>(path: string): Promise<T> { return this.request<T>('DELETE', path); }
 }

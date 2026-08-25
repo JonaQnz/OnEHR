@@ -9,6 +9,7 @@ import { registerFormTools } from './tools/formTools.js';
 import { registerPatientTools } from './tools/patientTools.js';
 import { registerRuntimeTools } from './tools/runtimeTools.js';
 import { registerEhrbaseAdminTools } from './tools/ehrbaseAdminTools.js';
+import { registerWidgetTools } from './tools/widgetTools.js';
 
 // Credentials live only in the repo-root .env (gitignored, see
 // docs/authentication.md) - never in .mcp.json, which is normally committed.
@@ -23,13 +24,18 @@ async function main(): Promise<void> {
       'Tools for the onEHR Form Builder / Composition Builder / patient / form-runtime APIs. '
       + 'A Composition is a Form with kind "composition" - there is no separate Composition entity. '
       + 'Typical form-editing loop: get_form (or create_form) -> edit the canonical_json object -> '
-      + 'check_form_script if it has a formScript -> update_form with the full modified object -> publish_form when ready.',
+      + 'check_form_script if it has a formScript -> update_form with the full modified object -> publish_form when ready. '
+      + 'Clinical data widgets (read-only "show me patient data" cards) are separate: create_aql_function -> '
+      + 'create_data_widget -> query_data_widget against a real patient to sanity-check the rows -> then place it '
+      + 'in a Composition page by editing that Composition\'s canonical_json.extensions["watehr.composition"] '
+      + 'directly via update_form.',
   });
 
   registerFormTools(server, api);
   registerPatientTools(server, api);
   registerRuntimeTools(server, api);
   registerEhrbaseAdminTools(server, api);
+  registerWidgetTools(server, api);
 
   await server.connect(new StdioServerTransport());
 }
