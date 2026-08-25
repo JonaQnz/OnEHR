@@ -86,13 +86,29 @@ function prepareNewDefinition(input: Record<string, unknown>, formId: string) {
   return compileDefinitionScripts(definition);
 }
 
+/**
+ * Whether a stored layout actually places any field, as opposed to the empty
+ * `{ type: 'form', children: [{ type: 'container', children: [] }] }`
+ * placeholder every imported template starts with. Only a layout with real
+ * content should ever override `generateCanonicalForm`'s own
+ * fields-to-layout generation below - otherwise that placeholder (still
+ * truthy) silently wins over the generated layout and the form comes out
+ * with correct bindings/locales but nothing on the canvas.
+ */
+function layoutHasFields(node: any): boolean {
+  if (!node || typeof node !== 'object') return false;
+  if (Array.isArray(node.children) && node.children.length > 0) {
+    return node.children.some((child: any) => layoutHasFields(child));
+  }
+  return !['form', 'container', 'row', 'column'].includes(node.type);
+}
+
 function generateDefinitionFromTemplate(template: any, formId: string, formName?: string) {
   const registryData = template.parsed_registry_json as any;
   const isNewSchema = registryData && !Array.isArray(registryData);
   const fields = isNewSchema ? (registryData.fields || []) : (registryData || []);
-  const layout = isNewSchema
-    ? (registryData.layout || { type: 'form', children: [{ type: 'container', children: [] }] })
-    : { type: 'form', children: [{ type: 'container', children: [] }] };
+  const storedLayout = isNewSchema ? registryData.layout : undefined;
+  const layout = storedLayout && layoutHasFields(storedLayout) ? storedLayout : undefined;
 
   return prepareNewDefinition({
     ...generateCanonicalForm({
