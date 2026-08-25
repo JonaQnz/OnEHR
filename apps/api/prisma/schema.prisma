@@ -48,6 +48,26 @@ enum FormSessionStatus {
   cancelled
 }
 
+// The real openEHR Composition lifecycle state this session's editing
+// session is tracking - distinct from FormSessionStatus above, which is
+// this app's own UI/workflow status. `new` = no server version yet;
+// `incomplete`/`complete` mirror ORIGINAL_VERSION.lifecycle_state;
+// `deleted` = withdrawn (logical delete only, see EhrbaseDataProvider.withdraw).
+enum FormSessionLifecycleState {
+  new
+  incomplete
+  complete
+  deleted
+}
+
+// openEHR AUDIT_DETAILS.change_type, restricted to the two values this app's
+// editing UI actually distinguishes for a save against an already-complete
+// composition - a routine update vs. a correction of a documentation error.
+enum FormSessionChangeType {
+  modification
+  amendment
+}
+
 enum CompositionSessionStatus {
   draft
   in_progress
@@ -103,6 +123,18 @@ model FormSession {
   // session that's been autosaving keeps updating its own draft instead of
   // creating a second, disconnected composition at final submit.
   draftReference     String?  @map("draft_reference")
+  // The Clinical Editing Layer's own tracked openEHR lifecycle state (see
+  // Epic 2) - Forms' honest record of draft/final/withdrawn, kept even when
+  // the CDR doesn't confirm it applied the same value (see lifecycleConfirmed).
+  lifecycleState     FormSessionLifecycleState @default(new) @map("lifecycle_state")
+  // Whether the CDR was verified (by reading the committed version back) to
+  // have actually applied lifecycleState, rather than silently defaulting -
+  // see EhrbaseDataProvider.commitWithLifecycle(). false on this CDR today.
+  lifecycleConfirmed Boolean  @default(false) @map("lifecycle_confirmed")
+  // Set only when saving against an already-`complete` composition in edit
+  // mode - routine update vs. correction of a documentation error.
+  changeType         FormSessionChangeType? @map("change_type")
+  changeDescription  String?  @map("change_description")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 

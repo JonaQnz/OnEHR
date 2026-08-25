@@ -276,6 +276,113 @@ test('prefers the trusted patient-registry EHR ID over subject lookup', async ()
   assert.match(calls[0].body.q, /3bfb00d8-62f0-4fd5-abbc-a37c9cd4fc5a/);
 });
 
+test('referenceFrom prefers the etag header (full versioned uid) over location (base uid only)', async () => {
+  const calls = [];
+  const versionUid = '77777777-7777-7777-7777-777777777777::vitals.v1::1';
+  const http = {
+    async get(url) {
+      calls.push({ method: 'GET', url });
+      return { data: { ehr_id: { value: 'ehr-1' } } };
+    },
+    async post(url, body, options) {
+      calls.push({ method: 'POST', url, body, options });
+      // EHRbase's real Location header only ever carries the base
+      // (unversioned) uid on this CDR - confirmed live. etag carries the
+      // full `{uid}::{system}::{version}` form, quoted.
+      return { data: {}, headers: { location: '/ehr/ehr-1/composition/77777777-7777-7777-7777-777777777777', etag: `"${versionUid}"` } };
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic', ehrbaseSubjectNamespace: 'demo' } });
+  const result = await provider.submit({ context: { patientId: 'patient-1', patientNamespace: 'demo', userId: 'alice', mode: 'create' }, form: { id: 'form-1', version: '1.0.0', definition: definition() }, values: { name: 'Ada' } });
+  assert.equal(result.reference, versionUid);
+});
+
+test('commitWithLifecycle attempts the audit headers, verifies via readback, and reports confirmation honestly', async () => {
+  const calls = [];
+  const versionUid = '88888888-8888-8888-8888-888888888888::vitals.v1::1';
+  const http = {
+    async get(url) {
+      calls.push({ method: 'GET', url });
+      if (url.endsWith('/ehr')) return { data: { ehr_id: { value: 'ehr-1' } } };
+      // Readback of the committed version - this CDR (confirmed live)
+      // silently ignores the requested lifecycle_state/change_type and
+      // always reports its own defaults.
+      if (url.includes('/versioned_composition/')) {
+        return { data: { lifecycle_state: { value: 'complete' }, commit_audit: { change_type: { value: 'creation' } } } };
+      }
+      throw new Error(`unexpected GET ${url}`);
+    },
+    async post(url, body, options) {
+      calls.push({ method: 'POST', url, body, options });
+      return { data: {}, headers: { etag: `"${versionUid}"` } };
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic', ehrbaseSubjectNamespace: 'demo' } });
+  const input = { context: { patientId: 'patient-1', patientNamespace: 'demo', userId: 'alice', mode: 'create' }, form: { id: 'form-1', version: '1.0.0', definition: definition() }, values: { name: 'Ada' }, desiredLifecycleState: 'incomplete' };
+
+  const first = await provider.commitWithLifecycle(input, 'draft');
+  assert.equal(first.lifecycleState, 'incomplete');
+  assert.equal(first.lifecycleConfirmed, false, 'the CDR did not actually apply incomplete, so this must be false, not assumed true');
+  const postCall = calls.find((call) => call.method === 'POST');
+  assert.ok(postCall.options.headers['openEHR-AUDIT_DETAILS'], 'the real mechanism is attempted, not skipped, on the first call');
+  assert.ok(postCall.options.headers['openEHR-VERSION']);
+  const readbackCallsAfterFirst = calls.filter((call) => call.method === 'GET' && call.url.includes('/versioned_composition/')).length;
+  assert.equal(readbackCallsAfterFirst, 1);
+
+  // A second commit on the SAME connection should skip both the header
+  // attempt and the pointless readback round-trip - the capability is now
+  // known to be unsupported here.
+  const second = await provider.commitWithLifecycle(input, 'draft');
+  assert.equal(second.lifecycleConfirmed, false);
+  const postCalls = calls.filter((call) => call.method === 'POST');
+  assert.equal(postCalls[1].options.headers['openEHR-AUDIT_DETAILS'], undefined, 'a connection known to ignore the headers should not keep re-attempting them');
+  const readbackCallsAfterSecond = calls.filter((call) => call.method === 'GET' && call.url.includes('/versioned_composition/')).length;
+  assert.equal(readbackCallsAfterSecond, 1, 'no additional readback once the capability is cached as unsupported');
+});
+
+test('withdraw logically deletes via DELETE and never touches other HTTP verbs', async () => {
+  const calls = [];
+  const versionUid = '99999999-9999-9999-9999-999999999999::vitals.v1::1';
+  const nextVersionUid = '99999999-9999-9999-9999-999999999999::vitals.v1::2';
+  const http = {
+    async get(url) {
+      calls.push({ method: 'GET', url });
+      return { data: { ehr_id: { value: 'ehr-1' } } };
+    },
+    async delete(url, options) {
+      calls.push({ method: 'DELETE', url, options });
+      return { data: {}, status: 204, headers: { etag: `"${nextVersionUid}"` } };
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic', ehrbaseSubjectNamespace: 'demo' } });
+
+  const result = await provider.withdraw({
+    context: { patientId: 'patient-1', patientNamespace: 'demo', userId: 'alice', mode: 'edit' },
+    reference: versionUid,
+    reason: 'Falscher Patient dokumentiert',
+  });
+  assert.equal(result.versionUid, nextVersionUid);
+  const del = calls.find((call) => call.method === 'DELETE');
+  assert.match(del.url, new RegExp(`/composition/${encodeURIComponent(versionUid)}$`));
+  assert.ok(del.options.headers['openEHR-AUDIT_DETAILS']);
+});
+
+test('withdraw turns a 412 into the same conflict error as a normal update', async () => {
+  const http = {
+    async get() { return { data: { ehr_id: { value: 'ehr-1' } } }; },
+    async delete() {
+      const error = new Error('stale composition');
+      error.response = { status: 412 };
+      throw error;
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic', ehrbaseSubjectNamespace: 'demo' } });
+  await assert.rejects(
+    provider.withdraw({ context: { patientId: 'patient-1', userId: 'alice', mode: 'edit' }, reference: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa::vitals.v1::1' }),
+    (error) => error instanceof EhrbaseProviderError && error.code === 'COMPOSITION_VERSION_CONFLICT' && error.status === 409,
+  );
+});
+
 test('does not silently submit a known patient to the configured default EHR', async () => {
   const provider = new EhrbaseDataProvider({
     http: {

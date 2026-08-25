@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import { requirePermission } from '../middleware/auth';
-import { autosaveFormSessionDraft, createFormSession, getFormSession, listFormSessions, loadFormSessionFromProvider, patchFormSession, submitFormSession, submitFormSessionToProvider, validateFormSession } from '../services/formSessionService';
+import { autosaveFormSessionDraft, createFormSession, getFormSession, listFormSessions, loadFormSessionFromProvider, patchFormSession, submitFormSession, submitFormSessionToProvider, validateFormSession, withdrawFormSessionFromProvider } from '../services/formSessionService';
 
 const router = Router();
 router.use(requirePermission('form.execute'));
@@ -41,7 +41,17 @@ router.post('/:id/provider/load', asyncHandler(async (req, res) => {
 
 router.post('/:id/provider/submit', asyncHandler(async (req, res) => {
   const providerId = typeof req.body?.providerId === 'string' ? req.body.providerId : 'ehrbase';
-  res.json(await submitFormSessionToProvider(String(req.params.id), providerId, actor(req), { validatedRevision: typeof req.body?.validatedRevision === 'number' ? req.body.validatedRevision : undefined }));
+  res.json(await submitFormSessionToProvider(String(req.params.id), providerId, actor(req), {
+    validatedRevision: typeof req.body?.validatedRevision === 'number' ? req.body.validatedRevision : undefined,
+    changeType: typeof req.body?.changeType === 'string' ? req.body.changeType : undefined,
+    changeDescription: typeof req.body?.changeDescription === 'string' ? req.body.changeDescription : undefined,
+  }));
+}));
+
+router.post('/:id/provider/withdraw', asyncHandler(async (req, res) => {
+  const providerId = typeof req.body?.providerId === 'string' ? req.body.providerId : 'ehrbase';
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+  res.json(await withdrawFormSessionFromProvider(String(req.params.id), providerId, actor(req), reason));
 }));
 
 router.post('/:id/validate', asyncHandler(async (req, res) => {

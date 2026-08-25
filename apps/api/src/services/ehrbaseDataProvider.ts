@@ -18,7 +18,7 @@ import { getConfig } from './configService';
 import { getEhrbaseRequestConfig } from './ehrbaseConnectionPlugins';
 import { getRemoteWebTemplate } from './ehrbaseService';
 
-type ProviderHttp = Pick<AxiosInstance, 'get' | 'post' | 'put'>;
+type ProviderHttp = Pick<AxiosInstance, 'get' | 'post' | 'put' | 'delete'>;
 type ProviderConfig = ReturnType<typeof getConfig>;
 type ProviderResponse = { data: any; headers?: Record<string, any>; status?: number };
 
@@ -28,6 +28,39 @@ export interface LatestCompositionContext {
   reference?: string;
   flat: Record<string, unknown>;
   loadedAt: string;
+}
+
+/** openEHR `ORIGINAL_VERSION.lifecycle_state` values this app actively sets. */
+export type DesiredLifecycleState = 'incomplete' | 'complete';
+
+/** openEHR `AUDIT_DETAILS.change_type` values this app actively sets. */
+export type DesiredChangeType = 'creation' | 'modification' | 'amendment';
+
+export interface CommitWithLifecycleInput extends FormDataProviderSubmitInput {
+  desiredLifecycleState: DesiredLifecycleState;
+  desiredChangeType?: DesiredChangeType;
+  changeDescription?: string;
+}
+
+export interface CommitWithLifecycleResult extends FormDataProviderSubmitResult {
+  lifecycleState: DesiredLifecycleState;
+  /** Whether the CDR was verified (by reading the version back) to have
+   * actually applied lifecycleState - never assumed from a lack of error. */
+  lifecycleConfirmed: boolean;
+  changeType?: DesiredChangeType;
+  /** Same verification, for changeType. `true` when no changeType was
+   * requested (nothing to confirm). */
+  changeTypeConfirmed: boolean;
+}
+
+export interface WithdrawInput {
+  context: FormDataProviderContext;
+  reference: string;
+  reason?: string;
+}
+
+export interface WithdrawResult {
+  versionUid: string;
 }
 
 export class EhrbaseProviderError extends Error {
@@ -82,6 +115,13 @@ export function extractEhrId(payload: any): string | undefined {
 
 function referenceFrom(response: ProviderResponse): string | undefined {
   const headers = response.headers || {};
+  // The `etag` header carries the full `{uid}::{system}::{version}` form
+  // reliably; `location` only ever contains the base (unversioned)
+  // composition uid on this CDR (confirmed live) - preferring etag here
+  // means every caller of referenceFrom() gets a directly `If-Match`/GET-able
+  // version uid without needing a fallback AQL lookup.
+  const etag = text(headers.etag) || text(headers.ETag);
+  if (etag) return etag.replace(/^"|"$/g, '');
   return text(headers.location) || text(headers.Location) || text(response.data?.uid?.value) || text(response.data?.uid);
 }
 
@@ -100,6 +140,13 @@ function latestComposition(data: any): Record<string, any> | undefined {
 }
 
 const webTemplateCache = new Map<string, any>();
+
+// Per-connection (base URL) memory of whether the real openEHR audit/version
+// headers (`openEHR-AUDIT_DETAILS`/`openEHR-VERSION`) actually take effect
+// on that CDR. Populated by commitWithLifecycle()'s attempt-then-verify
+// step, not assumed - a fresh connection is always attempted at least once.
+// `false` means "seen to be ignored"; absent means "unknown, attempt it".
+const lifecycleHeaderSupport = new Map<string, boolean>();
 
 async function getWebTemplateTree(tplId: string): Promise<any> {
   const cached = webTemplateCache.get(tplId);
@@ -331,7 +378,7 @@ export class EhrbaseDataProvider implements FormDataProvider {
   }
 
   public async submit(input: FormDataProviderSubmitInput): Promise<FormDataProviderSubmitResult> {
-    return this.commitComposition(input, 'submit');
+    return (await this.commitComposition(input, 'submit')).result;
   }
 
   /**
@@ -344,10 +391,155 @@ export class EhrbaseDataProvider implements FormDataProvider {
    * history, not two disconnected compositions.
    */
   public async draft(input: FormDataProviderSubmitInput): Promise<FormDataProviderSubmitResult> {
-    return this.commitComposition(input, 'draft');
+    return (await this.commitComposition(input, 'draft')).result;
   }
 
-  private async commitComposition(input: FormDataProviderSubmitInput, label: 'submit' | 'draft'): Promise<FormDataProviderSubmitResult> {
+  /**
+   * Commits a composition the same way submit()/draft() do, but additionally
+   * *attempts* the real openEHR `lifecycle_state`/`change_type` mechanism via
+   * the FLAT endpoint's documented `openEHR-AUDIT_DETAILS`/`openEHR-VERSION`
+   * headers, then reads the committed version back to check whether the CDR
+   * actually applied them. This CDR (confirmed live) silently ignores those
+   * headers, so on it every commit here still lands as a normal FLAT
+   * create/update - the save itself never fails or degrades because of this
+   * - but the returned `lifecycleConfirmed`/`changeTypeConfirmed` flags tell
+   * the caller the truth instead of pretending the request took effect.
+   * Once a connection is seen to ignore the headers, subsequent calls skip
+   * the pointless attempt+readback round-trip for that connection.
+   */
+  public async commitWithLifecycle(input: CommitWithLifecycleInput, label: 'submit' | 'draft'): Promise<CommitWithLifecycleResult> {
+    const url = await this.providerBaseUrl();
+    const attemptHeaders = lifecycleHeaderSupport.get(url) !== false;
+    const auditHeaders = attemptHeaders ? this.buildAuditHeaders(input) : undefined;
+    const { result, ehrId, fullVersionUid } = await this.commitComposition(input, label, { auditHeaders });
+
+    let lifecycleConfirmed = false;
+    let changeTypeConfirmed = !input.desiredChangeType;
+    if (attemptHeaders && fullVersionUid) {
+      const metadata = await this.readBackVersionMetadata(ehrId, fullVersionUid);
+      lifecycleConfirmed = metadata?.lifecycleStateCode === input.desiredLifecycleState;
+      if (input.desiredChangeType) changeTypeConfirmed = metadata?.changeTypeCode === input.desiredChangeType;
+      // lifecycleState is always requested (unlike changeType, which is
+      // optional), so its own confirmation alone is sufficient evidence of
+      // whether this connection actually applies the headers at all.
+      if (!lifecycleConfirmed) {
+        lifecycleHeaderSupport.set(url, false);
+        console.warn('[EhrbaseDataProvider] CDR did not apply requested lifecycle/change-type via audit headers; caching as unsupported for this connection', { url, requested: { lifecycleState: input.desiredLifecycleState, changeType: input.desiredChangeType }, actual: metadata });
+      }
+    }
+
+    return {
+      ...result,
+      lifecycleState: input.desiredLifecycleState,
+      lifecycleConfirmed,
+      changeType: input.desiredChangeType,
+      changeTypeConfirmed,
+    };
+  }
+
+  /**
+   * Logical withdrawal of a Composition via the CDR's real DELETE endpoint
+   * (confirmed live to be genuine spec-correct logical deletion - the
+   * withdrawn version stays fully retrievable, only the "current" pointer
+   * changes). Never a physical purge.
+   */
+  public async withdraw(input: WithdrawInput): Promise<WithdrawResult> {
+    if (typeof this.http.delete !== 'function') {
+      throw new EhrbaseProviderError('The configured EHRbase transport does not support composition withdrawal', 'EHRBASE_DELETE_UNSUPPORTED', 502);
+    }
+    const ehrId = await this.resolveEhrId(input.context);
+    const versionUid = versionUidFromReference(input.reference) || text(input.reference);
+    if (!versionUid) {
+      throw new EhrbaseProviderError('No composition version reference to withdraw', 'COMPOSITION_NOT_FOUND_FOR_EDIT', 404);
+    }
+    const options = await this.requestOptions();
+    if (input.reason) {
+      // Best-effort only, same silently-ignored-header caveat as
+      // commitWithLifecycle() - DELETE's own logical-delete semantics are
+      // what's proven to work; this header is never relied upon for
+      // correctness, only attempted.
+      options.headers = { ...options.headers, 'openEHR-AUDIT_DETAILS': JSON.stringify({ description: { value: input.reason } }) };
+    }
+    try {
+      // Despite EHRbase's OpenAPI schema naming this path parameter
+      // `preceding_version_uid`, it is the full versioned uid of the version
+      // being withdrawn, not a "preceding" version - confirmed live.
+      const response = await this.http.delete(
+        `${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(versionUid)}`,
+        options,
+      ) as ProviderResponse;
+      return { versionUid: referenceFrom(response) || versionUid };
+    } catch (error: any) {
+      if (error?.response?.status === 412) {
+        throw new EhrbaseProviderError('The composition changed since it was loaded. Reload the form before withdrawing.', 'COMPOSITION_VERSION_CONFLICT', 409);
+      }
+      if (error?.response?.status === 404) {
+        throw new EhrbaseProviderError('The composition to withdraw no longer exists', 'COMPOSITION_NOT_FOUND_FOR_EDIT', 404);
+      }
+      return this.handleError(error);
+    }
+  }
+
+  private buildAuditHeaders(input: CommitWithLifecycleInput): Record<string, string> {
+    // Code strings below are best-effort: `creation`=249 is confirmed against
+    // the openEHR Terminology audit change type group; `amendment`/
+    // `modification` codes are not conclusively confirmed against an
+    // authoritative enumeration and are inferred. This is safe because the
+    // header is never trusted blindly - commitWithLifecycle() always reads
+    // the committed version back and verifies what the CDR actually applied.
+    const changeTypeCode = input.desiredChangeType === 'amendment' ? '250' : input.desiredChangeType === 'modification' ? '251' : '249';
+    const lifecycleCode = input.desiredLifecycleState === 'complete' ? '532' : '553';
+    const auditDetails = {
+      system_id: 'form-builder',
+      time_committed: { value: new Date().toISOString() },
+      change_type: {
+        value: input.desiredChangeType || 'creation',
+        defining_code: { terminology_id: { value: 'openehr' }, code_string: changeTypeCode },
+      },
+      ...(input.changeDescription ? { description: { value: input.changeDescription } } : {}),
+      committer: { name: input.context.userId || 'Form Builder' },
+    };
+    const version = {
+      lifecycle_state: {
+        value: input.desiredLifecycleState,
+        defining_code: { terminology_id: { value: 'openehr' }, code_string: lifecycleCode },
+      },
+    };
+    return {
+      'openEHR-AUDIT_DETAILS': JSON.stringify(auditDetails),
+      'openEHR-VERSION': JSON.stringify(version),
+    };
+  }
+
+  /**
+   * Reads a specific committed version back via the canonical (non-FLAT)
+   * versioned_composition endpoint to check its actual `lifecycle_state`/
+   * `commit_audit.change_type` - the only reliable way to know whether the
+   * CDR applied requested metadata, since it accepts the request headers
+   * without error either way (confirmed live).
+   */
+  private async readBackVersionMetadata(ehrId: string, fullVersionUid: string): Promise<{ lifecycleStateCode?: string; changeTypeCode?: string } | undefined> {
+    try {
+      const baseUid = fullVersionUid.split('::')[0];
+      const response = await this.http.get(
+        `${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/versioned_composition/${encodeURIComponent(baseUid)}/version/${encodeURIComponent(fullVersionUid)}`,
+        await this.requestOptions(),
+      ) as ProviderResponse;
+      return {
+        lifecycleStateCode: text(response.data?.lifecycle_state?.value),
+        changeTypeCode: text(response.data?.commit_audit?.change_type?.value),
+      };
+    } catch (error) {
+      console.warn('[EhrbaseDataProvider] Could not read back version metadata for lifecycle verification:', (error as any)?.message);
+      return undefined;
+    }
+  }
+
+  private async commitComposition(
+    input: FormDataProviderSubmitInput,
+    label: 'submit' | 'draft',
+    extra?: { auditHeaders?: Record<string, string> },
+  ): Promise<{ result: FormDataProviderSubmitResult; ehrId: string; templateId: string; fullVersionUid?: string }> {
     const mode = input.context.mode;
     if (mode === 'view') {
       throw new EhrbaseProviderError('A composition cannot be submitted from view mode', 'FORM_MODE_READ_ONLY', 403);
@@ -369,6 +561,7 @@ export class EhrbaseDataProvider implements FormDataProvider {
     );
     let response: ProviderResponse;
     const options = await this.requestOptions();
+    if (extra?.auditHeaders) options.headers = { ...options.headers, ...extra.auditHeaders };
 
     // draft() always trusts its given reference as an update target - the
     // caller (formSessionService) only ever hands it a reference it already
@@ -444,7 +637,12 @@ export class EhrbaseDataProvider implements FormDataProvider {
       status: response.status,
       reference,
     });
-    return { providerId: this.id, reference, metadata: { ehrId, templateId: id } };
+    return {
+      result: { providerId: this.id, reference, metadata: { ehrId, templateId: id } },
+      ehrId,
+      templateId: id,
+      fullVersionUid: reference?.includes('::') ? reference : undefined,
+    };
   }
 }
 

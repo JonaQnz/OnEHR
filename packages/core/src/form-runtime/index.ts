@@ -180,7 +180,26 @@ function validateOne(field: RuntimeFieldDescriptor, value: RuntimeValue, path: s
   }
 }
 
-export function validateRuntimeValues(form: Pick<CanonicalForm, 'layout'>, values: RuntimeValues): RuntimeValidationResult {
+export interface RuntimeValidationOptions {
+  /**
+   * `'final'` (default) runs the full validation used before finalizing a
+   * Composition. `'draft'` runs the exact same checks but drops the
+   * `required`/`repeat-min` issues afterward - real openEHR drafts
+   * (lifecycle_state=incomplete) are explicitly allowed to have missing
+   * required fields, but never an invalid typed value (e.g. a DV_QUANTITY
+   * that isn't a number). This is a post-filter, not a parallel
+   * implementation: validateOne() already only runs its type/unit/option/
+   * min/max/pattern checks on values that are present (it returns
+   * immediately after the required check on an empty value), so every
+   * non-required-related issue below is already exclusively a "value present
+   * but invalid" issue.
+   */
+  mode?: 'draft' | 'final';
+}
+
+const DRAFT_EXEMPT_ISSUE_CODES: ReadonlySet<RuntimeValidationIssue['code']> = new Set(['required', 'repeat-min']);
+
+export function validateRuntimeValues(form: Pick<CanonicalForm, 'layout'>, values: RuntimeValues, options?: RuntimeValidationOptions): RuntimeValidationResult {
   const issues: RuntimeValidationIssue[] = [];
   const groups = new Map(collectRuntimeGroups(form).map((group) => [group.id, group]));
   groups.forEach((group) => {
@@ -227,5 +246,6 @@ export function validateRuntimeValues(form: Pick<CanonicalForm, 'layout'>, value
     if (field.repeatMax !== -1 && repeated.length > field.repeatMax) issue(issues, field.id, 'repeat-max', `${field.label} allows at most ${field.repeatMax} entries.`);
     repeated.forEach((item, index) => validateOne(field, item, `${field.id}[${index}]`, issues));
   });
-  return { valid: issues.length === 0, issues };
+  const filtered = options?.mode === 'draft' ? issues.filter((entry) => !DRAFT_EXEMPT_ISSUE_CODES.has(entry.code)) : issues;
+  return { valid: filtered.length === 0, issues: filtered };
 }
