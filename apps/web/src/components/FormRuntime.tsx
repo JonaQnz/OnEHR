@@ -248,7 +248,15 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
         const before = await client.runLifecycle('beforeLoad', valuesRef.current);
         if (!before.cancelled) await client.runLifecycle('afterLoad', valuesRef.current);
       })
-      .catch((error: Error) => setToast({ level: 'error', message: error.message }));
+      .catch((error: Error) => {
+        // AbortError means this client was torn down (cleanup below) before
+        // ready/beforeLoad/afterLoad finished - most commonly React
+        // StrictMode's dev-mode mount/cleanup/mount replay, or a fast
+        // real unmount. That's expected teardown, not a script failure, so
+        // there's nothing to tell the user about.
+        if (error?.name === 'AbortError') return;
+        setToast({ level: 'error', message: error.message });
+      });
 
     return () => {
       if (scriptClientRef.current === client) scriptClientRef.current = null;

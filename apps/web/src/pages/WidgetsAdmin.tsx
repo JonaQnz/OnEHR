@@ -85,7 +85,7 @@ export default function WidgetsAdmin() {
       try {
         const [patients, defaults] = await Promise.all([
           request<PatientOption[]>('/patients'),
-          request<{ defaultEhrId: string }>('/widgets/preview-defaults'),
+          request<{ defaultEhrId: string }>('/config/preview-defaults'),
         ]);
         setPreviewPatients(Array.isArray(patients) ? patients : []);
         const defaultEhrId = defaults.defaultEhrId?.trim();

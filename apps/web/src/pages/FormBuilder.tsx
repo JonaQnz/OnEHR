@@ -493,6 +493,51 @@ function FormBuilderContent() {
   // Warnings Drawer toggle
   const [warningsOpen, setWarningsOpen] = useState(false);
 
+  // Patient context for the Preview tab: without a patientId/ehrId the real
+  // FormRuntime it renders has nothing to hand the AQL-prefill plugin (see
+  // `form:wrapper` in FormRuntime.tsx -> AqlPrefillProvider), so prefill
+  // buttons render but can never resolve data. Mirrors the same
+  // patient-picker + config-default pattern already built for Widgets
+  // admin's preview panel, so AQL mappings can be tested here without
+  // leaving for a real SessionRuntime session.
+  const [previewPatients, setPreviewPatients] = useState<Array<{ id: string; patientId: string; patientNamespace?: string; namespace?: string; ehrId?: string | null; firstName?: string; lastName?: string }>>([]);
+  // Draft values track the inputs on every keystroke; "applied" is what
+  // actually gets handed to FormRuntime (via the key below), and only
+  // catches up on blur or on a dropdown pick. Without this split, typing a
+  // manual patient-ID/EHR-ID character by character would remount
+  // FormRuntime - and re-spin its formScript worker - on every keystroke.
+  const [previewPatientId, setPreviewPatientId] = useState('');
+  const [previewEhrId, setPreviewEhrId] = useState('');
+  const [appliedPreviewPatientId, setAppliedPreviewPatientId] = useState('');
+  const [appliedPreviewEhrId, setAppliedPreviewEhrId] = useState('');
+  const applyPreviewContext = () => { setAppliedPreviewPatientId(previewPatientId); setAppliedPreviewEhrId(previewEhrId); };
+  // Gates the first FormRuntime mount until the default patient/EHR-ID is
+  // known. Without this, FormRuntime would mount once with an empty
+  // patientId/ehrId, then immediately remount (via the key below) once the
+  // default resolves - tearing down the formScript worker mid-init and
+  // surfacing a spurious "Form Script Runtime wurde beendet" toast.
+  const [previewContextLoaded, setPreviewContextLoaded] = useState(false);
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [patientsRes, defaultsRes] = await Promise.all([
+          fetch('http://localhost:3001/api/patients'),
+          fetch('http://localhost:3001/api/config/preview-defaults'),
+        ]);
+        const patients = await patientsRes.json();
+        const defaults = await defaultsRes.json();
+        setPreviewPatients(Array.isArray(patients) ? patients : []);
+        const defaultEhrId = typeof defaults?.defaultEhrId === 'string' ? defaults.defaultEhrId.trim() : '';
+        const matched = defaultEhrId && Array.isArray(patients) ? patients.find((item: any) => item.ehrId === defaultEhrId) : undefined;
+        const resolvedPatientId = matched ? matched.patientId : '';
+        const resolvedEhrId = matched ? (matched.ehrId || '') : defaultEhrId;
+        setPreviewPatientId(resolvedPatientId); setPreviewEhrId(resolvedEhrId);
+        setAppliedPreviewPatientId(resolvedPatientId); setAppliedPreviewEhrId(resolvedEhrId);
+      } catch { /* Preview patient context is a convenience, not required to use the rest of the builder. */ }
+      finally { setPreviewContextLoaded(true); }
+    })();
+  }, []);
+
   // Repeat instances: maps item.id -> array of instance UUIDs
   const [repeatInstances, setRepeatInstances] = useState<Record<string, string[]>>({});
   // Collapsed repeat instances: maps instanceId -> boolean
@@ -1209,11 +1254,53 @@ function FormBuilderContent() {
           </div>
         ) : previewMode === 'runtime' ? (
           <div className="workbench-runtime-view">
-            <FormRuntime
-              definition={form.canonical_json}
-              mode="preview"
-              submitLabel="Lifecycle testen"
-            />
+            <div style={{ maxWidth: '960px', margin: '0 auto 1rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.85rem 1.1rem', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '0.9rem' }}>
+              <label style={{ fontSize: '0.8rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                Test-Patient (für AQL-Vorbelegung)
+                <select
+                  className="form-input"
+                  style={{ minWidth: '260px' }}
+                  value={previewPatients.find((item) => item.patientId === previewPatientId)?.id || ''}
+                  onChange={(event) => {
+                    const selected = previewPatients.find((item) => item.id === event.target.value);
+                    const nextPatientId = selected?.patientId || '';
+                    const nextEhrId = selected?.ehrId || '';
+                    setPreviewPatientId(nextPatientId);
+                    setPreviewEhrId(nextEhrId);
+                    setAppliedPreviewPatientId(nextPatientId);
+                    setAppliedPreviewEhrId(nextEhrId);
+                  }}
+                >
+                  <option value="">— kein Patient —</option>
+                  {previewPatients.map((item) => (
+                    <option key={item.id} value={item.id}>{[item.lastName, item.firstName].filter(Boolean).join(', ') || item.patientId} · {item.patientId}</option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ fontSize: '0.8rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                oder Patient-ID manuell
+                <input className="form-input" value={previewPatientId} onChange={(event) => setPreviewPatientId(event.target.value)} onBlur={applyPreviewContext} onKeyDown={(event) => { if (event.key === 'Enter') applyPreviewContext(); }} placeholder="z. B. patient-123" style={{ minWidth: '200px' }} />
+              </label>
+              <label style={{ fontSize: '0.8rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                EHR-ID (Override)
+                <input className="form-input" value={previewEhrId} onChange={(event) => setPreviewEhrId(event.target.value)} onBlur={applyPreviewContext} onKeyDown={(event) => { if (event.key === 'Enter') applyPreviewContext(); }} placeholder="nur falls kein lokaler Patient" style={{ minWidth: '220px' }} />
+              </label>
+              {!appliedPreviewPatientId && !appliedPreviewEhrId && (
+                <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Ohne Patient läuft die Vorschau, aber AQL-Vorbelegung findet keine Daten.</span>
+              )}
+            </div>
+            {previewContextLoaded ? (
+              <FormRuntime
+                key={`${appliedPreviewPatientId}::${appliedPreviewEhrId}`}
+                definition={form.canonical_json}
+                mode="preview"
+                submitLabel="Lifecycle testen"
+                patientId={appliedPreviewPatientId || undefined}
+                ehrId={appliedPreviewEhrId || undefined}
+              />
+            ) : (
+              <div style={{ maxWidth: '960px', margin: '0 auto', color: '#64748b' }}>Patientenkontext wird geladen…</div>
+            )}
           </div>
         ) : previewMode === 'json' ? (
           <div className="workbench-scripting-view">

@@ -326,9 +326,18 @@ export class FormScriptClient {
     } finally {
       this.terminated = true;
       this.abortApiRequests();
+      // Any request still pending here (most commonly the initial
+      // ready()/beforeLoad/afterLoad chain, cut short by a fast unmount -
+      // React StrictMode's dev-mode mount/cleanup/mount replay is the most
+      // common trigger) is being cut off by intentional teardown, not a
+      // script failure. Reject with an AbortError, matching the same
+      // convention formScript.worker.ts already uses for its own
+      // teardown-cancelled requests, so callers can tell "we tore this down
+      // on purpose" apart from "the script actually errored" and skip
+      // surfacing a toast for the former.
       this.pending.forEach((request) => {
         clearTimeout(request.timer);
-        request.reject(new Error('Form Script Runtime wurde beendet.'));
+        request.reject(new DOMException('Form Script Runtime wurde beendet.', 'AbortError'));
       });
       this.pending.clear();
       this.worker.terminate();
