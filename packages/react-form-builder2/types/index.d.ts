@@ -194,3 +194,21 @@ export interface FormElementsEditProps {
 }
 export class FormElementsEdit extends React.Component<FormElementsEditProps> {}
 
+/**
+ * Single source of truth for what kind of `element` string a builder item
+ * is - used to decide which inspector sections apply to it. See
+ * src/element-kinds.js for the actual values and the reasoning.
+ */
+export declare const ElementKinds: {
+  VALUE_FIELD_ELEMENTS: string[];
+  STATIC_CONTENT_ELEMENTS: string[];
+  STRUCTURAL_ELEMENTS: string[];
+  ACTION_ELEMENTS: string[];
+  OPTION_ELEMENTS: string[];
+  isValueFieldElement(element: string): boolean;
+  isStaticContentElement(element: string): boolean;
+  isStructuralElement(element: string): boolean;
+  isActionElement(element: string): boolean;
+  elementHasOptions(element: string): boolean;
+};
+

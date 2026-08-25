@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import FormBuilders, { ReactFormBuilder, FormElementsEdit } from 'react-form-builder2';
+import FormBuilders, { ReactFormBuilder, FormElementsEdit, ElementKinds } from 'react-form-builder2';
 const ElementStore = FormBuilders.ElementStore;
 import { IntlProvider } from 'react-intl';
 import enMessages from '../../../../packages/react-form-builder2/src/language-provider/locales/en-us.json';
@@ -1763,9 +1763,16 @@ function FormBuilderContent() {
                                  </div>
                                </div>
                              )}
-                             {/* AQL PREFILL PROPERTY INSPECTOR - meaningless for static
-                                 content elements (nothing to prefill into a heading/paragraph/divider). */}
-                             {!['Header', 'Paragraph', 'LineBreak'].includes(activeEditElement.element) && (
+                             {/* AQL PREFILL PROPERTY INSPECTOR - meaningless for anything that
+                                 isn't a value field: static content has nothing to prefill into,
+                                 a Row has no value of its own, and a Button triggers an action
+                                 rather than holding data. FieldSet is kept - it has its own
+                                 "Group ID" branch below for prefilling an entire cluster. */}
+                             {!(
+                               ElementKinds.STATIC_CONTENT_ELEMENTS.includes(activeEditElement.element)
+                               || ElementKinds.ACTION_ELEMENTS.includes(activeEditElement.element)
+                               || (ElementKinds.STRUCTURAL_ELEMENTS.includes(activeEditElement.element) && activeEditElement.element !== 'FieldSet')
+                             ) && (
                              <div className="inspector-section" style={{ marginTop: '0.75rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
                                <div className="inspector-section-title" style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.4rem' }}>
                                  🔍 AQL Prefill (HIP) Mapping

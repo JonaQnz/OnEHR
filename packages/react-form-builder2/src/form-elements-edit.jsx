@@ -10,6 +10,7 @@ import DynamicOptionList from './dynamic-option-list';
 import { get } from './stores/requests';
 import ID from './UUID';
 import IntlMessages from './language-provider/IntlMessages';
+import { isStaticContentElement, isValueFieldElement, elementHasOptions } from './element-kinds';
 
 const toolbar = {
   options: ['inline', 'list', 'textAlign', 'fontSize', 'link', 'history'],
@@ -335,8 +336,12 @@ export default class FormElementsEdit extends React.Component {
           </div>
         )}
 
-        {/* ── Section: Label & Text ── */}
-        { !hideDefault && (
+        {/* ── Section: Label & Text ──
+            LineBreak has no text of any kind (see formBuilderAdapter.ts's
+            LineBreak branch - it reads none of label/content/placeholder/
+            description), so the whole section is skipped for it rather
+            than showing inputs that silently do nothing. */}
+        { !hideDefault && this.state.element.element !== 'LineBreak' && (
           <div className="inspector-section">
             <div className="inspector-section-title">
               <span className="section-emoji">✏️</span> Label & Text
@@ -345,7 +350,7 @@ export default class FormElementsEdit extends React.Component {
                 formBuilderAdapter.ts's mapItemOrRowToLayoutNode) - editing
                 "Field Label" here used to silently do nothing visible,
                 since nothing downstream reads a static element's label. */}
-            { ['Header', 'Paragraph'].includes(this.state.element.element) ? (
+            { isStaticContentElement(this.state.element.element) ? (
               <div className="inspector-field-group">
                 <label>{this.state.element.element === 'Header' ? 'Heading Text' : 'Paragraph Text'}</label>
                 {this.state.element.element === 'Header' ? (
@@ -379,7 +384,12 @@ export default class FormElementsEdit extends React.Component {
               </div>
             )}
 
-            { !['Checkboxes', 'RadioButtons', 'Range', 'Rating', 'Header', 'Paragraph', 'LineBreak'].includes(this.state.element.element) && (
+            {/* Neither input applies to a static-content element (already
+                excluded above), nor to a structural container (FieldSet/
+                Row) - the adapter never reads placeholder/description for
+                those either, so they'd be more dead inputs. */}
+            { isValueFieldElement(this.state.element.element)
+              && !['Checkboxes', 'RadioButtons', 'Range', 'Rating'].includes(this.state.element.element) && (
               <div className="inspector-field-group">
                 <label>Placeholder</label>
                 <input
@@ -393,7 +403,7 @@ export default class FormElementsEdit extends React.Component {
               </div>
             )}
 
-            { !['Header', 'Paragraph', 'LineBreak'].includes(this.state.element.element) && (
+            { isValueFieldElement(this.state.element.element) && (
               <div className="inspector-field-group">
                 <label>Help Text</label>
                 <textarea
@@ -410,8 +420,13 @@ export default class FormElementsEdit extends React.Component {
           </div>
         )}
 
-        {/* ── Section: Behavior ── */}
-        { !['Header', 'Paragraph', 'LineBreak'].includes(this.state.element.element) && !hideDefault && (
+        {/* ── Section: Behavior ──
+            Required/Read-only/Hidden all only mean something for a real
+            value field - confirmed dead for FieldSet/Row (the adapter's
+            mapItemOrRowToLayoutNode never reads them) and for Button
+            (type 'button' is a NON_FIELD_TYPE in form-runtime, excluded
+            from validation/collection entirely). */}
+        { isValueFieldElement(this.state.element.element) && !hideDefault && (
           <div className="inspector-section">
             <div className="inspector-section-title">
               <span className="section-emoji">⚙️</span> Behavior
@@ -474,8 +489,13 @@ export default class FormElementsEdit extends React.Component {
           </div>
         )}
 
-        {/* ── Section: Options / Choices ── */}
-        { this.props.element.options && !hideDefault && (
+        {/* ── Section: Options / Choices ──
+            Gated on the element type too, not just `options` being
+            truthy - a non-option element can still carry a stray empty
+            `options` array (e.g. left over from toolbox scaffolding),
+            which showed an empty Options/Value table on elements like
+            Header that never had any choices to configure. */}
+        { elementHasOptions(this.state.element.element) && this.props.element.options && this.props.element.options.length > 0 && !hideDefault && (
           <div className="inspector-section" style={{ gap: '0.5rem' }}>
             <div className="inspector-section-title" style={{ marginBottom: 0 }}>
               <span className="section-emoji">📋</span> Choices

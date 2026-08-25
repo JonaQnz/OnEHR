@@ -13,6 +13,7 @@ import store from './stores/store';
 import Registry from './stores/registry';
 import AppLocale from './language-provider';
 import FormElementsEdit from './form-dynamic-edit';
+import * as ElementKinds from './element-kinds';
 
 class ReactFormBuilder extends React.Component {
   constructor(props) {
@@ -128,4 +129,5 @@ export default FormBuilders;
 
 export {
   ReactFormBuilder, ReactFormGenerator, store as ElementStore, Registry, FormElementsEdit, AppLocale,
+  ElementKinds,
 };
