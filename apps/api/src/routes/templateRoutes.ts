@@ -25,35 +25,41 @@ router.get('/remote', requirePermission('form.design'), asyncHandler(async (_req
   res.json(await listRemoteTemplates());
 }));
 
+/**
+ * Importing the same template_id twice used to always insert a new
+ * `Template` row (same template_id, different id) - every re-import (the
+ * "get the latest from EHRbase" case, or just picking a template that was
+ * already imported again in the New Form dialog) left another orphaned
+ * duplicate behind, with nothing in the UI to tell the copies apart. A
+ * re-import now refreshes the existing row's content in place instead, so
+ * a template_id maps to exactly one local `Template` row - callers still
+ * get their version bump, just without a duplicate.
+ */
+async function upsertTemplate(parsed: ReturnType<typeof parseWebTemplate>, version: string) {
+  const existing = await prisma.template.findFirst({ where: { template_id: parsed.templateId } });
+  const data = {
+    template_id: parsed.templateId,
+    version,
+    type: 'openEhrWebTemplate',
+    alias: parsed.alias,
+    parsed_registry_json: { fields: parsed.fields, layout: parsed.layout } as any,
+  };
+  return existing ? prisma.template.update({ where: { id: existing.id }, data }) : prisma.template.create({ data });
+}
+
 router.post('/remote/:templateId/import', requirePermission('form.design'), asyncHandler(async (req, res) => {
   const templateId = typeof req.params.templateId === 'string' ? req.params.templateId : undefined;
   if (!templateId) throw new HttpError(400, 'templateId is required');
   const webTemplate = await getRemoteWebTemplate(templateId);
   const parsed = parseWebTemplate(webTemplate);
-  const template = await prisma.template.create({
-    data: {
-      template_id: parsed.templateId,
-      version: getClinicalTemplateVersion(webTemplate),
-      type: 'openEhrWebTemplate',
-      alias: parsed.alias,
-      parsed_registry_json: { fields: parsed.fields, layout: parsed.layout } as any,
-    },
-  });
+  const template = await upsertTemplate(parsed, getClinicalTemplateVersion(webTemplate));
   res.json({ message: 'Template imported from EHRbase', template });
 }));
 
 router.post('/import', requirePermission('form.design'), asyncHandler(async (req, res) => {
   const webTemplate = req.body;
   const parsed = parseWebTemplate(webTemplate);
-  const template = await prisma.template.create({
-    data: {
-      template_id: parsed.templateId,
-      version: getClinicalTemplateVersion(webTemplate),
-      type: 'openEhrWebTemplate',
-      alias: parsed.alias,
-      parsed_registry_json: { fields: parsed.fields, layout: parsed.layout } as any,
-    },
-  });
+  const template = await upsertTemplate(parsed, getClinicalTemplateVersion(webTemplate));
   res.json({ message: 'Template imported', template });
 }));
 

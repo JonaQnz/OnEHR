@@ -9,7 +9,14 @@ const BlockCard = ({ data, onSelect }: { data: BuilderItem; onSelect?: () => voi
   const block = data.custom_metadata?.compositionBlock as CompositionBlock | undefined;
   const label = block?.type === 'form' ? 'Formular' : block?.type === 'data' ? 'Datenkarte' : 'Hinweis';
   const openProperties = (event: React.MouseEvent) => { event.preventDefault(); event.stopPropagation(); onSelect?.(); };
-  return <article onClick={openProperties} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '.7rem', textAlign: 'left', padding: '.65rem .8rem', border: '1px solid #cbd5e1', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>
+  // boxSizing: 'border-box' is load-bearing here, not decorative - with the
+  // default content-box, `width: 100%` + horizontal padding renders wider
+  // than the SortableItem wrapper (which clips via overflow-x: hidden),
+  // clipping off exactly the padding's worth of the right edge every time -
+  // which is where the "Eigenschaften" button lives. That's what made it
+  // look clickable but not respond: part of its hit area was being clipped
+  // away, not that the click handler was broken.
+  return <article onClick={openProperties} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: '.7rem', textAlign: 'left', padding: '.65rem .8rem', border: '1px solid #cbd5e1', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>
     <div style={{ minWidth: 0, flex: 1 }}><strong>{label}</strong><span style={{ marginLeft: '.5rem', color: '#64748b' }}>{data.label || block?.title || 'Unbenannt'}</span></div>
     <button type="button" onClick={openProperties} style={{ flex: '0 0 auto', border: '1px solid #93c5fd', borderRadius: 5, background: '#eff6ff', color: '#1d4ed8', padding: '.25rem .45rem', fontSize: '.75rem', cursor: 'pointer' }}>Eigenschaften</button>
   </article>;

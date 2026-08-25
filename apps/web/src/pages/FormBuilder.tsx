@@ -462,6 +462,13 @@ function FormBuilderContent() {
   const [remoteTemplates, setRemoteTemplates] = useState<any[]>([]);
   const [remoteTemplatesError, setRemoteTemplatesError] = useState<string | null>(null);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
+  // Populated alongside remoteTemplates purely to look up each remote
+  // entry's real, already-parsed semVer by template_id below - EHRbase's
+  // template-list endpoint itself never returns a version, only
+  // concept/template_id/timestamps, so without this every row showed
+  // "Version: unknown" even for templates already imported (and thus
+  // already holding a real version locally).
+  const [localTemplatesForVersion, setLocalTemplatesForVersion] = useState<any[]>([]);
 
   // Left panel tabs: 'fields' | 'layout'
   const [leftTab, setLeftTab] = useState<'fields' | 'layout'>('fields');
@@ -837,6 +844,10 @@ function FormBuilderContent() {
         setRemoteTemplates([]);
         setRemoteTemplatesError(err.message || "Failed to connect to the server.");
       });
+    fetch('http://localhost:3001/api/templates')
+      .then(res => res.json())
+      .then(data => setLocalTemplatesForVersion(Array.isArray(data) ? data : []))
+      .catch(() => setLocalTemplatesForVersion([]));
   }, [id]);
 
   useEffect(() => {
@@ -1051,7 +1062,14 @@ function FormBuilderContent() {
                 <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No templates found in EHRbase or failed to connect.</div>
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {remoteTemplates.map((t: any) => (
+                  {remoteTemplates.map((t: any) => {
+                    // EHRbase's template-list endpoint never returns a
+                    // version - only a real import (which parses the full
+                    // WebTemplate) discovers one. Show the real, already-
+                    // imported version when we have it locally instead of
+                    // always claiming "unknown".
+                    const localMatch = localTemplatesForVersion.find((lt: any) => lt.template_id === t.template_id);
+                    return (
                     <li key={t.template_id} style={{ padding: '1.25rem 0', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'background-color 0.2s', borderRadius: '8px' }}
                         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'}
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -1061,7 +1079,8 @@ function FormBuilderContent() {
                         <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', gap: '0.75rem' }}>
                           <span>ID: <span style={{ fontFamily: 'monospace' }}>{t.template_id}</span></span>
                           <span>•</span>
-                          <span>Version: {t.version || 'unknown'}</span>
+                          <span>Version: {localMatch ? localMatch.version : 'wird beim Import ermittelt'}</span>
+                          {localMatch && <span style={{ color: '#16a34a', fontWeight: 600 }}>✓ Bereits importiert</span>}
                         </div>
                       </div>
                       <div style={{ paddingRight: '0.5rem' }}>
@@ -1070,7 +1089,8 @@ function FormBuilderContent() {
                         </button>
                       </div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               )}
             </div>
