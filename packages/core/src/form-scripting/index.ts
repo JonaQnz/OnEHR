@@ -171,7 +171,11 @@ export function getFormFunctionImportConfiguration(
 }
 
 function optionType(node: FormElementLayout): string {
-  const values = (node.options || []).map((option) => option.text || option.value);
+  // Must match form-runtime's validateOne(), which checks the submitted
+  // value against each option's `value` (the openEHR code), never `text`
+  // (the human-readable label) - otherwise the generated type promises a
+  // shape validate_form_session/submit_form_session_to_provider rejects.
+  const values = (node.options || []).map((option) => option.value || option.text);
   return values.length > 0 ? `${union(values)} | null` : 'string | null';
 }
 
