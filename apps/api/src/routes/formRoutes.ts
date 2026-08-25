@@ -19,7 +19,7 @@ import {
   ScriptConnectorError,
 } from '../services/scriptConnectorRegistry';
 import { requirePermission } from '../middleware/auth';
-import { executeAqlQuery } from '../services/aqlFunctionService';
+import { executeStoredAqlFunctionRecord } from '../services/aqlFunctionService';
 import { executeDataWidget } from '../services/dataWidgetService';
 import { resolvePatientReference } from '../services/patientService';
 import {
@@ -257,7 +257,7 @@ router.post('/:id/composition-data', asyncHandler(async (req, res) => {
   if (typeof req.body?.patient?.namespace === 'string' && req.body.patient.namespace.trim()) parameters.patientNamespace = req.body.patient.namespace.trim();
   if (ehrId) parameters.ehrId = ehrId;
   if (typeof req.body?.encounterId === 'string' && req.body.encounterId.trim()) parameters.encounterId = req.body.encounterId.trim();
-  const rows = await executeAqlQuery(aqlFunction.query, parameters);
+  const rows = await executeStoredAqlFunctionRecord(aqlFunction, parameters);
   res.json({ blockId, rows: Array.isArray(rows) ? rows.slice(0, block.limit || 100) : [] });
 }));
 

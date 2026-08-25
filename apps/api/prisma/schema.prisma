@@ -104,17 +104,24 @@ model FormSession {
   @@map("form_sessions")
 }
 
+// A reference to a query defined on EHRbase's own openEHR Query Service
+// (/definition/query), not a container for AQL text of our own. `query`
+// and `ehrbaseVersion` are a read-through cache of what EHRbase actually
+// has stored under `packageName::name` - refreshed from there on every
+// list - so the real (immutable, versioned, non-deletable) definition on
+// EHRbase stays the single source of truth. See aqlFunctionService.ts.
 model AqlFunction {
-  id          String   @id @default(uuid())
-  packageName String   @map("package_name")
-  name        String
-  description String   @default("")
-  query       String
-  parameters  Json     @default("{}")
-  autoload    Boolean  @default(true)
-  enabled     Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  packageName    String   @map("package_name")
+  name           String
+  description    String   @default("")
+  query          String
+  ehrbaseVersion String?  @map("ehrbase_version")
+  parameters     Json     @default("{}")
+  autoload       Boolean  @default(true)
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@unique([packageName, name])
   @@index([enabled, autoload])

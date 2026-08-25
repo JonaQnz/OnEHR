@@ -1,6 +1,6 @@
 import prisma from '../db/prisma';
 import { HttpError } from '../middleware/errorHandler';
-import { executeAqlQuery } from './aqlFunctionService';
+import { executeStoredAqlFunctionRecord } from './aqlFunctionService';
 
 const displays = ['metric', 'table', 'line', 'bar', 'area', 'text'] as const;
 type Display = (typeof displays)[number];
@@ -57,7 +57,7 @@ export async function executeDataWidget(id: string, patient: { patientId: string
   const widget = await prisma.dataWidget.findFirst({ where: { id, enabled: true } }); if (!widget) throw new HttpError(404, 'Widget not found');
   const aql = await prisma.aqlFunction.findFirst({ where: { id: widget.aqlFunctionId, enabled: true } }); if (!aql) throw new HttpError(422, 'Widget AQL function is unavailable');
   const definition = config(widget.configuration);
-  const rows = await executeAqlQuery(aql.query, { patientId: patient.patientId, ...(patient.patientNamespace ? { patientNamespace: patient.patientNamespace } : {}), ehrId: patient.ehrId });
+  const rows = await executeStoredAqlFunctionRecord(aql, { patientId: patient.patientId, ...(patient.patientNamespace ? { patientNamespace: patient.patientNamespace } : {}), ehrId: patient.ehrId });
   const result = Array.isArray(rows) ? rows.slice(0, definition.limit) : [];
   return { widget: publicWidget(widget), rows: result };
 }

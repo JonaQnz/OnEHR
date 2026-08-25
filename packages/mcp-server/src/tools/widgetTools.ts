@@ -13,17 +13,17 @@ import { toResult } from '../toolResult.js';
  * patient's ehrId. */
 export function registerWidgetTools(server: McpServer, api: FormbuilderApiClient): void {
   server.registerTool('list_aql_functions', {
-    title: 'List saved AQL functions',
-    description: 'Lists every saved, reusable AQL Function (packageName.name, query, enabled) - the query layer widgets and plugins bind to. Distinct from run_aql_query\'s one-off ad-hoc queries: these are named, persisted, and reusable as a widget\'s data source.',
+    title: 'List saved AQL functions (queries)',
+    description: 'Lists every AQL "Query" widgets/plugins can bind to. These are real queries stored on EHRbase\'s own Query Service (/definition/query), not free text in Forms\' database - this list is loaded live from there (any query already defined on EHRbase shows up here too, even one Forms never created) and merged with the local description/parameters/autoload metadata EHRbase\'s model doesn\'t have. `ehrbaseVersion` is the latest version EHRbase reports for that name. Distinct from run_aql_query\'s one-off ad-hoc queries, which are never persisted anywhere.',
     inputSchema: {},
   }, () => toResult(() => api.get('/api/functions/aql')));
 
   server.registerTool('create_aql_function', {
-    title: 'Create a saved AQL function',
-    description: 'Saves a new reusable AQL Function. The query runs server-side against the active EHRbase connection; use :patientId/:patientNamespace/:ehrId as bound parameters for patient-scoped queries (the same context a widget or form-runtime execution supplies), and give every result column you want to bind to an explicit `AS alias` - a widget can only map named aliases, never positional columns. Test the query with run_aql_query first (supplying a real ehrId) to confirm it returns the shape you expect.',
+    title: 'Create a saved AQL function (query)',
+    description: 'Defines a new query directly on EHRbase\'s Query Service under `packageName::name` (a real PUT to /definition/query there, not just a local save) and saves its description/parameters/autoload locally. Use :patientId/:patientNamespace/:ehrId as placeholders for patient-scoped queries (translated to EHRbase\'s own $paramName binding automatically) - the same context a widget or form-runtime execution supplies - and give every result column you want to bind to an explicit `AS alias`, since a widget can only map named aliases, never positional columns. Test the query with run_aql_query first (supplying a real ehrId) to confirm it returns the shape you expect. EHRbase query definitions are permanent once created (see delete_aql_function).',
     inputSchema: {
-      packageName: z.string().describe('Grouping namespace, e.g. "custom" or a plugin id. Lowercase, hyphenated.'),
-      name: z.string().describe('Unique within packageName. Lowercase, hyphenated.'),
+      packageName: z.string().describe('Grouping namespace, e.g. "custom" or a plugin id. Letters/digits/hyphens/underscores.'),
+      name: z.string().describe('Unique within packageName. Letters/digits/hyphens/underscores.'),
       description: z.string().optional(),
       query: z.string().describe('An AQL SELECT query with named `AS alias` result columns and :paramName placeholders.'),
       enabled: z.boolean().optional(),
@@ -31,8 +31,8 @@ export function registerWidgetTools(server: McpServer, api: FormbuilderApiClient
   }, (input) => toResult(() => api.post('/api/functions/aql', input)));
 
   server.registerTool('update_aql_function', {
-    title: 'Update a saved AQL function',
-    description: 'Replaces a saved AQL Function\'s query/description/enabled state. Any widget already bound to this function will use the new query on its next execution - a broken edit (e.g. dropping an `AS alias` a widget maps to) surfaces as that widget\'s query_data_widget failing, not here.',
+    title: 'Update a saved AQL function (query)',
+    description: 'Re-PUTs this query\'s text to EHRbase under the same name - EHRbase auto-bumps the version (e.g. 1.0.0 -> 2.0.0) and keeps the old version retrievable forever, it does not overwrite in place. Any widget already bound to this function picks up the new version on its next execution - a broken edit (e.g. dropping an `AS alias` a widget maps to) surfaces as that widget\'s query_data_widget failing, not here. packageName/name cannot be changed (EHRbase queries are permanent per name); pass the existing values back.',
     inputSchema: {
       id: z.string(),
       packageName: z.string(),
@@ -44,8 +44,8 @@ export function registerWidgetTools(server: McpServer, api: FormbuilderApiClient
   }, ({ id, ...body }) => toResult(() => api.put(`/api/functions/aql/${encodeURIComponent(id)}`, body)));
 
   server.registerTool('delete_aql_function', {
-    title: 'Delete a saved AQL function',
-    description: 'Deletes a saved AQL Function. Fails server-side if a widget still references it - delete or repoint dependent widgets first.',
+    title: 'Remove a saved AQL function (query) from Forms',
+    description: 'Removes Forms\' local reference to this query only - EHRbase\'s own Query Service has no delete operation, so the actual query definition stays on EHRbase permanently regardless. If it\'s still defined there, list_aql_functions will simply rediscover and re-list it (with description/parameters reset to defaults) next time it\'s called. To stop a query from being usable without it reappearing, update_aql_function with enabled:false instead - that\'s the durable "off" switch.',
     inputSchema: { id: z.string() },
   }, ({ id }) => toResult(() => api.delete(`/api/functions/aql/${encodeURIComponent(id)}`)));
 
