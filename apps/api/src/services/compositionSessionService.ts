@@ -85,6 +85,9 @@ export async function getCompositionSessionsForPatient(patientId: string, actor:
     orderBy: { createdAt: 'desc' },
   });
   const results = await Promise.allSettled(records.map(r => publicSession(r, actor)));
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') console.warn(`[compositionSessionService] Dropping composition session ${records[index]?.id} from patient ${patient}'s list - it failed to resolve:`, result.reason instanceof Error ? result.reason.message : result.reason);
+  });
   return results.filter((r): r is PromiseFulfilledResult<PublicCompositionSession> => r.status === 'fulfilled').map(r => r.value);
 }
 
@@ -104,8 +107,25 @@ export async function attachCompositionChild(id: string, blockId: string, childS
   const canonicalParentId = parentPatient?.patientId || record.patientId;
   if (child.formId !== expectedChild.formId || child.patientId !== canonicalParentId) throw new HttpError(422, 'Child form session does not match this composition context');
   const children = isMap(record.childSessions) ? record.childSessions : {};
-  const updated = await prisma.compositionSession.update({ where: { id: record.id }, data: { patientId: canonicalParentId, patientNamespace: parentPatient?.patientNamespace || record.patientNamespace, ehrId: parentPatient?.ehrId || record.ehrId, childSessions: { ...children, [expectedChild.blockId]: child.id }, status: 'in_progress', revision: { increment: 1 } } });
-  return publicSession(updated, actor);
+  // Optimistic concurrency, same pattern as formSessionService.patchFormSession:
+  // this is a read-modify-write on childSessions, so two concurrent attach
+  // calls against the same parent (e.g. the same Composition open in two
+  // tabs, or two blocks finishing their launch at once) could otherwise
+  // silently drop one another's attachment. A conditional update on
+  // revision - retried once against the now-current record - closes that
+  // race without requiring the caller to know/send an expected revision.
+  const updated = await prisma.compositionSession.updateMany({ where: { id: record.id, revision: record.revision }, data: { patientId: canonicalParentId, patientNamespace: parentPatient?.patientNamespace || record.patientNamespace, ehrId: parentPatient?.ehrId || record.ehrId, childSessions: { ...children, [expectedChild.blockId]: child.id }, status: 'in_progress', revision: { increment: 1 } } });
+  if (updated.count === 0) {
+    const fresh = await prisma.compositionSession.findUnique({ where: { id: record.id } });
+    if (!fresh) throw new HttpError(404, 'Composition session not found');
+    const freshChildren = isMap(fresh.childSessions) ? fresh.childSessions : {};
+    if (freshChildren[expectedChild.blockId] === child.id) return publicSession(fresh, actor); // another request already attached the same block/session - no-op
+    const retried = await prisma.compositionSession.update({ where: { id: record.id }, data: { patientId: canonicalParentId, patientNamespace: parentPatient?.patientNamespace || fresh.patientNamespace, ehrId: parentPatient?.ehrId || fresh.ehrId, childSessions: { ...freshChildren, [expectedChild.blockId]: child.id }, status: 'in_progress', revision: { increment: 1 } } });
+    return publicSession(retried, actor);
+  }
+  const fresh = await prisma.compositionSession.findUnique({ where: { id: record.id } });
+  if (!fresh) throw new HttpError(404, 'Composition session not found');
+  return publicSession(fresh, actor);
 }
 
 export async function validateCompositionSession(id: string, actor: CompositionSessionActor): Promise<{ session: PublicCompositionSession; valid: boolean; children: ChildSummary[] }> {

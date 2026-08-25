@@ -13,6 +13,7 @@ const original = {
   compositionFindUnique: prisma.compositionSession.findUnique,
   compositionCreate: prisma.compositionSession.create,
   compositionUpdate: prisma.compositionSession.update,
+  compositionUpdateMany: prisma.compositionSession.updateMany,
   formSessionFindMany: prisma.formSession.findMany,
   resolvePatientReference: patients.resolvePatientReference,
   getFormSession: formSessions.getFormSession,
@@ -66,6 +67,23 @@ function installStore({ blocks } = {}) {
     records.set(record.id, record);
     return clone(record);
   };
+  // Mirrors real Postgres semantics for the one shape attachCompositionChild
+  // actually uses: a conditional update gated by a where.revision match,
+  // returning how many rows it actually touched (0 or 1 here, since id is
+  // unique) - this is what lets a concurrency test genuinely exercise the
+  // "someone else updated first" retry path instead of always succeeding.
+  prisma.compositionSession.updateMany = async ({ where, data }) => {
+    const current = records.get(where.id);
+    if (!current || (where.revision !== undefined && current.revision !== where.revision)) return { count: 0 };
+    const record = {
+      ...current,
+      ...data,
+      revision: data.revision?.increment ? current.revision + data.revision.increment : (data.revision ?? current.revision),
+      updatedAt: now(),
+    };
+    records.set(record.id, record);
+    return { count: 1 };
+  };
   prisma.formSession.findMany = async ({ where }) => where.id.in.map((id) => childRows.get(id)).filter(Boolean);
   patients.resolvePatientReference = async (patientId, namespace) => ({ patientId: patientId === 'local-ada' ? 'ada-1' : patientId, patientNamespace: namespace || 'tenant-a', ehrId: `ehr-${patientId}` });
   formSessions.getFormSession = async (id) => {
@@ -85,6 +103,7 @@ function installStore({ blocks } = {}) {
     prisma.compositionSession.findUnique = original.compositionFindUnique;
     prisma.compositionSession.create = original.compositionCreate;
     prisma.compositionSession.update = original.compositionUpdate;
+    prisma.compositionSession.updateMany = original.compositionUpdateMany;
     prisma.formSession.findMany = original.formSessionFindMany;
     patients.resolvePatientReference = original.resolvePatientReference;
     formSessions.getFormSession = original.getFormSession;
@@ -124,6 +143,29 @@ test('attaching, validating and submitting child forms updates the parent progre
     const completed = await compositions.getCompositionSession(parent.id, actor);
     assert.equal(completed.status, 'submitted');
     assert.equal(completed.progress.submitted, 1);
+  } finally { store.restore(); }
+});
+
+test('two blocks attaching at the same time never drop one another\'s attachment', async () => {
+  const blocks = [{ id: 'person', type: 'form', formId: 'person-form', title: 'Person' }, { id: 'diagnosis', type: 'form', formId: 'diagnosis-form', title: 'Diagnose' }];
+  const store = installStore({ blocks });
+  try {
+    const parent = await compositions.startCompositionSession({ compositionFormId: 'composition-form', patientId: 'local-ada' }, actor);
+    store.childRows.set('child-person', { id: 'child-person', formId: 'person-form', status: 'draft', validation: [] });
+    store.childRows.set('child-diagnosis', { id: 'child-diagnosis', formId: 'diagnosis-form', status: 'draft', validation: [] });
+
+    // Both start from the same revision - the read-modify-write race this
+    // guards against (e.g. the same Composition open in two tabs, or two
+    // form iframes both finishing their launch around the same time).
+    await Promise.all([
+      compositions.attachCompositionChild(parent.id, 'person', 'child-person', actor),
+      compositions.attachCompositionChild(parent.id, 'diagnosis', 'child-diagnosis', actor),
+    ]);
+
+    const finalSession = await compositions.getCompositionSession(parent.id, actor);
+    assert.equal(finalSession.childSessions.person, 'child-person', 'the person block attachment must survive');
+    assert.equal(finalSession.childSessions.diagnosis, 'child-diagnosis', 'the diagnosis block attachment must survive');
+    assert.equal(finalSession.progress.started, 2);
   } finally { store.restore(); }
 });
 

@@ -75,6 +75,10 @@ export interface CompositionDefinition {
   schemaVersion: typeof COMPOSITION_SCHEMA_VERSION;
   /** Widget packages explicitly enabled for this Composition's designer toolbox. */
   widgetPackageIds?: string[];
+  /** How the runtime shows pages: one at a time behind tabs (default), or
+   * every page stacked vertically on one scroll. Author default - the
+   * runtime still lets a user toggle this per visit. */
+  viewMode?: 'tabs' | 'stacked';
   pages: CompositionPage[];
 }
 
@@ -241,9 +245,11 @@ export function normalizeCompositionDefinition(value: unknown): CompositionDefin
   const ids = new Set<string>();
   const reserveId = (id: string) => { if (ids.has(id)) throw new Error(`Composition block/page id '${id}' is duplicated`); ids.add(id); };
   const widgetPackageIds = stringList(value.widgetPackageIds, 'widgetPackageIds');
+  if (value.viewMode !== undefined && value.viewMode !== 'tabs' && value.viewMode !== 'stacked') throw new Error('Composition viewMode must be "tabs" or "stacked"');
   return {
     schemaVersion: COMPOSITION_SCHEMA_VERSION,
     ...(widgetPackageIds ? { widgetPackageIds } : {}),
+    ...(value.viewMode === 'stacked' ? { viewMode: 'stacked' as const } : {}),
     pages: value.pages.map((rawPage, pageIndex) => {
       if (!isRecord(rawPage)) throw new Error(`Composition page ${pageIndex + 1} must be an object`);
       const id = requiredId(rawPage.id, `page ${pageIndex + 1} id`); reserveId(id);
