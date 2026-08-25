@@ -46,6 +46,10 @@ silently skip a step that failed, don't call something "close enough." File
 an issue and stop that part of the case:
 
 Write `docs/simulation/issues/<case-id>-<n>.md`:
+- **Category** - `bug`, `feature`, or `plugin` (see
+  `docs/simulation/README.md` for the definitions). Pick the one that
+  matches the gap, not the one that sounds most urgent - if what's missing
+  is a new *kind* of field/display, that's `plugin`, not `feature`.
 - **What I was trying to do** - the clinical intent, not just the tool call.
 - **What happened** - the exact tool, arguments, and error/unexpected
   result.

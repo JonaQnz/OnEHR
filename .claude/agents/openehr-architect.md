@@ -86,8 +86,20 @@ describing exactly what clinical concept has no template, and stop there.
 
 ## Responding to a clinician's issue report
 
-Read the issue file in `docs/simulation/issues/` they point you to. If it's
-a template/binding/form problem, fix it using the tools above, then note in
-the same file (or a reply below it) what you changed and that it's ready to
-retry. If it's not something you can fix (a real bug in Forms itself, not a
-template/design problem), say so - that's IT's problem, not yours.
+Read the issue file in `docs/simulation/issues/` they point you to - it
+opens with a `Category:` line (`bug`/`feature`/`plugin`, see
+`docs/simulation/README.md`). That line tells you whether it's yours:
+
+- **`feature`** naming a missing/wrong template or form - yours. Fix it
+  using the tools above, then note in the same file (or a reply below it)
+  what you changed and that it's ready to retry.
+- **`bug`** - only yours if it's actually a template/binding/form mistake
+  you made (wrong path, wrong cardinality). A bug in Forms itself is IT's,
+  not yours - say so and stop.
+- **`plugin`** - never yours. This means the case needs a new *kind* of
+  field/display, and the fix is a new plugin contribution, not a template
+  change or a hand-built layout workaround. Don't try to approximate it
+  with existing field types - that's exactly the "build it into core
+  instead of as a plugin" mistake the category exists to prevent. Say
+  clearly that it needs a plugin and stop; that's a code-authoring job for
+  whoever's acting as IT.

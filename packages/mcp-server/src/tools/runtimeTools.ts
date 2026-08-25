@@ -58,10 +58,10 @@ export function registerRuntimeTools(server: McpServer, api: FormbuilderApiClien
 
   server.registerTool('patch_form_session', {
     title: 'Save answers into a form session',
-    description: 'Merges the given field values into a session (like autosave while a user is filling in a form). Only "draft"/"in_progress"/"cancelled" are valid for status here - "ready"/"submitted"/"failed" are set automatically by validate_form_session/submit_form_session_to_provider and are rejected if passed here. Read get_form_session\'s revision first if you need optimistic concurrency (expectedRevision).',
+    description: 'Saves answers into a session (like autosave while a user is filling in a form). `values`, if given, REPLACES the session\'s entire values object - it is not merged with what\'s already stored, so include every field you want kept, not just the ones that changed (read get_form_session first if you only have a partial update and need to merge client-side). This matches the real web runtime, which always saves its full local form state on every autosave. Only "draft"/"in_progress"/"cancelled" are valid for status here - "ready"/"submitted"/"failed" are set automatically by validate_form_session/submit_form_session_to_provider and are rejected if passed here. Read get_form_session\'s revision first if you need optimistic concurrency (expectedRevision).',
     inputSchema: {
       id: z.string(),
-      values: z.record(z.string(), z.unknown()).optional().describe('Field values to merge in, keyed by field id.'),
+      values: z.record(z.string(), z.unknown()).optional().describe('The session\'s complete field values, keyed by field id - this REPLACES the stored values, it does not merge. Include every field to keep, not just the ones that changed.'),
       status: z.enum(['draft', 'in_progress', 'cancelled']).optional().describe('"ready"/"submitted"/"failed" are not settable here - see validate_form_session/submit_form_session_to_provider.'),
       expectedRevision: z.number().optional(),
     },
