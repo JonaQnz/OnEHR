@@ -1,4 +1,5 @@
-import { FieldRegistryItem, FieldConstraint, FormElementLayout } from 'core';
+import { FieldRegistryItem, FieldConstraint, FormElementLayout, OpenEhrBinding } from 'core';
+import { parseOpenEhrAqlPath } from 'openehr-engine';
 import { v4 as uuidv4 } from 'uuid';
 
 export function isContextOrIgnoredNode(node: any): boolean {
@@ -65,7 +66,37 @@ function isClusterLikeNode(node: any): boolean {
 }
 
 function isElementNode(node: any): boolean {
-  return node.rmType === "ELEMENT";
+  // Real EHRbase WebTemplate export gives a leaf node its DV_* (or
+  // CODE_PHRASE) type directly as rmType - confirmed against a real
+  // fixture (examples/templates/vital_signs_icu.webtemplate.json), which
+  // never has a bare rmType==="ELEMENT" wrapper node at all. The previous
+  // ELEMENT-only check meant every leaf fell through every branch here
+  // (not a technical wrapper, not an entry/cluster, not "ELEMENT") down to
+  // the fallback wrapper, which returns null for a truly childless node -
+  // silently dropping every leaf field from this function's own generated
+  // layout tree. traverseFlat's separate flat-field builder already uses
+  // this same rm.startsWith('DV_') convention (see `isInput` above) -
+  // this aligns the two so a leaf is recognized consistently by both.
+  const rm = (node.rmType || '').toUpperCase();
+  return rm === 'ELEMENT' || rm.startsWith('DV_') || rm === 'CODE_PHRASE';
+}
+
+/** Builds the openEHR identity for a structural/container layout node
+ * (OBSERVATION/CLUSTER/SECTION/etc) directly from the raw WebTemplate node -
+ * containers never appear in the flat `fields` registry (that's leaves
+ * only), so unlike leaf ELEMENT nodes there's no FieldRegistryItem to pull
+ * this from. Every layout node - leaf or container - ends up carrying its
+ * own binding this way, so the tree has real openEHR identity throughout,
+ * not just at its leaves. */
+function containerBinding(node: any, alias: string, templateId: string): OpenEhrBinding | undefined {
+  if (!node.rmType || !node.aqlPath) return undefined;
+  return {
+    templateAlias: alias,
+    templateId,
+    rmType: node.rmType,
+    path: node.aqlPath,
+    ...parseOpenEhrAqlPath(node.aqlPath),
+  };
 }
 
 function isRepeatable(node: any): boolean {
@@ -160,6 +191,7 @@ export function parseWebTemplate(webTemplate: any): {
         const uniqueId = idCounts[baseId] === 1 ? baseId : `${baseId}_${idCounts[baseId]}`;
 
         const dataType = getDataType(rm);
+        const parsedPath = parseOpenEhrAqlPath(node.aqlPath);
 
         const field: FieldRegistryItem = {
           fieldName: `${alias}_${uniqueId}`,
@@ -174,7 +206,8 @@ export function parseWebTemplate(webTemplate: any): {
           technicalName: node.id || '',
           parentName: parentName || 'Other',
           parentTechnicalName: parentTechnicalName || alias,
-          flatPath: nextFlatPath
+          flatPath: nextFlatPath,
+          ...parsedPath,
         };
 
         if (node.rmType === 'DV_QUANTITY' && node.inputs) {
@@ -267,7 +300,8 @@ export function parseWebTemplate(webTemplate: any): {
           children: children,
           repeatMin: repeat.repeatMin,
           repeatMax: repeat.repeatMax,
-          repeatable: repeat.repeatable
+          repeatable: repeat.repeatable,
+          binding: containerBinding(node, alias, templateId)
         };
       }
 
@@ -301,7 +335,8 @@ export function parseWebTemplate(webTemplate: any): {
         type: 'container',
         id: node.id || uuidv4(),
         label: node.name || node.id || 'Section',
-        children: children
+        children: children,
+        binding: containerBinding(node, alias, templateId)
       };
       if (repeat.repeatable) {
         result.repeatMin = repeat.repeatMin;
@@ -325,7 +360,8 @@ export function parseWebTemplate(webTemplate: any): {
         type: 'container',
         id: node.id || uuidv4(),
         label: node.name || node.id || 'Group',
-        children: children
+        children: children,
+        binding: containerBinding(node, alias, templateId)
       };
       if (repeat.repeatable) {
         result.repeatMin = repeat.repeatMin;
@@ -348,7 +384,21 @@ export function parseWebTemplate(webTemplate: any): {
         id: node.id || uuidv4(),
         name: matchedField.fieldName,
         label: node.name || node.id || '',
-        required: node.min >= 1
+        required: node.min >= 1,
+        // The leaf's binding, straight from its own FieldRegistryItem -
+        // previously never set here at all, only in the separate top-level
+        // `bindings` dict populated later by formGenerator.ts, which is
+        // what caused the mismatched-key bug this epic fixes.
+        binding: {
+          templateAlias: matchedField.templateAlias,
+          templateId: matchedField.templateId,
+          rmType: matchedField.rmType,
+          path: matchedField.openehrPath,
+          ...(matchedField.flatPath ? { flatPath: matchedField.flatPath } : {}),
+          ...(matchedField.archetypeNodeId ? { archetypeNodeId: matchedField.archetypeNodeId } : {}),
+          ...(matchedField.archetypeId ? { archetypeId: matchedField.archetypeId } : {}),
+          ...(matchedField.rmVersion ? { rmVersion: matchedField.rmVersion } : {}),
+        }
       };
 
       if (repeat.repeatable) {
@@ -376,7 +426,8 @@ export function parseWebTemplate(webTemplate: any): {
       type: 'container',
       id: node.id || uuidv4(),
       label: node.name || node.id || '',
-      children: children
+      children: children,
+      binding: containerBinding(node, alias, templateId)
     };
     if (repeat.repeatable) {
       result.repeatMin = repeat.repeatMin;

@@ -67,6 +67,11 @@ export function generateCanonicalForm(
         path: field.openehrPath,
         rmType: field.rmType,
         ...(field.flatPath ? { flatPath: field.flatPath } : {}),
+        ...(field.archetypeNodeId ? { archetypeNodeId: field.archetypeNodeId } : {}),
+        ...(field.archetypeId ? { archetypeId: field.archetypeId } : {}),
+        ...(field.rmVersion ? { rmVersion: field.rmVersion } : {}),
+        templateId: field.templateId,
+        templateVersion,
       },
     };
 
@@ -74,6 +79,18 @@ export function generateCanonicalForm(
       label: field.label
     };
   });
+
+  // The parser only ever sees one field/node at a time, before this
+  // function has decided *which* template version this form is actually
+  // being generated against - so a parsed layout's own node.binding never
+  // carries templateVersion yet. Stamp it on now, onto every node's
+  // binding, so a layout node's binding is exactly as complete as the
+  // (already-carrying-templateVersion) bindings map built above.
+  function stampTemplateVersion(node: FormElementLayout): FormElementLayout {
+    const children = node.children?.map(stampTemplateVersion);
+    if (!node.binding) return children ? { ...node, children } : node;
+    return { ...node, binding: { ...node.binding, templateVersion }, ...(children ? { children } : {}) };
+  }
 
   const form: CanonicalForm = {
     id: formId,
@@ -87,7 +104,7 @@ export function generateCanonicalForm(
         type: 'openEhrWebTemplate'
       }
     ],
-    layout: layout || generatedLayout,
+    layout: layout ? stampTemplateVersion(layout) : generatedLayout,
     bindings,
     locales: {
       en: localesEn

@@ -1,5 +1,7 @@
 import type { CanonicalForm, FormSessionValues, JsonValue } from 'core';
 
+export * from './metadata';
+
 export const OPEN_EHR_FORM_EXTENSION = 'org.openehr.form' as const;
 
 export interface OpenEhrFormOptions {

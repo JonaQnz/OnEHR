@@ -1,4 +1,4 @@
-import { CanonicalForm, JsonValue } from '../canonical';
+import { CanonicalForm, FormElementLayout, JsonValue } from '../canonical';
 import { FormScriptDocument, normalizeFormScript } from '../form-scripting';
 
 export const FORM_DEFINITION_SCHEMA_VERSION = '1.0' as const;
@@ -12,6 +12,32 @@ export interface FormDefinitionV1 extends CanonicalForm {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A form saved before per-node `binding` existed (or one whose top-level
+ * `bindings` map was written under a different key than the layout node's
+ * own id - see the mismatched-key bug this consolidation fixes at the
+ * write side) can still have real binding data sitting only in the legacy
+ * top-level `bindings` dict. Rather than a one-off data migration script,
+ * every such form self-heals the first time it's loaded: this backfills
+ * `node.binding` from `bindings[node.id]` (or `bindings[node.name]`, the
+ * other key convention historically used) wherever a node is missing one -
+ * a read-time normalization, not a standing runtime fallback.
+ */
+function backfillLegacyBindings(layout: FormElementLayout, bindingsInput: CanonicalForm['bindings'] | undefined): FormElementLayout {
+  if (!bindingsInput) return layout;
+  const bindings: CanonicalForm['bindings'] = bindingsInput;
+  function walk(node: FormElementLayout): FormElementLayout {
+    const children = node.children?.map(walk);
+    if (node.binding || (!node.id && !node.name)) {
+      return children ? { ...node, children } : node;
+    }
+    const legacy = (node.id && bindings[node.id]?.openehr) || (node.name && bindings[node.name]?.openehr);
+    if (!legacy) return children ? { ...node, children } : node;
+    return { ...node, binding: legacy, ...(children ? { children } : {}) };
+  }
+  return walk(layout);
 }
 
 /**
@@ -38,12 +64,14 @@ export function migrateCanonicalFormToV1(input: unknown, idOverride?: string): F
     throw new Error('"extensions" must be an object');
   }
 
+  const rawForm = input as unknown as CanonicalForm;
   const definition = {
-    ...(input as unknown as CanonicalForm),
+    ...rawForm,
     ...(idOverride ? { id: idOverride } : {}),
     schemaVersion: FORM_DEFINITION_SCHEMA_VERSION,
     revision: revision as number,
     extensions: extensions as Record<string, JsonValue>,
+    ...(rawForm.layout ? { layout: backfillLegacyBindings(rawForm.layout, rawForm.bindings) } : {}),
   };
 
   return {

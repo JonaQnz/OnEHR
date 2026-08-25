@@ -53,9 +53,14 @@ export interface FormElementLayout {
     max?: number;
     regex?: string;
   };
-  semanticType?: string;
   unit?: string;
-  archetypeNodeId?: string;
+  /** The single per-node source of truth for this element's openEHR
+   * identity - RM type, archetype node id, archetype id, paths, template
+   * origin. Set on leaf DV_* field nodes AND on structural container nodes
+   * (OBSERVATION/CLUSTER/SECTION/etc) alike, so the full tree carries real
+   * openEHR identity, not just its leaves. See getElementMetadata() in
+   * openehr-engine for the API that reads this - don't read/write this
+   * field directly outside the parser/adapter that own it. */
   binding?: OpenEhrBinding;
   visibility?: JsonValue;
   enableWhen?: JsonValue;
@@ -80,11 +85,35 @@ export interface FormElementLayout {
   props?: Record<string, unknown>;
 }
 
+/**
+ * The single consolidated openEHR identity record for one form element -
+ * leaf field or structural container alike. `path` is EHRbase's own
+ * WebTemplate aqlPath, verbatim (it already *is* the AQL path in openEHR's
+ * own terminology, despite the historical field name); `flatPath` is the
+ * WebTemplate's id-based technical/flat submission path. The archetype
+ * path is not a separately stored field - openehr-engine's
+ * getArchetypePath() derives it from `path` on demand, since it never
+ * disagrees with `path`, only strips its template/composition-level
+ * prefix.
+ */
 export interface OpenEhrBinding {
   templateAlias: string;
   path: string;
   rmType: string;
   flatPath?: string;
+  /** This node's own archetype node id, e.g. "at0004". Extracted once at
+   * WebTemplate parse time (see openehr-engine's parseOpenEhrAqlPath) -
+   * never derive this ad hoc elsewhere. */
+  archetypeNodeId?: string;
+  /** The archetype id nearest-enclosing this node, e.g.
+   * "openEHR-EHR-OBSERVATION.blood_pressure.v2". */
+  archetypeId?: string;
+  /** archetypeId's trailing ".vN", extracted once alongside it. */
+  rmVersion?: string;
+  /** Which template this specific binding was resolved against - relevant
+   * once a form can bind fields from more than one sourceTemplates entry. */
+  templateId?: string;
+  templateVersion?: string;
 }
 
 export interface FormError extends ValidationIssue {

@@ -65,8 +65,12 @@ function toDescriptor(node: FormElementLayout, repeatableGroupId?: string): Runt
     validation: node.validation, visibility: node.visibility ?? node.enableWhen,
     repeatable: node.repeatable === true, repeatMin: node.repeatMin ?? 0, repeatMax: node.repeatMax ?? -1,
     ...(repeatableGroupId ? { repeatableGroupId } : {}),
-    aqlPath: (node as unknown as Record<string, unknown>).aqlPath as string | undefined || (node as unknown as Record<string, unknown>).path as string | undefined || (node as unknown as Record<string, unknown>).webTemplatePath as string | undefined,
-    binding: node.binding, semanticType: node.semanticType, archetypeNodeId: node.archetypeNodeId,
+    // node.binding.path IS the AQL path (EHRbase's own WebTemplate aqlPath,
+    // verbatim) - previously this read three properties that were never
+    // actually set on FormElementLayout (dead code); binding is the real,
+    // and now only, source.
+    aqlPath: node.binding?.path,
+    binding: node.binding, semanticType: node.binding?.rmType, archetypeNodeId: node.binding?.archetypeNodeId,
     alwaysHidden: node.alwaysHidden === true,
     ...(defaultValue !== undefined ? { defaultValue: defaultValue as RuntimeJsonValue } : {}),
   };
