@@ -66,6 +66,17 @@ export interface FormElementLayout {
   repeatMin?: number;
   repeatMax?: number;
   repeatable?: boolean;
+  /** Never rendered to the user, in any mode - the field only carries a
+   * fixed/derived value (defaultValue) straight through to submission.
+   * For administrative/structural fields a clinician should never need to
+   * see or edit (e.g. a name-use code the template requires but that
+   * always has the same value). Distinct from `visibility` (a conditional
+   * expression evaluated against other field values) and from a
+   * composition's `hiddenFieldIds` (which deliberately never hides a
+   * required field, because the user still has to fill it in themselves)
+   * - this field's value is already decided at design time, so hiding it
+   * is safe even when required. */
+  alwaysHidden?: boolean;
   props?: Record<string, unknown>;
 }
 

@@ -459,7 +459,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     if (!id) return null;
     const field = fieldById.get(id);
     const dynamic = uiStates[`fields:${id}`];
-    if (!field || (!field.required && hiddenFieldIds.includes(id)) || !CoreRuntime.isRuntimeFieldVisible(field, values) || dynamic?.visible === false) return null;
+    if (!field || field.alwaysHidden || (!field.required && hiddenFieldIds.includes(id)) || !CoreRuntime.isRuntimeFieldVisible(field, values) || dynamic?.visible === false) return null;
     const effectiveField: RuntimeFieldDescriptor = {
       ...field,
       label: dynamic?.label || field.label,

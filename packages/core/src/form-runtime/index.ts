@@ -14,6 +14,8 @@ export interface RuntimeFieldDescriptor {
   repeatable: boolean; repeatMin: number; repeatMax: number; defaultValue?: RuntimeJsonValue | undefined;
   repeatableGroupId?: string | undefined;
   aqlPath?: string | undefined; binding?: unknown; semanticType?: string | undefined; archetypeNodeId?: string | undefined;
+  /** Never rendered, in any mode - see FormElementLayout.alwaysHidden. */
+  alwaysHidden: boolean;
 }
 export interface RuntimeGroupDescriptor {
   id: string;
@@ -65,6 +67,7 @@ function toDescriptor(node: FormElementLayout, repeatableGroupId?: string): Runt
     ...(repeatableGroupId ? { repeatableGroupId } : {}),
     aqlPath: (node as unknown as Record<string, unknown>).aqlPath as string | undefined || (node as unknown as Record<string, unknown>).path as string | undefined || (node as unknown as Record<string, unknown>).webTemplatePath as string | undefined,
     binding: node.binding, semanticType: node.semanticType, archetypeNodeId: node.archetypeNodeId,
+    alwaysHidden: node.alwaysHidden === true,
     ...(defaultValue !== undefined ? { defaultValue: defaultValue as RuntimeJsonValue } : {}),
   };
 }
