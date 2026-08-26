@@ -1,5 +1,6 @@
 import prisma from '../db/prisma';
 import { getCompositionDefinition, isFormRuntimeMode, summarizeCompositionSession, type FormRuntimeMode } from 'core';
+import { getOpenEhrFormOptions } from 'openehr-engine';
 import { HttpError } from '../middleware/errorHandler';
 import { getFormSession, validateFormSession, type SessionActor } from './formSessionService';
 import { resolvePatientReference } from './patientService';
@@ -85,7 +86,15 @@ export async function startCompositionSession(input: { compositionFormId: string
   const mode = input.mode || 'create';
   if (!isFormRuntimeMode(mode)) throw new HttpError(400, 'mode must be create, edit, view, or prefill');
   const { form } = await compositionFor(compositionFormId, true);
-  if (!input.forceNew) {
+  // A Composition authored with storageStrategy 'always_new' opts out of
+  // resuming a still-open session entirely - e.g. a Composition that just
+  // groups a handful of single-shot forms and is meant to be launched fresh
+  // every time, as opposed to the default (and far more common) case of a
+  // long-running clinical process that should always pick back up where it
+  // left off. Same override forceNew already gives per-launch, as the
+  // form's own default.
+  const alwaysNew = getOpenEhrFormOptions(form.canonical_json as any).storageStrategy === 'always_new';
+  if (!input.forceNew && !alwaysNew) {
     const reusable = await prisma.compositionSession.findFirst({ where: { compositionFormId, patientId, patientNamespace: patientNamespace || null, userId: actor.userId, mode, status: { in: ['draft', 'in_progress', 'ready', 'failed'] } }, orderBy: { updatedAt: 'desc' } });
     if (reusable) return publicSession(reusable, actor);
   }

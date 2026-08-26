@@ -20,22 +20,25 @@ const original = {
   validateFormSession: formSessions.validateFormSession,
 };
 
-function compositionForm(blocks = [{ id: 'person', type: 'form', formId: 'person-form', title: 'Person' }]) {
+function compositionForm(blocks = [{ id: 'person', type: 'form', formId: 'person-form', title: 'Person' }], openEhrOptions) {
   return {
     id: 'composition-form', version: '2.0.0', status: 'published', canonical_json: {
-      extensions: { 'watehr.composition': {
-        schemaVersion: '1.0',
-        pages: [{ id: 'overview', title: 'Übersicht', blocks, layout: blocks.map((block) => ({ id: `slot-${block.id}`, element: 'block', blockId: block.id })) }],
-      } },
+      extensions: {
+        'watehr.composition': {
+          schemaVersion: '1.0',
+          pages: [{ id: 'overview', title: 'Übersicht', blocks, layout: blocks.map((block) => ({ id: `slot-${block.id}`, element: 'block', blockId: block.id })) }],
+        },
+        ...(openEhrOptions ? { 'org.openehr.form': openEhrOptions } : {}),
+      },
     },
   };
 }
 
-function installStore({ blocks } = {}) {
+function installStore({ blocks, openEhrOptions } = {}) {
   const records = new Map();
   const childRows = new Map();
   let sequence = 0;
-  const forms = new Map([['composition-form', compositionForm(blocks)]]);
+  const forms = new Map([['composition-form', compositionForm(blocks, openEhrOptions)]]);
   const now = () => new Date('2026-08-05T10:00:00.000Z');
   const clone = (value) => ({ ...value, childSessions: { ...value.childSessions } });
 
@@ -123,6 +126,15 @@ test('composition session resumes a draft for the same canonical patient and nam
     assert.equal(first.children[0].status, 'not_started');
     assert.equal(resumed.id, first.id);
     assert.notEqual(otherNamespace.id, first.id);
+  } finally { store.restore(); }
+});
+
+test('storageStrategy "always_new" on the Composition form skips resuming an open session', async () => {
+  const store = installStore({ openEhrOptions: { storageStrategy: 'always_new' } });
+  try {
+    const first = await compositions.startCompositionSession({ compositionFormId: 'composition-form', patientId: 'local-ada', patientNamespace: 'tenant-a', mode: 'edit' }, actor);
+    const second = await compositions.startCompositionSession({ compositionFormId: 'composition-form', patientId: 'local-ada', patientNamespace: 'tenant-a', mode: 'edit' }, actor);
+    assert.notEqual(second.id, first.id);
   } finally { store.restore(); }
 });
 

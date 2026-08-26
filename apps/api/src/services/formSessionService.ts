@@ -20,6 +20,7 @@ import {
 } from 'core';
 import { HttpError } from '../middleware/errorHandler';
 import { migrateCanonicalFormToV1 } from 'core';
+import { getOpenEhrFormOptions } from 'openehr-engine';
 import { getDataProvider } from './dataProviderRegistry';
 import { EhrbaseProviderError } from './ehrbaseDataProvider';
 import { N8nProviderError } from './n8nDataProvider';
@@ -343,7 +344,13 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
   // a specific composition is targeted (providerReference), it's matched by
   // base composition uid, not the full versioned reference (which changes
   // on every save) or object identity/string format.
-  if ((mode === 'edit' || mode === 'prefill') && !input.forceNew) {
+  // A form authored with storageStrategy 'always_new' opts out of this
+  // reuse entirely (e.g. a vitals check filled several times a day, where
+  // every launch is its own clinical moment even in edit mode) - the same
+  // per-launch override forceNew already provides, just as the form's own
+  // default instead of something every caller has to remember to pass.
+  const alwaysNew = getOpenEhrFormOptions(form.canonical_json as any).storageStrategy === 'always_new';
+  if ((mode === 'edit' || mode === 'prefill') && !input.forceNew && !alwaysNew) {
     const targetCompositionUid = compositionUidFromReference(input.providerReference);
     const candidates = await prisma.formSession.findMany({
       where: {
