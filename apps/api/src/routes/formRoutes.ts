@@ -162,8 +162,35 @@ async function assertCompositionDependencies(definition: ReturnType<typeof migra
   }
 }
 
-router.get('/', asyncHandler(async (_req, res) => {
-  res.json(await prisma.form.findMany());
+router.get('/', asyncHandler(async (req, res) => {
+  // Both optional and additive - an unfiltered, non-summary call behaves
+  // exactly as before for existing callers (the Designer's own form list
+  // relies on the full shape). `status` and `summary` exist specifically so
+  // "what published forms exist" doesn't have to transfer every draft/
+  // archived/deleted version's full compiled formScript/sourcemaps just to
+  // answer that - a project with real history otherwise blows well past
+  // typical response-size limits for what should be a routine listing.
+  const statusParam = typeof req.query.status === 'string' ? req.query.status : undefined;
+  const statuses = statusParam ? statusParam.split(',').map((value) => value.trim()).filter(Boolean) : undefined;
+  const summary = req.query.summary === 'true';
+  const forms = await prisma.form.findMany({
+    where: statuses && statuses.length > 0 ? { status: { in: statuses } } : undefined,
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!summary) { res.json(forms); return; }
+  res.json(forms.map((form) => {
+    const canonical = form.canonical_json as { extensions?: Record<string, unknown> } | null;
+    return {
+      id: form.id,
+      parent_id: form.parent_id,
+      name: form.name,
+      version: form.version,
+      status: form.status,
+      kind: canonical?.extensions?.['watehr.composition'] ? 'composition' : 'form',
+      createdAt: form.createdAt,
+      updatedAt: form.updatedAt,
+    };
+  }));
 }));
 
 router.post('/', asyncHandler(async (req, res) => {

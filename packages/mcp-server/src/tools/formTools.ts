@@ -9,9 +9,18 @@ import { toResult } from '../toolResult.js';
 export function registerFormTools(server: McpServer, api: FormbuilderApiClient): void {
   server.registerTool('list_forms', {
     title: 'List forms',
-    description: 'Lists every form and Composition (a Composition is a form with kind "composition") across all versions/statuses. Each form has a stable parentId shared by all its versions/drafts.',
-    inputSchema: {},
-  }, () => toResult(() => api.get('/api/forms')));
+    description: 'Lists forms and Compositions (a Composition is a form with kind "composition") - `kind` and `parent_id` (a stable id shared by all of one form\'s versions/drafts) are top-level fields on each row. With no arguments, returns every version/status\'s FULL definition (layout, bindings, compiled formScript, sourcemaps) - can be very large once a project has real history. For routine "what forms/versions exist" browsing, pass `status` (e.g. "published") and/or `summary: true` (id/parent_id/name/version/status/kind/timestamps only, no canonical_json) - then use get_form for one specific id\'s full definition.',
+    inputSchema: {
+      status: z.string().optional().describe('Comma-separated status filter, e.g. "published" or "draft,published". Omit for all statuses.'),
+      summary: z.boolean().optional().describe('true = lightweight rows (id, parent_id, name, version, status, kind, createdAt, updatedAt) instead of the full canonical_json per row.'),
+    },
+  }, ({ status, summary }) => toResult(() => {
+    const query = new URLSearchParams();
+    if (status) query.set('status', status);
+    if (summary) query.set('summary', 'true');
+    const queryString = query.toString();
+    return api.get(`/api/forms${queryString ? `?${queryString}` : ''}`);
+  }));
 
   server.registerTool('get_form', {
     title: 'Get a form',

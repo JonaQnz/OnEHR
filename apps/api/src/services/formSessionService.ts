@@ -405,8 +405,16 @@ export async function getFormSession(id: string, actor: SessionActor): Promise<F
 
 export async function listFormSessions(actor: SessionActor, patientId?: string, formId?: string): Promise<FormSession[]> {
   const formFilter = formId ? { formId } : {};
+  // A caller may reasonably pass the internal registry id, the ehrId, or
+  // the external MRN here - every other patient-identifying parameter in
+  // this API (launch_form, start_composition_session, ...) already accepts
+  // any of the three via resolvePatientReference(); FormSession.patientId
+  // itself is only ever stored as the external MRN, so resolve whatever was
+  // passed down to that same canonical value before filtering, instead of
+  // silently returning an empty list for two of the three valid forms.
+  const resolvedPatientId = patientId ? (await resolvePatientReference(patientId))?.patientId || patientId : undefined;
   const records = await prisma.formSession.findMany({
-    where: actor.userId === 'anonymous' ? { ...(patientId ? { patientId } : {}), ...formFilter } : { userId: actor.userId, ...(patientId ? { patientId } : {}), ...formFilter },
+    where: actor.userId === 'anonymous' ? { ...(resolvedPatientId ? { patientId: resolvedPatientId } : {}), ...formFilter } : { userId: actor.userId, ...(resolvedPatientId ? { patientId: resolvedPatientId } : {}), ...formFilter },
     orderBy: { updatedAt: 'desc' },
   });
   return Promise.all(records.map(async (record) => {
