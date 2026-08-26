@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { FormDefinitionV1, RuntimeValues, FormSessionRuntimeContext } from 'core';
 import FormRuntime, { type FormRuntimeHandle } from '../components/FormRuntime';
 import PluginHost from '../components/PluginHost';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const API = 'http://localhost:3001/api';
 
@@ -54,6 +55,7 @@ export default function SessionRuntime() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [form, setForm] = useState<FormResponse | null>(null);
+  useDocumentTitle(form?.name ? `${form.name} (Preview)` : 'Session Runtime');
   const [patientId, setPatientId] = useState('');
   const [session, setSession] = useState<SessionRecord | null>(null);
   const [draftValues, setDraftValues] = useState<RuntimeValues>({});

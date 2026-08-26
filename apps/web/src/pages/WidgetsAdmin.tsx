@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { BarChart3, Braces, Database, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import type { CompositionDataBlock } from 'core';
 import { WidgetDataCard, type WidgetDataState } from '../components/WidgetDataCard';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const API = 'http://localhost:3001/api';
 type Display = 'line' | 'area' | 'bar' | 'metric' | 'table' | 'text';
@@ -36,6 +37,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 function aliases(query?: string): string[] { return query ? [...new Set(Array.from(query.matchAll(/\bAS\s+([A-Za-z_][A-Za-z0-9_]*)\b/gi), (match) => match[1]))] : []; }
 
 export default function WidgetsAdmin() {
+  useDocumentTitle('Widgets');
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [aql, setAql] = useState<Aql[]>([]);
   const [originalAql, setOriginalAql] = useState<Aql[]>([]);

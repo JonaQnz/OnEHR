@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { formEmbedUrl, isFormEmbedEvent, launchEmbeddedForm } from '../../integration/formLaunch';
 import type { FormLaunchLoadPolicy, FormRuntimeMode } from 'core';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
 const API = 'http://localhost:3001/api';
 
@@ -248,6 +249,7 @@ function EmptyState({ icon, title, detail }: { icon: React.ReactNode; title: str
 export default function PatientDetail() {
   const { id } = useParams();
   const [patient, setPatient] = useState<PatientRecord | null>(null);
+  useDocumentTitle(patient ? [patient.lastName, patient.firstName].filter(Boolean).join(', ') || patient.patientId : 'Patient');
   const [forms, setForms] = useState<StoredForm[]>([]);
   const [sessions, setSessions] = useState<FormSessionRecord[]>([]);
   const [compositionSessions, setCompositionSessions] = useState<CompositionSessionRecord[]>([]);

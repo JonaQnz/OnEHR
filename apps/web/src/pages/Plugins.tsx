@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Package, Power, RefreshCw } from 'lucide-react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 interface PluginManifest {
   id: string;
@@ -37,6 +38,7 @@ interface PluginResponse {
 const API = 'http://localhost:3001/api/plugins';
 
 export default function Plugins() {
+  useDocumentTitle('Plugins');
   const [packageName, setPackageName] = useState('formbuilder-example-vitals-plugin');
   const [data, setData] = useState<PluginResponse>({ packages: [], contributions: [] });
   const [loading, setLoading] = useState(true);

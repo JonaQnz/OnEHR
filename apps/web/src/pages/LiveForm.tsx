@@ -17,6 +17,7 @@ import PluginHost from '../components/PluginHost';
 import CompositionHistoryPanel from '../components/CompositionHistoryPanel';
 import HistoricalVersionView from '../components/HistoricalVersionView';
 import CompositionDiffView from '../components/CompositionDiffView';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const API = 'http://localhost:3001/api';
 
@@ -166,6 +167,7 @@ export default function LiveForm() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState<FormResponse | null>(null);
+  useDocumentTitle(form?.name || 'Form');
   const [session, setSession] = useState<SessionRecord | null>(null);
   const [draftValues, setDraftValues] = useState<RuntimeValues>({});
   // Connection-wide autosave fallback (Configurable Settings roadmap) - a

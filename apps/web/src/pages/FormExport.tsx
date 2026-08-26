@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 function downloadJson(data: any, filename: string) {
   if (!data) return;
@@ -21,6 +22,7 @@ export default function FormExport() {
   const [mappings, setMappings] = useState<any>(null);
   const [fullExport, setFullExport] = useState<any>(null);
   const [formName, setFormName] = useState<string>('Form');
+  useDocumentTitle(`${formName} (Export)`);
 
   useEffect(() => {
     // Optionally fetch the form to get its name

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Plus, UserRound, Settings, RefreshCw, UserCheck, UserX, FileEdit } from 'lucide-react';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
 const API = 'http://localhost:3001/api';
 
 export default function PatientList() {
+  useDocumentTitle('Patienten');
   const [patients, setPatients] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
