@@ -43,8 +43,8 @@ export function registerRuntimeTools(server: McpServer, api: FormbuilderApiClien
 
   server.registerTool('list_form_sessions', {
     title: 'List form sessions',
-    description: 'Lists form sessions, optionally filtered by patient and/or form.',
-    inputSchema: { patientId: z.string().optional(), formId: z.string().optional() },
+    description: 'Lists form sessions, optionally filtered by patient and/or form. `patientId` accepts any of the patient\'s identifiers - the internal registry id, the ehrId, or the external MRN (same as launch_form/start_composition_session) - resolved to the same patient either way.',
+    inputSchema: { patientId: z.string().optional().describe('The internal registry id, ehrId, or external MRN - any one identifies the patient.'), formId: z.string().optional() },
   }, ({ patientId, formId }) => toResult(() => {
     const query = new URLSearchParams({ ...(patientId ? { patientId } : {}), ...(formId ? { formId } : {}) }).toString();
     return api.get(`/api/form-sessions${query ? `?${query}` : ''}`);
@@ -75,11 +75,11 @@ export function registerRuntimeTools(server: McpServer, api: FormbuilderApiClien
 
   server.registerTool('submit_form_session_to_provider', {
     title: 'Submit a form session',
-    description: 'Submits a session\'s current values as a Composition to the data provider (EHRbase by default) - the actual "save this clinical data for real" step. Validate first; a stale/unvalidated submission can be rejected.',
+    description: 'Submits a session\'s current values as a Composition to the data provider (EHRbase by default) - the actual "save this clinical data for real" step. Validate first: pass the matching validatedRevision to skip a redundant re-validation. The server never trusts that flag blindly - if the session has been edited or its status has moved since that revision (even if you still cite it), it transparently re-validates the CURRENT values before submitting, so nothing unvalidated is ever written; a submission is only rejected if that (fresh or reused) validation actually finds a problem.',
     inputSchema: {
       id: z.string(),
       providerId: z.string().optional().describe('Defaults to "ehrbase".'),
-      validatedRevision: z.number().optional().describe('The revision validate_form_session returned, to prove validation ran against the exact values being submitted.'),
+      validatedRevision: z.number().optional().describe('The revision validate_form_session returned. Only lets the server skip a redundant re-validation when it still matches the session\'s current revision and status - otherwise ignored in favor of a fresh server-side validation.'),
     },
   }, ({ id, ...body }) => toResult(() => api.post(`/api/form-sessions/${encodeURIComponent(id)}/provider/submit`, body)));
 
@@ -119,7 +119,7 @@ export function registerRuntimeTools(server: McpServer, api: FormbuilderApiClien
 
   server.registerTool('attach_composition_block', {
     title: 'Attach a form session to a Composition block',
-    description: 'Wires an existing child form session (from create_form_session/launch_form) into one block of a composition session.',
+    description: 'Wires an existing child form session (from create_form_session/launch_form) into one block of a composition session. This does not itself validate the child - the returned block\'s `valid` is only present once the child has actually been assessed (its own status is ready/submitted, or a prior validation left issues); a freshly-attached, not-yet-validated child has `valid` absent, not false. Call validate_composition_session to actually check it.',
     inputSchema: { id: z.string().describe('The composition session id.'), blockId: z.string(), childSessionId: z.string() },
   }, ({ id, blockId, childSessionId }) => toResult(() => api.put(`/api/composition-sessions/${encodeURIComponent(id)}/blocks/${encodeURIComponent(blockId)}`, { childSessionId })));
 

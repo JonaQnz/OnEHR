@@ -47,7 +47,25 @@ async function publicSession(record: any, actor: CompositionSessionActor): Promi
   const children = expected.map((expectedChild): ChildSummary => {
     const sessionId = childSessions[expectedChild.blockId];
     const session = sessionId ? rows.find((row) => row.id === sessionId) : undefined;
-    return { blockId: expectedChild.blockId, formId: expectedChild.formId, ...(sessionId ? { sessionId } : {}), status: session?.status || 'not_started', ...(session ? { valid: session.status === 'ready' || session.status === 'submitted', issues: Array.isArray(session.validation) ? session.validation as any : [] } : {}) };
+    const issues = session && Array.isArray(session.validation) ? session.validation as any : [];
+    // `valid: false` reads as "checked and found invalid" - only report it
+    // once that's actually true. A freshly-attached or since-edited block
+    // that simply hasn't been through validate_form_session/
+    // validate_composition_session yet has neither a 'ready'/'submitted'
+    // status nor any recorded issues, so `valid` is omitted entirely rather
+    // than defaulting to false (which validate_composition_session already
+    // correctly flips once it actually runs).
+    const hasBeenAssessed = session ? (session.status === 'ready' || session.status === 'submitted' || issues.length > 0) : false;
+    return {
+      blockId: expectedChild.blockId,
+      formId: expectedChild.formId,
+      ...(sessionId ? { sessionId } : {}),
+      status: session?.status || 'not_started',
+      ...(session ? {
+        ...(hasBeenAssessed ? { valid: session.status === 'ready' || session.status === 'submitted' } : {}),
+        issues,
+      } : {}),
+    };
   });
   const { progress, status: nextStatus } = summarizeCompositionSession(children);
   const persisted = record.status === nextStatus ? record : await prisma.compositionSession.update({ where: { id: record.id }, data: { status: nextStatus, revision: { increment: 1 } } });

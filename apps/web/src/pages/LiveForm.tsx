@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  FileText,
+  History,
+  Loader2,
+  Save,
+  Undo2,
+  XCircle,
+} from 'lucide-react';
 import { FORM_LAUNCH_PROTOCOL_VERSION, type FormDefinitionV1, type FormEmbedEventName, type RuntimeValues, type FormSessionRuntimeContext, type FormSessionLifecycleState, type FormSessionChangeType, type SaveState, type CompositionVersion } from 'core';
 import FormRuntime, { type FormRuntimeHandle } from '../components/FormRuntime';
 import PluginHost from '../components/PluginHost';
@@ -73,11 +84,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
+type Tone = 'neutral' | 'positive' | 'warning' | 'error';
+
 // Plain clinical-language status - never the raw lifecycle_state/saveState
 // codes. Deliberately not a form-field component's concern (state-poor
 // components per the architecture principle); this is the editing session's
 // own status area.
-function clinicalStatusLabel(session: SessionRecord | null, saveState: SaveState): { text: string; tone: 'neutral' | 'positive' | 'warning' | 'error' } {
+function clinicalStatusLabel(session: SessionRecord | null, saveState: SaveState): { text: string; tone: Tone } {
   if (!session) return { text: '', tone: 'neutral' };
   if (session.lifecycleState === 'deleted') return { text: 'Dokument zurückgezogen', tone: 'warning' };
   if (saveState === 'saving') return { text: 'Speichert…', tone: 'neutral' };
@@ -89,12 +102,63 @@ function clinicalStatusLabel(session: SessionRecord | null, saveState: SaveState
   return { text: 'Entwurf', tone: 'neutral' };
 }
 
-const TONE_COLORS: Record<'neutral' | 'positive' | 'warning' | 'error', { bg: string; fg: string; border: string }> = {
-  neutral: { bg: '#f1f5f9', fg: '#334155', border: '#e2e8f0' },
-  positive: { bg: '#dcfce7', fg: '#15803d', border: '#bbf7d0' },
-  warning: { bg: '#fef9c3', fg: '#854d0e', border: '#fde68a' },
-  error: { bg: '#fee2e2', fg: '#b91c1c', border: '#fecaca' },
+const TONE_COLORS: Record<Tone, { bg: string; fg: string; border: string }> = {
+  neutral: { bg: 'var(--bg-sidebar, #f1f5f9)', fg: 'var(--text-muted, #475569)', border: 'var(--border, #e2e8f0)' },
+  positive: { bg: 'var(--success-light, #d1fae5)', fg: 'var(--success-hover, #059669)', border: '#bbf7d0' },
+  warning: { bg: 'var(--warning-light, #fef3c7)', fg: '#92400e', border: '#fde68a' },
+  error: { bg: 'var(--danger-light, #fee2e2)', fg: 'var(--danger-hover, #dc2626)', border: '#fecaca' },
 };
+
+function ToneIcon({ tone, saveState, size = 15 }: { tone: Tone; saveState: SaveState; size?: number }) {
+  if (saveState === 'saving') return <Loader2 size={size} className="lf-spin" />;
+  if (tone === 'positive') return <CheckCircle2 size={size} />;
+  if (tone === 'error') return <XCircle size={size} />;
+  if (tone === 'warning') return <AlertTriangle size={size} />;
+  return <FileText size={size} />;
+}
+
+function StatusPill({ tone, text, saveState }: { tone: Tone; text: string; saveState: SaveState }) {
+  const colors = TONE_COLORS[tone];
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+      padding: '0.3rem 0.75rem', borderRadius: 999,
+      background: colors.bg, color: colors.fg, border: `1px solid ${colors.border}`,
+      fontSize: '0.82rem', fontWeight: 600, whiteSpace: 'nowrap',
+    }}>
+      <ToneIcon tone={tone} saveState={saveState} size={14} />
+      {text}
+    </span>
+  );
+}
+
+function AlertCard({ tone, title, children, actions }: { tone: Tone; title: string; children?: React.ReactNode; actions?: React.ReactNode }) {
+  const colors = TONE_COLORS[tone];
+  return (
+    <div style={{
+      display: 'flex', gap: '0.75rem', padding: '1rem 1.1rem', marginBottom: '1rem',
+      background: colors.bg, color: colors.fg, borderRadius: 10,
+      border: `1px solid ${colors.border}`, borderLeft: `4px solid ${colors.fg}`,
+    }}>
+      <div style={{ paddingTop: '0.1rem', flexShrink: 0 }}><ToneIcon tone={tone} saveState="idle" size={19} /></div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <strong style={{ display: 'block', fontSize: '0.95rem' }}>{title}</strong>
+        {children && <div style={{ marginTop: '0.35rem', fontSize: '0.87rem', lineHeight: 1.5 }}>{children}</div>}
+        {actions && <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>{actions}</div>}
+      </div>
+    </div>
+  );
+}
+
+function Modal({ children, maxWidth = 440 }: { children: React.ReactNode; maxWidth?: number }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+      <div className="card" style={{ width: '100%', maxWidth, boxShadow: 'var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.2))', margin: 0 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function LiveForm() {
   const { parentId } = useParams();
@@ -123,6 +187,24 @@ export default function LiveForm() {
   const [lastSavedSignature, setLastSavedSignature] = useState('{}');
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[] | null>(null);
   const dirty = JSON.stringify(draftValues) !== lastSavedSignature;
+
+  // FormRuntime merges the form's own default values on top of whatever was
+  // loaded (see createInitialRuntimeValues) - correct for a brand-new form,
+  // but if we baselined dirty-tracking off the raw server payload, any field
+  // with a default the loaded composition hadn't filled would immediately
+  // "differ" from that baseline the moment the page opens, marking a
+  // never-touched form dirty and autosaving a version nobody asked for. Set
+  // this to true right before/while (re)loading a session; the next
+  // onValuesChange call - FormRuntime's own settled post-merge state, not
+  // the raw payload - becomes the real baseline instead.
+  const baselinePendingRef = useRef(false);
+  const handleValuesChange = (next: RuntimeValues) => {
+    setDraftValues(next);
+    if (baselinePendingRef.current) {
+      baselinePendingRef.current = false;
+      setLastSavedSignature(JSON.stringify(next));
+    }
+  };
 
   // Modification vs. amendment - only meaningful once editing an
   // already-`complete` composition.
@@ -167,8 +249,20 @@ export default function LiveForm() {
     }, targetOrigin);
   };
 
+  // Guards the session-bootstrap effect below against running twice for the
+  // same launch - React 18 StrictMode deliberately double-invokes effects in
+  // dev (mount -> cleanup -> mount), and this effect's async body has no
+  // cancellation, so without this guard a single page load could fire two
+  // independent `POST /form-sessions` calls back-to-back before either has
+  // committed, defeating even the server's own reuse check and creating two
+  // disconnected sessions for one visit.
+  const bootstrapKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!parentId) return;
+    const bootstrapKey = `${parentId}?${searchParams.toString()}`;
+    if (bootstrapKeyRef.current === bootstrapKey) return;
+    bootstrapKeyRef.current = bootstrapKey;
     setLoading(true);
 
     const exactVersion = searchParams.get('exactVersion') === 'true';
@@ -185,9 +279,10 @@ export default function LiveForm() {
         if (launchSessionId) {
           const current = await request<SessionRecord>(`/form-sessions/${encodeURIComponent(launchSessionId)}`);
           if (current.formId !== formData.id) throw new Error('Die gestartete Session gehört nicht zu diesem Formular.');
+          baselinePendingRef.current = true;
           setSession(current);
           setDraftValues(current.values || {});
-          setLastSavedSignature(JSON.stringify(current.values || {}));
+          setLastSavedSignature(JSON.stringify(current.values || {})); // provisional - see baselinePendingRef
           if (current.status === 'submitted') setSubmitted(true);
           publishEmbedEvent('loaded', formData.id, current.id);
           return;
@@ -200,44 +295,40 @@ export default function LiveForm() {
 
         if (patientId) {
           try {
-            const query = `?patientId=${encodeURIComponent(patientId)}&formId=${encodeURIComponent(formData.id)}`;
-            const existing = await request<SessionRecord[]>(`/form-sessions${query}`);
+            // The server itself now resumes this user's own still-open
+            // edit/prefill session for the same form+patient(+composition)
+            // instead of creating a disconnected duplicate - see
+            // createFormSession()'s reuse lookup. No client-side pre-check
+            // needed (and a client-side one racing this same decision would
+            // only reintroduce the duplicate-session bug this replaces).
             const forceNew = searchParams.get('forceNew') === 'true';
-            const reusable = forceNew ? undefined : existing.find((item) =>
-              !['submitted', 'cancelled'].includes(item.status) &&
-              (!reference || item.providerReference === reference) &&
-              ((item as any).mode === mode)
-            );
-
-            let current = reusable;
-            let newlyCreated = false;
-            if (!current) {
-               current = await request<SessionRecord>('/form-sessions', {
+            let current = await request<SessionRecord>('/form-sessions', {
+              method: 'POST',
+              body: JSON.stringify({
+                formId: formData.id,
+                patientId,
+                mode,
+                forceNew,
+                ...(reference ? { providerReference: reference } : {})
+              }),
+            });
+            // revision 0 = genuinely fresh (never loaded/saved) - only then
+            // is it safe to pull the provider's current data. A resumed
+            // session (revision > 0) already has real values; reloading here
+            // would silently overwrite whatever the user last saved.
+            if (mode !== 'create' && current.revision === 0) {
+              const submissionProviderId = formData.canonical_json?.settings?.submission?.providerId || 'ehrbase';
+              const loadResult = await request<{ session: SessionRecord }>(`/form-sessions/${current.id}/provider/load`, {
                 method: 'POST',
-                body: JSON.stringify({
-                  formId: formData.id,
-                  patientId,
-                  mode,
-                  ...(reference ? { providerReference: reference } : {})
-                }),
+                body: JSON.stringify({ providerId: submissionProviderId })
               });
-              newlyCreated = true;
+              current = loadResult.session;
             }
 
-            if (newlyCreated) {
-              if (mode !== 'create') {
-                const submissionProviderId = formData.canonical_json?.settings?.submission?.providerId || 'ehrbase';
-                const loadResult = await request<{ session: SessionRecord }>(`/form-sessions/${current.id}/provider/load`, {
-                  method: 'POST',
-                  body: JSON.stringify({ providerId: submissionProviderId })
-                });
-                current = loadResult.session;
-              }
-            }
-
+            baselinePendingRef.current = true;
             setSession(current);
             setDraftValues(current.values || {});
-            setLastSavedSignature(JSON.stringify(current.values || {}));
+            setLastSavedSignature(JSON.stringify(current.values || {})); // provisional - see baselinePendingRef
             if (current.status === 'submitted') setSubmitted(true);
 
             publishEmbedEvent('loaded', formData.id, current.id);
@@ -449,152 +540,194 @@ export default function LiveForm() {
     return () => observer.disconnect();
   }, [isEmbedded, form?.id, session?.id]);
 
-  if (loading) return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif' }}>Lade Live Formular...</div>;
-  if (error) return <div style={{ padding: '2rem', color: '#b91c1c', fontFamily: 'sans-serif' }}>{error}</div>;
-  if (!form) return <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>Formular nicht gefunden.</div>;
+  const pageStyle = isEmbedded
+    ? { width: '100%', height: '100%', background: 'var(--bg-body, #f8fafc)', boxSizing: 'border-box' as const }
+    : { width: '100vw', minHeight: '100vh', background: 'var(--bg-body, #f8fafc)', padding: '1.5rem 1rem', boxSizing: 'border-box' as const, fontFamily: 'var(--font-family, sans-serif)' };
+
+  if (loading) {
+    return (
+      <div style={{ ...pageStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', color: 'var(--text-muted, #64748b)' }}>
+        <Loader2 size={18} className="lf-spin" /> Lade Live Formular…
+        <style>{'.lf-spin{animation:lf-spin 0.9s linear infinite}@keyframes lf-spin{to{transform:rotate(360deg)}}'}</style>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div style={pageStyle}>
+        <div className="card" style={{ maxWidth: 560, margin: '2rem auto', display: 'flex', gap: '0.75rem', color: 'var(--danger, #ef4444)' }}>
+          <XCircle size={20} style={{ flexShrink: 0, marginTop: '0.1rem' }} />
+          <span>{error}</span>
+        </div>
+      </div>
+    );
+  }
+  if (!form) {
+    return (
+      <div style={pageStyle}>
+        <div className="card" style={{ maxWidth: 560, margin: '2rem auto', textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
+          Formular nicht gefunden.
+        </div>
+      </div>
+    );
+  }
 
   const status = clinicalStatusLabel(session, saveState);
-  const statusColor = TONE_COLORS[status.tone];
   const isModifyingComplete = Boolean(session && session.lifecycleState === 'complete' && !submitted);
   const isWithdrawn = session?.lifecycleState === 'deleted';
 
   return (
-    <div style={isEmbedded ? { width: '100%', height: '100%', background: '#f8fafc', boxSizing: 'border-box' } : { width: '100vw', minHeight: '100vh', background: '#f8fafc', padding: '1rem', boxSizing: 'border-box' }}>
+    <div style={pageStyle}>
+      <style>{'.lf-spin{animation:lf-spin 0.9s linear infinite}@keyframes lf-spin{to{transform:rotate(360deg)}} .lf-radio{display:flex;align-items:center;gap:0.5rem;padding:0.6rem 0.75rem;border:1px solid var(--border,#e2e8f0);border-radius:8px;cursor:pointer;font-size:0.88rem;flex:1;min-width:220px}.lf-radio:has(input:checked){border-color:var(--primary,#4f46e5);background:var(--primary-light,#e0e7ff)}'}</style>
       {!session ? (
-        <div style={{ maxWidth: '640px', margin: '2rem auto', padding: '2rem', background: '#fff', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-          <h1 style={{ margin: '0 0 1rem 0', fontFamily: 'sans-serif' }}>{form.name}</h1>
-          <p style={{ fontFamily: 'sans-serif', color: '#64748b' }}>
+        <div className="card" style={{ maxWidth: '640px', margin: '2rem auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+            <FileText size={22} color="var(--primary, #4f46e5)" />
+            <h1 style={{ margin: 0, fontSize: '1.3rem' }}>{form.name}</h1>
+          </div>
+          <p style={{ color: 'var(--text-muted, #64748b)', lineHeight: 1.6 }}>
             Bitte übergeben Sie eine <code>patientId</code> oder <code>ehrId</code> per URL-Parameter, um das Formular zu starten.
             <br/><br/>
             Beispiel: <code>?ehrId=838d21b7-781e-450f-9f7a-8dd2d1234567</code>
           </p>
         </div>
       ) : (
-        <div style={isEmbedded ? { width: '100%' } : { maxWidth: '960px', margin: '0 auto' }}>
+        <div style={isEmbedded ? { width: '100%' } : { maxWidth: '880px', margin: '0 auto' }}>
           {!isEmbedded && !submitted && !isWithdrawn && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0.6rem 1rem', background: statusColor.bg, color: statusColor.fg, border: `1px solid ${statusColor.border}`, borderRadius: '8px', fontFamily: 'sans-serif', fontSize: '0.9rem' }}>
-              <span><strong>{status.text}</strong></span>
-              <button
-                onClick={() => saveDraftNow()}
-                disabled={saveState === 'saving' || session.mode === 'view'}
-                style={{ background: 'transparent', border: `1px solid ${statusColor.fg}`, color: statusColor.fg, padding: '0.35rem 0.9rem', borderRadius: '6px', cursor: saveState === 'saving' ? 'default' : 'pointer', fontSize: '0.85rem' }}
-              >
-                Entwurf speichern
-              </button>
+            <div className="card" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                <FileText size={20} color="var(--primary, #4f46e5)" style={{ flexShrink: 0 }} />
+                <div style={{ minWidth: 0 }}>
+                  <strong style={{ display: 'block', fontSize: '1.05rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{form.name}</strong>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #64748b)' }}>
+                    Patient: {session.patientId}{session.ehrId ? ` · EHR ${session.ehrId.slice(0, 8)}…` : ''}
+                  </span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <StatusPill tone={status.tone} text={status.text} saveState={saveState} />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => saveDraftNow()}
+                  disabled={saveState === 'saving' || session.mode === 'view'}
+                >
+                  <Save size={15} /> Entwurf speichern
+                </button>
+                <button className="btn btn-secondary" onClick={() => setHistoryOpen((open) => !open)}>
+                  <History size={15} /> Verlauf
+                </button>
+              </div>
             </div>
           )}
 
-          {!isEmbedded && (
-            <div style={{ marginBottom: '1rem' }}>
-              <button
-                onClick={() => setHistoryOpen((open) => !open)}
-                style={{ background: 'transparent', border: '1px solid #cbd5e1', color: '#334155', padding: '0.35rem 0.9rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'sans-serif' }}
-              >
-                {historyOpen ? 'Verlauf ausblenden' : 'Verlauf anzeigen'}
-              </button>
-              {historyOpen && (
-                <div style={{ marginTop: '0.5rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 1rem' }}>
-                  <div style={{ fontWeight: 700, fontFamily: 'sans-serif', marginBottom: '0.4rem' }}>Dokumenthistorie</div>
-                  <CompositionHistoryPanel
-                    sessionId={session.id}
-                    refreshKey={session.revision}
-                    onOpenVersion={setOpenHistoricalVersion}
-                    onCompare={(from, to) => setCompareVersions({ from, to })}
-                  />
-                </div>
-              )}
+          {!isEmbedded && historyOpen && (
+            <div className="card">
+              <div style={{ fontWeight: 700, marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <History size={16} /> Dokumenthistorie
+              </div>
+              <CompositionHistoryPanel
+                sessionId={session.id}
+                refreshKey={session.revision}
+                onOpenVersion={setOpenHistoricalVersion}
+                onCompare={(from, to) => setCompareVersions({ from, to })}
+              />
             </div>
           )}
 
           {saveState === 'conflict' && (
-            <div style={{ padding: '1rem', marginBottom: '1rem', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '8px', fontFamily: 'sans-serif' }}>
-              <strong>Diese Dokumentation wurde inzwischen von anderer Stelle geändert.</strong>
-              <p style={{ margin: '0.5rem 0' }}>Ihre lokalen Änderungen sind nicht verloren, wurden aber noch nicht gespeichert. Laden Sie die neue Version, bevor Sie weiterarbeiten - ein automatisches Zusammenführen findet nicht statt.</p>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button onClick={reloadLatestVersion} style={{ background: '#b91c1c', color: '#fff', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer' }}>Neue Version laden</button>
-                <button onClick={() => setSaveState('dirty')} style={{ background: 'transparent', border: '1px solid #b91c1c', color: '#b91c1c', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer' }}>Weiter bearbeiten</button>
-              </div>
-            </div>
+            <AlertCard
+              tone="error"
+              title="Diese Dokumentation wurde inzwischen von anderer Stelle geändert."
+              actions={<>
+                <button className="btn btn-danger" onClick={reloadLatestVersion}>Neue Version laden</button>
+                <button className="btn btn-secondary" onClick={() => setSaveState('dirty')}>Weiter bearbeiten</button>
+              </>}
+            >
+              Ihre lokalen Änderungen sind nicht verloren, wurden aber noch nicht gespeichert. Laden Sie die neue Version, bevor Sie weiterarbeiten - ein automatisches Zusammenführen findet nicht statt.
+            </AlertCard>
           )}
 
           {validationIssues && validationIssues.length > 0 && (
-            <div style={{ padding: '1rem', marginBottom: '1rem', background: '#fef9c3', color: '#854d0e', border: '1px solid #fde68a', borderRadius: '8px', fontFamily: 'sans-serif' }}>
-              <strong>{validationIssues.length} Angabe(n) verhindern das Finalisieren:</strong>
-              <ul style={{ margin: '0.5rem 0 0 1.2rem', padding: 0 }}>
+            <AlertCard tone="warning" title={`${validationIssues.length} Angabe(n) verhindern das Finalisieren`}>
+              <ul style={{ margin: '0.25rem 0 0 1.1rem', padding: 0 }}>
                 {validationIssues.map((issue, index) => <li key={index}>{issue.path ? `${issue.path}: ` : ''}{issue.message}</li>)}
               </ul>
-            </div>
+            </AlertCard>
           )}
 
           {isWithdrawn && (
-            <div style={{ padding: '1rem', marginBottom: '1rem', background: '#fef9c3', color: '#854d0e', border: '1px solid #fde68a', borderRadius: '8px', fontFamily: 'sans-serif' }}>
-              Dieses Dokument wurde zurückgezogen.
-            </div>
+            <AlertCard tone="warning" title="Dieses Dokument wurde zurückgezogen." />
           )}
 
           {isModifyingComplete && (
-            <div style={{ padding: '1rem', marginBottom: '1rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', fontFamily: 'sans-serif' }}>
-              <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Art der Änderung</div>
-              <label style={{ marginRight: '1.5rem' }}>
-                <input type="radio" name="changeType" checked={changeType === 'modification'} onChange={() => setChangeType('modification')} /> Routinemäßige Aktualisierung
-              </label>
-              <label>
-                <input type="radio" name="changeType" checked={changeType === 'amendment'} onChange={() => setChangeType('amendment')} /> Korrektur eines Dokumentationsfehlers
-              </label>
-              <div style={{ marginTop: '0.6rem' }}>
-                <input
-                  type="text"
-                  placeholder="Grund der Änderung (optional)"
-                  value={changeDescription}
-                  onChange={(event) => setChangeDescription(event.target.value)}
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }}
-                />
+            <div className="card">
+              <div className="form-label" style={{ marginBottom: '0.6rem' }}>Art der Änderung</div>
+              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <label className="lf-radio">
+                  <input type="radio" name="changeType" checked={changeType === 'modification'} onChange={() => setChangeType('modification')} />
+                  Routinemäßige Aktualisierung
+                </label>
+                <label className="lf-radio">
+                  <input type="radio" name="changeType" checked={changeType === 'amendment'} onChange={() => setChangeType('amendment')} />
+                  Korrektur eines Dokumentationsfehlers
+                </label>
               </div>
+              <input
+                className="form-input"
+                type="text"
+                placeholder="Grund der Änderung (optional)"
+                value={changeDescription}
+                onChange={(event) => setChangeDescription(event.target.value)}
+                style={{ marginTop: '0.75rem' }}
+              />
             </div>
           )}
 
           {submitted && (
-            <div style={{ padding: '1.5rem', marginBottom: '1.5rem', background: '#dcfce7', color: '#15803d', borderRadius: '8px', border: '1px solid #bbf7d0', fontFamily: 'sans-serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <strong style={{ fontSize: '1.1rem' }}>Formular erfolgreich abgesendet.</strong>
-                <div style={{ marginTop: '0.35rem', fontSize: '0.8rem', overflowWrap: 'anywhere' }}>
-                  Patient-ID: {session.patientId}
-                  {session.ehrId ? ` · EHR-ID: ${session.ehrId}` : ''}
-                  {session.providerReference ? ` · Referenz: ${session.providerReference}` : ''}
-                </div>
-              </div>
-              {searchParams.get('returnUrl') && (
+            <AlertCard
+              tone="positive"
+              title="Formular erfolgreich abgesendet."
+              actions={searchParams.get('returnUrl') ? (
                 <button
+                  className="btn"
                   onClick={() => guardedNavigate(() => {
                     const url = searchParams.get('returnUrl')!;
                     if (url.startsWith('http')) window.location.href = url;
                     else navigate(url);
                   })}
-                  style={{ background: '#166534', color: 'white', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
                 >
-                  Zurück zur Übersicht
+                  <ArrowLeft size={15} /> Zurück zur Übersicht
                 </button>
-              )}
-            </div>
+              ) : undefined}
+            >
+              <span style={{ overflowWrap: 'anywhere' }}>
+                Patient-ID: {session.patientId}
+                {session.ehrId ? ` · EHR-ID: ${session.ehrId}` : ''}
+                {session.providerReference ? ` · Referenz: ${session.providerReference}` : ''}
+              </span>
+            </AlertCard>
           )}
-          <FormRuntime
-            ref={runtimeRef}
-            definition={form.canonical_json}
-            initialValues={session.values}
-            patientId={session.patientId}
-            ehrId={session.ehrId}
-            encounterId={searchParams.get('encounterId') || undefined}
-            sessionId={session.id}
-            hiddenFieldIds={(searchParams.get('hiddenFieldIds') || '').split(',').map((id) => id.trim()).filter(Boolean)}
-            runtimeContext={session.runtimeContext}
-            readOnly={submitted || session.mode === 'view' || isWithdrawn}
-            busy={busy}
-            submitLabel={submitted ? 'Abgesendet' : (isModifyingComplete ? 'Änderung finalisieren' : 'Finalisieren')}
-            showSubmit={!isEmbedded && !isWithdrawn}
-            onValuesChange={setDraftValues}
-            onSubmit={handleSubmit}
-            mode={session.mode || 'create'}
-          />
+
+          <div className={isEmbedded ? undefined : 'card'} style={isEmbedded ? undefined : { padding: '1.5rem' }}>
+            <FormRuntime
+              ref={runtimeRef}
+              definition={form.canonical_json}
+              initialValues={session.values}
+              patientId={session.patientId}
+              ehrId={session.ehrId}
+              encounterId={searchParams.get('encounterId') || undefined}
+              sessionId={session.id}
+              hiddenFieldIds={(searchParams.get('hiddenFieldIds') || '').split(',').map((id) => id.trim()).filter(Boolean)}
+              runtimeContext={session.runtimeContext}
+              readOnly={submitted || session.mode === 'view' || isWithdrawn}
+              busy={busy}
+              submitLabel={submitted ? 'Abgesendet' : (isModifyingComplete ? 'Änderung finalisieren' : 'Finalisieren')}
+              showSubmit={!isEmbedded && !isWithdrawn}
+              onValuesChange={handleValuesChange}
+              onSubmit={handleSubmit}
+              mode={session.mode || 'create'}
+            />
+          </div>
           <PluginHost
             slot="runtime"
             title="Aktionen"
@@ -612,19 +745,17 @@ export default function LiveForm() {
           />
 
           {!isEmbedded && session.lifecycleState === 'complete' && !isWithdrawn && (
-            <div style={{ marginTop: '1.5rem', textAlign: 'right' }}>
-              <button
-                onClick={() => setWithdrawOpen(true)}
-                style={{ background: 'transparent', border: '1px solid #b91c1c', color: '#b91c1c', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontFamily: 'sans-serif' }}
-              >
-                Dokument zurückziehen
+            <div style={{ marginTop: '1rem', textAlign: 'right' }}>
+              <button className="btn btn-danger" onClick={() => setWithdrawOpen(true)}>
+                <Undo2 size={15} /> Dokument zurückziehen
               </button>
             </div>
           )}
 
           {!isEmbedded && (
             <details
-              style={{ marginTop: '1.5rem', fontFamily: 'monospace', fontSize: '0.75rem', color: '#64748b' }}
+              className="card"
+              style={{ marginTop: '1rem', fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}
               onToggle={(event) => {
                 // Lazy, on-demand only (§28/§29) - the current version's own
                 // audit metadata (composer/committer/contribution/preceding
@@ -637,8 +768,8 @@ export default function LiveForm() {
                 }
               }}
             >
-              <summary style={{ cursor: 'pointer', fontFamily: 'sans-serif' }}>Clinical Editing (Entwickler-Inspektor)</summary>
-              <div style={{ marginTop: '0.5rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.25rem 1rem' }}>
+              <summary style={{ cursor: 'pointer', fontFamily: 'var(--font-family, sans-serif)', fontWeight: 600, color: 'var(--text-main, #0f172a)' }}>Clinical Editing (Entwickler-Inspektor)</summary>
+              <div style={{ marginTop: '0.75rem', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.3rem 1rem' }}>
                 <span>Composition UID</span><span style={{ overflowWrap: 'anywhere' }}>{session.providerReference || '—'}</span>
                 <span>Version UID (Base)</span><span style={{ overflowWrap: 'anywhere' }}>{session.baseVersionUid || '—'}</span>
                 <span>Draft Reference</span><span style={{ overflowWrap: 'anywhere' }}>{session.draftReference || '—'}</span>
@@ -660,27 +791,22 @@ export default function LiveForm() {
       )}
 
       {pendingNav && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: '10px', padding: '1.5rem', maxWidth: '420px', fontFamily: 'sans-serif', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ marginTop: 0 }}>Ungespeicherte Änderungen</h3>
-            <p style={{ color: '#475569' }}>Sie haben nicht gespeicherte Änderungen an diesem Formular. Wie möchten Sie fortfahren?</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
-              <button onClick={() => setPendingNav(null)} style={{ padding: '0.6rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Weiter bearbeiten</button>
-              <button
-                onClick={async () => { const go = pendingNav; setPendingNav(null); await saveDraftNow(); go?.(); }}
-                style={{ padding: '0.6rem', borderRadius: '6px', border: 'none', background: '#2563eb', color: '#fff', cursor: 'pointer' }}
-              >
-                Entwurf speichern und verlassen
-              </button>
-              <button
-                onClick={() => { const go = pendingNav; setPendingNav(null); go?.(); }}
-                style={{ padding: '0.6rem', borderRadius: '6px', border: '1px solid #b91c1c', background: '#fff', color: '#b91c1c', cursor: 'pointer' }}
-              >
-                Änderungen verwerfen und verlassen
-              </button>
-            </div>
+        <Modal>
+          <h3 style={{ marginTop: 0 }}>Ungespeicherte Änderungen</h3>
+          <p style={{ color: 'var(--text-muted, #475569)' }}>Sie haben nicht gespeicherte Änderungen an diesem Formular. Wie möchten Sie fortfahren?</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+            <button className="btn btn-secondary" onClick={() => setPendingNav(null)}>Weiter bearbeiten</button>
+            <button
+              className="btn"
+              onClick={async () => { const go = pendingNav; setPendingNav(null); await saveDraftNow(); go?.(); }}
+            >
+              <Save size={15} /> Entwurf speichern und verlassen
+            </button>
+            <button className="btn btn-danger" onClick={() => { const go = pendingNav; setPendingNav(null); go?.(); }}>
+              Änderungen verwerfen und verlassen
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
 
       {openHistoricalVersion && session && (
@@ -704,25 +830,25 @@ export default function LiveForm() {
       )}
 
       {withdrawOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: '10px', padding: '1.5rem', maxWidth: '420px', fontFamily: 'sans-serif', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ marginTop: 0 }}>Dokument zurückziehen</h3>
-            <p style={{ color: '#475569' }}>Das Dokument wird als zurückgezogen markiert. Die bisherige Version bleibt im Verlauf erhalten, gilt aber nicht mehr als aktuell.</p>
-            <input
-              type="text"
-              placeholder="Grund (optional)"
-              value={withdrawReason}
-              onChange={(event) => setWithdrawReason(event.target.value)}
-              style={{ width: '100%', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box', marginBottom: '1rem' }}
-            />
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <button onClick={() => setWithdrawOpen(false)} disabled={withdrawing} style={{ padding: '0.5rem 1rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Abbrechen</button>
-              <button onClick={withdrawNow} disabled={withdrawing} style={{ padding: '0.5rem 1rem', borderRadius: '6px', border: 'none', background: '#b91c1c', color: '#fff', cursor: 'pointer' }}>
-                {withdrawing ? 'Wird zurückgezogen…' : 'Zurückziehen'}
-              </button>
-            </div>
+        <Modal>
+          <h3 style={{ marginTop: 0 }}>Dokument zurückziehen</h3>
+          <p style={{ color: 'var(--text-muted, #475569)' }}>Das Dokument wird als zurückgezogen markiert. Die bisherige Version bleibt im Verlauf erhalten, gilt aber nicht mehr als aktuell.</p>
+          <input
+            className="form-input"
+            type="text"
+            placeholder="Grund (optional)"
+            value={withdrawReason}
+            onChange={(event) => setWithdrawReason(event.target.value)}
+            style={{ marginBottom: '1rem' }}
+          />
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+            <button className="btn btn-secondary" onClick={() => setWithdrawOpen(false)} disabled={withdrawing}>Abbrechen</button>
+            <button className="btn btn-danger" onClick={withdrawNow} disabled={withdrawing} style={{ background: 'var(--danger, #ef4444)', color: '#fff' }}>
+              {withdrawing ? <Loader2 size={15} className="lf-spin" /> : <Undo2 size={15} />}
+              {withdrawing ? 'Wird zurückgezogen…' : 'Zurückziehen'}
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

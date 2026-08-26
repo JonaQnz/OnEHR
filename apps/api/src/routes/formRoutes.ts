@@ -162,8 +162,35 @@ async function assertCompositionDependencies(definition: ReturnType<typeof migra
   }
 }
 
-router.get('/', asyncHandler(async (_req, res) => {
-  res.json(await prisma.form.findMany());
+router.get('/', asyncHandler(async (req, res) => {
+  // Both optional and additive - an unfiltered, non-summary call behaves
+  // exactly as before for existing callers (the Designer's own form list
+  // relies on the full shape). `status` and `summary` exist specifically so
+  // "what published forms exist" doesn't have to transfer every draft/
+  // archived/deleted version's full compiled formScript/sourcemaps just to
+  // answer that - a project with real history otherwise blows well past
+  // typical response-size limits for what should be a routine listing.
+  const statusParam = typeof req.query.status === 'string' ? req.query.status : undefined;
+  const statuses = statusParam ? statusParam.split(',').map((value) => value.trim()).filter(Boolean) : undefined;
+  const summary = req.query.summary === 'true';
+  const forms = await prisma.form.findMany({
+    where: statuses && statuses.length > 0 ? { status: { in: statuses } } : undefined,
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!summary) { res.json(forms); return; }
+  res.json(forms.map((form) => {
+    const canonical = form.canonical_json as { extensions?: Record<string, unknown> } | null;
+    return {
+      id: form.id,
+      parent_id: form.parent_id,
+      name: form.name,
+      version: form.version,
+      status: form.status,
+      kind: canonical?.extensions?.['watehr.composition'] ? 'composition' : 'form',
+      createdAt: form.createdAt,
+      updatedAt: form.updatedAt,
+    };
+  }));
 }));
 
 router.post('/', asyncHandler(async (req, res) => {
@@ -400,10 +427,27 @@ router.post('/:id/publish', asyncHandler(async (req, res) => {
   }, formId));
   await assertCompositionDependencies(canonicalForm, formId);
   const compiledDefinition = compileDefinitionScripts(canonicalForm);
-  const published = await prisma.form.update({ 
-    where: { id: formId }, 
-    data: { status: 'published', version: newVersion, canonical_json: compiledDefinition as any }
+  const parentId = form.parent_id || form.id;
+  // At most one published version per form identity is the invariant every
+  // consumer of `status` already assumes (latest-published lookups, the
+  // "published" filter on the form list) - archiving is otherwise a
+  // separate manual action, easy to forget, which silently produced two
+  // simultaneously "published" versions of the same form with no way for a
+  // filter-by-status caller to tell which one is actually current. Publish
+  // and supersede as one atomic step instead of trusting a follow-up click.
+  const supersededSiblings = await prisma.form.findMany({
+    where: { parent_id: parentId, status: 'published', id: { not: formId } },
   });
+  const [published] = await prisma.$transaction([
+    prisma.form.update({
+      where: { id: formId },
+      data: { status: 'published', version: newVersion, canonical_json: compiledDefinition as any },
+    }),
+    ...supersededSiblings.map((sibling) => prisma.form.update({
+      where: { id: sibling.id },
+      data: { status: 'archived', canonical_json: { ...(sibling.canonical_json as any), status: 'archived' } },
+    })),
+  ]);
   res.json({ message: 'Form published', form: published });
 }));
 

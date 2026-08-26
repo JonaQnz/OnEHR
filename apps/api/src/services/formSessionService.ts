@@ -25,10 +25,10 @@ import { EhrbaseProviderError } from './ehrbaseDataProvider';
 import { N8nProviderError } from './n8nDataProvider';
 import { getCompositionRepository } from './compositionRepository';
 import { recordCompositionVersionEvent } from './compositionVersionEvents';
-import { getPluginSettings } from './configService';
+import { getConfig, getPluginSettings } from './configService';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 import type { PluginHookName, PluginHookResult } from 'plugin-api';
-import { resolvePatientReference } from './patientService';
+import { markPatientHasPersonArchetype, resolvePatientReference } from './patientService';
 import { buildSessionRuntimeContext } from './aqlFunctionService';
 
 export interface SessionActor {
@@ -44,6 +44,9 @@ export interface CreateSessionInput {
   mode?: FormRuntimeMode;
   providerId?: string;
   providerReference?: string;
+  /** Skips the resumable-session reuse below and always creates a fresh one -
+   * only meaningful for edit/prefill (create/view never reuse regardless). */
+  forceNew?: boolean;
 }
 type SessionHookInput = {
   name: PluginHookName;
@@ -330,6 +333,38 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
   if (!form) throw new HttpError(404, 'Form not found');
   const mode = input.mode === undefined ? 'create' : input.mode;
   if (!isFormRuntimeMode(mode)) throw new HttpError(400, 'mode must be create, edit, view, or prefill');
+
+  // Editing (or resuming a prefill of) something that already exists should
+  // never spawn a second, disconnected editing attempt at the same
+  // composition just because the user opened it again - unlike `create`,
+  // where every launch is deliberately a brand-new clinical event and must
+  // keep creating fresh sessions. Reuse is scoped to this user's own,
+  // still-open (non-terminal) sessions for the same form+patient+mode; when
+  // a specific composition is targeted (providerReference), it's matched by
+  // base composition uid, not the full versioned reference (which changes
+  // on every save) or object identity/string format.
+  if ((mode === 'edit' || mode === 'prefill') && !input.forceNew) {
+    const targetCompositionUid = compositionUidFromReference(input.providerReference);
+    const candidates = await prisma.formSession.findMany({
+      where: {
+        formId,
+        patientId: patient.patientId,
+        patientNamespace: patient.patientNamespace || null,
+        userId: actor.userId,
+        mode,
+        status: { notIn: ['submitted', 'cancelled'] },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const reusable = targetCompositionUid
+      ? candidates.find((candidate) => {
+        const candidateUid = compositionUidFromReference(candidate.providerReference) || compositionUidFromReference(candidate.draftReference);
+        return candidateUid === targetCompositionUid;
+      })
+      : candidates[0];
+    if (reusable) return publicSession(reusable, undefined, patient);
+  }
+
   const record = await prisma.formSession.create({ data: {
     formId,
     formVersion: form.version,
@@ -370,8 +405,16 @@ export async function getFormSession(id: string, actor: SessionActor): Promise<F
 
 export async function listFormSessions(actor: SessionActor, patientId?: string, formId?: string): Promise<FormSession[]> {
   const formFilter = formId ? { formId } : {};
+  // A caller may reasonably pass the internal registry id, the ehrId, or
+  // the external MRN here - every other patient-identifying parameter in
+  // this API (launch_form, start_composition_session, ...) already accepts
+  // any of the three via resolvePatientReference(); FormSession.patientId
+  // itself is only ever stored as the external MRN, so resolve whatever was
+  // passed down to that same canonical value before filtering, instead of
+  // silently returning an empty list for two of the three valid forms.
+  const resolvedPatientId = patientId ? (await resolvePatientReference(patientId))?.patientId || patientId : undefined;
   const records = await prisma.formSession.findMany({
-    where: actor.userId === 'anonymous' ? { ...(patientId ? { patientId } : {}), ...formFilter } : { userId: actor.userId, ...(patientId ? { patientId } : {}), ...formFilter },
+    where: actor.userId === 'anonymous' ? { ...(resolvedPatientId ? { patientId: resolvedPatientId } : {}), ...formFilter } : { userId: actor.userId, ...(resolvedPatientId ? { patientId: resolvedPatientId } : {}), ...formFilter },
     orderBy: { updatedAt: 'desc' },
   });
   return Promise.all(records.map(async (record) => {
@@ -739,6 +782,13 @@ export async function submitFormSessionToProvider(
       changeType: desiredChangeType,
       changeDescription,
     });
+  }
+  // A successful submit of the registry's own Person template is exactly
+  // the moment hasPersonArchetype should flip - don't leave it stale until
+  // someone thinks to trigger a full syncPatientsFromEhrbase() sweep.
+  const submittedTemplateId = input.form.definition.sourceTemplates?.[0]?.id;
+  if (result.metadata?.ehrId && submittedTemplateId && submittedTemplateId === getConfig().patientRegistryPersonTemplateId) {
+    void markPatientHasPersonArchetype(result.metadata.ehrId).catch((error) => console.warn('[formSessionService] Could not refresh hasPersonArchetype after submit:', error instanceof Error ? error.message : error));
   }
   return {
     session: publicSession(

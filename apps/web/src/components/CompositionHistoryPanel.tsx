@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { CHANGE_TYPE_LABELS, LIFECYCLE_STATE_LABELS, type CompositionVersion } from 'core';
 
 const API = 'http://localhost:3001/api';
@@ -49,38 +50,36 @@ export default function CompositionHistoryPanel({ sessionId, refreshKey, onOpenV
     return () => { cancelled = true; };
   }, [sessionId, refreshKey]);
 
-  if (loading) return <div style={{ padding: '1rem', color: '#64748b', fontFamily: 'sans-serif', fontSize: '0.9rem' }}>Lade Historie…</div>;
+  if (loading) return <div style={{ padding: '1rem', color: 'var(--text-muted, #64748b)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Loader2 size={15} className="lf-spin" /> Lade Historie…</div>;
   // A history load failure must never make the current form unusable (§30) -
   // this panel simply shows its own error state, nothing else on the page
   // is affected.
-  if (error) return <div style={{ padding: '1rem', color: '#b91c1c', fontFamily: 'sans-serif', fontSize: '0.9rem' }}>{error}</div>;
-  if (!versions || versions.length === 0) return <div style={{ padding: '1rem', color: '#64748b', fontFamily: 'sans-serif', fontSize: '0.9rem' }}>Keine Historie vorhanden.</div>;
+  if (error) return <div style={{ padding: '1rem', color: 'var(--danger, #ef4444)', fontSize: '0.9rem' }}>{error}</div>;
+  if (!versions || versions.length === 0) return <div style={{ padding: '1rem', color: 'var(--text-muted, #64748b)', fontSize: '0.9rem' }}>Keine Historie vorhanden.</div>;
 
   return (
-    <div style={{ fontFamily: 'sans-serif', fontSize: '0.85rem' }}>
+    <div style={{ fontSize: '0.85rem' }}>
       {versions.map((version, index) => {
         const previous = versions[index + 1];
         return (
-          <div key={version.versionUid} style={{ padding: '0.75rem 0', borderBottom: index < versions.length - 1 ? '1px solid #e2e8f0' : 'none' }}>
+          <div key={version.versionUid} style={{ padding: '0.75rem 0', borderBottom: index < versions.length - 1 ? '1px solid var(--border, #e2e8f0)' : 'none' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem' }}>
               <strong>v{version.versionNumber ?? '?'}</strong>
-              <span style={{ color: '#64748b', fontSize: '0.8rem' }}>{formatTimestamp(version.committedAt)}</span>
+              <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '0.8rem' }}>{formatTimestamp(version.committedAt)}</span>
             </div>
             <div style={{ marginTop: '0.15rem' }}>{version.committer?.name || 'Unbekannt'}</div>
-            <div style={{ marginTop: '0.15rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-              <span style={{ padding: '0.1rem 0.5rem', borderRadius: '999px', background: '#f1f5f9', color: '#334155', fontSize: '0.75rem' }}>
-                {CHANGE_TYPE_LABELS[version.changeType]}
-              </span>
-              <span style={{ padding: '0.1rem 0.5rem', borderRadius: '999px', background: '#f1f5f9', color: '#334155', fontSize: '0.75rem' }}>
+            <div style={{ marginTop: '0.3rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <span className="badge badge-draft">{CHANGE_TYPE_LABELS[version.changeType]}</span>
+              <span className="badge badge-draft">
                 {LIFECYCLE_STATE_LABELS[version.lifecycleState]}
                 {!version.lifecycleConfirmed ? ' (nicht bestätigt)' : ''}
               </span>
             </div>
-            {version.changeDescription && <div style={{ marginTop: '0.3rem', color: '#475569' }}>Grund: {version.changeDescription}</div>}
-            <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.5rem' }}>
-              <button onClick={() => onOpenVersion(version.versionUid)} style={{ background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.25rem 0.6rem', cursor: 'pointer', fontSize: '0.78rem' }}>Öffnen</button>
+            {version.changeDescription && <div style={{ marginTop: '0.4rem', color: 'var(--text-muted, #475569)' }}>Grund: {version.changeDescription}</div>}
+            <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
+              <button className="btn btn-secondary" style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }} onClick={() => onOpenVersion(version.versionUid)}>Öffnen</button>
               {previous && (
-                <button onClick={() => onCompare(previous.versionUid, version.versionUid)} style={{ background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.25rem 0.6rem', cursor: 'pointer', fontSize: '0.78rem' }}>
+                <button className="btn btn-secondary" style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }} onClick={() => onCompare(previous.versionUid, version.versionUid)}>
                   Mit vorheriger Version vergleichen
                 </button>
               )}
@@ -89,22 +88,23 @@ export default function CompositionHistoryPanel({ sessionId, refreshKey, onOpenV
         );
       })}
 
-      <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0' }}>
-        <div style={{ fontWeight: 600, marginBottom: '0.4rem' }}>Versionen vergleichen</div>
+      <div style={{ marginTop: '1rem', paddingTop: '0.9rem', borderTop: '1px solid var(--border, #e2e8f0)' }}>
+        <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Versionen vergleichen</div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <select value={pickFrom} onChange={(event) => setPickFrom(event.target.value)} style={{ padding: '0.3rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+          <select className="form-input" style={{ width: 'auto', padding: '0.4rem 0.6rem' }} value={pickFrom} onChange={(event) => setPickFrom(event.target.value)}>
             <option value="">Von…</option>
             {versions.map((version) => <option key={version.versionUid} value={version.versionUid}>v{version.versionNumber ?? '?'}</option>)}
           </select>
-          <span>→</span>
-          <select value={pickTo} onChange={(event) => setPickTo(event.target.value)} style={{ padding: '0.3rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+          <span style={{ color: 'var(--text-muted, #64748b)' }}>→</span>
+          <select className="form-input" style={{ width: 'auto', padding: '0.4rem 0.6rem' }} value={pickTo} onChange={(event) => setPickTo(event.target.value)}>
             <option value="">Mit…</option>
             {versions.map((version) => <option key={version.versionUid} value={version.versionUid}>v{version.versionNumber ?? '?'}</option>)}
           </select>
           <button
+            className="btn"
             onClick={() => pickFrom && pickTo && onCompare(pickFrom, pickTo)}
             disabled={!pickFrom || !pickTo}
-            style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', padding: '0.3rem 0.8rem', cursor: pickFrom && pickTo ? 'pointer' : 'default', opacity: pickFrom && pickTo ? 1 : 0.5 }}
+            style={{ opacity: pickFrom && pickTo ? 1 : 0.5 }}
           >
             Vergleichen
           </button>

@@ -21,6 +21,11 @@ export interface FormLaunchRequest {
   providerReference?: string;
   /** Lets a host opt into loading existing provider data before opening. */
   load?: FormLaunchLoadPolicy;
+  /** Skips reusing this user's own still-open edit/prefill session for the
+   * same form+patient(+composition) and always starts a fresh one. Default
+   * false - repeated launches resume the existing attempt instead of
+   * spawning a disconnected duplicate. Has no effect in create/view mode. */
+  forceNew?: boolean;
   /** Opaque host correlation value, returned in browser events but never persisted as clinical data. */
   launchId?: string;
   encounterId?: string;

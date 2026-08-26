@@ -19,8 +19,13 @@ function normalizeRows(data: unknown): AqlRow[] { return rowsFromResultSet(data)
 
 async function ehrSubject(ehrId: string): Promise<{ patientId?: string; namespace?: string }> {
   const { ehrbaseUrl, headers, auth } = await getEhrbaseRequestConfig();
-  const response = await axios.get(`${ehrbaseUrl}/ehr/${encodeURIComponent(ehrId)}`, { headers, ...(auth ? { auth } : {}) });
-  const ref = response.data?.ehr_status?.subject?.external_ref || response.data?.ehrStatus?.subject?.externalRef;
+  // GET /ehr/{ehr_id} only embeds an OBJECT_REF (namespace/type/id) for
+  // ehr_status on this deployment - confirmed live, never the actual
+  // EHR_STATUS body, so `.subject` is always undefined there. The real
+  // subject.external_ref (the external MRN this EHR was registered under -
+  // see createPatient()) only comes from the dedicated ehr_status resource.
+  const response = await axios.get(`${ehrbaseUrl}/ehr/${encodeURIComponent(ehrId)}/ehr_status`, { headers, ...(auth ? { auth } : {}) });
+  const ref = response.data?.subject?.external_ref || response.data?.subject?.externalRef;
   return { patientId: text(ref?.id?.value), namespace: text(ref?.namespace) };
 }
 
@@ -104,6 +109,19 @@ export async function syncPatientsFromEhrbase(force = false): Promise<number> {
     return synced;
   })().finally(() => { runningSync = undefined; });
   return runningSync;
+}
+
+/**
+ * Targeted, cheap local update for the one thing a successful submit of the
+ * registry's own Person template changes - flips hasPersonArchetype right
+ * away instead of leaving it stale until the next full
+ * syncPatientsFromEhrbase() sweep (which a clinician has no reason to think
+ * to trigger just after finishing an admission). `updateMany` rather than
+ * `update` so this is a safe no-op if the ehrId isn't a known patient row
+ * (e.g. a standalone session) or is already flagged.
+ */
+export async function markPatientHasPersonArchetype(ehrId: string): Promise<void> {
+  await prisma.patient.updateMany({ where: { ehrId, hasPersonArchetype: false }, data: { hasPersonArchetype: true } });
 }
 
 export async function createPatient(input: CreatePatientInput) {

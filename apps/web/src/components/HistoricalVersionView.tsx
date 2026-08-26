@@ -56,22 +56,22 @@ export default function HistoricalVersionView({ sessionId, versionUid, definitio
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '2rem' }}>
-      <div style={{ background: '#fff', borderRadius: '10px', maxWidth: '820px', width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)' }}>
-        <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff' }}>
+      <div className="card" style={{ margin: 0, padding: 0, maxWidth: '820px', width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: 'var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.2))' }}>
+        <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border, #e2e8f0)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--bg-card, #fff)' }}>
           <div>
-            <strong style={{ fontFamily: 'sans-serif' }}>Historische Version</strong>
-            <div style={{ fontSize: '0.8rem', color: '#b91c1c', fontFamily: 'sans-serif' }}>Diese Version ist schreibgeschützt.</div>
+            <strong>Historische Version</strong>
+            <div style={{ fontSize: '0.8rem', color: 'var(--warning, #b45309)' }}>Diese Version ist schreibgeschützt.</div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.4rem 0.9rem', cursor: 'pointer' }}>Schließen</button>
+          <button className="btn btn-secondary" onClick={onClose}>Schließen</button>
         </div>
         <div style={{ padding: '1.5rem' }}>
-          {loading && <div style={{ color: '#64748b', fontFamily: 'sans-serif' }}>Lade Version…</div>}
-          {error && <div style={{ color: '#b91c1c', fontFamily: 'sans-serif' }}>{error}</div>}
+          {loading && <div style={{ color: 'var(--text-muted, #64748b)' }}>Lade Version…</div>}
+          {error && <div style={{ color: 'var(--danger, #ef4444)' }}>{error}</div>}
           {detail && (
             <>
               {/* Audit Detail View (§23) - version metadata, distinct from the
                   clinical content rendered below. */}
-              <div style={{ marginBottom: '1.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.9rem 1.1rem', fontFamily: 'sans-serif', fontSize: '0.85rem', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.3rem 1rem' }}>
+              <div style={{ marginBottom: '1.5rem', background: 'var(--bg-sidebar, #f8fafc)', border: '1px solid var(--border, #e2e8f0)', borderRadius: '8px', padding: '0.9rem 1.1rem', fontSize: '0.85rem', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.3rem 1rem' }}>
                 <span>Version UID</span><span style={{ overflowWrap: 'anywhere' }}>{detail.version.versionUid}</span>
                 <span>Committed</span><span>{formatTimestamp(detail.version.committedAt)}</span>
                 <span>Committer</span><span>{detail.version.committer?.name || '—'}</span>
