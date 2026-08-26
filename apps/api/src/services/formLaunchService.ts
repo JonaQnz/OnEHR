@@ -52,9 +52,14 @@ export async function launchForm(input: FormLaunchRequest, actor: SessionActor):
     mode,
     values: load === 'never' ? initialValues : {},
     ...(input.providerReference ? { providerReference: nonEmptyText(input.providerReference, 'providerReference') } : {}),
+    forceNew: input.forceNew === true,
   }, actor);
+  // A resumed session (revision > 0) already has real provider/draft data -
+  // reloading here would silently overwrite whatever the user last saved
+  // with the server's current state, defeating the point of resuming.
+  const resumed = session.revision > 0;
 
-  if (load === 'provider') {
+  if (load === 'provider' && !resumed) {
     const providerId = (form.canonical_json as { settings?: { submission?: { providerId?: unknown } } })
       .settings?.submission?.providerId;
     const loaded = await loadFormSessionFromProvider(session.id, typeof providerId === 'string' ? providerId : 'ehrbase', actor);

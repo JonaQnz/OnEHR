@@ -26,18 +26,18 @@ function renderValue(value: unknown): string {
 
 function EntryRow({ entry }: { entry: SemanticDiffEntry }) {
   return (
-    <div style={{ padding: '0.5rem 0', borderBottom: '1px solid #f1f5f9' }}>
+    <div style={{ padding: '0.6rem 0', borderBottom: '1px solid var(--border, #f1f5f9)' }}>
       <div style={{ fontWeight: 600 }}>{entry.label || entry.path}</div>
-      {entry.change === 'added' && <div style={{ color: '#15803d' }}>+ {renderValue(entry.newValue)}</div>}
-      {entry.change === 'removed' && <div style={{ color: '#b91c1c' }}>− {renderValue(entry.oldValue)}</div>}
+      {entry.change === 'added' && <div style={{ color: 'var(--success-hover, #15803d)' }}>+ {renderValue(entry.newValue)}</div>}
+      {entry.change === 'removed' && <div style={{ color: 'var(--danger-hover, #dc2626)' }}>− {renderValue(entry.oldValue)}</div>}
       {entry.change === 'changed' && (
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: '#334155' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--text-main, #334155)' }}>
           <span>{renderValue(entry.oldValue)}</span>
-          <span>→</span>
+          <span style={{ color: 'var(--text-muted, #94a3b8)' }}>→</span>
           <span>{renderValue(entry.newValue)}</span>
         </div>
       )}
-      <div style={{ marginTop: '0.15rem', fontSize: '0.7rem', color: '#94a3b8', fontFamily: 'monospace' }}>
+      <div style={{ marginTop: '0.2rem', fontSize: '0.7rem', color: 'var(--text-muted, #94a3b8)', fontFamily: 'monospace' }}>
         {entry.path}{entry.archetypeNodeId ? ` · ${entry.archetypeNodeId}` : ''}{entry.rmType ? ` · ${entry.rmType}` : ''}
       </div>
     </div>
@@ -81,20 +81,20 @@ export default function CompositionDiffView({ sessionId, fromVersionUid, toVersi
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '2rem' }}>
-      <div style={{ background: '#fff', borderRadius: '10px', maxWidth: '640px', width: '100%', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)', fontFamily: 'sans-serif' }}>
-        <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff' }}>
+      <div className="card" style={{ margin: 0, padding: 0, maxWidth: '640px', width: '100%', maxHeight: '85vh', overflow: 'auto', boxShadow: 'var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.2))' }}>
+        <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border, #e2e8f0)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--bg-card, #fff)' }}>
           <strong>Version {fromVersion ?? '?'} → Version {toVersion ?? '?'}</strong>
-          <button onClick={onClose} style={{ background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.4rem 0.9rem', cursor: 'pointer' }}>Schließen</button>
+          <button className="btn btn-secondary" onClick={onClose}>Schließen</button>
         </div>
         <div style={{ padding: '1.5rem' }}>
-          {loading && <div style={{ color: '#64748b' }}>Erzeuge Vergleich…</div>}
-          {error && <div style={{ color: '#b91c1c' }}>{error}</div>}
+          {loading && <div style={{ color: 'var(--text-muted, #64748b)' }}>Erzeuge Vergleich…</div>}
+          {error && <div style={{ color: 'var(--danger, #ef4444)' }}>{error}</div>}
           {diff && (
             total === 0 ? (
-              <div style={{ color: '#64748b' }}>Keine fachlichen Änderungen zwischen diesen Versionen.</div>
+              <div style={{ color: 'var(--text-muted, #64748b)' }}>Keine fachlichen Änderungen zwischen diesen Versionen.</div>
             ) : (
               <>
-                <div style={{ marginBottom: '1rem', color: '#475569', fontSize: '0.85rem' }}>
+                <div style={{ marginBottom: '1rem', color: 'var(--text-muted, #475569)', fontSize: '0.85rem' }}>
                   {total} Änderung{total === 1 ? '' : 'en'} · {diff.changed.length} geändert · {diff.added.length} hinzugefügt · {diff.removed.length} entfernt
                 </div>
                 {diff.changed.length > 0 && (

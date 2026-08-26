@@ -44,6 +44,9 @@ export interface CreateSessionInput {
   mode?: FormRuntimeMode;
   providerId?: string;
   providerReference?: string;
+  /** Skips the resumable-session reuse below and always creates a fresh one -
+   * only meaningful for edit/prefill (create/view never reuse regardless). */
+  forceNew?: boolean;
 }
 type SessionHookInput = {
   name: PluginHookName;
@@ -330,6 +333,38 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
   if (!form) throw new HttpError(404, 'Form not found');
   const mode = input.mode === undefined ? 'create' : input.mode;
   if (!isFormRuntimeMode(mode)) throw new HttpError(400, 'mode must be create, edit, view, or prefill');
+
+  // Editing (or resuming a prefill of) something that already exists should
+  // never spawn a second, disconnected editing attempt at the same
+  // composition just because the user opened it again - unlike `create`,
+  // where every launch is deliberately a brand-new clinical event and must
+  // keep creating fresh sessions. Reuse is scoped to this user's own,
+  // still-open (non-terminal) sessions for the same form+patient+mode; when
+  // a specific composition is targeted (providerReference), it's matched by
+  // base composition uid, not the full versioned reference (which changes
+  // on every save) or object identity/string format.
+  if ((mode === 'edit' || mode === 'prefill') && !input.forceNew) {
+    const targetCompositionUid = compositionUidFromReference(input.providerReference);
+    const candidates = await prisma.formSession.findMany({
+      where: {
+        formId,
+        patientId: patient.patientId,
+        patientNamespace: patient.patientNamespace || null,
+        userId: actor.userId,
+        mode,
+        status: { notIn: ['submitted', 'cancelled'] },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const reusable = targetCompositionUid
+      ? candidates.find((candidate) => {
+        const candidateUid = compositionUidFromReference(candidate.providerReference) || compositionUidFromReference(candidate.draftReference);
+        return candidateUid === targetCompositionUid;
+      })
+      : candidates[0];
+    if (reusable) return publicSession(reusable, undefined, patient);
+  }
+
   const record = await prisma.formSession.create({ data: {
     formId,
     formVersion: form.version,
