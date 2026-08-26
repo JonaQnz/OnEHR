@@ -34,7 +34,7 @@ export interface FormLaunchResult {
   launchUrl: string;
 }
 
-export type FormEmbedEventName = 'loaded' | 'submitted' | 'error' | 'resize';
+export type FormEmbedEventName = 'loaded' | 'submitted' | 'error' | 'resize' | 'dirty';
 
 export interface FormEmbedEvent {
   protocolVersion: typeof FORM_LAUNCH_PROTOCOL_VERSION;
@@ -44,4 +44,8 @@ export interface FormEmbedEvent {
   launchId?: string;
   message?: string;
   height?: number;
+  /** Only meaningful on the 'dirty' event - whether the embedded session
+   * currently has unsaved changes, for a host (e.g. CompositionRuntime) to
+   * aggregate its own navigation guard across several embedded forms. */
+  dirty?: boolean;
 }

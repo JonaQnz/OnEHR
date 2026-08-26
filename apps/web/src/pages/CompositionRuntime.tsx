@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams, Link, useParams } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, FileText, LayoutGrid, Rows3, RefreshCw } from 'lucide-react';
 import { COMPOSITION_SCRIPTING_EXTENSION_KEY, getCompositionDefinition, normalizeCompositionScript, type CompositionBlock, type CompositionDataBlock, type CompositionDefinition, type CompositionPage, type FormDefinitionV1 } from 'core';
 import { formEmbedUrl, isFormEmbedEvent, launchEmbeddedForm } from '../integration/formLaunch';
@@ -32,7 +32,7 @@ function childBadge(status?: string) {
 }
 
 export default function CompositionRuntime() {
-  const { id } = useParams(); const [searchParams] = useSearchParams();
+  const { id } = useParams(); const [searchParams] = useSearchParams(); const navigate = useNavigate();
   const [record, setRecord] = useState<FormRecord | null>(null); const [composition, setComposition] = useState<CompositionDefinition | null>(null); const [session, setSession] = useState<CompositionSession | null>(null);
   const [pageIndex, setPageIndex] = useState(0); const [patientId, setPatientId] = useState(searchParams.get('patientId') || ''); const [namespace, setNamespace] = useState(searchParams.get('patientNamespace') || ''); const [ehrId, setEhrId] = useState(searchParams.get('ehrId') || ''); const [mode, setMode] = useState<Mode>(() => { const requested = searchParams.get('mode'); return requested === 'edit' || requested === 'view' || requested === 'prefill' ? requested : 'create'; });
   const [launches, setLaunches] = useState<Record<string, Launch>>({}); const [data, setData] = useState<Record<string, DataState>>({}); const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [checking, setChecking] = useState(false);
@@ -46,6 +46,22 @@ export default function CompositionRuntime() {
     const requested = searchParams.get('returnUrl');
     return requested && requested.startsWith('/') && !requested.startsWith('//') ? requested : '/';
   }, [searchParams]);
+  // Aggregated across every embedded child form's own 'dirty' embed event -
+  // an iframe's own beforeunload guard only ever protects that iframe's own
+  // document, never this page's route change, so the aggregate lives here.
+  const [dirtyBlocks, setDirtyBlocks] = useState<Set<string>>(() => new Set());
+  const anyDirty = dirtyBlocks.size > 0;
+  const [pendingNav, setPendingNav] = useState<(() => void) | null>(null);
+  const guardedNavigate = (go: () => void) => { if (!anyDirty) { go(); return; } setPendingNav(() => go); };
+  useEffect(() => {
+    const handler = (event: BeforeUnloadEvent) => {
+      if (!anyDirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [anyDirty]);
   useEffect(() => { if (!id) return; void request<FormRecord>(`/forms/${encodeURIComponent(id)}`).then((form) => { const value = getCompositionDefinition(form.canonical_json.extensions); if (!value) throw new Error('Dieses Formular ist keine Composition.'); setRecord(form); setComposition(value); }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Composition konnte nicht geladen werden.')); }, [id]);
   useEffect(() => { void request<PatientOption[]>('/patients').then((items) => setPatients(Array.isArray(items) ? items : [])).catch(() => setPatients([])); }, []);
   // Author default from the Composition itself, overridden by whatever this
@@ -122,6 +138,16 @@ export default function CompositionRuntime() {
       if (event.data.event === 'submitted') {
         void refreshSession();
         if (blockId) setSaveOutcomes((current) => ({ ...current, [blockId]: { status: 'ok' } }));
+        if (blockId) setDirtyBlocks((current) => { if (!current.has(blockId)) return current; const next = new Set(current); next.delete(blockId); return next; });
+      }
+      if (event.data.event === 'dirty' && blockId) {
+        setDirtyBlocks((current) => {
+          const has = current.has(blockId);
+          if (event.data.dirty === has) return current;
+          const next = new Set(current);
+          event.data.dirty ? next.add(blockId) : next.delete(blockId);
+          return next;
+        });
       }
       if (event.data.event === 'loaded') void refreshSession();
       if (event.data.event === 'error' && event.data.message) {
@@ -182,7 +208,7 @@ export default function CompositionRuntime() {
   const renderPageGrid = (target: CompositionPage) => <ClinicalGrid columns={target.columns || 1}>{target.blocks.filter((block) => !hiddenBlockIds.has(block.id)).map(renderBlock)}</ClinicalGrid>;
 
   return <div style={{ maxWidth: 1280, margin: '0 auto', padding: '1.5rem' }}>
-    <Link to={returnUrl} style={{ display: 'inline-flex', gap: '.4rem', alignItems: 'center', color: 'var(--text-muted)', textDecoration: 'none', marginBottom: '1rem' }}><ArrowLeft size={16} /> Zurück zur Patientenakte</Link>
+    <a href={returnUrl} onClick={(event) => { event.preventDefault(); guardedNavigate(() => navigate(returnUrl)); }} style={{ display: 'inline-flex', gap: '.4rem', alignItems: 'center', color: 'var(--text-muted)', textDecoration: 'none', marginBottom: '1rem', cursor: 'pointer' }}><ArrowLeft size={16} /> Zurück zur Patientenakte</a>
     <div className="card" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
       <div><h1 style={{ margin: 0 }}>{record.name}</h1><p style={{ color: 'var(--text-muted)', marginBottom: 0 }}>Mehrere Formulare als ein fortsetzbarer klinischer Vorgang.</p></div>
       <div role="group" aria-label="Ansicht" style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
@@ -218,6 +244,19 @@ export default function CompositionRuntime() {
         {page.description && <p style={{ color: 'var(--text-muted)', margin: '0 0 1rem' }}>{page.description}</p>}
         {renderPageGrid(page)}
       </>
+    )}
+    {pendingNav && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+        <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: '1.5rem', maxWidth: 420, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)' }}>
+          <h3 style={{ marginTop: 0 }}>Ungespeicherte Änderungen</h3>
+          <p style={{ color: 'var(--text-muted)' }}>Ein oder mehrere Formulare in diesem Vorgang haben nicht gespeicherte Änderungen. Der letzte automatisch gespeicherte Entwurf bleibt in jedem Fall erhalten. Wie möchten Sie fortfahren?</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginTop: '1rem' }}>
+            <button className="btn btn-secondary" onClick={() => setPendingNav(null)}>Weiter bearbeiten</button>
+            <button className="btn btn-primary" onClick={() => { saveAll(); setPendingNav(null); }}>Alle finalisieren und verlassen</button>
+            <button className="btn" style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }} onClick={() => { const go = pendingNav; setPendingNav(null); go?.(); }}>Ohne Finalisieren verlassen</button>
+          </div>
+        </div>
+      </div>
     )}
   </div>;
 }

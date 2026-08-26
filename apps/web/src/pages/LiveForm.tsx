@@ -135,7 +135,7 @@ export default function LiveForm() {
   // discard & leave).
   const [pendingNav, setPendingNav] = useState<(() => void) | null>(null);
 
-  const publishEmbedEvent = (event: FormEmbedEventName, formId: string, sessionId?: string, message?: string, height?: number) => {
+  const publishEmbedEvent = (event: FormEmbedEventName, formId: string, sessionId?: string, message?: string, height?: number, dirtyState?: boolean) => {
     if (window.parent === window) return;
     let targetOrigin = window.location.origin;
     const requestedOrigin = searchParams.get('hostOrigin');
@@ -150,6 +150,7 @@ export default function LiveForm() {
       ...(searchParams.get('launchId') ? { launchId: searchParams.get('launchId') } : {}),
       ...(message ? { message } : {}),
       ...(height !== undefined ? { height } : {}),
+      ...(dirtyState !== undefined ? { dirty: dirtyState } : {}),
     }, targetOrigin);
   };
 
@@ -365,6 +366,16 @@ export default function LiveForm() {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
+
+  // Tells an embedding host (e.g. CompositionRuntime, which aggregates
+  // several forms as one clinical Vorgang) about this form's own dirty
+  // state, so the host's own "leave the page" guard can account for it too -
+  // an iframe's beforeunload only ever protects that iframe's own document,
+  // never a parent SPA route change.
+  useEffect(() => {
+    if (!isEmbedded || !form || !session) return;
+    publishEmbedEvent('dirty', form.id, session.id, undefined, undefined, dirty);
+  }, [isEmbedded, form?.id, session?.id, dirty]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** In-app navigation (return-url / back link): same 3-way choice as the
    * browser-level guard, since this app uses a plain BrowserRouter without

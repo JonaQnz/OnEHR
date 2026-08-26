@@ -113,3 +113,34 @@ test('initializes and validates repeatable groups as row objects', () => {
     medications: [{ substance: 'Aspirin', dose: 100 }],
   }).valid, true);
 });
+
+// Epic 2 - Clinical Editing Lifecycle: a real openEHR draft
+// (lifecycle_state=incomplete) is explicitly allowed to have missing
+// required fields, but never an invalid typed value.
+test('draft mode allows missing required fields but still rejects an invalid typed value', () => {
+  const definition = form([
+    { type: 'input-text', id: 'name', name: 'name', label: 'Name', required: true },
+    { type: 'input-quantity', id: 'weight', name: 'weight', label: 'Weight', unitOptions: [{ unit: 'kg' }], required: true },
+    { type: 'input-quantity', id: 'dose', name: 'dose', label: 'Dose', unitOptions: [{ unit: 'mg' }] },
+  ]);
+
+  // Missing required fields alone: fine as a draft, rejected as final.
+  const missingOnly = validateRuntimeValues(definition, {}, { mode: 'draft' });
+  assert.equal(missingOnly.valid, true);
+  assert.equal(validateRuntimeValues(definition, {}, { mode: 'final' }).valid, false);
+  assert.equal(validateRuntimeValues(definition, {}).valid, false, 'final is the default when mode is omitted');
+
+  // An invalid typed value (DV_QUANTITY given a non-numeric magnitude) is
+  // never acceptable, draft or final - draft mode only filters out
+  // required/repeat-min issue codes, not type/unit/min/max/pattern ones.
+  const invalidTyped = validateRuntimeValues(definition, { name: 'Ada', weight: { magnitude: 70, unit: 'kg' }, dose: 'abc' }, { mode: 'draft' });
+  assert.equal(invalidTyped.valid, false);
+  assert.deepEqual(invalidTyped.issues.map((issue) => issue.path), ['dose']);
+  assert.equal(invalidTyped.issues[0].code, 'type');
+});
+
+test('draft mode filters repeat-min the same way it filters required', () => {
+  const definition = form([{ type: 'input-text', id: 'tags', name: 'tags', label: 'Tag', repeatable: true, repeatMin: 2 }]);
+  assert.equal(validateRuntimeValues(definition, { tags: ['first'] }, { mode: 'draft' }).valid, true);
+  assert.equal(validateRuntimeValues(definition, { tags: ['first'] }, { mode: 'final' }).valid, false);
+});
