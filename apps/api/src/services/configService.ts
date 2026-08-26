@@ -66,6 +66,12 @@ export interface AppConfig {
      * matches the behavior every Composition already had before this
      * setting existed. */
     requireAtomicCommitByDefault?: boolean;
+    /** Org-wide fallback for a form's own `settings.runtime.autosaveEnabled`/
+     * `autosaveDebounceMs` - see LiveForm.tsx's debounced draft autosave.
+     * Defaults preserve the behavior every form already had before these
+     * settings existed (autosave on, 2500ms after the last edit). */
+    autosaveEnabledByDefault?: boolean;
+    autosaveDebounceMsDefault?: number;
 }
 
 /** Comma-separated env value -> lowercase, trimmed, de-blanked list. Shared
@@ -252,6 +258,8 @@ export function getConfig(): AppConfig {
         ehrbaseConnections: getEhrbaseConnections(),
         activeEhrbaseConnectionId: activeConnection.id,
         requireAtomicCommitByDefault: persistedConfig.requireAtomicCommitByDefault ?? true,
+        autosaveEnabledByDefault: persistedConfig.autosaveEnabledByDefault ?? true,
+        autosaveDebounceMsDefault: persistedConfig.autosaveDebounceMsDefault ?? 2500,
     };
 }
 
@@ -361,5 +369,7 @@ export function getSafeConfig(): Partial<AppConfig> {
         scriptAiApiKey: full.scriptAiApiKey ? '***' : '',
         scriptAiModel: full.scriptAiModel || '',
         requireAtomicCommitByDefault: full.requireAtomicCommitByDefault ?? true,
+        autosaveEnabledByDefault: full.autosaveEnabledByDefault ?? true,
+        autosaveDebounceMsDefault: full.autosaveDebounceMsDefault ?? 2500,
     };
 }

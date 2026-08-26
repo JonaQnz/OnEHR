@@ -21,6 +21,15 @@ router.get('/preview-defaults', requirePermission('form.design'), (_req, res) =>
   res.json({ defaultEhrId: getConfig().defaultEhrId || '' });
 });
 
+// Same pattern as preview-defaults above, but for the runtime (form.execute)
+// audience instead of the design-time one: LiveForm.tsx's own autosave
+// falls back to these when a form doesn't set its own
+// settings.runtime.autosaveEnabled/autosaveDebounceMs.
+router.get('/runtime-defaults', requirePermission('form.execute'), (_req, res) => {
+  const config = getConfig();
+  res.json({ autosaveEnabledByDefault: config.autosaveEnabledByDefault ?? true, autosaveDebounceMsDefault: config.autosaveDebounceMsDefault ?? 2500 });
+});
+
 router.post('/', requirePermission('system.configure'), (req, res) => {
   try {
     saveConfig(req.body);

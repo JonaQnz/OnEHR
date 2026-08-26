@@ -84,6 +84,18 @@ export default function Config() {
       <p style={{ color: 'var(--text-muted)', fontSize: '.85rem', marginBottom: 0 }}>Pflichtalias: <code>ehrId</code>. Optional: <code>patientId</code>, <code>patientNamespace</code>, <code>firstName</code>, <code>lastName</code>, <code>birthDate</code>, <code>gender</code>. Fehlen optionale Werte, nutzt Forms die EHR-Subject-ID und neutrale Anzeigenamen.</p>
     </div>
     <div className="card" style={{ marginBottom: '1.5rem' }}>
+      <h3 style={{ marginTop: 0 }}>Automatisches Speichern (Entwürfe)</h3>
+      <p style={{ color: 'var(--text-muted)' }}>Voreinstellung für alle Formulare, die keine eigene Einstellung dafür haben (in FormBuilder pro Formular unter "Runtime" einstellbar).</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontWeight: 'normal', cursor: 'pointer' }}>
+          <input type="checkbox" checked={config.autosaveEnabledByDefault !== false} onChange={(event) => setConfig({ ...config, autosaveEnabledByDefault: event.target.checked })} />
+          Automatisches Speichern standardmäßig aktiviert
+        </label>
+      </div>
+      <label className="form-label">Verzögerung (ms)</label>
+      <input type="number" min={500} step={100} className="form-input" value={config.autosaveDebounceMsDefault ?? 2500} onChange={(event) => setConfig({ ...config, autosaveDebounceMsDefault: Number(event.target.value) || 2500 })} />
+    </div>
+    <div className="card" style={{ marginBottom: '1.5rem' }}>
       <h3 style={{ marginTop: 0 }}>Gemeinsames Speichern (Compositions)</h3>
       <p style={{ color: 'var(--text-muted)' }}>"Alle Änderungen speichern" in einer Composition versucht immer zuerst eine echte, atomare openEHR Contribution. Dies ist die Voreinstellung für alle Compositions, die selbst keine eigene Einstellung dafür haben.</p>
       <label className="form-label">Voreinstellung</label>

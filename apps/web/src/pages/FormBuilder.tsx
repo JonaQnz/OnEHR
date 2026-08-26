@@ -2322,6 +2322,35 @@ function FormBuilderContent() {
                                   In Edit/Prefill mode, Forms normally resumes this user's own still-open session for the same form and patient instead of starting a second one. Set "Always start a new session" for forms where every launch is its own clinical moment even in Edit mode (e.g. a vitals check filled several times a day) - each launch then gets its own fresh session regardless of what's already open.
                                 </p>
                               </div>
+
+                              <div className="inspector-field-group" style={{ marginTop: '1.5rem' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontWeight: 'normal', cursor: 'pointer' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={form.canonical_json.settings?.runtime?.autosaveEnabled !== false}
+                                    onChange={(e) => { updateRuntimeSetting('autosaveEnabled', e.target.checked); setTimeout(() => handleSave(builderItems), 0); }}
+                                  />
+                                  Automatisch speichern (Entwurf)
+                                </label>
+                                {form.canonical_json.settings?.runtime?.autosaveEnabled !== false && (
+                                  <div style={{ marginTop: '.6rem' }}>
+                                    <label>Verzögerung (ms)</label>
+                                    <input
+                                      type="number"
+                                      className="inspector-select"
+                                      min={500}
+                                      step={100}
+                                      value={form.canonical_json.settings?.runtime?.autosaveDebounceMs ?? ''}
+                                      placeholder="Standard (aus Backend-Einstellung)"
+                                      onChange={(e) => updateRuntimeSetting('autosaveDebounceMs', e.target.value === '' ? undefined : Number(e.target.value))}
+                                      onBlur={() => handleSave(builderItems)}
+                                    />
+                                  </div>
+                                )}
+                                <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+                                  Speichert einen Entwurf automatisch nach einer Bearbeitungspause (Standard: 2500ms). Der manuelle "Entwurf speichern"-Button funktioniert unabhängig davon immer. Deaktivieren, wenn ein Formular besser nur beim expliziten Speichern eine neue Version anlegen soll.
+                                </p>
+                              </div>
                             </>
                           ) : (
                             <p style={{ color: '#64748b', fontSize: '0.85rem' }}>No openEHR template imports found.</p>
