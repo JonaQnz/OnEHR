@@ -4,6 +4,7 @@ import { getOpenEhrFormOptions } from 'openehr-engine';
 import { HttpError } from '../middleware/errorHandler';
 import { getFormSession, validateFormSession, type SessionActor } from './formSessionService';
 import { resolvePatientReference } from './patientService';
+import { getConfig, resolveSessionAlwaysNew } from './configService';
 
 export type CompositionSessionActor = SessionActor;
 type ChildMap = Record<string, string>;
@@ -92,8 +93,10 @@ export async function startCompositionSession(input: { compositionFormId: string
   // every time, as opposed to the default (and far more common) case of a
   // long-running clinical process that should always pick back up where it
   // left off. Same override forceNew already gives per-launch, as the
-  // form's own default.
-  const alwaysNew = getOpenEhrFormOptions(form.canonical_json as any).storageStrategy === 'always_new';
+  // form's own default. Unset defers to the connection-wide
+  // sessionReuseDefault (see resolveSessionAlwaysNew), itself defaulting to
+  // 'reuse' - unchanged behavior for every Composition that sets nothing.
+  const alwaysNew = resolveSessionAlwaysNew(getOpenEhrFormOptions(form.canonical_json as any).storageStrategy, getConfig().sessionReuseDefault);
   if (!input.forceNew && !alwaysNew) {
     const reusable = await prisma.compositionSession.findFirst({ where: { compositionFormId, patientId, patientNamespace: patientNamespace || null, userId: actor.userId, mode, status: { in: ['draft', 'in_progress', 'ready', 'failed'] } }, orderBy: { updatedAt: 'desc' } });
     if (reusable) return publicSession(reusable, actor);
