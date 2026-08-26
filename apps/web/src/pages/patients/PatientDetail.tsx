@@ -165,9 +165,18 @@ function isCompositionForm(form: StoredForm): boolean {
 }
 
 function patientFormUrl(form: StoredForm, patient: PatientRecord, returnUrl: string): string {
+  // Never forceNew here: this is the general "open this form for this
+  // patient" launcher (the "Formular auswählen" picker), not a "start a
+  // distinct new one" action - the server's own reuse logic already
+  // decides correctly per mode (a plain create-mode form always gets a
+  // fresh session either way; a Composition, or a form whose own default
+  // mode is edit/prefill, correctly resumes an already-open session
+  // instead). Forcing a new session on every click here used to spawn a
+  // whole new empty Composition session - and a fresh empty child form
+  // session per block - every time someone reopened the same in-progress
+  // Composition, since there was previously no other reliable way back in.
   const parameters = new URLSearchParams({
     patientId: patient.patientId,
-    forceNew: 'true',
     returnUrl,
   });
   if (patient.namespace) parameters.set('patientNamespace', patient.namespace);
@@ -487,7 +496,7 @@ export default function PatientDetail() {
                     {session.type === 'composition' && (
                       <div style={{ display: 'flex', gap: '1rem', marginTop: '0.9rem', flexWrap: 'wrap' }}>
                         <Link
-                          to={`/compositions/${(session as CompositionSessionRecord).compositionFormId}/live?patientId=${encodeURIComponent(patient.patientId)}&ehrId=${encodeURIComponent(session.ehrId || '')}`}
+                          to={`/compositions/${(session as CompositionSessionRecord).compositionFormId}?patientId=${encodeURIComponent(patient.patientId)}&ehrId=${encodeURIComponent(session.ehrId || '')}`}
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary)', fontSize: '0.82rem', fontWeight: 500 }}
                         >
                           Fortsetzen
