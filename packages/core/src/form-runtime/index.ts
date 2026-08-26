@@ -46,6 +46,31 @@ const NON_FIELD_TYPES = new Set([
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const nodeId = (node: FormElementLayout): string | undefined => node.id || node.name;
 
+type RuntimeLocales = CanonicalForm['locales'] | undefined;
+
+// A form generated without a parsed WebTemplate layout (see
+// formGenerator.ts's fallback path) never writes a `label` onto its layout
+// nodes at all - only `type` and `name` - because at that point all it has
+// is a flat field registry, not a real tree. Its human-readable labels are
+// written to `locales.en[[name='<fieldName>']].label` instead (the same
+// `[name='...']` selector convention the FormBuilder designer's own canvas
+// already resolves through - see formBuilderAdapter.ts's `labelSelector`).
+// Without this lookup, collectRuntimeFields/collectRuntimeGroups fell back
+// straight to the internal field name (or raw id) for any such form, which
+// is what actually rendered in the Live Form.
+//
+// node.label wins when present, unlike formBuilderAdapter.ts's own
+// locale-first order: locales.en is regenerated wholesale from the canvas on
+// every designer save, but nothing keeps it in sync with a node.label that
+// was set some other way (e.g. a direct API edit) - live data has forms
+// where the two have drifted apart. Preferring node.label here can't be
+// wrong when it's present; it's only ever absent in the fallback case this
+// exists for, where locale is the sole source anyway.
+function resolveLabel(node: FormElementLayout, id: string, locales: RuntimeLocales): string {
+  const name = node.name || id;
+  return node.label || locales?.en?.[`[name='${name}']`]?.label || name;
+}
+
 function walk(node: FormElementLayout, visit: (node: FormElementLayout, repeatableGroupId?: string) => void, repeatableGroupId?: string): void {
   visit(node, repeatableGroupId);
   const childGroupId = node.type === 'container' && node.repeatable === true && nodeId(node)
@@ -54,11 +79,11 @@ function walk(node: FormElementLayout, visit: (node: FormElementLayout, repeatab
   node.children?.forEach((child) => walk(child, visit, childGroupId));
 }
 
-function toDescriptor(node: FormElementLayout, repeatableGroupId?: string): RuntimeFieldDescriptor {
+function toDescriptor(node: FormElementLayout, locales: RuntimeLocales, repeatableGroupId?: string): RuntimeFieldDescriptor {
   const id = nodeId(node) as string;
   const defaultValue = node.defaultValue !== undefined ? node.defaultValue : node.default_value;
   return {
-    id, name: node.name || id, type: node.type, label: node.label || node.name || id,
+    id, name: node.name || id, type: node.type, label: resolveLabel(node, id, locales),
     description: node.description || node.helpText, required: node.required === true, readOnly: node.readOnly === true,
     options: (node.options || []).map((option) => ({ value: String(option.value), text: String(option.text) })),
     unitOptions: (node.unitOptions || []).map((option) => typeof option === 'string' ? { unit: option } : { ...option }),
@@ -76,22 +101,22 @@ function toDescriptor(node: FormElementLayout, repeatableGroupId?: string): Runt
   };
 }
 
-export function collectRuntimeFields(form: Pick<CanonicalForm, 'layout'>): RuntimeFieldDescriptor[] {
+export function collectRuntimeFields(form: Pick<CanonicalForm, 'layout' | 'locales'>): RuntimeFieldDescriptor[] {
   const fields: RuntimeFieldDescriptor[] = [];
   walk(form.layout, (node, repeatableGroupId) => {
-    if (nodeId(node) && !NON_FIELD_TYPES.has(node.type)) fields.push(toDescriptor(node, repeatableGroupId));
+    if (nodeId(node) && !NON_FIELD_TYPES.has(node.type)) fields.push(toDescriptor(node, form.locales, repeatableGroupId));
   });
   return fields;
 }
 
-export function collectRuntimeGroups(form: Pick<CanonicalForm, 'layout'>): RuntimeGroupDescriptor[] {
+export function collectRuntimeGroups(form: Pick<CanonicalForm, 'layout' | 'locales'>): RuntimeGroupDescriptor[] {
   const groups: RuntimeGroupDescriptor[] = [];
   walk(form.layout, (node) => {
     const id = nodeId(node);
     if (node.type === 'container' && node.repeatable === true && id) {
       groups.push({
         id,
-        label: node.label || node.name || id,
+        label: resolveLabel(node, id, form.locales),
         repeatMin: node.repeatMin ?? 0,
         repeatMax: node.repeatMax ?? -1,
       });
@@ -100,7 +125,7 @@ export function collectRuntimeGroups(form: Pick<CanonicalForm, 'layout'>): Runti
   return groups;
 }
 
-export function createInitialRuntimeValues(form: Pick<CanonicalForm, 'layout'>): RuntimeValues {
+export function createInitialRuntimeValues(form: Pick<CanonicalForm, 'layout' | 'locales'>): RuntimeValues {
   const values: RuntimeValues = {};
   const fields = collectRuntimeFields(form);
   collectRuntimeGroups(form).forEach((group) => {
@@ -199,7 +224,7 @@ export interface RuntimeValidationOptions {
 
 const DRAFT_EXEMPT_ISSUE_CODES: ReadonlySet<RuntimeValidationIssue['code']> = new Set(['required', 'repeat-min']);
 
-export function validateRuntimeValues(form: Pick<CanonicalForm, 'layout'>, values: RuntimeValues, options?: RuntimeValidationOptions): RuntimeValidationResult {
+export function validateRuntimeValues(form: Pick<CanonicalForm, 'layout' | 'locales'>, values: RuntimeValues, options?: RuntimeValidationOptions): RuntimeValidationResult {
   const issues: RuntimeValidationIssue[] = [];
   const groups = new Map(collectRuntimeGroups(form).map((group) => [group.id, group]));
   groups.forEach((group) => {

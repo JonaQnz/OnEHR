@@ -163,7 +163,7 @@ function diffRepeatingRows(groupId: string, groupLabel: string, rowsA: Record<st
   }
 }
 
-export function compareRuntimeValues(definition: Pick<CanonicalForm, 'layout'>, valuesA: RuntimeValues, valuesB: RuntimeValues): SemanticDiff {
+export function compareRuntimeValues(definition: Pick<CanonicalForm, 'layout' | 'locales'>, valuesA: RuntimeValues, valuesB: RuntimeValues): SemanticDiff {
   const diff: SemanticDiff = { added: [], removed: [], changed: [] };
   const groups = collectRuntimeGroups(definition);
   const fields = collectRuntimeFields(definition);
