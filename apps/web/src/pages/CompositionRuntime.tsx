@@ -22,7 +22,11 @@ type SaveOutcome = { status: 'pending' | 'ok' | 'error'; message?: string };
 // never called "Contribution" in this UI (that term stays for developer/
 // audit surfaces per the spec); this is just "Alle Änderungen speichern".
 type ClinicalTransactionOp = { id: string; formSessionId: string; blockId?: string; type: string; status: string; resultVersionUid?: string; errorMessage?: string };
-type ClinicalTransaction = { id: string; status: string; contributionUid?: string; operations: ClinicalTransactionOp[]; errorCode?: string; errorMessage?: string };
+// atomic: true = landed as one real Contribution; false = the non-atomic
+// sequential fallback ran instead (Composition requireAtomicCommit: false);
+// absent while still committing. status 'partial' means the fallback ran
+// and some, but not all, operations succeeded - never treated as success.
+type ClinicalTransaction = { id: string; status: string; contributionUid?: string; atomic?: boolean; operations: ClinicalTransactionOp[]; errorCode?: string; errorMessage?: string };
 class RequestError extends Error { messages?: Array<{ severity?: string; path?: string; message: string }>; }
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API}${path}`, { ...options, credentials: 'include', headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) } });
@@ -210,10 +214,24 @@ export default function CompositionRuntime() {
       setTransaction(prepared);
       const committed = await request<ClinicalTransaction>(`/composition-sessions/transaction/${encodeURIComponent(prepared.id)}/commit`, { method: 'POST' });
       setTransaction(committed);
-      transactionClientId.current = crypto.randomUUID(); // this attempt succeeded - a future save is a new attempt, not a retry of this one
       await refreshSession();
-      setNotice(`${committed.operations.length} Dokumente wurden gemeinsam gespeichert.`);
-      return true;
+      if (committed.status === 'committed') {
+        // This attempt genuinely succeeded - a future save is a new
+        // attempt, not a retry of this one.
+        transactionClientId.current = crypto.randomUUID();
+        setNotice(`${committed.operations.length} Dokumente wurden gemeinsam gespeichert.${committed.atomic === false ? ' (nacheinander, nicht als eine gemeinsame Contribution)' : ''}`);
+        return true;
+      }
+      // 'partial' (non-atomic fallback: some operations failed) or 'failed'
+      // - never reported as success. Keep the same clientRequestId so a
+      // retry re-prepares fresh operations for whatever didn't succeed
+      // (prepareClinicalTransaction clears a partial/failed transaction
+      // under the same id rather than reusing it untouched).
+      const committedCount = committed.operations.filter((op) => op.status === 'committed').length;
+      setTransactionError(committed.status === 'partial'
+        ? `Nur ${committedCount}/${committed.operations.length} Dokumente konnten gespeichert werden - Details unten. Erneut speichern versucht die restlichen.`
+        : (committed.errorMessage || 'Keines der Dokumente konnte gespeichert werden.'));
+      return false;
     } catch (reason) {
       const err = reason instanceof RequestError ? reason : undefined;
       setTransactionError(err?.messages?.length ? err.messages.map((item) => item.message).join(' · ') : (reason instanceof Error ? reason.message : 'Speichern fehlgeschlagen.'));

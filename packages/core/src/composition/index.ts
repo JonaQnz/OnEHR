@@ -79,6 +79,16 @@ export interface CompositionDefinition {
    * every page stacked vertically on one scroll. Author default - the
    * runtime still lets a user toggle this per visit. */
   viewMode?: 'tabs' | 'stacked';
+  /**
+   * Whether the composition's grouped save (§ClinicalTransaction) must land
+   * as one real openEHR CONTRIBUTION, or may fall back to a best-effort
+   * sequential per-form save when the active provider doesn't support
+   * Contribution. `true` (or unset, deferring to the connection's global
+   * `requireAtomicCommitByDefault`) blocks the grouped save outright rather
+   * than ever silently downgrading; `false` allows the explicit,
+   * never-claimed-atomic fallback instead.
+   */
+  requireAtomicCommit?: boolean;
   pages: CompositionPage[];
 }
 
@@ -246,10 +256,12 @@ export function normalizeCompositionDefinition(value: unknown): CompositionDefin
   const reserveId = (id: string) => { if (ids.has(id)) throw new Error(`Composition block/page id '${id}' is duplicated`); ids.add(id); };
   const widgetPackageIds = stringList(value.widgetPackageIds, 'widgetPackageIds');
   if (value.viewMode !== undefined && value.viewMode !== 'tabs' && value.viewMode !== 'stacked') throw new Error('Composition viewMode must be "tabs" or "stacked"');
+  if (value.requireAtomicCommit !== undefined && typeof value.requireAtomicCommit !== 'boolean') throw new Error('Composition requireAtomicCommit must be a boolean');
   return {
     schemaVersion: COMPOSITION_SCHEMA_VERSION,
     ...(widgetPackageIds ? { widgetPackageIds } : {}),
     ...(value.viewMode === 'stacked' ? { viewMode: 'stacked' as const } : {}),
+    ...(value.requireAtomicCommit !== undefined ? { requireAtomicCommit: value.requireAtomicCommit } : {}),
     pages: value.pages.map((rawPage, pageIndex) => {
       if (!isRecord(rawPage)) throw new Error(`Composition page ${pageIndex + 1} must be an object`);
       const id = requiredId(rawPage.id, `page ${pageIndex + 1} id`); reserveId(id);

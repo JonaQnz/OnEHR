@@ -57,6 +57,15 @@ export interface AppConfig {
     scriptAiBaseUrl?: string;
     scriptAiApiKey?: string;
     scriptAiModel?: string;
+    /** Whether a Composition's grouped save must land as one real openEHR
+     * CONTRIBUTION, or may fall back to a best-effort sequential per-form
+     * save when the active provider doesn't support Contribution. This is
+     * the org-wide default; an individual Composition's own
+     * `requireAtomicCommit` setting (in its canonical_json extension)
+     * overrides it. Defaults to `true` (never silently non-atomic) -
+     * matches the behavior every Composition already had before this
+     * setting existed. */
+    requireAtomicCommitByDefault?: boolean;
 }
 
 /** Comma-separated env value -> lowercase, trimmed, de-blanked list. Shared
@@ -242,6 +251,7 @@ export function getConfig(): AppConfig {
         scriptAiModel: resolve(persistedConfig.scriptAiModel, process.env.FORM_SCRIPT_AI_MODEL),
         ehrbaseConnections: getEhrbaseConnections(),
         activeEhrbaseConnectionId: activeConnection.id,
+        requireAtomicCommitByDefault: persistedConfig.requireAtomicCommitByDefault ?? true,
     };
 }
 
@@ -350,5 +360,6 @@ export function getSafeConfig(): Partial<AppConfig> {
         scriptAiBaseUrl: full.scriptAiBaseUrl || '',
         scriptAiApiKey: full.scriptAiApiKey ? '***' : '',
         scriptAiModel: full.scriptAiModel || '',
+        requireAtomicCommitByDefault: full.requireAtomicCommitByDefault ?? true,
     };
 }
