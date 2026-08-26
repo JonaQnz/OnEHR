@@ -8,14 +8,14 @@ datasource db {
 }
 
 model Form {
-  id             String        @id @default(uuid())
+  id             String   @id @default(uuid())
   parent_id      String?
   name           String
   version        String
   status         String
   canonical_json Json
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("forms")
 }
@@ -100,21 +100,21 @@ model CompositionSession {
 }
 
 model FormSession {
-  id                 String   @id @default(uuid())
-  formId             String   @map("form_id")
-  formVersion        String   @map("form_version")
-  mode               FormSessionMode @default(create)
-  patientId          String   @map("patient_id")
-  patientNamespace   String?  @map("patient_namespace")
-  userId             String   @map("user_id")
-  authMode           String   @map("auth_mode")
-  status             FormSessionStatus @default(draft)
+  id                 String                    @id @default(uuid())
+  formId             String                    @map("form_id")
+  formVersion        String                    @map("form_version")
+  mode               FormSessionMode           @default(create)
+  patientId          String                    @map("patient_id")
+  patientNamespace   String?                   @map("patient_namespace")
+  userId             String                    @map("user_id")
+  authMode           String                    @map("auth_mode")
+  status             FormSessionStatus         @default(draft)
   values             Json
   validation         Json
-  runtimeContext     Json     @default("{}") @map("runtime_context")
-  revision           Int      @default(0)
-  providerId         String?  @map("provider_id")
-  providerReference  String?  @map("provider_reference")
+  runtimeContext     Json                      @default("{}") @map("runtime_context")
+  revision           Int                       @default(0)
+  providerId         String?                   @map("provider_id")
+  providerReference  String?                   @map("provider_reference")
   // This session's OWN self-created draft composition on the provider, set
   // only by autosaveFormSessionDraft - distinct from providerReference,
   // which for a prefill-mode session is the SOURCE composition it copied
@@ -122,7 +122,7 @@ model FormSession {
   // prefers this over providerReference precisely so a create/prefill-mode
   // session that's been autosaving keeps updating its own draft instead of
   // creating a second, disconnected composition at final submit.
-  draftReference     String?  @map("draft_reference")
+  draftReference     String?                   @map("draft_reference")
   // The Clinical Editing Layer's own tracked openEHR lifecycle state (see
   // Epic 2) - Forms' honest record of draft/final/withdrawn, kept even when
   // the CDR doesn't confirm it applied the same value (see lifecycleConfirmed).
@@ -130,13 +130,13 @@ model FormSession {
   // Whether the CDR was verified (by reading the committed version back) to
   // have actually applied lifecycleState, rather than silently defaulting -
   // see EhrbaseDataProvider.commitWithLifecycle(). false on this CDR today.
-  lifecycleConfirmed Boolean  @default(false) @map("lifecycle_confirmed")
+  lifecycleConfirmed Boolean                   @default(false) @map("lifecycle_confirmed")
   // Set only when saving against an already-`complete` composition in edit
   // mode - routine update vs. correction of a documentation error.
-  changeType         FormSessionChangeType? @map("change_type")
-  changeDescription  String?  @map("change_description")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  changeType         FormSessionChangeType?    @map("change_type")
+  changeDescription  String?                   @map("change_description")
+  createdAt          DateTime                  @default(now()) @map("created_at")
+  updatedAt          DateTime                  @updatedAt @map("updated_at")
 
   @@index([patientId])
   @@index([formId])
@@ -156,19 +156,110 @@ model FormSession {
 // here - see compositionHistoryService.ts, which LEFT-JOINs this table
 // against the CDR's real history by versionUid, never using it alone.
 model CompositionVersionEvent {
-  id                String   @id @default(uuid())
-  versionUid        String   @unique @map("version_uid")
-  compositionUid    String   @map("composition_uid")
-  ehrId             String   @map("ehr_id")
-  formSessionId     String   @map("form_session_id")
+  id                String                    @id @default(uuid())
+  versionUid        String                    @unique @map("version_uid")
+  compositionUid    String                    @map("composition_uid")
+  ehrId             String                    @map("ehr_id")
+  formSessionId     String                    @map("form_session_id")
   lifecycleState    FormSessionLifecycleState @map("lifecycle_state")
   changeType        FormSessionChangeType?    @map("change_type")
-  changeDescription String?  @map("change_description")
-  createdAt         DateTime @default(now()) @map("created_at")
+  changeDescription String?                   @map("change_description")
+  createdAt         DateTime                  @default(now()) @map("created_at")
 
   @@index([compositionUid])
   @@index([formSessionId])
   @@map("composition_version_events")
+}
+
+// Epic 4 - openEHR CONTRIBUTION support: the application-level record of
+// ONE grouped save across several child forms of a Composition session,
+// committed as a single real openEHR CONTRIBUTION (see
+// clinicalTransactionService.ts / ContributionRepository). Mirrors
+// CompositionSession at the persistence level, but tracks the *save*
+// (validate -> commit -> result), not the editing itself.
+enum ClinicalTransactionStatus {
+  draft
+  validating
+  ready
+  committing
+  committed
+  failed
+  conflict
+}
+
+enum ClinicalTransactionOperationType {
+  create
+  modification
+  amendment
+  delete
+}
+
+enum ClinicalTransactionOperationStatus {
+  pending
+  ready
+  committed
+  failed
+  conflict
+}
+
+model ClinicalTransaction {
+  id                   String                    @id @default(uuid())
+  compositionSessionId String                    @map("composition_session_id")
+  ehrId                String                    @map("ehr_id")
+  userId               String                    @map("user_id")
+  authMode             String                    @map("auth_mode")
+  status               ClinicalTransactionStatus @default(draft)
+  // The overall clinical transaction's own description (e.g. "Stationäre
+  // Entlassung") - distinct from each operation's own changeDescription.
+  description          String?
+  contributionUid      String?                   @map("contribution_uid")
+  // A stable client-generated id so a duplicate click / retry-after-timeout
+  // / React double-invocation can never produce two Contributions for the
+  // same intended save - prepareClinicalTransaction reuses the existing row
+  // for a given (compositionSessionId, clientRequestId) instead of creating
+  // a new one. Unique only in combination with the session, since the same
+  // literal id from a different session must never collide.
+  clientRequestId      String?                   @map("client_request_id")
+  errorCode            String?                   @map("error_code")
+  errorMessage         String?                   @map("error_message")
+  revision             Int                       @default(0)
+  createdAt            DateTime                  @default(now()) @map("created_at")
+  updatedAt            DateTime                  @updatedAt @map("updated_at")
+
+  operations ClinicalTransactionOperation[]
+
+  @@unique([compositionSessionId, clientRequestId])
+  @@index([compositionSessionId])
+  @@index([userId, updatedAt])
+  @@map("clinical_transactions")
+}
+
+model ClinicalTransactionOperation {
+  id                String                             @id @default(uuid())
+  transactionId     String                             @map("transaction_id")
+  transaction       ClinicalTransaction                @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  formSessionId     String                             @map("form_session_id")
+  blockId           String?                            @map("block_id")
+  type              ClinicalTransactionOperationType
+  // Required for modification/amendment (the version this operation
+  // expected as its base when the transaction was prepared - re-checked
+  // immediately before commit); absent for create.
+  baseVersionUid    String?                            @map("base_version_uid")
+  resultVersionUid  String?                            @map("result_version_uid")
+  status            ClinicalTransactionOperationStatus @default(pending)
+  // Whether the whole transaction must fail if this specific operation is
+  // invalid/conflicts - true for every operation by default; Epic 4 leaves
+  // room for an optional child to be excluded from that guarantee later.
+  required          Boolean                            @default(true)
+  changeDescription String?                            @map("change_description")
+  errorCode         String?                            @map("error_code")
+  errorMessage      String?                            @map("error_message")
+  createdAt         DateTime                           @default(now()) @map("created_at")
+  updatedAt         DateTime                           @updatedAt @map("updated_at")
+
+  @@index([transactionId])
+  @@index([formSessionId])
+  @@map("clinical_transaction_operations")
 }
 
 // A reference to a query defined on EHRbase's own openEHR Query Service
@@ -225,30 +316,30 @@ model CodeFunction {
 }
 
 model Patient {
-  id               String        @id @default(uuid())
-  patientId        String        @map("patient_id")
-  patientNamespace String        @map("patient_namespace")
-  firstName        String        @map("first_name")
-  lastName         String        @map("last_name")
-  birthDate        String?       @map("birth_date")
-  gender           String?
-  ehrId            String        @unique @map("ehr_id")
+  id                 String        @id @default(uuid())
+  patientId          String        @map("patient_id")
+  patientNamespace   String        @map("patient_namespace")
+  firstName          String        @map("first_name")
+  lastName           String        @map("last_name")
+  birthDate          String?       @map("birth_date")
+  gender             String?
+  ehrId              String        @unique @map("ehr_id")
   // Where this record came from: "native" was created here in Forms
   // (create_patient / the "Patient anlegen" button); "imported" was
   // discovered on EHRbase (an EHR with no Forms-authored data behind it
   // yet) by syncPatientsFromEhrbase. An imported patient flips to native
   // the moment a form is actually added for them (createFormSession) -
   // it never flips back the other way.
-  origin           PatientOrigin @default(native)
+  origin             PatientOrigin @default(native)
   // Whether syncPatientsFromEhrbase last found a real openEHR-EHR-CLUSTER.
   // person.v1 (vg_Person template) composition for this EHR - i.e. whether
   // firstName/lastName/birthDate/gender above are genuine EHRbase data or
   // just a placeholder ("Unbekannt"). Drives the "needs assignment" split
   // in the Patient overview; re-evaluated (and can flip back to false, e.g.
   // a template rename) on every sync, unlike origin.
-  hasPersonArchetype Boolean      @default(false) @map("has_person_archetype")
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
+  hasPersonArchetype Boolean       @default(false) @map("has_person_archetype")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
 
   @@unique([patientNamespace, patientId])
   @@map("patients")
@@ -270,19 +361,19 @@ enum ApplicationRole {
 }
 
 model ApplicationUser {
-  id           String      @id @default(uuid())
-  username     String?     @unique
-  displayName  String?     @map("display_name")
+  id           String               @id @default(uuid())
+  username     String?              @unique
+  displayName  String?              @map("display_name")
   email        String?
-  passwordHash String?     @map("password_hash")
-  status       UserStatus  @default(active)
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
-  lastLoginAt  DateTime?   @map("last_login_at")
+  passwordHash String?              @map("password_hash")
+  status       UserStatus           @default(active)
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+  lastLoginAt  DateTime?            @map("last_login_at")
   roles        RoleAssignment[]
   identities   IdentityLink[]
   sessions     ApplicationSession[]
-  auditEvents  AuditEvent[] @relation("AuditActor")
+  auditEvents  AuditEvent[]         @relation("AuditActor")
 
   @@map("application_users")
 }
@@ -325,14 +416,14 @@ model ApplicationSession {
 }
 
 model AuditEvent {
-  id          String           @id @default(uuid())
-  actorUserId String?          @map("actor_user_id")
-  action      String
+  id           String           @id @default(uuid())
+  actorUserId  String?          @map("actor_user_id")
+  action       String
   resourceType String           @map("resource_type")
-  resourceId  String?          @map("resource_id")
-  metadata    Json             @default("{}")
-  createdAt   DateTime         @default(now()) @map("created_at")
-  actor       ApplicationUser? @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  resourceId   String?          @map("resource_id")
+  metadata     Json             @default("{}")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  actor        ApplicationUser? @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([actorUserId])
   @@index([action])
