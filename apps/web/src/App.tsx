@@ -49,7 +49,7 @@ function AppContent() {
   const location = useLocation(); const auth = useAuth(); const isBuilder = location.pathname.includes('/builder');
   const logout = async () => { await fetch('http://localhost:3001/api/auth/logout', { method: 'POST', credentials: 'include' }); await auth.reload(); };
   if (isBuilder || location.pathname.includes('/composition-builder')) return <main style={{ width: '100vw', height: '100vh', overflow: 'auto', padding: 0, margin: 0 }}><React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}><Routes><Route path="/forms/:id/builder" element={<Protected permission="form.design"><FormBuilder /></Protected>} /><Route path="/compositions/:id/builder" element={<Protected permission="form.design"><CompositionBuilder /></Protected>} /></Routes></React.Suspense></main>;
-  return <div className="app-container"><nav className="sidebar"><div className="sidebar-header"><h2>Clinical Form Builder</h2></div><ul className="sidebar-nav">
+  return <div className="app-container"><nav className="sidebar"><div className="sidebar-header"><img src="/onehr-logo.png" alt="OnEHR" style={{ width: '100%', maxWidth: 170, height: 'auto' }} /></div><ul className="sidebar-nav">
     <li><Link to="/" className={location.pathname === '/' ? 'active' : ''}><LayoutDashboard size={18} /><span>Dashboard</span></Link></li>
     <li><Link to="/patients" className={location.pathname.startsWith('/patients') ? 'active' : ''}><UserRound size={18} /><span>Patienten</span></Link></li>
     <Can permission="system.configure"><li><Link to="/config" className={location.pathname === '/config' ? 'active' : ''}><Settings size={18} /><span>Settings</span></Link></li></Can>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Braces, Database, FileCode2, Plus, Save } from 'lucide-react';
 import { registeredFunctionPackages } from '../scripting/runtime/registeredFunctions';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const API = 'http://localhost:3001/api';
 
@@ -39,6 +40,7 @@ function signature(name: string, parameters: Record<string, string>, returns: st
  * instead of implying both are equally "ours" to freely edit/delete.
  */
 export default function FunctionsAdmin() {
+  useDocumentTitle('Functions');
   const [tab, setTab] = useState<'code' | 'aql'>('code');
   const [codeFunctions, setCodeFunctions] = useState<StoredCodeFunction[]>([]);
   const [aqlFunctions, setAqlFunctions] = useState<StoredAqlFunction[]>([]);

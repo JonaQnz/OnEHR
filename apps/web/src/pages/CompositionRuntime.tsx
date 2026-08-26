@@ -6,6 +6,7 @@ import { formEmbedUrl, isFormEmbedEvent, launchEmbeddedForm } from '../integrati
 import { ClinicalGrid, ClinicalStack, ClinicalTabs } from '../components/layout/ClinicalLayout';
 import { CompositionScriptClient } from '../scripting/runtime/CompositionScriptClient';
 import { WidgetDataCard, type WidgetDataState } from '../components/WidgetDataCard';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const API = 'http://localhost:3001/api';
 type Mode = 'create' | 'edit' | 'view' | 'prefill';
@@ -54,6 +55,7 @@ function childBadge(status?: string) {
 export default function CompositionRuntime() {
   const { id } = useParams(); const [searchParams] = useSearchParams(); const navigate = useNavigate();
   const [record, setRecord] = useState<FormRecord | null>(null); const [composition, setComposition] = useState<CompositionDefinition | null>(null); const [session, setSession] = useState<CompositionSession | null>(null);
+  useDocumentTitle(record?.name || 'Composition');
   const [pageIndex, setPageIndex] = useState(0); const [patientId, setPatientId] = useState(searchParams.get('patientId') || ''); const [namespace, setNamespace] = useState(searchParams.get('patientNamespace') || ''); const [ehrId, setEhrId] = useState(searchParams.get('ehrId') || ''); const [mode, setMode] = useState<Mode>(() => { const requested = searchParams.get('mode'); return requested === 'edit' || requested === 'view' || requested === 'prefill' ? requested : 'create'; });
   const [launches, setLaunches] = useState<Record<string, Launch>>({}); const [data, setData] = useState<Record<string, DataState>>({}); const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [checking, setChecking] = useState(false);
   const [patients, setPatients] = useState<PatientOption[]>([]);

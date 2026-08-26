@@ -10,6 +10,7 @@ import '../styles/builder-theme.css';
 import '../styles/workbench.css';
 import { canonicalToFormBuilder, formBuilderToCanonical, getElementText, hydrateCustomBuilderElements } from '../adapters/formBuilderAdapter';
 import { getOpenEhrFormOptions, withOpenEhrFormOptions } from 'openehr-engine';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { validateForm, exportToOpenEhrFlatJson, getInstanceTitle } from '../utils/formStateHelper';
 import PluginHost from '../components/PluginHost';
 import { ExtensionSlot, useFrontendPlugins } from '../components/FrontendPluginRegistry';
@@ -469,6 +470,7 @@ function FormBuilderContent() {
   }, [customFields]);
 
   const [form, setForm] = useState<any>(null);
+  useDocumentTitle(form?.name ? `${form.name} (Editor)` : 'Form Builder');
   const formRef = React.useRef<any>(null);
   useEffect(() => {
     formRef.current = form;

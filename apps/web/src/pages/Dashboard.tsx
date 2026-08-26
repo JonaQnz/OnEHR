@@ -2,8 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Plus, FileEdit, Download, Copy, UploadCloud, FolderOpen, ExternalLink, Archive, RotateCcw, ChevronDown, ChevronRight, Trash2, LayoutPanelTop } from 'lucide-react';
 import { CreateFormModal } from '../components/CreateFormModal';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 export default function Dashboard() {
+  useDocumentTitle('Dashboard');
   const [forms, setForms] = useState<any[]>([]);
   const [loadError, setLoadError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');

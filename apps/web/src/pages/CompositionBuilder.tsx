@@ -20,6 +20,7 @@ import { DesignerShell } from '../designer/DesignerShell';
 import { ClinicalGrid } from '../components/layout/ClinicalLayout';
 import CompositionScriptEditor from '../scripting/editor/CompositionScriptEditor';
 import { CompositionBuilderCanvas } from '../designer/CompositionBuilderCanvas';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import '../styles/workbench.css';
 import '../styles/builder-theme.css';
 
@@ -59,6 +60,7 @@ function newCompositionBlock(kind: CompositionBlockKind, forms: FormRow[], aqlFu
 export default function CompositionBuilder() {
   const { id: compositionId } = useParams();
   const [record, setRecord] = useState<CompositionResponse | null>(null);
+  useDocumentTitle(record?.name ? `${record.name} (Editor)` : 'Composition Builder');
   const [composition, setComposition] = useState<CompositionDefinition>(defaultComposition());
   const [forms, setForms] = useState<FormRow[]>([]);
   const [aqlFunctions, setAqlFunctions] = useState<AqlFunction[]>([]);

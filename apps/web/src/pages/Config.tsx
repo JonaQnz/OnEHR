@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
 import PluginSettingsHost from '../components/PluginSettingsHost';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 type ConnectionDraft = {
   id: string; name: string; url: string; authPlugin: 'none' | 'basic' | 'hip-keycloak';
@@ -9,6 +10,7 @@ type ConnectionDraft = {
 };
 
 export default function Config() {
+  useDocumentTitle('Settings');
   const [config, setConfig] = useState<any>({ ehrbaseConnections: [], activeEhrbaseConnectionId: '', userAuthMode: 'local', localUsername: '', mappingServiceApi: '', scriptAiBaseUrl: '', scriptAiApiKey: '', scriptAiModel: '' });
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');

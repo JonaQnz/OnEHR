@@ -1,9 +1,11 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 type User = { id: string; username?: string; displayName?: string; email?: string; status: 'active' | 'inactive'; roles: ('USER' | 'ADMIN')[] };
 const api = 'http://localhost:3001/api/admin/users';
 
 export default function UsersAdmin() {
+  useDocumentTitle('Users');
   const [users, setUsers] = useState<User[]>([]); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState({ username: '', displayName: '', email: '', password: '', role: 'USER' as 'USER' | 'ADMIN' });
   const load = useCallback(async () => { const response = await fetch(api, { credentials: 'include' }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Users could not be loaded'); setUsers(data.users || []); }, []);
