@@ -9,6 +9,7 @@ import 'react-form-builder2/dist/app.css';
 import '../styles/builder-theme.css';
 import '../styles/workbench.css';
 import { canonicalToFormBuilder, formBuilderToCanonical, getElementText, hydrateCustomBuilderElements } from '../adapters/formBuilderAdapter';
+import { getOpenEhrFormOptions, withOpenEhrFormOptions } from 'openehr-engine';
 import { validateForm, exportToOpenEhrFlatJson, getInstanceTitle } from '../utils/formStateHelper';
 import PluginHost from '../components/PluginHost';
 import { ExtensionSlot, useFrontendPlugins } from '../components/FrontendPluginRegistry';
@@ -804,6 +805,18 @@ function FormBuilderContent() {
         }
       }
     };
+    formRef.current = updatedForm;
+    setForm(updatedForm);
+  };
+
+  // Reuses the same OPEN_EHR_FORM_EXTENSION getter/setter the backend's
+  // createFormSession/startCompositionSession read (openehr-engine) - one
+  // definition of the extension shape, not a hand-rolled copy of the key.
+  const updateOpenEhrFormOption = (key: 'storageStrategy', value: string) => {
+    if (!formRef.current) return;
+    const next: Record<string, unknown> = { ...getOpenEhrFormOptions(formRef.current.canonical_json) };
+    if (value) next[key] = value; else delete next[key];
+    const updatedForm = { ...formRef.current, canonical_json: withOpenEhrFormOptions(formRef.current.canonical_json, next as any) };
     formRef.current = updatedForm;
     setForm(updatedForm);
   };
@@ -2288,8 +2301,25 @@ function FormBuilderContent() {
                                   <option value="view">View (Read-only)</option>
                                 </select>
                                 <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.5rem' }}>
-                                  The default operating mode for the form if no explicit mode is provided in the URL. 
+                                  The default operating mode for the form if no explicit mode is provided in the URL.
                                   Note: "Edit" and "Prefill" modes typically require an existing composition reference.
+                                </p>
+                              </div>
+
+                              <div className="inspector-field-group" style={{ marginTop: '1.5rem' }}>
+                                <label>Session Reuse</label>
+                                <select
+                                  className="inspector-select"
+                                  value={getOpenEhrFormOptions(form.canonical_json).storageStrategy || ''}
+                                  onChange={(e) => updateOpenEhrFormOption('storageStrategy', e.target.value)}
+                                  onBlur={() => handleSave(builderItems)}
+                                >
+                                  <option value="">Default (resume the open draft/edit)</option>
+                                  <option value="update_latest">Resume existing session (same as default)</option>
+                                  <option value="always_new">Always start a new session</option>
+                                </select>
+                                <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+                                  In Edit/Prefill mode, Forms normally resumes this user's own still-open session for the same form and patient instead of starting a second one. Set "Always start a new session" for forms where every launch is its own clinical moment even in Edit mode (e.g. a vitals check filled several times a day) - each launch then gets its own fresh session regardless of what's already open.
                                 </p>
                               </div>
                             </>
