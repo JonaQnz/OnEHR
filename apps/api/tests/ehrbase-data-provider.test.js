@@ -537,3 +537,144 @@ test('getVersionContent returns undefined, not an error, for a version that no l
   const result = await provider.getVersionContent({ patientId: 'p1', ehrId: 'ehr-1', userId: 'alice', mode: 'view' }, 'missing::sys::1');
   assert.equal(result, undefined);
 });
+
+test('commitContribution posts one Contribution for multiple operations and correlates results back by real identity, not array order', async () => {
+  const sys = 'ehrbase-live';
+  const compA = '11111111-1111-1111-1111-111111111111';
+  const compB = '22222222-2222-2222-2222-222222222222';
+  const calls = [];
+  const http = {
+    async post(url, body, options) {
+      calls.push({ method: 'POST', url, body, options });
+      if (url.endsWith('/contribution')) {
+        // Confirmed live behaviour: bare 204, no body - contributionUid only
+        // comes back via etag.
+        return { data: '', status: 204, headers: { etag: '"contribution-uid-1"' } };
+      }
+      throw new Error(`unexpected POST ${url}`);
+    },
+    async get(url) {
+      calls.push({ method: 'GET', url });
+      if (url.endsWith('/contribution/contribution-uid-1')) {
+        return {
+          data: {
+            uid: { value: 'contribution-uid-1' },
+            // Deliberately NOT in operation order, to prove correlation
+            // doesn't just trust array position for modification/amendment.
+            versions: [
+              { id: { value: `${compB}::${sys}::4` } },
+              { id: { value: `${compA}::${sys}::1` } },
+            ],
+            audit: { time_committed: { value: '2026-08-26T10:00:00Z' }, committer: { name: 'Dr. Müller' }, description: { value: 'Stationäre Entlassung' } },
+          },
+        };
+      }
+      throw new Error(`unexpected GET ${url}`);
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+
+  const result = await provider.commitContribution({
+    context: { ehrId: 'ehr-1', userId: 'Dr. Müller', mode: 'edit' },
+    transactionDescription: 'Stationäre Entlassung',
+    operations: [
+      { operationIndex: 0, data: { _type: 'COMPOSITION', name: { value: 'New Composition' } }, desiredChangeType: 'creation' },
+      { operationIndex: 1, data: { _type: 'COMPOSITION', name: { value: 'Modified Composition' } }, precedingVersionUid: `${compB}::${sys}::3`, desiredChangeType: 'amendment', changeDescription: 'Updated dose' },
+    ],
+  });
+
+  assert.equal(result.contributionUid, 'contribution-uid-1');
+  // Operation 1 (amendment) must match compB by real identity, not position.
+  assert.deepEqual(result.versions.find((v) => v.operationIndex === 1), { operationIndex: 1, versionUid: `${compB}::${sys}::4` });
+  // Operation 0 (pure creation) has no prior identity - gets whatever's left.
+  assert.deepEqual(result.versions.find((v) => v.operationIndex === 0), { operationIndex: 0, versionUid: `${compA}::${sys}::1` });
+
+  const postCall = calls.find((call) => call.method === 'POST');
+  assert.equal(postCall.body.versions.length, 2);
+  assert.equal(postCall.body.versions[0].commit_audit.change_type.value, 'creation');
+  assert.equal(postCall.body.versions[1].commit_audit.change_type.value, 'amendment');
+  assert.equal(postCall.body.versions[1].preceding_version_uid.value, `${compB}::${sys}::3`);
+  assert.equal(postCall.body.versions[1].commit_audit.description.value, 'Updated dose');
+  assert.equal(postCall.body.audit.description.value, 'Stationäre Entlassung');
+  assert.equal(postCall.body.audit.committer._type, 'PARTY_IDENTIFIED');
+  // Mixed creation+amendment operations -> overall transaction change_type
+  // is reported as 'modification', not a bare 'creation'.
+  assert.equal(postCall.body.audit.change_type.value, 'modification');
+});
+
+test('commitContribution turns a stale preceding_version_uid conflict into a structured error, never a partial commit', async () => {
+  const http = {
+    async post(url) {
+      if (url.endsWith('/contribution')) {
+        const error = new Error('Precondition Failed');
+        error.response = { status: 412 };
+        throw error;
+      }
+      throw new Error(`unexpected POST ${url}`);
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+  await assert.rejects(
+    provider.commitContribution({
+      context: { ehrId: 'ehr-1', userId: 'alice', mode: 'edit' },
+      operations: [{ operationIndex: 0, data: {}, precedingVersionUid: 'x::sys::1', desiredChangeType: 'modification' }],
+    }),
+    (error) => {
+      assert.ok(error instanceof EhrbaseProviderError);
+      assert.equal(error.code, 'CONTRIBUTION_VERSION_CONFLICT');
+      assert.equal(error.status, 409);
+      return true;
+    },
+  );
+});
+
+test('commitContribution rejects an empty operation list before making any request', async () => {
+  const http = { async post() { throw new Error('should not be called'); } };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+  await assert.rejects(
+    provider.commitContribution({ context: { ehrId: 'ehr-1', userId: 'alice', mode: 'edit' }, operations: [] }),
+    (error) => { assert.equal(error.code, 'CONTRIBUTION_EMPTY'); return true; },
+  );
+});
+
+test('getContribution maps a Contribution\'s versions and audit for the Contribution Detail view', async () => {
+  const sys = 'ehrbase-live';
+  const http = {
+    async get(url) {
+      if (url.endsWith('/contribution/contribution-uid-2')) {
+        return {
+          data: {
+            uid: { value: 'contribution-uid-2' },
+            versions: [{ id: { value: `abc::${sys}::1` } }, { id: { value: `def::${sys}::7` } }],
+            audit: { time_committed: { value: '2026-08-26T10:32:00Z' }, committer: { name: 'Dr. Müller' }, description: { value: 'Stationäre Entlassung' } },
+          },
+        };
+      }
+      throw new Error(`unexpected GET ${url}`);
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+  const details = await provider.getContribution({ ehrId: 'ehr-1', userId: 'alice', mode: 'view' }, 'contribution-uid-2');
+  assert.equal(details.contributionUid, 'contribution-uid-2');
+  assert.equal(details.committer.name, 'Dr. Müller');
+  assert.equal(details.description, 'Stationäre Entlassung');
+  assert.deepEqual(details.versions, [
+    { versionUid: `abc::${sys}::1`, compositionUid: 'abc' },
+    { versionUid: `def::${sys}::7`, compositionUid: 'def' },
+  ]);
+});
+
+test('getContribution turns a 404 into a clear not-found error', async () => {
+  const http = {
+    async get() {
+      const error = new Error('not found');
+      error.response = { status: 404 };
+      throw error;
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+  await assert.rejects(
+    provider.getContribution({ ehrId: 'ehr-1', userId: 'alice', mode: 'view' }, 'missing'),
+    (error) => { assert.equal(error.code, 'CONTRIBUTION_NOT_FOUND'); return true; },
+  );
+});

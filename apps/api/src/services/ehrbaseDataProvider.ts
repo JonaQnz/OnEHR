@@ -66,6 +66,51 @@ export interface WithdrawResult {
   versionUid: string;
 }
 
+/**
+ * One Composition to commit as part of a single Contribution - Epic 4. Note
+ * `data` is already-built canonical (nested RM JSON) Composition content;
+ * this connector is purely the CDR transport, not a second serializer - see
+ * `buildCanonicalComposition` (openehr-engine) for how callers build it.
+ */
+export interface ContributionOperation {
+  /** The caller's own index into its operation list - carried through to
+   * the result rather than ever assumed from response array order (see
+   * commitContribution's correlation logic). */
+  operationIndex: number;
+  data: Record<string, unknown>;
+  /** Full `{uid}::{system}::N` of the version this modifies/amends - absent
+   * for a creation. */
+  precedingVersionUid?: string;
+  desiredChangeType: DesiredChangeType;
+  changeDescription?: string;
+}
+
+export interface ContributionCommitInput {
+  context: FormDataProviderContext;
+  operations: ContributionOperation[];
+  /** The overall clinical transaction's own description (e.g. "Stationäre
+   * Entlassung"), distinct from each operation's own changeDescription. */
+  transactionDescription?: string;
+}
+
+export interface ContributionCommitResult {
+  contributionUid: string;
+  versions: Array<{ operationIndex: number; versionUid: string }>;
+}
+
+export interface ContributionVersionSummary {
+  versionUid: string;
+  compositionUid: string;
+}
+
+export interface ContributionDetails {
+  contributionUid: string;
+  committedAt?: string;
+  committer?: PartyReference;
+  description?: string;
+  versions: ContributionVersionSummary[];
+}
+
 export class EhrbaseProviderError extends Error {
   public readonly status?: number;
   public readonly code: string;
@@ -157,6 +202,43 @@ function versionUidFromReference(reference: unknown): string | undefined {
   if (!value) return undefined;
   const match = value.match(/([0-9a-f-]{36}::[^/\s]+::\d+)/i) || value.match(/([^/]+::[^/]+::\d+)$/);
   return match?.[1];
+}
+
+// Same best-effort code mapping buildAuditHeaders() already uses (creation
+// confirmed against the openEHR Terminology audit change type group;
+// amendment/modification inferred) - one mapping, reused here rather than
+// re-derived, since Contribution commit_audit needs exactly the same codes.
+function changeTypeCode(changeType: DesiredChangeType | 'creation' | 'modification' | 'amendment'): string {
+  return changeType === 'amendment' ? '250' : changeType === 'modification' ? '251' : '249';
+}
+
+/**
+ * Maps each Contribution result version back to the operation that produced
+ * it - never by trusting array order alone (per Epic 4's own instruction:
+ * "do not assume array index sufficient to correlate result versions").
+ * Modification/amendment operations know their own target composition uid,
+ * so they match by that real identity first. Pure creations have no prior
+ * identity to match against; pairing them with whatever's left in the CDR's
+ * own response order is a confirmed-live (this deployment preserves request
+ * order), explicitly documented fallback - not a silent assumption.
+ */
+function correlateContributionVersions(operations: ContributionOperation[], resultVersions: ContributionVersionSummary[]): Array<{ operationIndex: number; versionUid: string }> {
+  const remaining = [...resultVersions];
+  const matched: Array<{ operationIndex: number; versionUid: string }> = [];
+  for (const op of operations) {
+    if (!op.precedingVersionUid) continue;
+    const compositionUid = op.precedingVersionUid.split('::')[0];
+    const index = remaining.findIndex((version) => version.compositionUid === compositionUid);
+    if (index >= 0) {
+      matched.push({ operationIndex: op.operationIndex, versionUid: remaining[index].versionUid });
+      remaining.splice(index, 1);
+    }
+  }
+  const unmatchedCreations = operations.filter((op) => !matched.some((m) => m.operationIndex === op.operationIndex));
+  unmatchedCreations.forEach((op, i) => {
+    if (remaining[i]) matched.push({ operationIndex: op.operationIndex, versionUid: remaining[i].versionUid });
+  });
+  return matched.sort((a, b) => a.operationIndex - b.operationIndex);
 }
 
 function latestComposition(data: any): Record<string, any> | undefined {
@@ -612,6 +694,112 @@ export class EhrbaseDataProvider implements FormDataProvider {
       raw: data,
     };
     return { version, flat: flatResponse.data || {} };
+  }
+
+  /**
+   * Commits multiple Compositions as ONE openEHR CONTRIBUTION
+   * (`POST /ehr/{ehr_id}/contribution`) - Epic 4. Confirmed live: this CDR
+   * accepts canonical (nested RM) JSON here (no FLAT/STRUCTURED option, per
+   * its own OpenAPI schema), applies `preceding_version_uid`/`change_type`/
+   * `description`/`committer` all correctly (real improvements over the
+   * FLAT endpoint's silently-ignored audit headers), and rejects a stale
+   * `preceding_version_uid` with a real 412 - covering multi-composition
+   * conflict detection for free, no bespoke concurrency layer needed here.
+   * One confirmed limitation: `lifecycle_state: incomplete` is silently
+   * forced to `complete` - out of scope for this method's job (grouped
+   * finalize of already-valid forms); drafts stay on the existing
+   * commitWithLifecycle()/FLAT autosave pipeline, untouched.
+   */
+  public async commitContribution(input: ContributionCommitInput): Promise<ContributionCommitResult> {
+    if (input.operations.length === 0) {
+      throw new EhrbaseProviderError('A Contribution requires at least one operation', 'CONTRIBUTION_EMPTY', 400);
+    }
+    const ehrId = await this.resolveEhrId(input.context);
+    const options = await this.requestOptions();
+    const committerName = input.context.userId || 'Form Builder';
+    const committer = { _type: 'PARTY_IDENTIFIED', name: committerName };
+    const overallChangeType = input.operations.every((op) => op.desiredChangeType === 'creation') ? 'creation' : 'modification';
+    const body = {
+      versions: input.operations.map((op) => ({
+        data: op.data,
+        ...(op.precedingVersionUid ? { preceding_version_uid: { value: op.precedingVersionUid } } : {}),
+        // Contribution's job here is the grouped *finalize* step (Epic 4's
+        // own scope decision) - drafts stay on the existing FLAT autosave
+        // pipeline (commitWithLifecycle), so every operation committed this
+        // way is always 'complete'. Confirmed live: `incomplete` is
+        // silently forced to `complete` on this CDR regardless, matching
+        // the FLAT-header finding - so this was never a real choice anyway.
+        lifecycle_state: { value: 'complete', defining_code: { terminology_id: { value: 'openehr' }, code_string: '532' } },
+        commit_audit: {
+          system_id: 'form-builder',
+          committer,
+          change_type: { value: op.desiredChangeType, defining_code: { terminology_id: { value: 'openehr' }, code_string: changeTypeCode(op.desiredChangeType) } },
+          ...(op.changeDescription ? { description: { value: op.changeDescription } } : {}),
+        },
+      })),
+      audit: {
+        system_id: 'form-builder',
+        committer,
+        change_type: { value: overallChangeType, defining_code: { terminology_id: { value: 'openehr' }, code_string: changeTypeCode(overallChangeType) } },
+        ...(input.transactionDescription ? { description: { value: input.transactionDescription } } : {}),
+      },
+    };
+    let response: ProviderResponse;
+    try {
+      response = await this.http.post(`${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/contribution`, body, {
+        ...options,
+        headers: { ...options.headers, Prefer: 'return=representation' },
+      }) as ProviderResponse;
+    } catch (error: any) {
+      if (error?.response?.status === 412) {
+        throw new EhrbaseProviderError('One or more compositions changed since they were loaded. Reload before saving.', 'CONTRIBUTION_VERSION_CONFLICT', 409);
+      }
+      return this.handleError(error);
+    }
+    // Confirmed live: even with Prefer: return=representation, the create
+    // response is a bare 204 with no body on this CDR - the Contribution
+    // UID only ever comes back via the etag/location header (referenceFrom
+    // already prefers etag, same as every other commit path here). Per-
+    // version result uids are never in this response either way, so the
+    // Contribution is always read back to get them.
+    const contributionUid = referenceFrom(response) || text(response.data?.uid?.value);
+    if (!contributionUid) throw new EhrbaseProviderError('EHRbase did not return a Contribution UID', 'CONTRIBUTION_UID_MISSING', 502);
+    const details = await this.getContribution(input.context, contributionUid, ehrId);
+    return { contributionUid, versions: correlateContributionVersions(input.operations, details.versions) };
+  }
+
+  /**
+   * Fetches one Contribution's own audit metadata and the full list of
+   * Composition versions it committed together - used both right after
+   * commitContribution() (to correlate result versions back to operations)
+   * and later, on demand, for the Contribution Detail view (Epic 4 §20).
+   */
+  public async getContribution(context: FormDataProviderContext, contributionUid: string, ehrIdOverride?: string): Promise<ContributionDetails> {
+    const ehrId = ehrIdOverride || await this.resolveEhrId(context);
+    let response: ProviderResponse;
+    try {
+      response = await this.http.get(
+        `${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/contribution/${encodeURIComponent(contributionUid)}`,
+        await this.requestOptions(),
+      ) as ProviderResponse;
+    } catch (error: any) {
+      if (error?.response?.status === 404) throw new EhrbaseProviderError('Contribution not found', 'CONTRIBUTION_NOT_FOUND', 404);
+      return this.handleError(error);
+    }
+    const data = response.data || {};
+    const versions: ContributionVersionSummary[] = (Array.isArray(data.versions) ? data.versions : [])
+      .map((ref: any): ContributionVersionSummary | undefined => {
+        const versionUid = text(ref?.id?.value);
+        return versionUid ? { versionUid, compositionUid: versionUid.split('::')[0] } : undefined;
+      })
+      .filter((version: ContributionVersionSummary | undefined): version is ContributionVersionSummary => Boolean(version));
+    return {
+      contributionUid: text(data.uid?.value) || contributionUid,
+      committedAt: text(data.audit?.time_committed?.value),
+      committer: partyName(data.audit?.committer),
+      description: text(data.audit?.description?.value),
+      versions,
+    };
   }
 
   private buildAuditHeaders(input: CommitWithLifecycleInput): Record<string, string> {
