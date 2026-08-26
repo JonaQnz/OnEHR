@@ -16,6 +16,8 @@ export {
   type ParsedOpenEhrPath,
 } from './metadata';
 
+export { compareRuntimeValues } from './diff';
+
 export const OPEN_EHR_FORM_EXTENSION = 'org.openehr.form' as const;
 
 export interface OpenEhrFormOptions {

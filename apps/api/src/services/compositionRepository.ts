@@ -1,3 +1,4 @@
+import type { CompositionVersion, FormDataProviderContext } from 'core';
 import {
   ehrbaseDataProvider,
   type CommitWithLifecycleInput,
@@ -17,6 +18,10 @@ import {
 export interface CompositionRepository {
   commit(input: CommitWithLifecycleInput, label: 'submit' | 'draft'): Promise<CommitWithLifecycleResult>;
   withdraw(input: WithdrawInput): Promise<WithdrawResult>;
+  /** Lightweight version list (Epic 3) - metadata only, never full content. */
+  getVersionHistory(context: FormDataProviderContext, compositionUid: string): Promise<CompositionVersion[]>;
+  /** One version's full audit metadata + content, fetched lazily on demand. */
+  getVersionContent(context: FormDataProviderContext, versionUid: string): Promise<{ version: CompositionVersion; flat: Record<string, unknown> } | undefined>;
 }
 
 const repositories = new Map<string, CompositionRepository>();
@@ -25,6 +30,8 @@ function ehrbaseRepository(): CompositionRepository {
   return {
     commit: (input, label) => ehrbaseDataProvider.commitWithLifecycle(input, label),
     withdraw: (input) => ehrbaseDataProvider.withdraw(input),
+    getVersionHistory: (context, compositionUid) => ehrbaseDataProvider.getVersionHistory(context, compositionUid),
+    getVersionContent: (context, versionUid) => ehrbaseDataProvider.getVersionContent(context, versionUid),
   };
 }
 

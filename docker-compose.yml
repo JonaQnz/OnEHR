@@ -58,10 +58,12 @@ services:
     volumes:
       - ./data:/app/data
       - ./apps/api/dist:/app/apps/api/dist
-      # Keep the runtime Core package in sync with the mounted API build.
-      # Otherwise API code compiled against newer Core exports can call an old
-      # Core image layer during local development.
+      # Keep the runtime Core/openehr-engine packages in sync with the
+      # mounted API build. Otherwise API code compiled against newer
+      # Core/openehr-engine exports can call an old image layer during
+      # local development.
       - ./packages/core/dist:/app/packages/core/dist
+      - ./packages/openehr-engine/dist:/app/packages/openehr-engine/dist
       # Prisma schema is mounted so the API container can regenerate its client
       # when local development adds a persisted model.
       - ./apps/api/prisma:/app/apps/api/prisma

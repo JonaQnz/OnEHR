@@ -24,6 +24,7 @@ import { getDataProvider } from './dataProviderRegistry';
 import { EhrbaseProviderError } from './ehrbaseDataProvider';
 import { N8nProviderError } from './n8nDataProvider';
 import { getCompositionRepository } from './compositionRepository';
+import { recordCompositionVersionEvent } from './compositionVersionEvents';
 import { getPluginSettings } from './configService';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 import type { PluginHookName, PluginHookResult } from 'plugin-api';
@@ -224,7 +225,7 @@ function requiredText(value: unknown, field: string): string {
   return value.trim();
 }
 
-interface ResolvedSessionPatient {
+export interface ResolvedSessionPatient {
   patientId: string;
   patientNamespace?: string;
   ehrId?: string;
@@ -466,6 +467,40 @@ async function providerInput(id: string, providerId: string, actor: SessionActor
   };
 }
 
+function compositionUidFromReference(reference: string | null | undefined): string | undefined {
+  if (!reference) return undefined;
+  const last = reference.includes('/') ? reference.split('/').pop() : reference;
+  return last ? last.split('::')[0] : undefined;
+}
+
+/**
+ * Resolves a session's provider context for read-only history/audit access
+ * - deliberately NOT `providerInput()`: history must stay visible on an
+ * already-`submitted` or withdrawn (`deleted`) session, which
+ * `assertSessionIsEditable` would otherwise reject. Viewing what happened is
+ * never itself an edit.
+ */
+export async function resolveFormSessionHistoryContext(id: string, actor: SessionActor): Promise<{
+  session: any;
+  patient: ResolvedSessionPatient;
+  context: FormDataProviderContext;
+  providerId: string;
+  compositionUid?: string;
+}> {
+  const sessionId = requiredText(id, 'id');
+  const session = await prisma.formSession.findUnique({ where: { id: sessionId } });
+  if (!session) throw new HttpError(404, 'Form session not found');
+  assertOwner(session, actor);
+  const patient = await resolveSessionPatient(session.patientId, session.patientNamespace);
+  return {
+    session,
+    patient,
+    context: providerContext(patient, session.id, actor, persistedMode(session.mode)),
+    providerId: session.providerId || 'ehrbase',
+    compositionUid: compositionUidFromReference(session.providerReference) || compositionUidFromReference(session.draftReference),
+  };
+}
+
 export async function loadFormSessionFromProvider(id: string, providerId: string, actor: SessionActor): Promise<{ session: FormSession; provider: unknown }> {
   const input = await providerInput(id, providerId, actor);
   const form = input.form.definition as unknown as Record<string, unknown>;
@@ -562,6 +597,16 @@ export async function autosaveFormSessionDraft(id: string, providerId: string, a
         lifecycleState: result.lifecycleState,
         lifecycleConfirmed: result.lifecycleConfirmed,
       } });
+      const eventEhrId = typeof result.metadata?.ehrId === 'string' ? result.metadata.ehrId : undefined;
+      if (result.reference && eventEhrId) {
+        void recordCompositionVersionEvent({
+          versionUid: result.reference,
+          compositionUid: compositionUidFromReference(result.reference) || result.reference,
+          ehrId: eventEhrId,
+          formSessionId: input.session.id,
+          lifecycleState: result.lifecycleState,
+        });
+      }
     } catch (error) {
       // A version conflict is never a transient provider hiccup - it means
       // someone else's newer version already exists, so silently degrading
@@ -645,7 +690,7 @@ export async function submitFormSessionToProvider(
     : undefined;
   const changeDescription = options.changeDescription ?? (input.session.changeDescription || undefined);
   const repository = getCompositionRepository(providerId);
-  let result: { providerId: string; reference?: string; metadata?: unknown; lifecycleState?: FormSessionLifecycleState; lifecycleConfirmed?: boolean };
+  let result: { providerId: string; reference?: string; metadata?: { ehrId?: string; templateId?: string }; lifecycleState?: FormSessionLifecycleState; lifecycleConfirmed?: boolean };
   try {
     if (repository) {
       result = await repository.commit({
@@ -684,6 +729,17 @@ export async function submitFormSessionToProvider(
     ...(changeDescription ? { changeDescription } : {}),
     revision: { increment: 1 },
   } });
+  if (result.reference && result.metadata?.ehrId) {
+    void recordCompositionVersionEvent({
+      versionUid: result.reference,
+      compositionUid: compositionUidFromReference(result.reference) || result.reference,
+      ehrId: result.metadata.ehrId,
+      formSessionId: input.session.id,
+      lifecycleState: result.lifecycleState || 'complete',
+      changeType: desiredChangeType,
+      changeDescription,
+    });
+  }
   return {
     session: publicSession(
       updated,
@@ -729,5 +785,20 @@ export async function withdrawFormSessionFromProvider(id: string, providerId: st
     ...(reason ? { changeDescription: reason } : {}),
     revision: { increment: 1 },
   } });
+  // patient.ehrId is what resolveEhrId() itself would have used here (it's
+  // only resolved differently, via subject lookup, when context.ehrId is
+  // unset) - if it's genuinely unavailable, skip the local event write
+  // rather than guess; history for this version then simply falls back to
+  // the CDR's own (accurate, for a delete) default.
+  if (patient.ehrId) {
+    void recordCompositionVersionEvent({
+      versionUid: result.versionUid,
+      compositionUid: compositionUidFromReference(result.versionUid) || result.versionUid,
+      ehrId: patient.ehrId,
+      formSessionId: session.id,
+      lifecycleState: 'deleted',
+      changeDescription: reason,
+    });
+  }
   return { session: publicSession(updated, undefined, patient), provider: result };
 }

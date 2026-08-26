@@ -412,3 +412,123 @@ test('does not silently submit a known patient to the configured default EHR', a
     (error) => error instanceof EhrbaseProviderError && error.code === 'PATIENT_EHR_NOT_FOUND',
   );
 });
+
+// Epic 3 - Version History. Shapes below are exactly what the real sandbox
+// EHRbase returned live for these two endpoints (snake_case canonical RM
+// JSON, despite the OpenAPI schema documenting camelCase) - not invented.
+test('getVersionHistory maps the real revision_history shape, oldest CDR default tagging preserved as-is', async () => {
+  const ehrId = 'ehr-1';
+  const baseUid = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const sys = 'system-1';
+  const http = {
+    async get(url) {
+      if (url.endsWith('/ehr')) return { data: { ehr_id: { value: ehrId } } };
+      if (url.endsWith('/revision_history')) {
+        return {
+          data: {
+            _type: 'REVISION_HISTORY',
+            items: [
+              {
+                _type: 'REVISION_HISTORY_ITEM',
+                version_id: { _type: 'OBJECT_VERSION_ID', value: `${baseUid}::${sys}::1` },
+                audits: [{ _type: 'AUDIT_DETAILS', system_id: sys, time_committed: { value: '2026-08-25T18:49:48Z' }, change_type: { value: 'creation', defining_code: { code_string: '249' } }, description: { _type: 'DV_TEXT' }, committer: { _type: 'PARTY_IDENTIFIED', name: 'EHRbase Internal tech-account' } }],
+              },
+              {
+                _type: 'REVISION_HISTORY_ITEM',
+                version_id: { _type: 'OBJECT_VERSION_ID', value: `${baseUid}::${sys}::2` },
+                audits: [{ _type: 'AUDIT_DETAILS', system_id: sys, time_committed: { value: '2026-08-25T18:50:12Z' }, change_type: { value: 'modification', defining_code: { code_string: '251' } }, committer: { _type: 'PARTY_IDENTIFIED', name: 'EHRbase Internal tech-account' } }],
+              },
+            ],
+          },
+        };
+      }
+      throw new Error(`unexpected GET ${url}`);
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+  const versions = await provider.getVersionHistory({ patientId: 'p1', ehrId, userId: 'alice', mode: 'view' }, baseUid);
+  assert.equal(versions.length, 2);
+  assert.equal(versions[0].versionUid, `${baseUid}::${sys}::1`);
+  assert.equal(versions[0].versionNumber, 1);
+  assert.equal(versions[0].changeType, 'creation');
+  assert.equal(versions[0].changeTypeConfirmed, true);
+  assert.equal(versions[0].committer.name, 'EHRbase Internal tech-account');
+  // Not present on this endpoint at all (confirmed live) - never guessed.
+  assert.equal(versions[0].lifecycleState, 'unknown');
+  assert.equal(versions[0].lifecycleConfirmed, false);
+  assert.equal(versions[1].changeType, 'modification');
+});
+
+test('getVersionHistory returns an empty list, not an error, when the CDR has nothing for this composition', async () => {
+  const http = {
+    async get(url) {
+      if (url.endsWith('/ehr')) return { data: { ehr_id: { value: 'ehr-1' } } };
+      const error = new Error('not found');
+      error.response = { status: 404 };
+      throw error;
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+  const versions = await provider.getVersionHistory({ patientId: 'p1', ehrId: 'ehr-1', userId: 'alice', mode: 'view' }, 'missing-uid');
+  assert.deepEqual(versions, []);
+});
+
+test('getVersionContent combines the canonical audit endpoint and the FLAT content endpoint, keeping composer and committer distinct', async () => {
+  const ehrId = 'ehr-1';
+  const baseUid = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  const sys = 'system-1';
+  const versionUid = `${baseUid}::${sys}::4`;
+  const calls = [];
+  const http = {
+    async get(url, options) {
+      calls.push(url);
+      if (url.endsWith('/ehr')) return { data: { ehr_id: { value: ehrId } } };
+      if (url.includes('/versioned_composition/')) {
+        return {
+          data: {
+            uid: { value: versionUid },
+            lifecycle_state: { value: 'complete', defining_code: { code_string: '532' } },
+            commit_audit: {
+              time_committed: { value: '2026-08-25T18:52:00Z' },
+              change_type: { value: 'amendment', defining_code: { code_string: '250' } },
+              description: { value: 'Falsches Körpergewicht korrigiert' },
+              committer: { _type: 'PARTY_IDENTIFIED', name: 'M. Meyer' },
+            },
+            contribution: { id: { value: 'contribution-xyz' } },
+            preceding_version_uid: { value: `${baseUid}::${sys}::3` },
+            data: { composer: { _type: 'PARTY_IDENTIFIED', name: 'Dr. Schmidt' } },
+          },
+        };
+      }
+      if (url.includes('/composition/') && decodeURIComponent(url).endsWith(`/composition/${versionUid}`)) {
+        assert.equal(options.params.format, 'FLAT');
+        return { data: { 'vitals/weight|magnitude': 78, 'vitals/weight|unit': 'kg' } };
+      }
+      throw new Error(`unexpected GET ${url}`);
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+  const result = await provider.getVersionContent({ patientId: 'p1', ehrId, userId: 'alice', mode: 'view' }, versionUid);
+  assert.equal(result.version.lifecycleState, 'complete');
+  assert.equal(result.version.changeType, 'amendment');
+  assert.equal(result.version.committer.name, 'M. Meyer');
+  assert.equal(result.version.composer.name, 'Dr. Schmidt');
+  assert.notEqual(result.version.committer.name, result.version.composer.name);
+  assert.equal(result.version.contributionUid, 'contribution-xyz');
+  assert.equal(result.version.precedingVersionUid, `${baseUid}::${sys}::3`);
+  assert.equal(result.flat['vitals/weight|magnitude'], 78);
+});
+
+test('getVersionContent returns undefined, not an error, for a version that no longer resolves', async () => {
+  const http = {
+    async get(url) {
+      if (url.endsWith('/ehr')) return { data: { ehr_id: { value: 'ehr-1' } } };
+      const error = new Error('not found');
+      error.response = { status: 404 };
+      throw error;
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+  const result = await provider.getVersionContent({ patientId: 'p1', ehrId: 'ehr-1', userId: 'alice', mode: 'view' }, 'missing::sys::1');
+  assert.equal(result, undefined);
+});

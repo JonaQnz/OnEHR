@@ -10,6 +10,9 @@ test('exposes a CompositionRepository only for providers with a real openEHR ver
   assert.ok(repo);
   assert.equal(typeof repo.commit, 'function');
   assert.equal(typeof repo.withdraw, 'function');
+  // Epic 3
+  assert.equal(typeof repo.getVersionHistory, 'function');
+  assert.equal(typeof repo.getVersionContent, 'function');
 });
 
 test('returns the same cached repository instance for repeated lookups', () => {

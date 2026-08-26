@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { asyncHandler } from '../middleware/errorHandler';
+import { asyncHandler, HttpError } from '../middleware/errorHandler';
 import { requirePermission } from '../middleware/auth';
 import { autosaveFormSessionDraft, createFormSession, getFormSession, listFormSessions, loadFormSessionFromProvider, patchFormSession, submitFormSession, submitFormSessionToProvider, validateFormSession, withdrawFormSessionFromProvider } from '../services/formSessionService';
+import { getCompositionHistory, getCompositionVersionDetail, getCompositionVersionsForCompare } from '../services/compositionHistoryService';
 
 const router = Router();
 router.use(requirePermission('form.execute'));
@@ -52,6 +53,25 @@ router.post('/:id/provider/withdraw', asyncHandler(async (req, res) => {
   const providerId = typeof req.body?.providerId === 'string' ? req.body.providerId : 'ehrbase';
   const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
   res.json(await withdrawFormSessionFromProvider(String(req.params.id), providerId, actor(req), reason));
+}));
+
+// Epic 3 - Version History, Audit & Semantic Diff. GET, not POST: these are
+// read-only, and (unlike the /provider/* actions above) deliberately work
+// even on an already-submitted or withdrawn session - viewing what
+// happened is never itself an edit.
+router.get('/:id/provider/history', asyncHandler(async (req, res) => {
+  res.json(await getCompositionHistory(String(req.params.id), actor(req)));
+}));
+
+router.get('/:id/provider/history/:versionUid', asyncHandler(async (req, res) => {
+  res.json(await getCompositionVersionDetail(String(req.params.id), String(req.params.versionUid), actor(req)));
+}));
+
+router.post('/:id/provider/history/compare', asyncHandler(async (req, res) => {
+  const fromVersionUid = typeof req.body?.fromVersionUid === 'string' ? req.body.fromVersionUid : '';
+  const toVersionUid = typeof req.body?.toVersionUid === 'string' ? req.body.toVersionUid : '';
+  if (!fromVersionUid || !toVersionUid) throw new HttpError(400, 'fromVersionUid and toVersionUid are required');
+  res.json(await getCompositionVersionsForCompare(String(req.params.id), fromVersionUid, toVersionUid, actor(req)));
 }));
 
 router.post('/:id/validate', asyncHandler(async (req, res) => {

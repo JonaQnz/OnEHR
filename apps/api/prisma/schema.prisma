@@ -144,6 +144,33 @@ model FormSession {
   @@map("form_sessions")
 }
 
+// Epic 3 - Version History: a minimal, append-only local overlay for the
+// two things confirmed (live, against this deployment's EHRbase) NOT to
+// survive into the real openEHR audit trail - which historical version was
+// itself an in-progress draft (lifecycle_state always reads back "complete"
+// regardless of what was actually saved), and modification-vs-amendment
+// intent (the openEHR-AUDIT_DETAILS header carrying it is silently
+// ignored). Everything else about a version (its existence, order,
+// timestamp, committer, contribution, creation-vs-modification) comes
+// straight from the CDR's own revision_history and is never duplicated
+// here - see compositionHistoryService.ts, which LEFT-JOINs this table
+// against the CDR's real history by versionUid, never using it alone.
+model CompositionVersionEvent {
+  id                String   @id @default(uuid())
+  versionUid        String   @unique @map("version_uid")
+  compositionUid    String   @map("composition_uid")
+  ehrId             String   @map("ehr_id")
+  formSessionId     String   @map("form_session_id")
+  lifecycleState    FormSessionLifecycleState @map("lifecycle_state")
+  changeType        FormSessionChangeType?    @map("change_type")
+  changeDescription String?  @map("change_description")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([compositionUid])
+  @@index([formSessionId])
+  @@map("composition_version_events")
+}
+
 // A reference to a query defined on EHRbase's own openEHR Query Service
 // (/definition/query), not a container for AQL text of our own. `query`
 // and `ehrbaseVersion` are a read-through cache of what EHRbase actually

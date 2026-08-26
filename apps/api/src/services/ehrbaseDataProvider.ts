@@ -1,6 +1,7 @@
 import axios, { type AxiosInstance } from 'axios';
 import type {
   CanonicalForm,
+  CompositionVersion,
   FormDataProvider,
   FormDataProviderContext,
   FormDataProviderForm,
@@ -9,7 +10,9 @@ import type {
   FormDataProviderSubmitInput,
   FormDataProviderSubmitResult,
   FormSessionValues,
+  PartyReference,
 } from 'core';
+import { mapChangeType, mapLifecycleState, parseVersionNumber } from 'core';
 import {
   fromOpenEhrFlatComposition,
   toOpenEhrFlatComposition,
@@ -111,6 +114,20 @@ export function extractEhrId(payload: any): string | undefined {
   if (direct) return direct;
   const first = Array.isArray(payload?.ehrs) ? payload.ehrs[0] : Array.isArray(payload) ? payload[0] : undefined;
   return text(first?.ehr_id?.value) || text(first?.ehr_id) || text(first?.ehrId);
+}
+
+/**
+ * Extracts a display name/id from an openEHR PARTY_PROXY (PARTY_IDENTIFIED
+ * usually has `name`; PARTY_SELF/others may only have an external_ref id).
+ * Never throws on an unexpected shape - a missing committer/composer is a
+ * normal, displayable "unknown", not an error.
+ */
+function partyName(party: any): PartyReference | undefined {
+  if (!party || typeof party !== 'object') return undefined;
+  const name = text(party.name);
+  const id = text(party.external_ref?.id?.value) || text(party.externalRef?.id?.value) || text(party.identifiers?.[0]?.id);
+  if (!name && !id) return undefined;
+  return { ...(name ? { name } : {}), ...(id ? { id } : {}) };
 }
 
 function referenceFrom(response: ProviderResponse): string | undefined {
@@ -478,6 +495,105 @@ export class EhrbaseDataProvider implements FormDataProvider {
       }
       return this.handleError(error);
     }
+  }
+
+  /**
+   * Lightweight version list (Epic 3 §28: metadata only, never full
+   * composition content) via the real `revision_history` endpoint. Every
+   * field here comes straight from the CDR - existence, order, timestamp,
+   * committer, and (confirmed live) an accurate creation-vs-modification
+   * `change_type`. `lifecycle_state` isn't present on this endpoint at all
+   * (confirmed against the live OpenAPI schema), so it's always reported as
+   * `'unknown'`/unconfirmed here - a higher layer may enrich it from a local
+   * record; this connector never guesses.
+   */
+  public async getVersionHistory(context: FormDataProviderContext, compositionUid: string): Promise<CompositionVersion[]> {
+    const ehrId = await this.resolveEhrId(context);
+    try {
+      const response = await this.http.get(
+        `${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/versioned_composition/${encodeURIComponent(compositionUid)}/revision_history`,
+        await this.requestOptions(),
+      ) as ProviderResponse;
+      const items = Array.isArray(response.data?.items) ? response.data.items : [];
+      return items
+        .map((item: any) => this.mapRevisionHistoryItem(item, compositionUid))
+        .filter((version: CompositionVersion | undefined): version is CompositionVersion => Boolean(version));
+    } catch (error: any) {
+      if (error?.response?.status === 404) return [];
+      return this.handleError(error);
+    }
+  }
+
+  private mapRevisionHistoryItem(item: any, compositionUid: string): CompositionVersion | undefined {
+    const versionUid = text(item?.version_id?.value);
+    if (!versionUid) return undefined;
+    // A REVISION_HISTORY_ITEM can carry more than one AUDIT_DETAILS (e.g.
+    // attestations layer more onto the same version) - out of scope for
+    // this epic, so the first (the committing) audit is what's shown.
+    const audit = Array.isArray(item?.audits) ? item.audits[0] : undefined;
+    const changeType = mapChangeType(audit?.change_type?.value, audit?.change_type?.defining_code?.code_string);
+    return {
+      compositionUid,
+      versionUid,
+      versionNumber: parseVersionNumber(versionUid),
+      lifecycleState: 'unknown',
+      lifecycleConfirmed: false,
+      changeType,
+      changeTypeConfirmed: changeType !== 'unknown',
+      committedAt: text(audit?.time_committed?.value),
+      committer: partyName(audit?.committer),
+      changeDescription: text(audit?.description?.value),
+      raw: item,
+    };
+  }
+
+  /**
+   * Full detail for exactly one version, fetched only on demand (Epic 3
+   * §29 - never for a whole list). Two proven-working endpoints, not one:
+   * the canonical `versioned_composition/.../version/{uid}` for audit
+   * metadata (composer, contribution, preceding version, lifecycle_state -
+   * confirmed live to always read back `complete` on this CDR, hence
+   * `lifecycleConfirmed: false` here too) and the already-used
+   * `composition/{version_uid}?format=FLAT` for content - confirmed live to
+   * return that SPECIFIC version's own data, not always the latest, so it's
+   * safe to reuse for a historical version exactly as `load()` already does
+   * for the current one.
+   */
+  public async getVersionContent(context: FormDataProviderContext, versionUid: string): Promise<{ version: CompositionVersion; flat: Record<string, unknown> } | undefined> {
+    const ehrId = await this.resolveEhrId(context);
+    const baseUid = versionUid.split('::')[0];
+    const options = await this.requestOptions();
+    let canonical: ProviderResponse;
+    let flatResponse: ProviderResponse;
+    try {
+      [canonical, flatResponse] = await Promise.all([
+        this.http.get(`${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/versioned_composition/${encodeURIComponent(baseUid)}/version/${encodeURIComponent(versionUid)}`, options) as Promise<ProviderResponse>,
+        this.http.get(`${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(versionUid)}`, { ...options, params: { format: 'FLAT' } }) as Promise<ProviderResponse>,
+      ]);
+    } catch (error: any) {
+      if (error?.response?.status === 404) return undefined;
+      return this.handleError(error);
+    }
+    const data = canonical.data || {};
+    const lifecycleState = mapLifecycleState(data.lifecycle_state?.value, data.lifecycle_state?.defining_code?.code_string);
+    const changeType = mapChangeType(data.commit_audit?.change_type?.value, data.commit_audit?.change_type?.defining_code?.code_string);
+    const version: CompositionVersion = {
+      compositionUid: baseUid,
+      versionUid: text(data.uid?.value) || versionUid,
+      versionNumber: parseVersionNumber(versionUid),
+      lifecycleState,
+      lifecycleConfirmed: false,
+      changeType,
+      changeTypeConfirmed: changeType !== 'unknown',
+      committedAt: text(data.commit_audit?.time_committed?.value),
+      committer: partyName(data.commit_audit?.committer),
+      composer: partyName(data.data?.composer),
+      changeDescription: text(data.commit_audit?.description?.value),
+      contributionUid: text(data.contribution?.id?.value),
+      precedingVersionUid: text(data.preceding_version_uid?.value),
+      raw: data,
+    };
+    return { version, flat: flatResponse.data || {} };
   }
 
   private buildAuditHeaders(input: CommitWithLifecycleInput): Record<string, string> {
