@@ -14,12 +14,13 @@
  */
 import prisma from '../db/prisma';
 import { HttpError } from '../middleware/errorHandler';
-import { migrateCanonicalFormToV1, type FormDataProviderContext } from 'core';
+import { getCompositionDefinition, migrateCanonicalFormToV1, type FormDataProviderContext } from 'core';
 import { buildCanonicalComposition } from 'openehr-engine';
 import { getCompositionSession, validateCompositionSession, type CompositionSessionActor } from './compositionSessionService';
 import { getCompositionRepository } from './compositionRepository';
 import { applySuccessfulProviderCommit } from './formSessionService';
 import { getRemoteWebTemplate } from './ehrbaseService';
+import { getConfig } from './configService';
 
 export type ClinicalTransactionActor = CompositionSessionActor;
 
@@ -45,6 +46,11 @@ export interface PublicClinicalTransaction {
   status: string;
   description?: string;
   contributionUid?: string;
+  /** Whether this commit actually landed as one real openEHR CONTRIBUTION
+   * (true) or via the non-atomic sequential fallback (false) - absent until
+   * a commit attempt has actually run. Never inferred from contributionUid
+   * alone, so the UI can state plainly whether atomicity was achieved. */
+  atomic?: boolean;
   operations: PublicOperation[];
   errorCode?: string;
   errorMessage?: string;
@@ -85,6 +91,7 @@ function publicTransaction(row: any, operations: any[]): PublicClinicalTransacti
     status: row.status,
     ...(row.description ? { description: row.description } : {}),
     ...(row.contributionUid ? { contributionUid: row.contributionUid } : {}),
+    ...(row.atomic !== null && row.atomic !== undefined ? { atomic: row.atomic } : {}),
     operations: operations.map(publicOperation),
     ...(row.errorCode ? { errorCode: row.errorCode } : {}),
     ...(row.errorMessage ? { errorMessage: row.errorMessage } : {}),
@@ -137,10 +144,25 @@ export async function prepareClinicalTransaction(
 
   if (clientRequestId) {
     const existing = await prisma.clinicalTransaction.findUnique({ where: { compositionSessionId_clientRequestId: { compositionSessionId: sessionId, clientRequestId } } });
-    if (existing && existing.status !== 'failed' && existing.status !== 'conflict') {
+    // 'partial' is also excluded from reuse (alongside 'failed'/'conflict'):
+    // a retry after a partial fallback commit must re-prepare fresh
+    // operations from each session's now-current state, not return the
+    // same partially-done transaction back untouched. Every already-
+    // succeeded operation's session has since moved to 'complete', so the
+    // fresh prepare naturally re-types it as a benign update rather than a
+    // duplicate create.
+    if (existing) {
       owner(existing, actor);
-      const operations = await prisma.clinicalTransactionOperation.findMany({ where: { transactionId: existing.id }, orderBy: { createdAt: 'asc' } });
-      return publicTransaction(existing, operations);
+      if (existing.status !== 'failed' && existing.status !== 'conflict' && existing.status !== 'partial') {
+        const operations = await prisma.clinicalTransactionOperation.findMany({ where: { transactionId: existing.id }, orderBy: { createdAt: 'asc' } });
+        return publicTransaction(existing, operations);
+      }
+      // A retryable terminal transaction (failed/conflict/partial) under
+      // this same clientRequestId must be cleared before preparing fresh -
+      // (compositionSessionId, clientRequestId) is unique, so a plain
+      // create() here would otherwise violate that constraint on retry.
+      // Operations cascade-delete with it.
+      await prisma.clinicalTransaction.delete({ where: { id: existing.id } });
     }
   }
 
@@ -218,6 +240,94 @@ async function markFailed(transactionId: string, error: { code?: string; message
 }
 
 /**
+ * Whether this Composition's grouped save must land as one real
+ * Contribution (block if the active provider can't) or may fall back to a
+ * best-effort sequential save - the Composition's own `requireAtomicCommit`
+ * (its canonical_json extension) wins; unset defers to the connection-wide
+ * `requireAtomicCommitByDefault` (itself defaulting to `true` - never
+ * silently non-atomic unless a Composition explicitly opts out).
+ */
+async function resolveRequireAtomicCommit(compositionFormId: string): Promise<boolean> {
+  const form = await prisma.form.findUnique({ where: { id: compositionFormId } });
+  const definition = form ? getCompositionDefinition((form.canonical_json as any)?.extensions || {}) : undefined;
+  if (definition?.requireAtomicCommit !== undefined) return definition.requireAtomicCommit;
+  return getConfig().requireAtomicCommitByDefault ?? true;
+}
+
+/**
+ * Non-atomic fallback commit: saves each operation independently via the
+ * exact same single-composition commit() path submitFormSessionToProvider
+ * uses (real per-form If-Match conflict detection included), continuing
+ * through every operation even if an earlier one fails - a failed operation
+ * never blocks the others, and a successful one is never rolled back. The
+ * transaction's own final status honestly reflects the mixed outcome
+ * ('partial') rather than ever reporting a blanket success.
+ */
+async function commitSequentialFallback(
+  record: { id: string; ehrId: string; description: string | null },
+  operations: Array<{ id: string; formSessionId: string; type: string; baseVersionUid: string | null; changeDescription: string | null }>,
+  sessionById: Map<string, any>,
+  compositionSession: { patientId: string; patientNamespace?: string },
+  actor: ClinicalTransactionActor,
+  repository: NonNullable<ReturnType<typeof getCompositionRepository>>,
+): Promise<PublicClinicalTransaction> {
+  let anyFailed = false;
+  let anySucceeded = false;
+  for (const op of operations) {
+    const session = sessionById.get(op.formSessionId)!;
+    try {
+      const form = await prisma.form.findUnique({ where: { id: session.formId } });
+      if (!form) throw new Error(`Form definition for session ${session.id} not found`);
+      const definition = migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id);
+      const context: FormDataProviderContext = {
+        mode: 'edit',
+        patientId: compositionSession.patientId,
+        ...(compositionSession.patientNamespace ? { patientNamespace: compositionSession.patientNamespace } : {}),
+        ehrId: record.ehrId,
+        sessionId: session.id,
+        userId: actor.userId,
+        authMode: actor.authMode,
+      };
+      const opType = op.type as OperationType;
+      const result = await repository.commit({
+        context,
+        form: { id: form.id, version: form.version, definition },
+        values: session.values as any,
+        ...(op.baseVersionUid ? { reference: op.baseVersionUid } : {}),
+        desiredLifecycleState: 'complete',
+        ...(opType !== 'create' ? { desiredChangeType: opType } : {}),
+        ...(op.changeDescription ? { changeDescription: op.changeDescription } : {}),
+      }, 'submit');
+      await applySuccessfulProviderCommit(session.id, {
+        providerId: result.providerId,
+        reference: result.reference,
+        values: session.values as any,
+        lifecycleState: result.lifecycleState,
+        lifecycleConfirmed: result.lifecycleConfirmed,
+        changeType: opType === 'create' ? undefined : opType,
+        changeDescription: op.changeDescription || undefined,
+        ehrId: typeof result.metadata?.ehrId === 'string' ? result.metadata.ehrId : record.ehrId,
+      }, op.baseVersionUid || undefined);
+      await prisma.clinicalTransactionOperation.update({ where: { id: op.id }, data: { status: 'committed', resultVersionUid: result.reference } });
+      anySucceeded = true;
+    } catch (error) {
+      anyFailed = true;
+      const message = error instanceof Error ? error.message : 'Unknown error saving this form';
+      await prisma.clinicalTransactionOperation.update({ where: { id: op.id }, data: { status: 'failed', errorMessage: message } });
+    }
+  }
+  const status = anyFailed ? (anySucceeded ? 'partial' : 'failed') : 'committed';
+  const finalRecord = await prisma.clinicalTransaction.update({ where: { id: record.id }, data: {
+    status,
+    atomic: false,
+    ...(status === 'failed' ? { errorCode: 'CLINICAL_TRANSACTION_SEQUENTIAL_FAILED', errorMessage: 'None of the forms could be saved' } : {}),
+    revision: { increment: 1 },
+  } });
+  const finalOperations = await prisma.clinicalTransactionOperation.findMany({ where: { transactionId: record.id }, orderBy: { createdAt: 'asc' } });
+  return publicTransaction(finalRecord, finalOperations);
+}
+
+/**
  * Commits an already-prepared, `ready` transaction: re-verifies every
  * operation's expected base version is still current (never a silent
  * commit over a stale base - a mismatch here fails the WHOLE transaction,
@@ -259,13 +369,31 @@ export async function commitClinicalTransaction(id: string, actor: ClinicalTrans
     }
 
     const repository = getCompositionRepository('ehrbase');
+    const compositionSession = await getCompositionSession(record.compositionSessionId, actor);
+
     if (!repository?.supportsContribution) {
-      const message = 'The active data provider does not support atomic multi-composition saves (Contribution)';
-      await markFailed(record.id, { code: 'CONTRIBUTION_UNSUPPORTED', message });
-      throw new HttpError(409, message, { code: 'CONTRIBUTION_UNSUPPORTED' });
+      const requireAtomic = await resolveRequireAtomicCommit(compositionSession.compositionFormId);
+      if (requireAtomic) {
+        const message = 'The active data provider does not support atomic multi-composition saves (Contribution)';
+        await markFailed(record.id, { code: 'CONTRIBUTION_UNSUPPORTED', message });
+        throw new HttpError(409, message, { code: 'CONTRIBUTION_UNSUPPORTED' });
+      }
+      if (!repository) {
+        const message = 'The active data provider does not support saving Compositions at all';
+        await markFailed(record.id, { code: 'PROVIDER_UNSUPPORTED', message });
+        throw new HttpError(409, message, { code: 'PROVIDER_UNSUPPORTED' });
+      }
+      // This Composition explicitly opted out of requiring atomicity
+      // (requireAtomicCommit: false) - fall back to a best-effort
+      // sequential per-form save, exactly the same commit() path (and the
+      // same real If-Match conflict detection) submitFormSessionToProvider
+      // already uses for a single form. Never claims atomicity: represented
+      // explicitly as 'partial' (some succeeded, some failed) rather than a
+      // blanket "saved successfully", and no operation is skipped just
+      // because an earlier one failed.
+      return commitSequentialFallback(record, operations, sessionById, compositionSession, actor, repository);
     }
 
-    const compositionSession = await getCompositionSession(record.compositionSessionId, actor);
     const webTemplateCache = new Map<string, unknown>();
     const builtOperations = await Promise.all(operations.map(async (op, operationIndex) => {
       const session = sessionById.get(op.formSessionId)!;
@@ -326,7 +454,7 @@ export async function commitClinicalTransaction(id: string, actor: ClinicalTrans
       await prisma.clinicalTransactionOperation.update({ where: { id: op.id }, data: { status: 'committed', resultVersionUid: versionUid } });
     }));
 
-    const committed = await prisma.clinicalTransaction.update({ where: { id: record.id }, data: { status: 'committed', contributionUid: commitResult.contributionUid, revision: { increment: 1 } } });
+    const committed = await prisma.clinicalTransaction.update({ where: { id: record.id }, data: { status: 'committed', contributionUid: commitResult.contributionUid, atomic: true, revision: { increment: 1 } } });
     const finalOperations = await prisma.clinicalTransactionOperation.findMany({ where: { transactionId: record.id }, orderBy: { createdAt: 'asc' } });
     return publicTransaction(committed, finalOperations);
   } catch (error) {

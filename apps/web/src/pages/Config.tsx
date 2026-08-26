@@ -83,6 +83,15 @@ export default function Config() {
       <textarea name="patientRegistryAql" value={config.patientRegistryAql || ''} onChange={change} className="form-input" rows={7} spellCheck={false} />
       <p style={{ color: 'var(--text-muted)', fontSize: '.85rem', marginBottom: 0 }}>Pflichtalias: <code>ehrId</code>. Optional: <code>patientId</code>, <code>patientNamespace</code>, <code>firstName</code>, <code>lastName</code>, <code>birthDate</code>, <code>gender</code>. Fehlen optionale Werte, nutzt Forms die EHR-Subject-ID und neutrale Anzeigenamen.</p>
     </div>
+    <div className="card" style={{ marginBottom: '1.5rem' }}>
+      <h3 style={{ marginTop: 0 }}>Gemeinsames Speichern (Compositions)</h3>
+      <p style={{ color: 'var(--text-muted)' }}>"Alle Änderungen speichern" in einer Composition versucht immer zuerst eine echte, atomare openEHR Contribution. Dies ist die Voreinstellung für alle Compositions, die selbst keine eigene Einstellung dafür haben.</p>
+      <label className="form-label">Voreinstellung</label>
+      <select className="form-input" value={config.requireAtomicCommitByDefault === false ? 'false' : 'true'} onChange={(event) => setConfig({ ...config, requireAtomicCommitByDefault: event.target.value === 'true' })}>
+        <option value="true">Immer atomar - blockieren, falls der aktive Provider das nicht unterstützt</option>
+        <option value="false">Bestmöglich - notfalls jedes Formular einzeln nacheinander speichern</option>
+      </select>
+    </div>
     <div className="card"><h3 style={{ marginTop: 0 }}>Plugin Settings</h3><PluginSettingsHost title="Globale Plugin Settings" /></div>
   </div>;
 }

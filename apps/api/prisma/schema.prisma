@@ -185,6 +185,12 @@ enum ClinicalTransactionStatus {
   committed
   failed
   conflict
+  // Only reachable via the non-atomic fallback (Composition
+  // requireAtomicCommit: false, active provider lacks Contribution
+  // support): some but not all operations succeeded, committed
+  // sequentially rather than as one Contribution. Never used for a real
+  // atomic Contribution commit - that's always `committed` or `failed`.
+  partial
 }
 
 enum ClinicalTransactionOperationType {
@@ -213,6 +219,12 @@ model ClinicalTransaction {
   // Entlassung") - distinct from each operation's own changeDescription.
   description          String?
   contributionUid      String?                   @map("contribution_uid")
+  // Whether this commit actually landed as one real openEHR CONTRIBUTION
+  // (true) or via the non-atomic sequential fallback (false) - set only
+  // once status leaves 'committing'. Never inferred from contributionUid
+  // alone so a UI can state plainly whether atomicity was actually
+  // achieved, per the Composition's own requireAtomicCommit setting.
+  atomic               Boolean?
   // A stable client-generated id so a duplicate click / retry-after-timeout
   // / React double-invocation can never produce two Contributions for the
   // same intended save - prepareClinicalTransaction reuses the existing row
