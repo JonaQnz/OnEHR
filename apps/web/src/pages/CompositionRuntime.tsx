@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, FileText, LayoutGrid, Rows3, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LayoutGrid, Loader2, Rows3, RefreshCw, Save } from 'lucide-react';
 import { COMPOSITION_SCRIPTING_EXTENSION_KEY, getCompositionDefinition, normalizeCompositionScript, type CompositionBlock, type CompositionDataBlock, type CompositionDefinition, type CompositionPage, type FormDefinitionV1 } from 'core';
 import { formEmbedUrl, isFormEmbedEvent, launchEmbeddedForm } from '../integration/formLaunch';
 import { ClinicalGrid, ClinicalStack, ClinicalTabs } from '../components/layout/ClinicalLayout';
@@ -17,7 +17,23 @@ type CompositionSession = { id: string; patientId: string; patientNamespace?: st
 type DataState = WidgetDataState;
 type PatientOption = { id: string; patientId: string; patientNamespace?: string; namespace?: string; ehrId?: string | null; firstName?: string; lastName?: string };
 type SaveOutcome = { status: 'pending' | 'ok' | 'error'; message?: string };
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> { const response = await fetch(`${API}${path}`, { ...options, credentials: 'include', headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) } }); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || body.message || `Request failed (${response.status})`); return body as T; }
+// Epic 4: one grouped save across the composition's child forms, via a real
+// openEHR CONTRIBUTION - see clinicalTransactionService.ts. Deliberately
+// never called "Contribution" in this UI (that term stays for developer/
+// audit surfaces per the spec); this is just "Alle Änderungen speichern".
+type ClinicalTransactionOp = { id: string; formSessionId: string; blockId?: string; type: string; status: string; resultVersionUid?: string; errorMessage?: string };
+type ClinicalTransaction = { id: string; status: string; contributionUid?: string; operations: ClinicalTransactionOp[]; errorCode?: string; errorMessage?: string };
+class RequestError extends Error { messages?: Array<{ severity?: string; path?: string; message: string }>; }
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API}${path}`, { ...options, credentials: 'include', headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) } });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new RequestError(body.error || body.message || `Request failed (${response.status})`);
+    if (Array.isArray(body.messages)) err.messages = body.messages;
+    throw err;
+  }
+  return body as T;
+}
 
 const CHILD_STATUS_COLORS: Record<string, { background: string; color: string; border: string; label: string }> = {
   not_started: { background: '#f8fafc', color: 'var(--text-muted)', border: 'var(--border)', label: 'Nicht gestartet' },
@@ -41,6 +57,20 @@ export default function CompositionRuntime() {
   const [hiddenPageIds, setHiddenPageIds] = useState<Set<string>>(() => new Set()); const [hiddenBlockIds, setHiddenBlockIds] = useState<Set<string>>(() => new Set()); const scriptClient = useRef<CompositionScriptClient | null>(null);
   const [viewMode, setViewModeState] = useState<ViewMode>('tabs');
   const [saveOutcomes, setSaveOutcomes] = useState<Record<string, SaveOutcome>>({});
+  // Patient/EHR context handed in via the URL (the real "live" launch case,
+  // same signal LiveForm.tsx already treats as pre-supplied) hides the
+  // manual patient-picker entirely - captured once at mount, not
+  // re-evaluated as the user later edits patientId/ehrId by hand below.
+  const [suppliedContext] = useState(() => Boolean(searchParams.get('patientId')?.trim() && searchParams.get('ehrId')?.trim()));
+  const [transaction, setTransaction] = useState<ClinicalTransaction | null>(null);
+  const [committing, setCommitting] = useState(false);
+  const [transactionError, setTransactionError] = useState('');
+  // A stable id for this save attempt - reused across retries of the SAME
+  // attempt so a duplicate click/timeout-retry can never produce a second
+  // Contribution (prepareClinicalTransaction is idempotent on this id), but
+  // regenerated once a save actually succeeds or the session itself resets,
+  // so a genuinely new save is never mistaken for a retry of an old one.
+  const transactionClientId = useRef<string>(crypto.randomUUID());
   const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
   const returnUrl = useMemo(() => {
     const requested = searchParams.get('returnUrl');
@@ -75,7 +105,7 @@ export default function CompositionRuntime() {
   const setViewMode = (next: ViewMode) => { setViewModeState(next); if (id) localStorage.setItem(`compositionViewMode:${id}`, next); };
 
   const page = composition?.pages[pageIndex]; const contextReady = patientId.trim().length > 0 && ehrId.trim().length > 0;
-  const reset = () => { setSession(null); setLaunches({}); setData({}); setNotice(''); setSaveOutcomes({}); iframeRefs.current = {}; };
+  const reset = () => { setSession(null); setLaunches({}); setData({}); setNotice(''); setSaveOutcomes({}); setTransaction(null); setTransactionError(''); transactionClientId.current = crypto.randomUUID(); iframeRefs.current = {}; };
   const refreshSession = async (sessionId = session?.id) => { if (!sessionId) return; const next = await request<CompositionSession>(`/composition-sessions/${encodeURIComponent(sessionId)}`); setSession(next); return next; };
   const ensureSession = async (): Promise<CompositionSession | undefined> => {
     if (!record || !contextReady) return undefined;
@@ -163,23 +193,41 @@ export default function CompositionRuntime() {
     window.addEventListener('message', onMessage); return () => window.removeEventListener('message', onMessage);
   }, [session]);
   const validateAll = async () => { if (!session) { await startPage(); return; } setChecking(true); setNotice(''); try { const result = await request<{ session: CompositionSession; valid: boolean }> (`/composition-sessions/${encodeURIComponent(session.id)}/validate`, { method: 'POST' }); setSession(result.session); setNotice(result.valid ? 'Alle gestarteten Formulare sind valide. Nicht abgesendete Formulare können nun einzeln abgeschlossen werden.' : 'Es gibt noch fehlende oder ungültige Formulare. Die Details stehen in der Fortschrittsleiste.'); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Gesamtprüfung fehlgeschlagen.'); } finally { setChecking(false); } };
-  // Replaces the old fire-and-forget broadcast (postMessage to every iframe
-  // on the page, target '*', no acknowledgement) with a scoped, awaited-via-
-  // embed-events send: only the composition's own mounted, not-yet-submitted
-  // child iframes, addressed by real origin, tracked to a real per-block
-  // result (see the onMessage handler above) instead of a passive guess.
-  const saveAll = () => {
-    if (!session) return;
-    const targets = session.children.filter((child) => child.status !== 'submitted' && iframeRefs.current[child.blockId] && launches[child.blockId]?.url);
-    if (targets.length === 0) return;
-    setSaveOutcomes((current) => { const next = { ...current }; targets.forEach((child) => { next[child.blockId] = { status: 'pending' }; }); return next; });
-    targets.forEach((child) => { iframeRefs.current[child.blockId]?.contentWindow?.postMessage({ type: 'EXTERNAL_FORM_SUBMIT' }, window.location.origin); });
+  // Epic 4: replaces the old fire-and-forget broadcast (postMessage telling
+  // every child iframe to independently submit itself - exactly the
+  // per-form-saves-independently pattern the grouped save is meant to
+  // replace) with one real openEHR CONTRIBUTION covering every child form
+  // together. prepare re-validates server-side (never trusts stale local
+  // status) and reports exactly which child form is the problem if not
+  // everything is ready yet; commit actually saves. Each child form is
+  // still independently usable on its own (its own autosave/submit inside
+  // the iframe is untouched) - this is only the composition-level action.
+  const commitTransaction = async (): Promise<boolean> => {
+    if (!session) return false;
+    setTransactionError(''); setCommitting(true);
+    try {
+      const prepared = await request<ClinicalTransaction>(`/composition-sessions/${encodeURIComponent(session.id)}/transaction`, { method: 'POST', body: JSON.stringify({ description: record?.name, clientRequestId: transactionClientId.current }) });
+      setTransaction(prepared);
+      const committed = await request<ClinicalTransaction>(`/composition-sessions/transaction/${encodeURIComponent(prepared.id)}/commit`, { method: 'POST' });
+      setTransaction(committed);
+      transactionClientId.current = crypto.randomUUID(); // this attempt succeeded - a future save is a new attempt, not a retry of this one
+      await refreshSession();
+      setNotice(`${committed.operations.length} Dokumente wurden gemeinsam gespeichert.`);
+      return true;
+    } catch (reason) {
+      const err = reason instanceof RequestError ? reason : undefined;
+      setTransactionError(err?.messages?.length ? err.messages.map((item) => item.message).join(' · ') : (reason instanceof Error ? reason.message : 'Speichern fehlgeschlagen.'));
+      return false;
+    } finally {
+      setCommitting(false);
+    }
   };
-  const saveSummary = useMemo(() => {
-    const entries = Object.values(saveOutcomes);
-    if (entries.length === 0) return null;
-    return { ok: entries.filter((entry) => entry.status === 'ok').length, err: entries.filter((entry) => entry.status === 'error').length, pending: entries.filter((entry) => entry.status === 'pending').length, total: entries.length };
-  }, [saveOutcomes]);
+  const transactionSummary = useMemo(() => {
+    if (!transaction) return null;
+    const committed = transaction.operations.filter((op) => op.status === 'committed').length;
+    const failed = transaction.operations.filter((op) => op.status === 'failed' || op.status === 'conflict').length;
+    return { total: transaction.operations.length, committed, failed, done: transaction.status === 'committed' };
+  }, [transaction]);
   if (error && !record) return <div style={{ padding: '2rem', color: 'var(--danger)' }}>{error}</div>;
   if (!record || !composition || !page) return <div style={{ padding: '2rem', color: 'var(--text-muted)' }}>Composition wird geladen…</div>;
   const complete = session?.progress.total === session?.progress.submitted && (session?.progress.total || 0) > 0;
@@ -216,22 +264,32 @@ export default function CompositionRuntime() {
         <button type="button" onClick={() => setViewMode('stacked')} title="Alle Seiten untereinander" style={{ display: 'flex', alignItems: 'center', gap: '.4rem', padding: '.5rem .8rem', border: 0, borderLeft: '1px solid var(--border)', cursor: 'pointer', background: viewMode === 'stacked' ? 'var(--primary-light)' : 'var(--bg-card)', color: viewMode === 'stacked' ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 600, fontSize: '.82rem' }}><Rows3 size={15} /> Gestapelt</button>
       </div>
     </div>
-    <div className="card" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '.75rem', alignItems: 'end', marginBottom: '1rem' }}><label className="form-label">Patient<select className="form-input" value={patients.find((item) => item.patientId === patientId)?.id || ''} onChange={(event) => { const selected = patients.find((item) => item.id === event.target.value); if (selected) { setPatientId(selected.patientId); setNamespace(selected.patientNamespace || selected.namespace || ''); setEhrId(selected.ehrId || ''); } else { setPatientId(''); setNamespace(''); setEhrId(''); } reset(); }}><option value="">Patient auswählen…</option>{patients.map((item) => <option key={item.id} value={item.id}>{[item.lastName, item.firstName].filter(Boolean).join(', ') || item.patientId} · {item.patientId}</option>)}</select><input className="form-input" style={{ marginTop: '.4rem' }} value={patientId} onChange={(event) => { setPatientId(event.target.value); reset(); }} placeholder="Patient-ID / EHR-ID" /></label><label className="form-label">Namespace<input className="form-input" value={namespace} onChange={(event) => { setNamespace(event.target.value); reset(); }} /></label><label className="form-label">EHR-ID (optional)<input className="form-input" value={ehrId} onChange={(event) => { setEhrId(event.target.value); reset(); }} /></label><label className="form-label">Modus<select className="form-input" value={mode} onChange={(event) => { setMode(event.target.value as Mode); reset(); }}><option value="create">Neu</option><option value="edit">Bearbeiten</option><option value="prefill">Vorausfüllen</option><option value="view">Ansehen</option></select></label><button className="btn" onClick={() => void startVisible()} disabled={!contextReady}><RefreshCw size={16} /> Öffnen</button></div>
+    {suppliedContext ? (
+      <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '.85rem' }}>
+        <span>Patient: <strong style={{ color: 'var(--text-body, inherit)' }}>{[patients.find((item) => item.patientId === patientId)?.lastName, patients.find((item) => item.patientId === patientId)?.firstName].filter(Boolean).join(', ') || patientId}</strong></span>
+        <span>· Modus: {mode === 'create' ? 'Neu' : mode === 'edit' ? 'Bearbeiten' : mode === 'prefill' ? 'Vorausfüllen' : 'Ansehen'}</span>
+      </div>
+    ) : (
+      <div className="card" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '.75rem', alignItems: 'end', marginBottom: '1rem' }}><label className="form-label">Patient<select className="form-input" value={patients.find((item) => item.patientId === patientId)?.id || ''} onChange={(event) => { const selected = patients.find((item) => item.id === event.target.value); if (selected) { setPatientId(selected.patientId); setNamespace(selected.patientNamespace || selected.namespace || ''); setEhrId(selected.ehrId || ''); } else { setPatientId(''); setNamespace(''); setEhrId(''); } reset(); }}><option value="">Patient auswählen…</option>{patients.map((item) => <option key={item.id} value={item.id}>{[item.lastName, item.firstName].filter(Boolean).join(', ') || item.patientId} · {item.patientId}</option>)}</select><input className="form-input" style={{ marginTop: '.4rem' }} value={patientId} onChange={(event) => { setPatientId(event.target.value); reset(); }} placeholder="Patient-ID / EHR-ID" /></label><label className="form-label">Namespace<input className="form-input" value={namespace} onChange={(event) => { setNamespace(event.target.value); reset(); }} /></label><label className="form-label">EHR-ID (optional)<input className="form-input" value={ehrId} onChange={(event) => { setEhrId(event.target.value); reset(); }} /></label><label className="form-label">Modus<select className="form-input" value={mode} onChange={(event) => { setMode(event.target.value as Mode); reset(); }}><option value="create">Neu</option><option value="edit">Bearbeiten</option><option value="prefill">Vorausfüllen</option><option value="view">Ansehen</option></select></label><button className="btn" onClick={() => void startVisible()} disabled={!contextReady}><RefreshCw size={16} /> Öffnen</button></div>
+    )}
     {session && <section className="card" style={{ marginBottom: '1rem', borderColor: complete ? 'var(--success)' : 'var(--primary-light)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <div>
-          <strong>Composition-Vorgang</strong>
+          <strong>{record.name}</strong>
           <div style={{ color: 'var(--text-muted)', fontSize: '.82rem', marginTop: '.2rem' }}>Entwurf wird automatisch über die Unterformular-Sessions fortgesetzt · {session.progress.started}/{session.progress.total} gestartet · {session.progress.ready}/{session.progress.total} geprüft · {session.progress.submitted}/{session.progress.total} abgesendet</div>
-          {saveSummary && <div style={{ color: saveSummary.err ? 'var(--danger)' : saveSummary.pending ? 'var(--text-muted)' : '#15803d', fontSize: '.82rem', marginTop: '.3rem', fontWeight: 600 }}>{saveSummary.pending ? `Speichere… ${saveSummary.ok + saveSummary.err}/${saveSummary.total} fertig` : `${saveSummary.ok}/${saveSummary.total} gespeichert${saveSummary.err ? `, ${saveSummary.err} fehlgeschlagen` : ''}`}</div>}
+          {committing && <div style={{ color: 'var(--text-muted)', fontSize: '.82rem', marginTop: '.3rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '.35rem' }}><Loader2 size={14} className="lf-spin" /> {session.progress.total} Dokumente werden gemeinsam gespeichert…</div>}
+          {!committing && transactionSummary && <div style={{ color: transactionSummary.failed ? 'var(--danger)' : '#15803d', fontSize: '.82rem', marginTop: '.3rem', fontWeight: 600 }}>{transactionSummary.done ? `${transactionSummary.total} Dokumente wurden gemeinsam gespeichert.` : `${transactionSummary.committed}/${transactionSummary.total} gespeichert${transactionSummary.failed ? `, ${transactionSummary.failed} fehlgeschlagen` : ''}`}</div>}
+          {!committing && transactionError && <div style={{ color: 'var(--danger)', fontSize: '.82rem', marginTop: '.3rem', fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: '.35rem' }}><AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 2 }} /> {transactionError}</div>}
         </div>
         <div style={{ display: 'flex', gap: '.5rem' }}>
-          <button className="btn btn-secondary" onClick={() => void validateAll()} disabled={checking}><CheckCircle2 size={16} /> {checking ? 'Prüft…' : 'Alle Formulare prüfen'}</button>
-          <button className="btn btn-primary" onClick={saveAll}><CheckCircle2 size={16} /> Alle Speichern</button>
+          <button className="btn btn-secondary" onClick={() => void validateAll()} disabled={checking || committing}><CheckCircle2 size={16} /> {checking ? 'Prüft…' : 'Alle Formulare prüfen'}</button>
+          <button className="btn btn-primary" onClick={() => void commitTransaction()} disabled={committing || session.progress.total === 0}>{committing ? <Loader2 size={16} className="lf-spin" /> : <Save size={16} />} {committing ? 'Speichert…' : 'Alle Änderungen speichern'}</button>
         </div>
       </div>
       <div style={{ height: 8, background: 'var(--border)', borderRadius: 99, overflow: 'hidden', margin: '.8rem 0' }}><div style={{ height: '100%', width: `${session.progress.total ? session.progress.submitted / session.progress.total * 100 : 0}%`, background: complete ? 'var(--success)' : 'var(--primary)', transition: 'width .2s' }} /></div>
-      {session.children.filter((child) => child.status !== 'submitted').map((child) => <div key={child.blockId} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.8rem', padding: '.15rem 0' }}>{childBadge(child.status)}<span style={{ color: 'var(--text-muted)' }}>{child.formId}</span>{saveOutcomes[child.blockId]?.status === 'error' && <span style={{ color: 'var(--danger)' }}>· {saveOutcomes[child.blockId].message}</span>}</div>)}
+      {session.children.map((child) => <div key={child.blockId} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.8rem', padding: '.15rem 0' }}>{childBadge(child.status)}<span style={{ color: 'var(--text-muted)' }}>{child.formId}</span>{saveOutcomes[child.blockId]?.status === 'error' && <span style={{ color: 'var(--danger)' }}>· {saveOutcomes[child.blockId].message}</span>}</div>)}
       {complete && <div style={{ color: '#166534', fontWeight: 600, fontSize: '.85rem' }}>Der gesamte Composition-Vorgang ist abgeschlossen.</div>}
+      <style>{'.lf-spin{animation:lf-spin .8s linear infinite}@keyframes lf-spin{to{transform:rotate(360deg)}}'}</style>
     </section>}
     {notice && <div className="card" style={{ marginBottom: '1rem', color: 'var(--primary)' }}>{notice}</div>}
     {!contextReady ? (
@@ -250,9 +308,10 @@ export default function CompositionRuntime() {
         <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: '1.5rem', maxWidth: 420, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)' }}>
           <h3 style={{ marginTop: 0 }}>Ungespeicherte Änderungen</h3>
           <p style={{ color: 'var(--text-muted)' }}>Ein oder mehrere Formulare in diesem Vorgang haben nicht gespeicherte Änderungen. Der letzte automatisch gespeicherte Entwurf bleibt in jedem Fall erhalten. Wie möchten Sie fortfahren?</p>
+          {transactionError && <p style={{ color: 'var(--danger)', display: 'flex', alignItems: 'flex-start', gap: '.35rem', fontSize: '.85rem' }}><AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 2 }} /> {transactionError}</p>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginTop: '1rem' }}>
             <button className="btn btn-secondary" onClick={() => setPendingNav(null)}>Weiter bearbeiten</button>
-            <button className="btn btn-primary" onClick={() => { saveAll(); setPendingNav(null); }}>Alle finalisieren und verlassen</button>
+            <button className="btn btn-primary" disabled={committing} onClick={() => { const go = pendingNav; void commitTransaction().then((ok) => { if (ok) { setPendingNav(null); go?.(); } }); }}>{committing ? 'Speichert…' : 'Alle finalisieren und verlassen'}</button>
             <button className="btn" style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }} onClick={() => { const go = pendingNav; setPendingNav(null); go?.(); }}>Ohne Finalisieren verlassen</button>
           </div>
         </div>

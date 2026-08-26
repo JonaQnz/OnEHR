@@ -510,7 +510,7 @@ async function providerInput(id: string, providerId: string, actor: SessionActor
   };
 }
 
-function compositionUidFromReference(reference: string | null | undefined): string | undefined {
+export function compositionUidFromReference(reference: string | null | undefined): string | undefined {
   if (!reference) return undefined;
   const last = reference.includes('/') ? reference.split('/').pop() : reference;
   return last ? last.split('::')[0] : undefined;
@@ -690,6 +690,57 @@ export async function autosaveFormSessionDraft(id: string, providerId: string, a
   return publicSession(updated, [...beforeSave.messages, ...afterSave.messages, ...(providerResult ? messagesFromProvider(providerResult) : [])], input.patient);
 }
 
+export interface ProviderCommitResult {
+  providerId: string;
+  reference?: string;
+  values: Record<string, unknown>;
+  lifecycleState?: FormSessionLifecycleState;
+  lifecycleConfirmed?: boolean;
+  changeType?: FormSessionChangeType;
+  changeDescription?: string;
+  ehrId?: string;
+}
+
+/**
+ * The one place that writes a FormSession's state after a successful
+ * provider commit - shared by submitFormSessionToProvider's own single-form
+ * submit AND clinicalTransactionService's per-operation result mapping
+ * after a grouped Contribution commit (Epic 4), so there is exactly one
+ * "what does 'saved' mean for a FormSession" implementation, not two. Only
+ * covers the DB-state update + version-history event, which is identical in
+ * shape either way; per-form beforeSubmit/afterSubmit script hooks and the
+ * patient-registry hasPersonArchetype refresh stay in
+ * submitFormSessionToProvider's own single-submit path for this pass (each
+ * child form's own normal standalone submit already runs those) - not
+ * silently dropped, a deliberately scoped follow-up.
+ */
+export async function applySuccessfulProviderCommit(sessionId: string, result: ProviderCommitResult, submitReference?: string) {
+  const updated = await prisma.formSession.update({ where: { id: sessionId }, data: {
+    status: 'submitted',
+    providerId: result.providerId,
+    values: result.values as any,
+    providerReference: result.reference || submitReference || null,
+    draftReference: null, // finalized - providerReference above is now authoritative
+    lifecycleState: result.lifecycleState || 'complete',
+    lifecycleConfirmed: Boolean(result.lifecycleConfirmed),
+    ...(result.changeType ? { changeType: result.changeType } : {}),
+    ...(result.changeDescription ? { changeDescription: result.changeDescription } : {}),
+    revision: { increment: 1 },
+  } });
+  if (result.reference && result.ehrId) {
+    void recordCompositionVersionEvent({
+      versionUid: result.reference,
+      compositionUid: compositionUidFromReference(result.reference) || result.reference,
+      ehrId: result.ehrId,
+      formSessionId: sessionId,
+      lifecycleState: result.lifecycleState || 'complete',
+      changeType: result.changeType,
+      changeDescription: result.changeDescription,
+    });
+  }
+  return updated;
+}
+
 export async function submitFormSessionToProvider(
   id: string,
   providerId: string,
@@ -760,29 +811,16 @@ export async function submitFormSessionToProvider(
   }
   const providerValues = dataFromProvider(result, submitValues);
   const afterSubmit = await runBestEffortHook({ name: 'afterSubmit', formId: input.form.id, form, data: providerValues, patientId: input.session.patientId, sessionId: input.session.id, actor, metadata: { providerId, providerReference: result.reference, provider: result } });
-  const updated = await prisma.formSession.update({ where: { id: input.session.id }, data: {
-    status: 'submitted',
+  const updated = await applySuccessfulProviderCommit(input.session.id, {
     providerId: result.providerId,
-    values: afterSubmit.data as any,
-    providerReference: result.reference || submitReference || null,
-    draftReference: null, // finalized - providerReference above is now authoritative
-    lifecycleState: result.lifecycleState || 'complete',
-    lifecycleConfirmed: Boolean(result.lifecycleConfirmed),
-    ...(desiredChangeType ? { changeType: desiredChangeType } : {}),
-    ...(changeDescription ? { changeDescription } : {}),
-    revision: { increment: 1 },
-  } });
-  if (result.reference && result.metadata?.ehrId) {
-    void recordCompositionVersionEvent({
-      versionUid: result.reference,
-      compositionUid: compositionUidFromReference(result.reference) || result.reference,
-      ehrId: result.metadata.ehrId,
-      formSessionId: input.session.id,
-      lifecycleState: result.lifecycleState || 'complete',
-      changeType: desiredChangeType,
-      changeDescription,
-    });
-  }
+    reference: result.reference,
+    values: afterSubmit.data,
+    lifecycleState: result.lifecycleState,
+    lifecycleConfirmed: result.lifecycleConfirmed,
+    changeType: desiredChangeType,
+    changeDescription,
+    ehrId: result.metadata?.ehrId,
+  }, submitReference);
   // A successful submit of the registry's own Person template is exactly
   // the moment hasPersonArchetype should flip - don't leave it stale until
   // someone thinks to trigger a full syncPatientsFromEhrbase() sweep.
