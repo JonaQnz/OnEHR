@@ -156,6 +156,15 @@ export interface FormRuntimeSettings {
    * fires. Unset defers to the connection-wide `autosaveDebounceMsDefault`
    * (itself defaulting to `2500` - unchanged behavior). */
   autosaveDebounceMs?: number;
+  /** Whether saving a draft (autosaveFormSessionDraft - both the debounced
+   * autosave and the manual "Entwurf speichern" button call the same
+   * backend action) also pushes to the session's data provider (e.g. a real
+   * EHRbase composition version with lifecycle_state=incomplete), or stays
+   * purely local (Forms' own DB only) until the user finally submits. Unset
+   * defers to the connection-wide `pushDraftsToProviderByDefault` (itself
+   * defaulting to `true` - unchanged behavior). Never affects the final
+   * submit, which always pushes regardless of this setting. */
+  pushDraftsToProvider?: boolean;
 }
 
 export interface CanonicalForm {

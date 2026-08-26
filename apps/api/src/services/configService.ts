@@ -72,6 +72,13 @@ export interface AppConfig {
      * settings existed (autosave on, 2500ms after the last edit). */
     autosaveEnabledByDefault?: boolean;
     autosaveDebounceMsDefault?: number;
+    /** Org-wide fallback for a form's own
+     * `settings.runtime.pushDraftsToProvider` - see
+     * formSessionService.ts's autosaveFormSessionDraft. Defaults to `true`
+     * (never silently local-only) - matches the behavior every form already
+     * had before this setting existed: every draft save, debounced or
+     * manual, pushes a real provider draft composition. */
+    pushDraftsToProviderByDefault?: boolean;
 }
 
 /** Comma-separated env value -> lowercase, trimmed, de-blanked list. Shared
@@ -260,6 +267,7 @@ export function getConfig(): AppConfig {
         requireAtomicCommitByDefault: persistedConfig.requireAtomicCommitByDefault ?? true,
         autosaveEnabledByDefault: persistedConfig.autosaveEnabledByDefault ?? true,
         autosaveDebounceMsDefault: persistedConfig.autosaveDebounceMsDefault ?? 2500,
+        pushDraftsToProviderByDefault: persistedConfig.pushDraftsToProviderByDefault ?? true,
     };
 }
 
@@ -371,5 +379,6 @@ export function getSafeConfig(): Partial<AppConfig> {
         requireAtomicCommitByDefault: full.requireAtomicCommitByDefault ?? true,
         autosaveEnabledByDefault: full.autosaveEnabledByDefault ?? true,
         autosaveDebounceMsDefault: full.autosaveDebounceMsDefault ?? 2500,
+        pushDraftsToProviderByDefault: full.pushDraftsToProviderByDefault ?? true,
     };
 }
