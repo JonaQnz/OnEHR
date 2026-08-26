@@ -96,6 +96,12 @@ export default function Config() {
       </div>
       <label className="form-label">Verzögerung (ms)</label>
       <input type="number" min={500} step={100} className="form-input" value={config.autosaveDebounceMsDefault ?? 2500} onChange={(event) => setConfig({ ...config, autosaveDebounceMsDefault: Number(event.target.value) || 2500 })} />
+      <label className="form-label" style={{ marginTop: '1rem' }}>Entwürfe an Provider senden</label>
+      <select className="form-input" value={config.pushDraftsToProviderByDefault === false ? 'false' : 'true'} onChange={(event) => setConfig({ ...config, pushDraftsToProviderByDefault: event.target.value === 'true' })}>
+        <option value="true">Jeden Entwurf an den Provider senden (z. B. EHRbase-Version mit lifecycle_state "incomplete")</option>
+        <option value="false">Entwürfe nur lokal speichern - erst bei finaler Übermittlung an den Provider senden</option>
+      </select>
+      <p style={{ color: 'var(--text-muted)', fontSize: '.85rem', marginBottom: 0, marginTop: '.5rem' }}>Voreinstellung für alle Formulare, die keine eigene Einstellung dafür haben (in FormBuilder pro Formular unter "Runtime" einstellbar).</p>
     </div>
     <div className="card" style={{ marginBottom: '1.5rem' }}>
       <h3 style={{ marginTop: 0 }}>Gemeinsames Speichern (Compositions)</h3>

@@ -2353,6 +2353,22 @@ function FormBuilderContent() {
                                   Speichert einen Entwurf automatisch nach einer Bearbeitungspause (Standard: 2500ms). Der manuelle "Entwurf speichern"-Button funktioniert unabhängig davon immer. Deaktivieren, wenn ein Formular besser nur beim expliziten Speichern eine neue Version anlegen soll.
                                 </p>
                               </div>
+
+                              <div className="inspector-field-group" style={{ marginTop: '1.5rem' }}>
+                                <label>Entwürfe an Provider senden</label>
+                                <select
+                                  className="inspector-select"
+                                  value={form.canonical_json.settings?.runtime?.pushDraftsToProvider === undefined ? '' : String(form.canonical_json.settings.runtime.pushDraftsToProvider)}
+                                  onChange={(e) => { updateRuntimeSetting('pushDraftsToProvider', e.target.value === '' ? undefined : e.target.value === 'true'); setTimeout(() => handleSave(builderItems), 0); }}
+                                >
+                                  <option value="">Standard (aus Backend-Einstellung)</option>
+                                  <option value="true">Jeden Entwurf an den Provider senden</option>
+                                  <option value="false">Entwürfe nur lokal speichern</option>
+                                </select>
+                                <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+                                  Jedes Speichern eines Entwurfs (automatisch oder über den "Entwurf speichern"-Button) legt normalerweise auch beim Provider (z. B. EHRbase) eine echte Composition-Version mit lifecycle_state "incomplete" an. Auf "Entwürfe nur lokal speichern" stellen, wenn die Versionshistorie beim Provider nicht bei jeder Bearbeitungspause wachsen soll - die finale Übermittlung ist davon nie betroffen.
+                                </p>
+                              </div>
                             </>
                           ) : (
                             <p style={{ color: '#64748b', fontSize: '0.85rem' }}>No openEHR template imports found.</p>

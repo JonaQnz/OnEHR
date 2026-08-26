@@ -587,6 +587,18 @@ export async function loadFormSessionFromProvider(id: string, providerId: string
 }
 
 /**
+ * Whether a draft save should push to the session's data provider at all -
+ * the form's own `settings.runtime.pushDraftsToProvider` wins; unset defers
+ * to the connection-wide `pushDraftsToProviderByDefault` (itself defaulting
+ * to `true` - every draft save already pushed before this setting existed).
+ */
+function resolvePushDraftsToProvider(definition: { settings?: { runtime?: { pushDraftsToProvider?: boolean } } }): boolean {
+  const perForm = definition.settings?.runtime?.pushDraftsToProvider;
+  if (perForm !== undefined) return perForm;
+  return getConfig().pushDraftsToProviderByDefault ?? true;
+}
+
+/**
  * Persists an in-progress, possibly-incomplete set of values as the
  * session's running draft. Unlike patchFormSession (local DB only), this
  * also best-effort pushes the same values to the session's data provider
@@ -597,7 +609,10 @@ export async function loadFormSessionFromProvider(id: string, providerId: string
  * happens first and always succeeds independently of the provider push:
  * it's the fast/resilient mirror, never the sole record, so a transient
  * provider failure can never lose what the user just typed - the next
- * debounced autosave retries.
+ * debounced autosave retries. A form (or the connection-wide default) can
+ * opt out of the provider push entirely via `pushDraftsToProvider: false`
+ * (see resolvePushDraftsToProvider) - the local write above still always
+ * happens either way; only the provider-push block below is skipped.
  *
  * A real openEHR draft is explicitly allowed to have missing required
  * fields, but never an invalid typed value (e.g. a DV_QUANTITY that isn't a
@@ -607,6 +622,7 @@ export async function loadFormSessionFromProvider(id: string, providerId: string
 export async function autosaveFormSessionDraft(id: string, providerId: string, actor: SessionActor, values: FormSessionValues): Promise<FormSession> {
   const input = await providerInput(id, providerId, actor);
   if (persistedMode(input.session.mode) === 'view') throw new HttpError(403, 'Session is in view mode and cannot be autosaved');
+  const pushToProvider = resolvePushDraftsToProvider(input.form.definition);
   const form = input.form.definition as unknown as Record<string, unknown>;
   const beforeSave = await runRequiredHook({ name: 'beforeSave', formId: input.form.id, form, data: values, patientId: input.session.patientId, sessionId: input.session.id, actor, metadata: { status: 'in_progress', draft: true } });
   const draftValues = beforeSave.data;
@@ -622,7 +638,7 @@ export async function autosaveFormSessionDraft(id: string, providerId: string, a
     revision: { increment: 1 },
   } });
   let providerResult: unknown;
-  const repository = getCompositionRepository(providerId);
+  const repository = pushToProvider ? getCompositionRepository(providerId) : undefined;
   if (repository) {
     // Continue this session's own prior draft if one exists. Otherwise, for
     // an edit-mode session, seed from providerReference (the composition
@@ -665,7 +681,7 @@ export async function autosaveFormSessionDraft(id: string, providerId: string, a
       if (isVersionConflict(error)) return mapProviderError(error);
       console.warn(`[formSessionService] Draft autosave to provider '${providerId}' failed for session ${input.session.id}; local draft was still saved:`, error instanceof Error ? error.message : error);
     }
-  } else if (input.provider.capabilities.includes('draft') && input.provider.draft) {
+  } else if (pushToProvider && input.provider.capabilities.includes('draft') && input.provider.draft) {
     const seedReference = updated.draftReference || (persistedMode(updated.mode) === 'edit' ? updated.providerReference : undefined) || undefined;
     try {
       const result = await input.provider.draft({
