@@ -147,6 +147,15 @@ export interface FormSubmissionSettings {
 /** Runtime behaviour independent of a concrete server or submission provider. */
 export interface FormRuntimeSettings {
   defaultMode?: 'create' | 'edit' | 'view' | 'prefill';
+  /** Whether LiveForm.tsx's debounced draft autosave runs at all for this
+   * form. Unset defers to the connection-wide `autosaveEnabledByDefault`
+   * (itself defaulting to `true` - unchanged behavior). The manual "Entwurf
+   * speichern" action is unaffected either way. */
+  autosaveEnabled?: boolean;
+  /** Milliseconds of editing pause before the debounced draft autosave
+   * fires. Unset defers to the connection-wide `autosaveDebounceMsDefault`
+   * (itself defaulting to `2500` - unchanged behavior). */
+  autosaveDebounceMs?: number;
 }
 
 export interface CanonicalForm {

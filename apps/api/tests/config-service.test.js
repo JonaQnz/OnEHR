@@ -68,3 +68,14 @@ test('parseAdminAllowlist normalizes a comma-separated env value: trims, lowerca
   assert.deepEqual(parseAdminAllowlist(''), []);
   assert.deepEqual(parseAdminAllowlist('   '), []);
 });
+
+test('autosave and atomic-commit defaults preserve the pre-existing hardcoded behavior when nothing is configured', () => {
+  const config = getConfig();
+  assert.equal(config.autosaveEnabledByDefault, true);
+  assert.equal(config.autosaveDebounceMsDefault, 2500);
+  assert.equal(config.requireAtomicCommitByDefault, true);
+  const safe = getSafeConfig();
+  assert.equal(safe.autosaveEnabledByDefault, true);
+  assert.equal(safe.autosaveDebounceMsDefault, 2500);
+  assert.equal(safe.requireAtomicCommitByDefault, true);
+});

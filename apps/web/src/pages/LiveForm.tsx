@@ -168,6 +168,13 @@ export default function LiveForm() {
   const [form, setForm] = useState<FormResponse | null>(null);
   const [session, setSession] = useState<SessionRecord | null>(null);
   const [draftValues, setDraftValues] = useState<RuntimeValues>({});
+  // Connection-wide autosave fallback (Configurable Settings roadmap) - a
+  // form's own settings.runtime.autosaveEnabled/autosaveDebounceMs win when
+  // set; this is only what applies to forms that don't set anything, so a
+  // fetch failure just keeps this app's original built-in default (autosave
+  // on, 2500ms) rather than blocking the form on a non-essential value.
+  const [runtimeDefaults, setRuntimeDefaults] = useState({ autosaveEnabledByDefault: true, autosaveDebounceMsDefault: 2500 });
+  useEffect(() => { void request<typeof runtimeDefaults>('/config/runtime-defaults').then(setRuntimeDefaults).catch(() => {}); }, []);
 
   const isEmbedded = useMemo(() => Boolean(searchParams.get('hostOrigin')), [searchParams]);
   const hostOrigin = useMemo(() => {
@@ -450,15 +457,24 @@ export default function LiveForm() {
     }
   };
 
+  // The form's own settings.runtime.autosaveEnabled/autosaveDebounceMs win
+  // when set; unset defers to the connection-wide default fetched above.
+  // The manual "Entwurf speichern" button (saveDraftNow, called directly)
+  // is unaffected either way - this only governs the debounced timer below.
+  const runtimeSettings = form?.canonical_json?.settings?.runtime;
+  const autosaveEnabled = runtimeSettings?.autosaveEnabled ?? runtimeDefaults.autosaveEnabledByDefault;
+  const autosaveDebounceMs = runtimeSettings?.autosaveDebounceMs ?? runtimeDefaults.autosaveDebounceMsDefault;
+
   useEffect(() => {
     if (!session || submitted || busy || session.mode === 'view' || session.lifecycleState === 'deleted' || !dirty) return;
     setSaveState((s) => (s === 'saving' ? s : 'dirty'));
+    if (!autosaveEnabled) return;
     // Debounced whole-form save: EHRbase commits a brand-new immutable
     // VERSION on every write, so this waits for a pause in editing rather
     // than pushing on every keystroke or field blur.
-    const timer = setTimeout(() => { saveDraftNow(); }, 2500);
+    const timer = setTimeout(() => { saveDraftNow(); }, autosaveDebounceMs);
     return () => clearTimeout(timer);
-  }, [draftValues, session?.id, session?.mode, session?.lifecycleState, submitted, busy, dirty]); // eslint-disable-line react-hooks/exhaustive-deps -- reads sessionRef/draftValuesRef, not state, on purpose (see comment above)
+  }, [draftValues, session?.id, session?.mode, session?.lifecycleState, submitted, busy, dirty, autosaveEnabled, autosaveDebounceMs]); // eslint-disable-line react-hooks/exhaustive-deps -- reads sessionRef/draftValuesRef, not state, on purpose (see comment above)
 
   // Navigation guard (browser-level: tab close, refresh, address bar).
   useEffect(() => {
