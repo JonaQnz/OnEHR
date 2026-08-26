@@ -351,7 +351,12 @@ test('withdraw logically deletes via DELETE and never touches other HTTP verbs',
     },
     async delete(url, options) {
       calls.push({ method: 'DELETE', url, options });
-      return { data: {}, status: 204, headers: { etag: `"${nextVersionUid}"` } };
+      // Confirmed live against the real sandbox: this CDR's DELETE response
+      // headers (etag AND location) echo back the version that was just
+      // withdrawn, not the new "deleted" tombstone - the opposite of
+      // POST/PUT. The mock reproduces that misleading-but-real behavior;
+      // the assertion below checks the code does NOT trust it.
+      return { data: {}, status: 204, headers: { etag: `"${versionUid}"`, location: `/ehr/ehr-1/composition/${versionUid}` } };
     },
   };
   const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic', ehrbaseSubjectNamespace: 'demo' } });
@@ -361,7 +366,7 @@ test('withdraw logically deletes via DELETE and never touches other HTTP verbs',
     reference: versionUid,
     reason: 'Falscher Patient dokumentiert',
   });
-  assert.equal(result.versionUid, nextVersionUid);
+  assert.equal(result.versionUid, nextVersionUid, 'must increment the version number itself, never trust the misleading DELETE response headers on this CDR');
   const del = calls.find((call) => call.method === 'DELETE');
   assert.match(del.url, new RegExp(`/composition/${encodeURIComponent(versionUid)}$`));
   assert.ok(del.options.headers['openEHR-AUDIT_DETAILS']);

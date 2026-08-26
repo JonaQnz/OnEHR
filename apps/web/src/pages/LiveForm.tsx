@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { FORM_LAUNCH_PROTOCOL_VERSION, type FormDefinitionV1, type FormEmbedEventName, type RuntimeValues, type FormSessionRuntimeContext, type FormSessionLifecycleState, type FormSessionChangeType, type SaveState } from 'core';
+import { FORM_LAUNCH_PROTOCOL_VERSION, type FormDefinitionV1, type FormEmbedEventName, type RuntimeValues, type FormSessionRuntimeContext, type FormSessionLifecycleState, type FormSessionChangeType, type SaveState, type CompositionVersion } from 'core';
 import FormRuntime, { type FormRuntimeHandle } from '../components/FormRuntime';
 import PluginHost from '../components/PluginHost';
+import CompositionHistoryPanel from '../components/CompositionHistoryPanel';
+import HistoricalVersionView from '../components/HistoricalVersionView';
+import CompositionDiffView from '../components/CompositionDiffView';
 
 const API = 'http://localhost:3001/api';
 
@@ -134,6 +137,16 @@ export default function LiveForm() {
   // resolves the "unsaved changes" choice (continue editing / save & leave /
   // discard & leave).
   const [pendingNav, setPendingNav] = useState<(() => void) | null>(null);
+
+  // --- Epic 3: Version History, Audit & Semantic Diff ---------------------
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [openHistoricalVersion, setOpenHistoricalVersion] = useState<string | null>(null);
+  const [compareVersions, setCompareVersions] = useState<{ from: string; to: string } | null>(null);
+  // The current version's own audit metadata (composer/committer/
+  // contribution/preceding version) - fetched lazily, only when the
+  // inspector is actually expanded (§28/§29), not on every page load.
+  const [currentVersionDetail, setCurrentVersionDetail] = useState<CompositionVersion | null>(null);
+  useEffect(() => { setCurrentVersionDetail(null); }, [session?.providerReference]);
 
   const publishEmbedEvent = (event: FormEmbedEventName, formId: string, sessionId?: string, message?: string, height?: number, dirtyState?: boolean) => {
     if (window.parent === window) return;
@@ -471,6 +484,28 @@ export default function LiveForm() {
             </div>
           )}
 
+          {!isEmbedded && (
+            <div style={{ marginBottom: '1rem' }}>
+              <button
+                onClick={() => setHistoryOpen((open) => !open)}
+                style={{ background: 'transparent', border: '1px solid #cbd5e1', color: '#334155', padding: '0.35rem 0.9rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'sans-serif' }}
+              >
+                {historyOpen ? 'Verlauf ausblenden' : 'Verlauf anzeigen'}
+              </button>
+              {historyOpen && (
+                <div style={{ marginTop: '0.5rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                  <div style={{ fontWeight: 700, fontFamily: 'sans-serif', marginBottom: '0.4rem' }}>Dokumenthistorie</div>
+                  <CompositionHistoryPanel
+                    sessionId={session.id}
+                    refreshKey={session.revision}
+                    onOpenVersion={setOpenHistoricalVersion}
+                    onCompare={(from, to) => setCompareVersions({ from, to })}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {saveState === 'conflict' && (
             <div style={{ padding: '1rem', marginBottom: '1rem', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '8px', fontFamily: 'sans-serif' }}>
               <strong>Diese Dokumentation wurde inzwischen von anderer Stelle geändert.</strong>
@@ -588,7 +623,20 @@ export default function LiveForm() {
           )}
 
           {!isEmbedded && (
-            <details style={{ marginTop: '1.5rem', fontFamily: 'monospace', fontSize: '0.75rem', color: '#64748b' }}>
+            <details
+              style={{ marginTop: '1.5rem', fontFamily: 'monospace', fontSize: '0.75rem', color: '#64748b' }}
+              onToggle={(event) => {
+                // Lazy, on-demand only (§28/§29) - the current version's own
+                // audit metadata (composer/committer/contribution/preceding
+                // version) is fetched only once the inspector is actually
+                // expanded, never on every page load.
+                if ((event.target as HTMLDetailsElement).open && !currentVersionDetail && session.providerReference) {
+                  request<{ version: CompositionVersion }>(`/form-sessions/${session.id}/provider/history/${encodeURIComponent(session.providerReference)}`)
+                    .then((result) => setCurrentVersionDetail(result.version))
+                    .catch(() => { /* best-effort - the rest of the inspector still works without this */ });
+                }
+              }}
+            >
               <summary style={{ cursor: 'pointer', fontFamily: 'sans-serif' }}>Clinical Editing (Entwickler-Inspektor)</summary>
               <div style={{ marginTop: '0.5rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.25rem 1rem' }}>
                 <span>Composition UID</span><span style={{ overflowWrap: 'anywhere' }}>{session.providerReference || '—'}</span>
@@ -599,6 +647,12 @@ export default function LiveForm() {
                 <span>Dirty</span><span>{String(dirty)}</span>
                 <span>Save State</span><span>{saveState}</span>
                 <span>Change Type</span><span>{session.changeType || '—'}</span>
+                <span>Historical Version</span><span>false</span>
+                <span>Preceding Version UID</span><span style={{ overflowWrap: 'anywhere' }}>{currentVersionDetail?.precedingVersionUid || '—'}</span>
+                <span>Committer</span><span>{currentVersionDetail?.committer?.name || '—'}</span>
+                <span>Composer</span><span>{currentVersionDetail?.composer?.name || '—'}</span>
+                <span>Contribution UID</span><span style={{ overflowWrap: 'anywhere' }}>{currentVersionDetail?.contributionUid || '—'}</span>
+                <span>Commit Timestamp</span><span>{currentVersionDetail?.committedAt || '—'}</span>
               </div>
             </details>
           )}
@@ -627,6 +681,26 @@ export default function LiveForm() {
             </div>
           </div>
         </div>
+      )}
+
+      {openHistoricalVersion && session && (
+        <HistoricalVersionView
+          sessionId={session.id}
+          versionUid={openHistoricalVersion}
+          definition={form.canonical_json}
+          patientId={session.patientId}
+          ehrId={session.ehrId}
+          onClose={() => setOpenHistoricalVersion(null)}
+        />
+      )}
+
+      {compareVersions && session && (
+        <CompositionDiffView
+          sessionId={session.id}
+          fromVersionUid={compareVersions.from}
+          toVersionUid={compareVersions.to}
+          onClose={() => setCompareVersions(null)}
+        />
       )}
 
       {withdrawOpen && (

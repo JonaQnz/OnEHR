@@ -142,6 +142,16 @@ function referenceFrom(response: ProviderResponse): string | undefined {
   return text(headers.location) || text(headers.Location) || text(response.data?.uid?.value) || text(response.data?.uid);
 }
 
+/** `{uid}::{system}::N` -> `{uid}::{system}::N+1`. Used only where a CDR's
+ * own response can't be trusted to report the version it just created (see
+ * withdraw()) - openEHR version numbers are guaranteed sequential per
+ * committing system for a given versioned object, so this is safe. */
+function incrementVersionUid(versionUid: string): string | undefined {
+  const match = versionUid.match(/^(.*::)(\d+)$/);
+  if (!match) return undefined;
+  return `${match[1]}${Number(match[2]) + 1}`;
+}
+
 function versionUidFromReference(reference: unknown): string | undefined {
   const value = text(reference);
   if (!value) return undefined;
@@ -485,7 +495,15 @@ export class EhrbaseDataProvider implements FormDataProvider {
         `${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/composition/${encodeURIComponent(versionUid)}`,
         options,
       ) as ProviderResponse;
-      return { versionUid: referenceFrom(response) || versionUid };
+      // Confirmed live: unlike POST/PUT (where etag correctly gives the new
+      // version), this CDR's DELETE response headers (etag AND location)
+      // echo back the version that was just withdrawn, not the new
+      // "deleted" tombstone - verified by reading revision_history right
+      // after a real DELETE. openEHR version numbers are guaranteed
+      // sequential per committing system for a given versioned object, so
+      // the new tombstone is reliably `{uid}::{system}::{N+1}` - never
+      // trust referenceFrom(response) here.
+      return { versionUid: incrementVersionUid(versionUid) || referenceFrom(response) || versionUid };
     } catch (error: any) {
       if (error?.response?.status === 412) {
         throw new EhrbaseProviderError('The composition changed since it was loaded. Reload the form before withdrawing.', 'COMPOSITION_VERSION_CONFLICT', 409);
