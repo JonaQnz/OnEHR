@@ -75,11 +75,11 @@ export function registerRuntimeTools(server: McpServer, api: FormbuilderApiClien
 
   server.registerTool('submit_form_session_to_provider', {
     title: 'Submit a form session',
-    description: 'Submits a session\'s current values as a Composition to the data provider (EHRbase by default) - the actual "save this clinical data for real" step. Validate first; a stale/unvalidated submission can be rejected.',
+    description: 'Submits a session\'s current values as a Composition to the data provider (EHRbase by default) - the actual "save this clinical data for real" step. Validate first: pass the matching validatedRevision to skip a redundant re-validation. The server never trusts that flag blindly - if the session has been edited or its status has moved since that revision (even if you still cite it), it transparently re-validates the CURRENT values before submitting, so nothing unvalidated is ever written; a submission is only rejected if that (fresh or reused) validation actually finds a problem.',
     inputSchema: {
       id: z.string(),
       providerId: z.string().optional().describe('Defaults to "ehrbase".'),
-      validatedRevision: z.number().optional().describe('The revision validate_form_session returned, to prove validation ran against the exact values being submitted.'),
+      validatedRevision: z.number().optional().describe('The revision validate_form_session returned. Only lets the server skip a redundant re-validation when it still matches the session\'s current revision and status - otherwise ignored in favor of a fresh server-side validation.'),
     },
   }, ({ id, ...body }) => toResult(() => api.post(`/api/form-sessions/${encodeURIComponent(id)}/provider/submit`, body)));
 

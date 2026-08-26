@@ -25,10 +25,10 @@ import { EhrbaseProviderError } from './ehrbaseDataProvider';
 import { N8nProviderError } from './n8nDataProvider';
 import { getCompositionRepository } from './compositionRepository';
 import { recordCompositionVersionEvent } from './compositionVersionEvents';
-import { getPluginSettings } from './configService';
+import { getConfig, getPluginSettings } from './configService';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 import type { PluginHookName, PluginHookResult } from 'plugin-api';
-import { resolvePatientReference } from './patientService';
+import { markPatientHasPersonArchetype, resolvePatientReference } from './patientService';
 import { buildSessionRuntimeContext } from './aqlFunctionService';
 
 export interface SessionActor {
@@ -774,6 +774,13 @@ export async function submitFormSessionToProvider(
       changeType: desiredChangeType,
       changeDescription,
     });
+  }
+  // A successful submit of the registry's own Person template is exactly
+  // the moment hasPersonArchetype should flip - don't leave it stale until
+  // someone thinks to trigger a full syncPatientsFromEhrbase() sweep.
+  const submittedTemplateId = input.form.definition.sourceTemplates?.[0]?.id;
+  if (result.metadata?.ehrId && submittedTemplateId && submittedTemplateId === getConfig().patientRegistryPersonTemplateId) {
+    void markPatientHasPersonArchetype(result.metadata.ehrId).catch((error) => console.warn('[formSessionService] Could not refresh hasPersonArchetype after submit:', error instanceof Error ? error.message : error));
   }
   return {
     session: publicSession(
