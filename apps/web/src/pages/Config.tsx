@@ -86,6 +86,15 @@ export default function Config() {
       <p style={{ color: 'var(--text-muted)', fontSize: '.85rem', marginBottom: 0 }}>Pflichtalias: <code>ehrId</code>. Optional: <code>patientId</code>, <code>patientNamespace</code>, <code>firstName</code>, <code>lastName</code>, <code>birthDate</code>, <code>gender</code>. Fehlen optionale Werte, nutzt Forms die EHR-Subject-ID und neutrale Anzeigenamen.</p>
     </div>
     <div className="card" style={{ marginBottom: '1.5rem' }}>
+      <h3 style={{ marginTop: 0 }}>Session-Wiederverwendung</h3>
+      <p style={{ color: 'var(--text-muted)' }}>In Edit-/Prefill-Modus wird normalerweise die eigene, noch offene Sitzung für dasselbe Formular/dieselbe Composition und denselben Patienten fortgesetzt statt eine zweite zu starten. Dies ist die Voreinstellung für alle Formulare und Compositions, die selbst keine eigene "Session Reuse"-Einstellung haben (in FormBuilder/CompositionBuilder pro Formular einstellbar).</p>
+      <label className="form-label">Voreinstellung</label>
+      <select className="form-input" value={config.sessionReuseDefault === 'always-new' ? 'always-new' : 'reuse'} onChange={(event) => setConfig({ ...config, sessionReuseDefault: event.target.value })}>
+        <option value="reuse">Offene Sitzung fortsetzen (Standard)</option>
+        <option value="always-new">Immer eine neue Sitzung starten</option>
+      </select>
+    </div>
+    <div className="card" style={{ marginBottom: '1.5rem' }}>
       <h3 style={{ marginTop: 0 }}>Automatisches Speichern (Entwürfe)</h3>
       <p style={{ color: 'var(--text-muted)' }}>Voreinstellung für alle Formulare, die keine eigene Einstellung dafür haben (in FormBuilder pro Formular unter "Runtime" einstellbar).</p>
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem' }}>

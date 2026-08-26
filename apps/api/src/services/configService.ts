@@ -79,6 +79,35 @@ export interface AppConfig {
      * had before this setting existed: every draft save, debounced or
      * manual, pushes a real provider draft composition. */
     pushDraftsToProviderByDefault?: boolean;
+    /** Org-wide fallback for a form's own `storageStrategy`
+     * (OPEN_EHR_FORM_EXTENSION, read via `getOpenEhrFormOptions` - see
+     * resolveSessionAlwaysNew below). Defaults to `'reuse'` - matches the
+     * behavior every form/Composition already had before this setting
+     * existed: edit/prefill-mode sessions resume this user's own still-open
+     * session for the same form+patient instead of starting a second one. */
+    sessionReuseDefault?: 'reuse' | 'always-new';
+}
+
+/**
+ * Whether a session launch should skip reuse and always start fresh - the
+ * form/Composition's own `storageStrategy` (OPEN_EHR_FORM_EXTENSION) wins;
+ * unset defers to the connection-wide `sessionReuseDefault` (itself
+ * defaulting to `'reuse'` - never silently always-new unless a form/
+ * Composition, or the org-wide default, explicitly opts into it). Shared by
+ * formSessionService.ts's createFormSession and
+ * compositionSessionService.ts's startCompositionSession so there's exactly
+ * one place this default resolves, not two independently-hardcoded copies.
+ *
+ * Takes the resolved global default as a parameter rather than calling
+ * getConfig() itself - both callers already import getConfig from this
+ * module and can pass getConfig().sessionReuseDefault through, which keeps
+ * that call on the normal cross-module (and so mockable-in-tests) path
+ * instead of a same-module local binding that test mocking of the exported
+ * getConfig couldn't intercept.
+ */
+export function resolveSessionAlwaysNew(perFormStorageStrategy: 'always_new' | 'update_latest' | undefined, sessionReuseDefault: AppConfig['sessionReuseDefault']): boolean {
+    if (perFormStorageStrategy !== undefined) return perFormStorageStrategy === 'always_new';
+    return sessionReuseDefault === 'always-new';
 }
 
 /** Comma-separated env value -> lowercase, trimmed, de-blanked list. Shared
@@ -268,6 +297,7 @@ export function getConfig(): AppConfig {
         autosaveEnabledByDefault: persistedConfig.autosaveEnabledByDefault ?? true,
         autosaveDebounceMsDefault: persistedConfig.autosaveDebounceMsDefault ?? 2500,
         pushDraftsToProviderByDefault: persistedConfig.pushDraftsToProviderByDefault ?? true,
+        sessionReuseDefault: persistedConfig.sessionReuseDefault ?? 'reuse',
     };
 }
 
@@ -380,5 +410,6 @@ export function getSafeConfig(): Partial<AppConfig> {
         autosaveEnabledByDefault: full.autosaveEnabledByDefault ?? true,
         autosaveDebounceMsDefault: full.autosaveDebounceMsDefault ?? 2500,
         pushDraftsToProviderByDefault: full.pushDraftsToProviderByDefault ?? true,
+        sessionReuseDefault: full.sessionReuseDefault ?? 'reuse',
     };
 }

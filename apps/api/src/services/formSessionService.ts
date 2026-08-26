@@ -26,7 +26,7 @@ import { EhrbaseProviderError } from './ehrbaseDataProvider';
 import { N8nProviderError } from './n8nDataProvider';
 import { getCompositionRepository } from './compositionRepository';
 import { recordCompositionVersionEvent } from './compositionVersionEvents';
-import { getConfig, getPluginSettings } from './configService';
+import { getConfig, getPluginSettings, resolveSessionAlwaysNew } from './configService';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 import type { PluginHookName, PluginHookResult } from 'plugin-api';
 import { markPatientHasPersonArchetype, resolvePatientReference } from './patientService';
@@ -349,7 +349,10 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
   // every launch is its own clinical moment even in edit mode) - the same
   // per-launch override forceNew already provides, just as the form's own
   // default instead of something every caller has to remember to pass.
-  const alwaysNew = getOpenEhrFormOptions(form.canonical_json as any).storageStrategy === 'always_new';
+  // Unset defers to the connection-wide sessionReuseDefault (see
+  // resolveSessionAlwaysNew), itself defaulting to 'reuse' - unchanged
+  // behavior for every form that sets nothing.
+  const alwaysNew = resolveSessionAlwaysNew(getOpenEhrFormOptions(form.canonical_json as any).storageStrategy, getConfig().sessionReuseDefault);
   if ((mode === 'edit' || mode === 'prefill') && !input.forceNew && !alwaysNew) {
     const targetCompositionUid = compositionUidFromReference(input.providerReference);
     const candidates = await prisma.formSession.findMany({
