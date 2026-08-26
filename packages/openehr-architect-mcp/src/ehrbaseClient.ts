@@ -96,7 +96,11 @@ class EhrbaseClient {
    * "already there", not an error, since re-uploading an identical template
    * is a legitimate no-op. */
   async uploadTemplate(optXml: string): Promise<{ status: 'created' | 'already_exists' }> {
-    const { status, text } = await this.request('POST', '/definition/template/adl1.4', { contentType: 'application/xml', body: optXml });
+    // EHRbase 406's on this endpoint if Accept isn't application/xml (the
+    // created-resource representation it would otherwise try to negotiate) -
+    // confirmed live; the default Accept: application/json this client uses
+    // everywhere else doesn't work here.
+    const { status, text } = await this.request('POST', '/definition/template/adl1.4', { accept: 'application/xml', contentType: 'application/xml', body: optXml });
     if (status === 409) return { status: 'already_exists' };
     if (status >= 400) throw new EhrbaseError(status, `EHRbase rejected the template (HTTP ${status})`, tryParse(text));
     return { status: 'created' };

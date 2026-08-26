@@ -60,10 +60,10 @@ test('getTemplateOpt requests Accept: application/xml and returns the raw text u
   assert.equal(result, '<template><template_id>vg_Procedure.v1.1.0</template_id></template>');
 });
 
-test('uploadTemplate POSTs Content-Type: application/xml with the OPT body and reports "created" on 2xx', async () => {
+test('uploadTemplate POSTs Content-Type/Accept: application/xml with the OPT body and reports "created" on 2xx', async () => {
   let seen;
   const fetchStub = async (url, init) => {
-    seen = { url: String(url), method: init.method, contentType: init.headers['Content-Type'], body: init.body };
+    seen = { url: String(url), method: init.method, accept: init.headers.Accept, contentType: init.headers['Content-Type'], body: init.body };
     return textResponse(201, '');
   };
   const client = new EhrbaseClient(deps(fetchStub));
@@ -72,6 +72,9 @@ test('uploadTemplate POSTs Content-Type: application/xml with the OPT body and r
 
   assert.equal(seen.url, 'https://ehrbase.test/rest/openehr/v1/definition/template/adl1.4');
   assert.equal(seen.method, 'POST');
+  // EHRbase 406's this endpoint unless Accept is application/xml too (confirmed live) -
+  // not just Content-Type on the request body.
+  assert.equal(seen.accept, 'application/xml');
   assert.equal(seen.contentType, 'application/xml');
   assert.equal(seen.body, '<template>...</template>');
   assert.deepEqual(result, { status: 'created' });
