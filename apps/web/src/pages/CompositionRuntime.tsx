@@ -199,7 +199,12 @@ export default function CompositionRuntime() {
         try {
           const blockLoad = block.load || (mode === 'create' ? 'never' : 'provider');
           const blockMode = mode === 'create' && blockLoad === 'provider' ? 'prefill' : mode;
-          const launch = await launchEmbeddedForm({ formId: block.formId, patient: { id: patientId.trim(), ...(namespace.trim() ? { namespace: namespace.trim() } : {}) }, mode: blockMode, load: blockLoad, hiddenFieldIds: block.hiddenFieldIds, fieldLabelOverrides: block.fieldLabelOverrides, launchId: `${parent.id}:${block.id}` });
+          // compositionContext proves to the server this Form Section
+          // launch is a legitimate block of an already-started Composition
+          // session, not a standalone launch - Form Sections can't be
+          // launched on their own for a patient (see formSessionService's
+          // assertFormSectionLaunchAllowed).
+          const launch = await launchEmbeddedForm({ formId: block.formId, patient: { id: patientId.trim(), ...(namespace.trim() ? { namespace: namespace.trim() } : {}) }, mode: blockMode, load: blockLoad, hiddenFieldIds: block.hiddenFieldIds, fieldLabelOverrides: block.fieldLabelOverrides, launchId: `${parent.id}:${block.id}`, compositionContext: { compositionSessionId: parent.id, blockId: block.id } });
           const attached = await request<CompositionSession>(`/composition-sessions/${encodeURIComponent(parent.id)}/blocks/${encodeURIComponent(block.id)}`, { method: 'PUT', body: JSON.stringify({ childSessionId: launch.session.id }) });
           setSession(attached); setLaunches((current) => ({ ...current, [block.id]: { url: formEmbedUrl(launch.launchUrl) } }));
         } catch (reason) { setLaunches((current) => ({ ...current, [block.id]: { error: reason instanceof Error ? reason.message : 'Formular konnte nicht gestartet werden.' } })); }
