@@ -61,12 +61,29 @@ export interface FormRuntimeProps {
   sessionId?: string;
   /** Trusted host override. Required fields are deliberately never hidden. */
   hiddenFieldIds?: string[];
+  /** Trusted host override: per-field display-label override, keyed by
+   * field id. Cosmetic only - never changes validation, options, or any
+   * other field behavior, and never touches the Form Section's own
+   * canonical label (a Composition block's per-instance rename). */
+  fieldLabelOverrides?: Record<string, string>;
   /** Server-loaded data such as the last Flat Composition; never merged into form values. */
   runtimeContext?: FormSessionRuntimeContext;
   rendererOverrides?: Record<string, RuntimeRenderer>;
   onValuesChange?: (values: RuntimeValues) => void;
   mode?: 'create' | 'edit' | 'view' | 'preview' | 'prefill';
   onSubmit?: (values: RuntimeValues) => void | Promise<void>;
+  /** Shows this Form Section's own name/version as an `<h1>` above its
+   * fields. Default true (a standalone runtime page has nothing else to
+   * announce the form). A host that already shows its own title for this
+   * form - a Composition block's card header, e.g. - should pass false to
+   * avoid a second, redundant heading right above the first. */
+  showHeader?: boolean;
+  /** Drops the outer white bordered card this component normally draws
+   * around itself. Default false. A host that already provides its own
+   * bordered container - again, a Composition block's card - should pass
+   * true, so an embedded Form Section doesn't end up boxed a second time
+   * inside a box it's already inside. */
+  chromeless?: boolean;
 }
 
 export interface FormRuntimeHandle {
@@ -117,11 +134,14 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   encounterId,
   sessionId,
   hiddenFieldIds = [],
+  fieldLabelOverrides = {},
   runtimeContext,
   rendererOverrides = {},
   onValuesChange,
   onSubmit,
   mode = 'preview',
+  showHeader = true,
+  chromeless = false,
 }, ref) {
   const { renderers } = useFrontendPlugins();
   const effectiveRendererOverrides = useMemo(() => ({
@@ -470,7 +490,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     if (!field || field.alwaysHidden || (!field.required && hiddenFieldIds.includes(id)) || !CoreRuntime.isRuntimeFieldVisible(field, values) || dynamic?.visible === false) return null;
     const effectiveField: RuntimeFieldDescriptor = {
       ...field,
-      label: dynamic?.label || field.label,
+      label: dynamic?.label || fieldLabelOverrides[id] || field.label,
       description: dynamic?.helpText || field.description,
       required: dynamic?.required ?? field.required,
       readOnly: groupContext?.disabled || dynamic?.readonly || field.readOnly,
@@ -550,7 +570,12 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
       const componentId = id || '';
       const dynamic = uiStates[`${componentKind}:${componentId}`];
       if (dynamic?.visible === false) return null;
-      const decorated = node.type !== 'form';
+      // Only a container/section/tab that actually has a label is worth its
+      // own bordered box + heading - an unlabeled wrapper (e.g. the single
+      // top-level container every Form Section's layout starts with) would
+      // otherwise draw an empty, heading-less box around everything else,
+      // one more nested "box in a box" with nothing to show for it.
+      const decorated = node.type !== 'form' && Boolean(node.label);
 
       if (node.type === 'container' && node.repeatable === true && id) {
         const descriptor = groupById.get(id);
@@ -650,10 +675,10 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   };
 
   const formContent = (
-    <form onSubmit={(event) => void submit(event)} style={{ maxWidth: '960px', margin: '0 auto' }}>
-      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.5rem' }}>
+    <form onSubmit={(event) => void submit(event)} style={{ maxWidth: chromeless ? '100%' : '960px', margin: chromeless ? 0 : '0 auto' }}>
+      <div style={chromeless ? { padding: 0 } : { background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.5rem' }}>
         {toast && <div role={toast.level === 'error' ? 'alert' : 'status'} style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '8px', background: toast.level === 'error' ? '#fef2f2' : toast.level === 'success' ? '#f0fdf4' : '#eff6ff', color: toast.level === 'error' ? '#b91c1c' : toast.level === 'success' ? '#15803d' : '#1d4ed8', display: 'flex', justifyContent: 'space-between', gap: '1rem' }}><span>{toast.message}</span><button type="button" aria-label="Meldung schließen" onClick={() => setToast(null)} style={{ border: 0, background: 'transparent', cursor: 'pointer' }}>×</button></div>}
-        {definition.name && <header style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}><div><h1 style={{ margin: 0 }}>{definition.name}</h1><div style={{ color: '#64748b', fontSize: '0.85rem' }}>Version {definition.version}</div></div><ExtensionSlot name="form:header:actions" context={{ readOnly }} /></header>}
+        {showHeader && definition.name && <header style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}><div><h1 style={{ margin: 0 }}>{definition.name}</h1><div style={{ color: '#64748b', fontSize: '0.85rem' }}>Version {definition.version}</div></div><ExtensionSlot name="form:header:actions" context={{ readOnly }} /></header>}
         {renderNode(definition.layout, 'root')}
         {showSubmit && !readOnly && <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1rem', display: 'flex', justifyContent: 'flex-end' }}><button type="submit" className="btn" disabled={busy || (submitted && !validation.valid)}>{submitLabel}</button></div>}
         {submitted && !validation.valid && <div role="alert" style={{ color: '#b91c1c', marginTop: '0.75rem' }}>{validation.issues.length} Validierungsfehler müssen korrigiert werden.</div>}

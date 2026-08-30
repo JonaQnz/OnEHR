@@ -1,0 +1,24 @@
+{
+  "name": "openehr-architect-mcp",
+  "version": "1.0.0",
+  "description": "MCP server that talks directly to EHRbase's own openEHR Definitions REST API - not through the Forms app - so an agent can inspect and author openEHR Operational Templates (list, fetch as WebTemplate JSON or raw OPT XML, upload). No template-design GUI exists as a self-hostable service with an API (researched: Better's Archetype Designer is SaaS-only with no template-authoring API, LinkEHR has no public self-host/API story, everything else is a Windows-only desktop tool) - EHRbase's own definitions endpoint is the one genuine, already-running external API for this, so this server is a thin, direct bridge to it. Template composition itself (valid ADL2/AOM constraints) is done by the calling agent, informed by get_template_opt on a known-good existing template as a structural reference; EHRbase's own upload validation (a 400 response) is the safety net for a malformed one.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "bin": {
+    "openehr-architect-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "fast-xml-parser": "^5.11.1",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "typescript": "^5.7.3"
+  }
+}

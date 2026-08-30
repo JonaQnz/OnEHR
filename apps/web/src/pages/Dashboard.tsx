@@ -1,11 +1,22 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Plus, FileEdit, Download, Copy, UploadCloud, FolderOpen, ExternalLink, Archive, RotateCcw, ChevronDown, ChevronRight, Trash2, LayoutPanelTop } from 'lucide-react';
+import { Search, Plus, FileEdit, Download, Copy, UploadCloud, FolderOpen, ExternalLink, Archive, RotateCcw, ChevronDown, ChevronRight, Trash2, LayoutPanelTop, BarChart3 } from 'lucide-react';
 import { CreateFormModal } from '../components/CreateFormModal';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
+type LibraryTab = 'forms' | 'sections' | 'widgets';
+
+const TABS: Array<{ id: LibraryTab; label: string }> = [
+  { id: 'forms', label: 'Forms' },
+  { id: 'sections', label: 'Form Sections' },
+  { id: 'widgets', label: 'Widget Segments' },
+];
+
+type WidgetSegment = { id: string; name: string; description: string; enabled: boolean; configuration: { display: string; packageName?: string } };
+
 export default function Dashboard() {
-  useDocumentTitle('Dashboard');
+  useDocumentTitle('Bibliothek');
+  const [activeTab, setActiveTab] = useState<LibraryTab>('forms');
   const [forms, setForms] = useState<any[]>([]);
   const [loadError, setLoadError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -18,6 +29,10 @@ export default function Dashboard() {
 
   const [remoteTemplates, setRemoteTemplates] = useState<any[]>([]);
 
+  const [widgetSegments, setWidgetSegments] = useState<WidgetSegment[]>([]);
+  const [widgetsLoadError, setWidgetsLoadError] = useState('');
+  const [widgetsLoading, setWidgetsLoading] = useState(true);
+
   useEffect(() => {
     void fetchForms();
     fetch('http://localhost:3001/api/templates/remote')
@@ -27,6 +42,11 @@ export default function Dashboard() {
       })
       .catch(err => console.error(err));
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'widgets' || widgetSegments.length > 0) return;
+    void fetchWidgetSegments();
+  }, [activeTab]);
 
   const fetchForms = async () => {
     try {
@@ -40,6 +60,24 @@ export default function Dashboard() {
       console.error('Failed to load forms:', error);
       setForms([]);
       setLoadError(error instanceof Error ? error.message : 'Formulare konnten nicht geladen werden.');
+    }
+  };
+
+  const fetchWidgetSegments = async () => {
+    setWidgetsLoading(true);
+    try {
+      const response = await fetch('http://localhost:3001/api/widgets', { credentials: 'include' });
+      const data: unknown = await response.json().catch(() => undefined);
+      if (!response.ok) throw new Error('Widget Segments konnten nicht geladen werden.');
+      const list = Array.isArray(data) ? data : Array.isArray((data as any)?.widgets) ? (data as any).widgets : [];
+      setWidgetSegments(list);
+      setWidgetsLoadError('');
+    } catch (error) {
+      console.error('Failed to load widget segments:', error);
+      setWidgetSegments([]);
+      setWidgetsLoadError(error instanceof Error ? error.message : 'Widget Segments konnten nicht geladen werden.');
+    } finally {
+      setWidgetsLoading(false);
     }
   };
 
@@ -66,7 +104,7 @@ export default function Dashboard() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(json)
         });
-        
+
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
           alert(`Import failed: ${errData.error || errData.message || 'Unknown error'}`);
@@ -84,7 +122,7 @@ export default function Dashboard() {
       }
     };
     reader.readAsText(file);
-    
+
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -150,7 +188,14 @@ export default function Dashboard() {
     return group.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
   });
 
+  // Tab 1 (Forms) shows compositions - the page/block assemblies. Tab 2
+  // (Form Sections) shows everything else - the atomic, single-archetype
+  // building blocks. Same underlying /api/forms records either way, split
+  // purely by the watehr.composition extension's presence.
   const filteredForms = displayForms.filter(f => {
+    const isComposition = Boolean(f.canonical_json?.extensions?.['watehr.composition']);
+    if (activeTab === 'forms' && !isComposition) return false;
+    if (activeTab === 'sections' && isComposition) return false;
     if (viewDeleted) {
       if (f.status !== 'deleted') return false;
     } else {
@@ -161,54 +206,96 @@ export default function Dashboard() {
     return true;
   });
 
+  const filteredWidgetSegments = widgetSegments.filter(w => !searchQuery || w.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: '0 0 0.5rem 0', letterSpacing: '-0.02em' }}>Formulare</h1>
-          <p style={{ margin: 0, color: 'var(--text-muted)' }}>Manage and version your clinical forms.</p>
+          <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: '0 0 0.5rem 0', letterSpacing: '-0.02em' }}>Bibliothek</h1>
+          <p style={{ margin: 0, color: 'var(--text-muted)' }}>Forms, Form Sections und Widget Segments verwalten und versionieren.</p>
         </div>
         <div style={{ display: 'flex', gap: '1rem' }}>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            style={{ display: 'none' }} 
-            accept=".json"
-            onChange={handleFileChange}
-          />
-          <button className="btn btn-secondary" onClick={handleImportClick}>
-            <UploadCloud size={18} /> Import Form
-          </button>
-          <button className="btn" onClick={() => setCreateModalKind('form')}>
-            <Plus size={18} /> Create New Form
-          </button>
-          <button className="btn btn-secondary" onClick={() => setCreateModalKind('composition')}>
-            <LayoutPanelTop size={18} /> Neue Composition
-          </button>
+          {activeTab !== 'widgets' && (
+            <>
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                accept=".json"
+                onChange={handleFileChange}
+              />
+              <button className="btn btn-secondary" onClick={handleImportClick}>
+                <UploadCloud size={18} /> Import Form
+              </button>
+            </>
+          )}
+          {activeTab === 'forms' && (
+            <button className="btn" onClick={() => setCreateModalKind('composition')}>
+              <LayoutPanelTop size={18} /> Neue Form
+            </button>
+          )}
+          {activeTab === 'sections' && (
+            <button className="btn" onClick={() => setCreateModalKind('form')}>
+              <Plus size={18} /> Neue Form Section
+            </button>
+          )}
+          {activeTab === 'widgets' && (
+            <Link className="btn" to="/widgets">
+              <BarChart3 size={18} /> Neues Widget Segment
+            </Link>
+          )}
         </div>
       </div>
 
-      {loadError && (
+      <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)' }}>
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === tab.id ? '2px solid var(--primary)' : '2px solid transparent',
+              color: activeTab === tab.id ? 'var(--text-main)' : 'var(--text-muted)',
+              fontWeight: activeTab === tab.id ? 600 : 500,
+              fontSize: '0.95rem',
+              padding: '0.7rem 1rem',
+              cursor: 'pointer',
+              marginBottom: '-1px',
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {loadError && activeTab !== 'widgets' && (
         <div className="card" style={{ marginBottom: '1.5rem', color: 'var(--danger-hover)', borderColor: '#fecaca' }}>
           {loadError}
+        </div>
+      )}
+      {widgetsLoadError && activeTab === 'widgets' && (
+        <div className="card" style={{ marginBottom: '1.5rem', color: 'var(--danger-hover)', borderColor: '#fecaca' }}>
+          {widgetsLoadError}
         </div>
       )}
 
       <div className="card" style={{ display: 'flex', gap: '1rem', padding: '1rem 1.5rem', marginBottom: '1.5rem', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: 1 }}>
           <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          <input 
-            type="text" 
-            placeholder="Search forms..." 
-            className="form-input" 
+          <input
+            type="text"
+            placeholder={activeTab === 'widgets' ? 'Search widget segments...' : 'Search forms...'}
+            className="form-input"
             style={{ paddingLeft: '2.5rem' }}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
         </div>
-        {!viewDeleted && (
-          <select 
-            className="form-input" 
+        {activeTab !== 'widgets' && !viewDeleted && (
+          <select
+            className="form-input"
             style={{ width: 'auto', minWidth: '150px' }}
             value={filter}
             onChange={e => setFilter(e.target.value as any)}
@@ -218,21 +305,64 @@ export default function Dashboard() {
             <option value="published">Published</option>
           </select>
         )}
-        <button 
-          className={`btn ${viewDeleted ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setViewDeleted(!viewDeleted)}
-        >
-          <Trash2 size={18} /> {viewDeleted ? 'Back to Forms' : 'Deleted Forms'}
-        </button>
+        {activeTab !== 'widgets' && (
+          <button
+            className={`btn ${viewDeleted ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setViewDeleted(!viewDeleted)}
+          >
+            <Trash2 size={18} /> {viewDeleted ? 'Back to Forms' : 'Deleted Forms'}
+          </button>
+        )}
       </div>
 
+      {activeTab === 'widgets' ? (
+        <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
+          <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)' }}>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>Widget Segments</h3>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 1.5rem 1.5rem 1.5rem' }}>
+            {widgetsLoading ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Lädt…</div>
+            ) : filteredWidgetSegments.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', color: 'var(--text-muted)' }}>
+                <BarChart3 size={48} style={{ opacity: 0.5, marginBottom: '1rem' }} />
+                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1.1rem', color: 'var(--text-main)' }}>Noch keine Widget Segments</h4>
+                <p style={{ margin: '0 0 1rem', textAlign: 'center', maxWidth: 420 }}>
+                  Widget Segments sind wiederverwendbare klinische Datenkarten (Kennzahl, Tabelle, Diagramm), die in Forms
+                  eingebettet werden können. Die Erstellung als eigenständiger Baustein hier in der Bibliothek folgt bald -
+                  bis dahin über die Widgets-Verwaltung anlegen.
+                </p>
+                <Link className="btn" to="/widgets"><BarChart3 size={16} /> Zu den Widgets</Link>
+              </div>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {filteredWidgetSegments.map(w => (
+                  <li key={w.id} style={{ borderBottom: '1px solid var(--border)', padding: '1.25rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+                        <strong style={{ fontSize: '1.05rem', color: 'var(--text-main)' }}>{w.name}</strong>
+                        <span className={`badge ${w.enabled ? 'badge-published' : 'badge-archived'}`}>{w.enabled ? 'enabled' : 'disabled'}</span>
+                        <span className="badge" style={{ background: '#eef2ff', color: '#4338ca' }}>{w.configuration?.display}</span>
+                      </div>
+                      {w.description && <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{w.description}</div>}
+                    </div>
+                    <Link to="/widgets" className="btn btn-secondary btn-icon" title="In Widgets-Verwaltung öffnen">
+                      <FileEdit size={16} /> Bearbeiten
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      ) : (
       <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
         <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>
-            {viewDeleted ? 'Deleted Forms (Papierkorb)' : 'Existing Forms'}
+            {viewDeleted ? 'Deleted Forms (Papierkorb)' : activeTab === 'forms' ? 'Existing Forms' : 'Existing Form Sections'}
           </h3>
         </div>
-        
+
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 1.5rem 1.5rem 1.5rem' }}>
           {filteredForms.length === 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', color: 'var(--text-muted)' }}>
@@ -246,7 +376,7 @@ export default function Dashboard() {
                 const groupId = f.parent_id || f.id;
                 const isExpanded = expandedGroups[groupId];
                 const history = groupedForms[groupId].filter((v: any) => v.id !== f.id).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                
+
                 const tpl = f.canonical_json?.sourceTemplates?.[0];
                 const templateId = tpl ? tpl.id : f.canonical_json?.templateId;
                 const isTemplateOnServer = templateId ? remoteTemplates.some((t: any) => t.template_id === templateId) : false;
@@ -269,7 +399,7 @@ export default function Dashboard() {
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
                             <strong style={{ fontSize: '1.05rem', color: 'var(--text-main)' }}>{f.name}</strong>
-                            {isComposition && <span className="badge badge-published" style={{ background: '#eef2ff', color: '#4338ca' }}>composition</span>}
+                            {isComposition && <span className="badge badge-published" style={{ background: '#eef2ff', color: '#4338ca' }}>form</span>}
                             <span className={`badge ${f.status === 'published' ? 'badge-published' : f.status === 'archived' ? 'badge-archived' : f.status === 'deleted' ? 'badge-archived' : 'badge-draft'}`}>
                               {f.status}
                             </span>
@@ -284,8 +414,8 @@ export default function Dashboard() {
                                 <span>
                                   Template: <span style={{ fontFamily: 'monospace' }}>{templateId}</span>
                                   {remoteTemplates.length > 0 && (
-                                    isTemplateOnServer 
-                                      ? <span style={{ color: '#16a34a', marginLeft: '0.35rem', fontWeight: 600 }} title="Template is available on the server">✓ Active</span> 
+                                    isTemplateOnServer
+                                      ? <span style={{ color: '#16a34a', marginLeft: '0.35rem', fontWeight: 600 }} title="Template is available on the server">✓ Active</span>
                                       : <span style={{ color: '#dc2626', marginLeft: '0.35rem', fontWeight: 600 }} title="Template NOT found on server">⚠️ Missing on Server</span>
                                   )}
                                 </span>
@@ -344,7 +474,7 @@ export default function Dashboard() {
                         </Link>
                       </div>
                     </div>
-                    
+
                     {isExpanded && history.length > 0 && (
                       <div style={{ padding: '0 0 1rem 3.5rem' }}>
                         <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Version History</h4>
@@ -399,6 +529,7 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+      )}
 
       {createModalKind && (
         <CreateFormModal

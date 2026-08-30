@@ -202,7 +202,28 @@ export default function CompositionBuilder() {
             <label className="form-label">Darstellung (Höhe)<select className="form-input" value={selectedBlock.displayMode || 'auto'} onChange={(event) => updateBlock(selectedBlock.id, { displayMode: event.target.value as 'auto' | 'fixed' })}><option value="auto">Auto-Resize (100%)</option><option value="fixed">Fixe Höhe (Scroll)</option></select></label>
             <label className="form-label">Daten vorausfüllen<select className="form-input" value={selectedBlock.load || 'never'} onChange={(event) => updateBlock(selectedBlock.id, { load: event.target.value as 'never' | 'provider' })}><option value="never">Nicht vorausfüllen</option><option value="provider">Aus EHR/KIS laden</option></select></label>
           </div>
-          <div style={{ marginTop: '.85rem' }}><span className="form-label">Optionale Felder</span>{(fields[selectedBlock.formId] || []).length === 0 ? <div style={{ fontSize: '.8rem', color: '#64748b' }}>Wähle ein veröffentlichtes Formular, um dessen Felder zu konfigurieren.</div> : <div style={{ display: 'grid', gap: '.35rem', maxHeight: 290, overflowY: 'auto', paddingRight: '.2rem' }}>{(fields[selectedBlock.formId] || []).map((field) => { const hidden = (selectedBlock.hiddenFieldIds || []).includes(field.id); return <label key={field.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '.45rem', fontSize: '.8rem', opacity: field.required ? .52 : 1, padding: '.32rem .2rem' }}><input type="checkbox" disabled={field.required} checked={!hidden} onChange={(event) => updateBlock(selectedBlock.id, { hiddenFieldIds: event.target.checked ? (selectedBlock.hiddenFieldIds || []).filter((id) => id !== field.id) : [...(selectedBlock.hiddenFieldIds || []), field.id] })} /><span><strong style={{ fontWeight: 600 }}>{field.label}</strong>{field.required && <span style={{ color: '#b91c1c' }}> · Pflichtfeld</span>}<small style={{ display: 'block', color: '#64748b', marginTop: 1 }}>{eventLabel(hidden)}</small></span></label>; })}</div>}</div>
+          <div style={{ marginTop: '.85rem' }}>
+            <span className="form-label">Felder in dieser Composition</span>
+            <p style={{ color: '#64748b', fontSize: '.76rem', lineHeight: 1.4, margin: '0 0 .5rem' }}>Ein-/ausblenden und optional pro Feld ein abweichendes Label für diese Composition. Der Baustein selbst (Bindings, Pflichtfelder, Original-Label) bleibt unverändert und damit anderswo wiederverwendbar.</p>
+            {(fields[selectedBlock.formId] || []).length === 0 ? <div style={{ fontSize: '.8rem', color: '#64748b' }}>Wähle ein veröffentlichtes Formular, um dessen Felder zu konfigurieren.</div> : <div style={{ display: 'grid', gap: '.5rem', maxHeight: 360, overflowY: 'auto', paddingRight: '.2rem' }}>
+              {(fields[selectedBlock.formId] || []).map((field) => {
+                const hidden = (selectedBlock.hiddenFieldIds || []).includes(field.id);
+                const labelOverride = selectedBlock.fieldLabelOverrides?.[field.id] || '';
+                const setLabelOverride = (value: string) => {
+                  const next = { ...(selectedBlock.fieldLabelOverrides || {}) };
+                  if (value.trim()) next[field.id] = value; else delete next[field.id];
+                  updateBlock(selectedBlock.id, { fieldLabelOverrides: Object.keys(next).length > 0 ? next : undefined });
+                };
+                return <div key={field.id} style={{ padding: '.4rem .2rem', opacity: field.required ? .82 : 1, borderBottom: '1px solid #f1f5f9' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '.45rem', fontSize: '.8rem' }}>
+                    <input type="checkbox" disabled={field.required} checked={!hidden} onChange={(event) => updateBlock(selectedBlock.id, { hiddenFieldIds: event.target.checked ? (selectedBlock.hiddenFieldIds || []).filter((id) => id !== field.id) : [...(selectedBlock.hiddenFieldIds || []), field.id] })} />
+                    <span><strong style={{ fontWeight: 600 }}>{field.label}</strong>{field.required && <span style={{ color: '#b91c1c' }}> · Pflichtfeld</span>}<small style={{ display: 'block', color: '#64748b', marginTop: 1 }}>{eventLabel(hidden)}</small></span>
+                  </label>
+                  {!hidden && <input className="form-input" style={{ marginTop: '.3rem', marginLeft: '1.4rem', width: 'calc(100% - 1.4rem)', fontSize: '.78rem', padding: '.3rem .5rem' }} placeholder={`Label in dieser Composition (Standard: „${field.label}“)`} value={labelOverride} onChange={(event) => setLabelOverride(event.target.value)} />}
+                </div>;
+              })}
+            </div>}
+          </div>
         </div>}
         {selectedBlock?.type === 'data' && <div style={{ paddingBottom: '1rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0' }}><div style={{ fontSize: '.74rem', fontWeight: 800, letterSpacing: '.08em', color: '#2563eb', marginBottom: '.65rem' }}>DATENKARTEN-EIGENSCHAFTEN</div><label className="form-label">Titel<input className="form-input" value={selectedBlock.title} onChange={(event) => updateBlock(selectedBlock.id, { title: event.target.value })} /></label></div>}
         {selectedBlock?.type === 'text' && <div style={{ paddingBottom: '1rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0' }}><div style={{ fontSize: '.74rem', fontWeight: 800, letterSpacing: '.08em', color: '#2563eb', marginBottom: '.65rem' }}>TEXT-EIGENSCHAFTEN</div><label className="form-label">Titel<input className="form-input" value={selectedBlock.title || ''} onChange={(event) => updateBlock(selectedBlock.id, { title: event.target.value || undefined })} /></label><label className="form-label">Inhalt<textarea className="form-input" style={{ minHeight: 120 }} value={selectedBlock.content} onChange={(event) => updateBlock(selectedBlock.id, { content: event.target.value })} /></label></div>}

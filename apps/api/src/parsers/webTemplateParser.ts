@@ -159,14 +159,29 @@ export function parseWebTemplate(webTemplate: any): {
   const idCounts: Record<string, number> = {};
 
   // 1. First, build the flat fields registry (traversing leaves only)
-  function traverseFlat(node: any, parentName: string, currentFlatPath: string, parentTechnicalName: string) {
+  function traverseFlat(
+    node: any,
+    parentName: string,
+    currentFlatPath: string,
+    parentTechnicalName: string,
+    // The nearest enclosing CLUSTER/EVENT/ACTIVITY's own repeat meta, if
+    // any is on the ancestor path - reset to undefined the moment we
+    // descend past that cluster's own boundary into a *different*,
+    // non-repeatable container, so a field only inherits the closest
+    // repeatable group, never a repeatable grandparent through a
+    // non-repeatable parent. Mirrors isClusterLikeNode/getRepeatMeta below
+    // exactly, so this flat registry always agrees with what the second
+    // pass (buildLayoutNode) would build for the same node.
+    parentRepeat?: { repeatable: boolean; repeatMin: number; repeatMax: number },
+  ) {
     if (!node) return;
     if (isContextOrIgnoredNode(node)) return;
 
     let nextParentName = parentName;
     let nextParentTechnicalName = parentTechnicalName;
+    let nextParentRepeat = parentRepeat;
     const isContainer = node.rmType && [
-      'COMPOSITION', 'SECTION', 'OBSERVATION', 'EVALUATION', 
+      'COMPOSITION', 'SECTION', 'OBSERVATION', 'EVALUATION',
       'INSTRUCTION', 'ACTION', 'ADMIN_ENTRY', 'CLUSTER', 'ELEMENT'
     ].includes(node.rmType);
 
@@ -175,6 +190,9 @@ export function parseWebTemplate(webTemplate: any): {
     }
     if (isContainer && node.id) {
       nextParentTechnicalName = node.id;
+    }
+    if (isClusterLikeNode(node)) {
+      nextParentRepeat = getRepeatMeta(node);
     }
 
     let nextFlatPath = currentFlatPath;
@@ -208,6 +226,11 @@ export function parseWebTemplate(webTemplate: any): {
           parentTechnicalName: parentTechnicalName || alias,
           flatPath: nextFlatPath,
           ...parsedPath,
+          ...(parentRepeat?.repeatable ? {
+            parentRepeatable: true,
+            parentRepeatMin: parentRepeat.repeatMin,
+            parentRepeatMax: parentRepeat.repeatMax,
+          } : {}),
         };
 
         if (node.rmType === 'DV_QUANTITY' && node.inputs) {
@@ -260,7 +283,7 @@ export function parseWebTemplate(webTemplate: any): {
     }
 
     if (node.children) {
-      node.children.forEach((child: any) => traverseFlat(child, nextParentName, nextFlatPath, nextParentTechnicalName));
+      node.children.forEach((child: any) => traverseFlat(child, nextParentName, nextFlatPath, nextParentTechnicalName, nextParentRepeat));
     }
   }
 
@@ -274,6 +297,21 @@ export function parseWebTemplate(webTemplate: any): {
     layoutIdCounts[nodeId] = (layoutIdCounts[nodeId] || 0) + 1;
     const count = layoutIdCounts[nodeId];
     return count === 1 ? `${alias}_${nodeId}` : `${alias}_${nodeId}_${count}`;
+  }
+
+  // Same disambiguation for CONTAINER ids (OBSERVATION/EVALUATION/CLUSTER/
+  // SECTION wrappers, not leaf fields) - a repeatable container's id is also
+  // a real runtime key (GroupItems[groupId] in the generated FormScript
+  // types), so two different archetype branches whose own container happens
+  // to share a technical name (e.g. two EVALUATION.clinical_synopsis
+  // sections in one composed document) would collide the same way leaf
+  // fields did. Kept as a separate counter/short-id scheme (no `${alias}_`
+  // prefix) since containers never had one - only uniqueness changes here.
+  const containerIdCounts: Record<string, number> = {};
+  function getUniqueContainerId(nodeId: string): string {
+    containerIdCounts[nodeId] = (containerIdCounts[nodeId] || 0) + 1;
+    const count = containerIdCounts[nodeId];
+    return count === 1 ? nodeId : `${nodeId}_${count}`;
   }
 
   // 2. Second, build the hierarchical layout tree
@@ -295,7 +333,7 @@ export function parseWebTemplate(webTemplate: any): {
         const repeat = getRepeatMeta(node);
         return {
           type: 'container',
-          id: node.id || uuidv4(),
+          id: node.id ? getUniqueContainerId(node.id) : uuidv4(),
           label: node.name || node.id || 'Group',
           children: children,
           repeatMin: repeat.repeatMin,
@@ -333,7 +371,7 @@ export function parseWebTemplate(webTemplate: any): {
       const repeat = getRepeatMeta(node);
       const result: FormElementLayout = {
         type: 'container',
-        id: node.id || uuidv4(),
+        id: node.id ? getUniqueContainerId(node.id) : uuidv4(),
         label: node.name || node.id || 'Section',
         children: children,
         binding: containerBinding(node, alias, templateId)
@@ -358,7 +396,7 @@ export function parseWebTemplate(webTemplate: any): {
 
       const result: FormElementLayout = {
         type: 'container',
-        id: node.id || uuidv4(),
+        id: node.id ? getUniqueContainerId(node.id) : uuidv4(),
         label: node.name || node.id || 'Group',
         children: children,
         binding: containerBinding(node, alias, templateId)
@@ -378,10 +416,25 @@ export function parseWebTemplate(webTemplate: any): {
 
       const inputType = getInputType(matchedField.dataType);
 
+      // The short `id` must be disambiguated exactly like `fieldName` above -
+      // otherwise two leaves from different archetype branches that happen
+      // to share a technical name (e.g. two different archetypes both
+      // having their own "comment" element, common once several components
+      // are composed into one document - see compose_document_template)
+      // collide on the SAME runtime values key. FormRuntime treats `id` as
+      // the field's actual runtime identity whenever it differs from `name`
+      // (see readFieldValue/nodeId), so an undeduplicated `id` here silently
+      // merges two unrelated fields into one input - confirmed live while
+      // building a composed multi-section document. Deriving it from the
+      // already-deduplicated `fieldName` (stripping the shared `${alias}_`
+      // prefix) keeps `id` and `name` consistent (e.g. "comment_2" /
+      // "entlassbrief_comment_2") without a second, independent counter.
+      const uniqueId = fieldName.startsWith(`${alias}_`) ? fieldName.slice(alias.length + 1) : fieldName;
+
       const repeat = getRepeatMeta(node);
       const layoutNode: FormElementLayout = {
         type: inputType,
-        id: node.id || uuidv4(),
+        id: uniqueId || node.id || uuidv4(),
         name: matchedField.fieldName,
         label: node.name || node.id || '',
         required: node.min >= 1,
@@ -424,7 +477,7 @@ export function parseWebTemplate(webTemplate: any): {
     const repeat = getRepeatMeta(node);
     const result: FormElementLayout = {
       type: 'container',
-      id: node.id || uuidv4(),
+      id: node.id ? getUniqueContainerId(node.id) : uuidv4(),
       label: node.name || node.id || '',
       children: children,
       binding: containerBinding(node, alias, templateId)

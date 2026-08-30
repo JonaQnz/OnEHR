@@ -167,6 +167,19 @@ export interface FormRuntimeSettings {
   pushDraftsToProvider?: boolean;
 }
 
+/** "Aus vorheriger Dokumentation übernehmen" - lets the runtime offer a
+ * dropdown of this patient's own previously submitted entries of this same
+ * Form Section, so a clinician can 1:1 copy an earlier entry's values into a
+ * new one instead of retyping (e.g. picking up a previously documented
+ * diagnosis when starting a new discharge letter). `summaryFieldIds` is the
+ * curated subset of field ids whose values become that dropdown's label -
+ * order preserved, values only (never labels) per entry, joined with " · ".
+ * Empty/unset falls back to an auto-derived "Label: value" summary instead. */
+export interface FormReuseSettings {
+  enabled?: boolean;
+  summaryFieldIds?: string[];
+}
+
 export interface CanonicalForm {
   id: string;
   name: string;
@@ -181,6 +194,7 @@ export interface CanonicalForm {
     tags?: string[];
     submission?: FormSubmissionSettings;
     runtime?: FormRuntimeSettings;
+    reuse?: FormReuseSettings;
   };
   sourceTemplates: Array<{
     alias: string;

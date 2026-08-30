@@ -10,6 +10,7 @@ import { registerPatientTools } from './tools/patientTools.js';
 import { registerRuntimeTools } from './tools/runtimeTools.js';
 import { registerEhrbaseAdminTools } from './tools/ehrbaseAdminTools.js';
 import { registerWidgetTools } from './tools/widgetTools.js';
+import { registerDocumentTemplateTools } from './tools/documentTemplateTools.js';
 
 // Credentials live only in the repo-root .env (gitignored, see
 // docs/authentication.md) - never in .mcp.json, which is normally committed.
@@ -36,6 +37,7 @@ async function main(): Promise<void> {
   registerRuntimeTools(server, api);
   registerEhrbaseAdminTools(server, api);
   registerWidgetTools(server, api);
+  registerDocumentTemplateTools(server, api);
 
   await server.connect(new StdioServerTransport());
 }

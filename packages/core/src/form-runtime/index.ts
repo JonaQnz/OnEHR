@@ -109,6 +109,63 @@ export function collectRuntimeFields(form: Pick<CanonicalForm, 'layout' | 'local
   return fields;
 }
 
+/** One field's current value as short human-readable text - coded options
+ * resolved to their label, DV_QUANTITY as "magnitude unit", booleans as
+ * Ja/Nein, everything else via String(). Empty/undefined/empty-array values
+ * always resolve to "" so callers can filter them out uniformly. */
+export function formatRuntimeValue(field: Pick<RuntimeFieldDescriptor, 'type' | 'options'>, value: RuntimeValue): string {
+  if (value === undefined || value === null || value === '') return '';
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '';
+    return value.map((item) => (field.options.length > 0 ? field.options.find((option) => option.value === item)?.text || String(item) : String(item))).join(', ');
+  }
+  if (field.options.length > 0 && (typeof value === 'string' || typeof value === 'number')) {
+    return field.options.find((option) => option.value === String(value))?.text || String(value);
+  }
+  if (field.type === 'input-quantity' && typeof value === 'object' && value !== null) {
+    const quantity = value as Record<string, unknown>;
+    if (quantity.magnitude === undefined || quantity.magnitude === null || quantity.magnitude === '') return '';
+    return quantity.unit ? `${quantity.magnitude} ${quantity.unit}` : String(quantity.magnitude);
+  }
+  if (field.type === 'input-boolean') return value === true ? 'Ja' : value === false ? 'Nein' : '';
+  return String(value);
+}
+
+/** A short, one-line text summary of `values` for display in a dropdown
+ * option or a compact/collapsed card - e.g. "Diagnose: Invasives
+ * Mammakarzinom links · Diagnosekategorie: Principal diagnosis · Schweregrad:
+ * Severe". With `fieldIds` given (a form's `settings.reuse.summaryFieldIds`),
+ * renders exactly those fields, in that order - the curated case the
+ * clinician configured on purpose. Without it, falls back to the first few
+ * non-empty fields instead, so a compact view is never fully blank just
+ * because nobody configured anything yet. Every part is always "Label:
+ * value" - without the label a bare "Severe" or a name on its own reads as
+ * cryptic once several fields are shown together. Fields with no value (or
+ * not found) are silently skipped, never rendered as an empty slot. */
+export function summarizeRuntimeValues(
+  form: Pick<CanonicalForm, 'layout' | 'locales'>,
+  values: RuntimeValues,
+  fieldIds?: string[],
+  options?: { separator?: string; maxFields?: number },
+): string {
+  const fields = collectRuntimeFields(form);
+  const byId = new Map(fields.map((field) => [field.id, field]));
+  const curated = Boolean(fieldIds && fieldIds.length > 0);
+  const separator = options?.separator ?? ' · ';
+  const candidateIds = curated ? (fieldIds as string[]) : fields.filter((field) => !field.repeatableGroupId).map((field) => field.id);
+  const maxFields = options?.maxFields ?? (curated ? candidateIds.length : 4);
+  const parts: string[] = [];
+  for (const id of candidateIds) {
+    const field = byId.get(id);
+    if (!field) continue;
+    const formatted = formatRuntimeValue(field, values[id]);
+    if (!formatted) continue;
+    parts.push(`${field.label}: ${formatted}`);
+    if (parts.length >= maxFields) break;
+  }
+  return parts.join(separator);
+}
+
 export function collectRuntimeGroups(form: Pick<CanonicalForm, 'layout' | 'locales'>): RuntimeGroupDescriptor[] {
   const groups: RuntimeGroupDescriptor[] = [];
   walk(form.layout, (node) => {

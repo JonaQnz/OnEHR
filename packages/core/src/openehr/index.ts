@@ -43,6 +43,17 @@ export interface FieldRegistryItem {
   archetypeId?: string;
   /** archetypeId's trailing ".vN". */
   rmVersion?: string;
+  /** True when this field's nearest enclosing CLUSTER/EVENT/ACTIVITY (or a
+   * repeatable technical wrapper like `any_event`) can itself occur more
+   * than once in the template - i.e. this field is one column of a
+   * repeatable group (e.g. one analyte row of a lab panel, one ICD entry of
+   * a multiple-coding cluster), not a standalone value. Distinct from this
+   * field's own `maxOccurrences`, which is the leaf's own cardinality
+   * (almost always 1) and says nothing about its parent. Absent/false for
+   * fields with no repeatable ancestor. */
+  parentRepeatable?: boolean;
+  parentRepeatMin?: number;
+  parentRepeatMax?: number;
 }
 
 export interface TemplateImportResult {

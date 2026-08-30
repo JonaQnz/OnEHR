@@ -6,6 +6,10 @@
       "env": {
         "FORMBUILDER_API_URL": "http://localhost:3001"
       }
+    },
+    "openehr-architect": {
+      "command": "node",
+      "args": ["packages/openehr-architect-mcp/dist/index.js"]
     }
   }
 }

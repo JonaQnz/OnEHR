@@ -811,6 +811,30 @@ function FormBuilderContent() {
     setForm(updatedForm);
   };
 
+  const updateReuseSetting = (key: string, value: any) => {
+    if (!formRef.current) return;
+    const updatedForm = { ...formRef.current };
+    updatedForm.canonical_json = {
+      ...updatedForm.canonical_json,
+      settings: {
+        ...(updatedForm.canonical_json.settings || {}),
+        reuse: {
+          ...(updatedForm.canonical_json.settings?.reuse || {}),
+          [key]: value
+        }
+      }
+    };
+    formRef.current = updatedForm;
+    setForm(updatedForm);
+  };
+
+  const toggleReuseSummaryField = (fieldId: string) => {
+    const current: string[] = form?.canonical_json.settings?.reuse?.summaryFieldIds || [];
+    const next = current.includes(fieldId) ? current.filter((id: string) => id !== fieldId) : [...current, fieldId];
+    updateReuseSetting('summaryFieldIds', next);
+    setTimeout(() => handleSave(builderItems), 0);
+  };
+
   // Reuses the same OPEN_EHR_FORM_EXTENSION getter/setter the backend's
   // createFormSession/startCompositionSession read (openehr-engine) - one
   // definition of the extension shape, not a hand-rolled copy of the key.
@@ -1571,6 +1595,15 @@ function FormBuilderContent() {
                       wrapDnd={false}
                       renderEditForm={customRenderEditForm}
                       files={[]}
+                      // react-form-builder2's Preview._onChange does
+                      // `this.props.variables[item.variableKey]` unconditionally
+                      // for every item with readOnly:true, with no defaultProps
+                      // fallback - omitting this prop throws "Cannot read
+                      // properties of undefined (reading 'undefined')" and aborts
+                      // the whole canvas render the moment ANY readOnly field is
+                      // loaded. We don't use the library's variable-substitution
+                      // feature, so an empty object is enough to satisfy it.
+                      variables={{}}
                     />
                   );
                 })()}
@@ -2368,6 +2401,51 @@ function FormBuilderContent() {
                                 <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.5rem' }}>
                                   Jedes Speichern eines Entwurfs (automatisch oder über den "Entwurf speichern"-Button) legt normalerweise auch beim Provider (z. B. EHRbase) eine echte Composition-Version mit lifecycle_state "incomplete" an. Auf "Entwürfe nur lokal speichern" stellen, wenn die Versionshistorie beim Provider nicht bei jeder Bearbeitungspause wachsen soll - die finale Übermittlung ist davon nie betroffen.
                                 </p>
+                              </div>
+
+                              <div className="inspector-field-group" style={{ marginTop: '1.5rem' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontWeight: 'normal', cursor: 'pointer' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={form.canonical_json.settings?.reuse?.enabled === true}
+                                    onChange={(e) => { updateReuseSetting('enabled', e.target.checked); setTimeout(() => handleSave(builderItems), 0); }}
+                                  />
+                                  Übernahme aus vorheriger Dokumentation anbieten
+                                </label>
+                                <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+                                  Zeigt beim Ausfüllen dieser Form Section ein Dropdown mit den vorherigen, bereits abgesendeten Einträgen desselben Patienten für diese Form Section. Auswahl übernimmt dessen Werte 1:1 in den neuen Eintrag.
+                                </p>
+                                {form.canonical_json.settings?.reuse?.enabled === true && (
+                                  <div style={{ marginTop: '.75rem' }}>
+                                    <label>Felder für die Dropdown-Beschriftung</label>
+                                    <p style={{ color: '#64748b', fontSize: '0.75rem', margin: '0.25rem 0 0.5rem' }}>
+                                      Bestimmt, welche Feldwerte im Dropdown als Kurzbeschreibung jedes vorherigen Eintrags erscheinen (z. B. "Invasives Mammakarzinom · links · C50.9"). Ohne Auswahl wird automatisch eine Kurzfassung erzeugt.
+                                    </p>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem', maxHeight: 220, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 6, padding: '.6rem .75rem' }}>
+                                      {(() => {
+                                        const seen = new Set<string>();
+                                        const items: Array<{ id: string; label: string }> = [];
+                                        const walk = (node: any) => {
+                                          const fieldId = node.id || node.name;
+                                          if (fieldId && !['form', 'container', 'row', 'column'].includes(node.type) && !seen.has(fieldId)) {
+                                            seen.add(fieldId);
+                                            items.push({ id: fieldId, label: node.label || fieldId });
+                                          }
+                                          node.children?.forEach(walk);
+                                        };
+                                        if (form.canonical_json.layout) walk(form.canonical_json.layout);
+                                        if (items.length === 0) return <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Keine Felder gefunden.</span>;
+                                        const selected = form.canonical_json.settings?.reuse?.summaryFieldIds || [];
+                                        return items.map((item) => (
+                                          <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontWeight: 'normal', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                            <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleReuseSummaryField(item.id)} />
+                                            {item.label}
+                                          </label>
+                                        ));
+                                      })()}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </>
                           ) : (

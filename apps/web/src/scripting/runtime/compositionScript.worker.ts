@@ -1,8 +1,10 @@
 type CompositionStatus = { currentPage: string; completedBlocks: string[]; pendingBlocks: string[]; state: 'draft' | 'in_progress' | 'completed' | 'submitted' };
 type InitMessage = { type: 'init'; compiled: string; pageIds: string[]; blockIds: string[]; dataBlockIds: string[]; status: CompositionStatus };
-type HostMessage = InitMessage | { type: 'status'; status: CompositionStatus } | { type: 'destroy' };
+type DataPickMessage = { type: 'data:pick'; id: string; row: Record<string, unknown> };
+type HostMessage = InitMessage | { type: 'status'; status: CompositionStatus } | { type: 'destroy' } | DataPickMessage;
 const scope = self as unknown as { postMessage(message: unknown): void; close(): void; onmessage: ((event: MessageEvent<HostMessage>) => void) | null };
 let pages = new Set<string>(); let blocks = new Set<string>(); let dataBlocks = new Set<string>(); let visiblePages = new Set<string>(); let visibleBlocks = new Set<string>(); let status: CompositionStatus;
+const pickHandlers = new Map<string, (row: Record<string, unknown>) => void>();
 const post = (type: string, data: Record<string, unknown> = {}) => scope.postMessage({ type, ...data });
 const assertKnown = (ids: Set<string>, id: string, kind: string) => { if (!ids.has(id)) throw new Error(`Unbekannte ${kind}-ID "${id}".`); };
 const logger = (level: string, message: unknown, details?: unknown) => post('log', { level, message: String(message), details });
@@ -11,7 +13,8 @@ function sdk() {
   return {
     pages: { show: (id: string) => { assertKnown(pages, id, 'Seiten'); visiblePages.add(id); post('page:visibility', { id, visible: true }); }, hide: (id: string) => { assertKnown(pages, id, 'Seiten'); visiblePages.delete(id); post('page:visibility', { id, visible: false }); }, isVisible: (id: string) => { assertKnown(pages, id, 'Seiten'); return visiblePages.has(id); } },
     blocks: { show: (id: string) => { assertKnown(blocks, id, 'Blöcke'); visibleBlocks.add(id); post('block:visibility', { id, visible: true }); }, hide: (id: string) => { assertKnown(blocks, id, 'Blöcke'); visibleBlocks.delete(id); post('block:visibility', { id, visible: false }); }, isVisible: (id: string) => { assertKnown(blocks, id, 'Blöcke'); return visibleBlocks.has(id); } },
-    data: { refresh: async (id?: string) => { if (id !== undefined) assertKnown(dataBlocks, id, 'Datenblöcke'); post('data:refresh', id === undefined ? {} : { id }); }, setLoading: (id: string, loading: boolean) => { assertKnown(dataBlocks, id, 'Datenblöcke'); post('data:loading', { id, loading: Boolean(loading) }); } },
+    data: { refresh: async (id?: string) => { if (id !== undefined) assertKnown(dataBlocks, id, 'Datenblöcke'); post('data:refresh', id === undefined ? {} : { id }); }, setLoading: (id: string, loading: boolean) => { assertKnown(dataBlocks, id, 'Datenblöcke'); post('data:loading', { id, loading: Boolean(loading) }); }, onPick: (id: string, handler: (row: Record<string, unknown>) => void) => { assertKnown(dataBlocks, id, 'Datenblöcke'); pickHandlers.set(id, handler); } },
+    forms: { field: (blockId: string, fieldName: string) => { assertKnown(blocks, blockId, 'Blöcke'); return { setValue: (value: unknown) => post('form:set-field', { blockId, fieldName, value }) }; } },
     navigation: { goTo: (id: string) => { assertKnown(pages, id, 'Seiten'); post('navigation:go-to', { id }); }, next: () => post('navigation:next'), previous: () => post('navigation:previous') },
     status: new Proxy({}, { get: (_target, property) => status[property as keyof CompositionStatus] }),
     logger: { debug: (message: unknown, details?: unknown) => logger('debug', message, details), info: (message: unknown, details?: unknown) => logger('info', message, details), warn: (message: unknown, details?: unknown) => logger('warn', message, details), error: (message: unknown, details?: unknown) => logger('error', message, details) },
@@ -26,4 +29,4 @@ async function init(message: InitMessage) {
   finally { URL.revokeObjectURL(url); }
 }
 
-scope.onmessage = (event) => { void (async () => { try { const message = event.data; if (message.type === 'init') await init(message); else if (message.type === 'status') status = message.status; else if (message.type === 'destroy') scope.close(); } catch (error) { post('error', { message: error instanceof Error ? error.message : 'Composition Script fehlgeschlagen.' }); } })(); };
+scope.onmessage = (event) => { void (async () => { try { const message = event.data; if (message.type === 'init') await init(message); else if (message.type === 'status') status = message.status; else if (message.type === 'destroy') scope.close(); else if (message.type === 'data:pick') pickHandlers.get(message.id)?.(message.row); } catch (error) { post('error', { message: error instanceof Error ? error.message : 'Composition Script fehlgeschlagen.' }); } })(); };

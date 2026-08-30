@@ -83,6 +83,13 @@ export async function launchForm(input: FormLaunchRequest, actor: SessionActor):
     }
     query.set('hiddenFieldIds', input.hiddenFieldIds.map((id) => id.trim()).join(','));
   }
+  if (input.fieldLabelOverrides) {
+    if (typeof input.fieldLabelOverrides !== 'object' || Array.isArray(input.fieldLabelOverrides)
+      || Object.entries(input.fieldLabelOverrides).some(([key, value]) => !key.trim() || typeof value !== 'string' || !value.trim())) {
+      throw new HttpError(400, 'fieldLabelOverrides must be an object of non-empty strings');
+    }
+    query.set('fieldLabelOverrides', JSON.stringify(input.fieldLabelOverrides));
+  }
   return {
     protocolVersion: FORM_LAUNCH_PROTOCOL_VERSION,
     session,

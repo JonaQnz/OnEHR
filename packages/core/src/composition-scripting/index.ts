@@ -19,8 +19,12 @@ export interface CompositionScriptSchemaIds {
 
 export const DEFAULT_COMPOSITION_SCRIPT_SOURCE = `import { defineCompositionScript } from "@formbuilder/composition-runtime";
 
-export default defineCompositionScript(({ pages, blocks, data, navigation, status, logger }) => {
-  // Die Composition steuern, niemals Felder eines eingebetteten Formulars.
+export default defineCompositionScript(({ pages, blocks, data, forms, navigation, status, logger }) => {
+  // Die Composition steuern - inkl. gezieltem Setzen einzelner Felder in
+  // eingebetteten Formularen, z.B.:
+  // data.onPick("block-diagnosen", (row) => {
+  //   forms.field("block-abschlussbrief", "diagnose").setValue(row.text);
+  // });
 });
 `;
 
@@ -36,8 +40,12 @@ export function collectCompositionScriptSchemaIds(definition: CompositionDefinit
 }
 
 /**
- * Generate the only API available to a Composition script.  There is no field
- * API by design: embedded forms own their values, validation and lifecycle.
+ * Generate the only API available to a Composition script. Embedded forms
+ * still own their own values, validation and lifecycle for everything they
+ * do themselves (autosave, submit, in-form scripts) - `forms.field(...)` is
+ * a narrow, explicit escape hatch for the Composition to set one field's
+ * value from the outside (e.g. in response to `data.onPick`), not a general
+ * bypass of the embedded form's own logic.
  */
 export function generateCompositionScriptTypes(definition: CompositionDefinition): string {
   const ids = collectCompositionScriptSchemaIds(definition);
@@ -60,6 +68,20 @@ export function generateCompositionScriptTypes(definition: CompositionDefinition
   export interface DataCardsApi {
     refresh(id?: DataBlockId): Promise<void>;
     setLoading(id: DataBlockId, loading: boolean): void;
+    /** Registers a handler invoked when the doctor clicks a row (list) or a
+     * point (trend chart) in this data card. Replaces any previously
+     * registered handler for the same id - one handler per card. */
+    onPick(id: DataBlockId, handler: (row: Record<string, unknown>) => void): void;
+  }
+  export interface FormFieldHandle {
+    setValue(value: unknown): void;
+  }
+  export interface CompositionFormsApi {
+    /** Sets a value directly on a field of an embedded form block - a
+     * trusted, explicit escape hatch (e.g. for "Vorbefund übernehmen" from a
+     * data.onPick handler). The embedded form still owns everything else
+     * about that field (validation, visibility, its own scripts). */
+    field(blockId: BlockId, fieldName: string): FormFieldHandle;
   }
   export interface NavigationApi {
     goTo(id: PageId): void;
@@ -82,6 +104,7 @@ export function generateCompositionScriptTypes(definition: CompositionDefinition
     pages: PagesApi;
     blocks: BlocksApi;
     data: DataCardsApi;
+    forms: CompositionFormsApi;
     navigation: NavigationApi;
     status: CompositionStatusApi;
     logger: LoggerApi;
