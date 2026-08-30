@@ -52,11 +52,30 @@ function childBadge(status?: string) {
   return <span style={{ display: 'inline-flex', alignItems: 'center', padding: '.15rem .5rem', borderRadius: 999, border: `1px solid ${info.border}`, background: info.background, color: info.color, fontSize: '.72rem', fontWeight: 600, whiteSpace: 'nowrap' }}>{info.label}</span>;
 }
 
-export default function CompositionRuntime() {
-  const { id } = useParams(); const [searchParams] = useSearchParams(); const navigate = useNavigate();
+// Optional overrides for every bit of context this component would
+// otherwise read from its own route (`useParams`) or query string
+// (`useSearchParams`) - set when it's mounted directly as embedded content
+// inside another page (e.g. the Klinisches-Cockpit tab in PatientDetail)
+// instead of being routed to on its own. Passing these bypasses
+// useParams()/useSearchParams() entirely for the fields they cover, which
+// matters because an embedding host's own route/query string (e.g.
+// PatientDetail's `/patients/:id`) is not this component's - reading them
+// directly would pick up the host's `id` param, not a composition form id.
+interface CompositionRuntimeProps {
+  formId?: string;
+  initialPatientId?: string;
+  initialNamespace?: string;
+  initialEhrId?: string;
+  initialMode?: Mode;
+  embedded?: boolean;
+}
+
+export default function CompositionRuntime(props: CompositionRuntimeProps = {}) {
+  const { id: routeId } = useParams(); const [searchParams] = useSearchParams(); const navigate = useNavigate();
+  const id = props.formId ?? routeId;
   const [record, setRecord] = useState<FormRecord | null>(null); const [composition, setComposition] = useState<CompositionDefinition | null>(null); const [session, setSession] = useState<CompositionSession | null>(null);
-  useDocumentTitle(record?.name || 'Composition');
-  const [pageIndex, setPageIndex] = useState(0); const [patientId, setPatientId] = useState(searchParams.get('patientId') || ''); const [namespace, setNamespace] = useState(searchParams.get('patientNamespace') || ''); const [ehrId, setEhrId] = useState(searchParams.get('ehrId') || ''); const [mode, setMode] = useState<Mode>(() => { const requested = searchParams.get('mode'); return requested === 'edit' || requested === 'view' || requested === 'prefill' ? requested : 'create'; });
+  useDocumentTitle(record?.name || 'Composition', { skip: props.embedded });
+  const [pageIndex, setPageIndex] = useState(0); const [patientId, setPatientId] = useState(props.initialPatientId ?? searchParams.get('patientId') ?? ''); const [namespace, setNamespace] = useState(props.initialNamespace ?? searchParams.get('patientNamespace') ?? ''); const [ehrId, setEhrId] = useState(props.initialEhrId ?? searchParams.get('ehrId') ?? ''); const [mode, setMode] = useState<Mode>(() => { if (props.initialMode) return props.initialMode; const requested = searchParams.get('mode'); return requested === 'edit' || requested === 'view' || requested === 'prefill' ? requested : 'create'; });
   const [launches, setLaunches] = useState<Record<string, Launch>>({}); const [data, setData] = useState<Record<string, DataState>>({}); const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [checking, setChecking] = useState(false);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [iframeHeights, setIframeHeights] = useState<Record<string, number>>({});
@@ -67,7 +86,7 @@ export default function CompositionRuntime() {
   // same signal LiveForm.tsx already treats as pre-supplied) hides the
   // manual patient-picker entirely - captured once at mount, not
   // re-evaluated as the user later edits patientId/ehrId by hand below.
-  const [suppliedContext] = useState(() => Boolean(searchParams.get('patientId')?.trim() && searchParams.get('ehrId')?.trim()));
+  const [suppliedContext] = useState(() => Boolean((props.initialPatientId ?? searchParams.get('patientId'))?.trim() && (props.initialEhrId ?? searchParams.get('ehrId'))?.trim()));
   const [transaction, setTransaction] = useState<ClinicalTransaction | null>(null);
   const [committing, setCommitting] = useState(false);
   const [transactionError, setTransactionError] = useState('');
@@ -87,7 +106,7 @@ export default function CompositionRuntime() {
   // ("Zurück zur Patientenakte", outer padding/max-width) that would
   // otherwise be redundant nested inside a host page that already has its
   // own back navigation and layout.
-  const embedded = searchParams.get('embedded') === '1';
+  const embedded = props.embedded ?? searchParams.get('embedded') === '1';
   // Aggregated across every embedded child form's own 'dirty' embed event -
   // an iframe's own beforeunload guard only ever protects that iframe's own
   // document, never this page's route change, so the aggregate lives here.

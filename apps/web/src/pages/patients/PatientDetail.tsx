@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Activity,
@@ -14,6 +14,13 @@ import {
 import { formEmbedUrl, isFormEmbedEvent, launchEmbeddedForm } from '../../integration/formLaunch';
 import type { FormLaunchLoadPolicy, FormRuntimeMode } from 'core';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { useAuth } from '../../App';
+
+// Code-split like every other routed page (see App.tsx's own React.lazy
+// calls) - PatientDetail is visited far more often than a patient actually
+// having a published Klinisches Cockpit, so this shouldn't inflate every
+// patient page's bundle regardless of whether the tab ends up used.
+const CompositionRuntime = lazy(() => import('../CompositionRuntime'));
 
 const API = 'http://localhost:3001/api';
 
@@ -261,6 +268,12 @@ function EmptyState({ icon, title, detail }: { icon: React.ReactNode; title: str
 
 export default function PatientDetail() {
   const { id } = useParams();
+  // Same permission the standalone /compositions/:id route enforces via
+  // <Protected permission="form.execute">. Checked here (not by wrapping
+  // the embedded CompositionRuntime in <Protected>) so a user without it
+  // simply never sees the Cockpit tab, instead of the tab rendering and
+  // <Protected>'s <Navigate> then yanking the whole app to "/".
+  const canExecuteForms = useAuth().permissions.includes('form.execute');
   const [patient, setPatient] = useState<PatientRecord | null>(null);
   useDocumentTitle(patient ? [patient.lastName, patient.firstName].filter(Boolean).join(', ') || patient.patientId : 'Patient');
   const [forms, setForms] = useState<StoredForm[]>([]);
@@ -367,8 +380,8 @@ export default function PatientDetail() {
   // Matched by name (not a hardcoded form/parent id) so it keeps working
   // across republishes and even a full rebuild of the Form.
   const cockpitForm = useMemo(
-    () => launchableForms.find((form) => form.name === 'Klinisches Cockpit'),
-    [launchableForms],
+    () => (canExecuteForms ? launchableForms.find((form) => form.name === 'Klinisches Cockpit') : undefined),
+    [launchableForms, canExecuteForms],
   );
   // Switches to the Cockpit tab the first time it becomes available (forms
   // load asynchronously, so it's usually not there on the very first
@@ -457,25 +470,27 @@ export default function PatientDetail() {
   }
   if (!patient) return <div style={{ padding: '2rem' }}>Patient nicht gefunden.</div>;
 
-  // The Cockpit Composition itself already brings its own page-tabs (e.g.
-  // Übersicht, Zeitleiste, Labor...), "Formular auswählen"-equivalent block
-  // launches, and view toggles - embedding it via its normal runtime route
-  // (with `embedded=1` to drop that page's own redundant back-link/chrome)
-  // is what actually integrates it, instead of duplicating that UI here.
-  const renderCockpit = (form: StoredForm) => {
-    const parameters = new URLSearchParams({ patientId: patient.patientId, embedded: '1' });
-    if (patient.namespace) parameters.set('patientNamespace', patient.namespace);
-    if (patient.ehrId) parameters.set('ehrId', patient.ehrId);
-    return (
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <iframe
-          title="Klinisches Cockpit"
-          src={`/compositions/${form.id}?${parameters.toString()}`}
-          style={{ width: '100%', minHeight: '1100px', border: 0, display: 'block', background: 'var(--bg-body)' }}
-        />
-      </div>
-    );
-  };
+  // The Cockpit Composition is mounted directly as a real component here -
+  // NOT an iframe of the standalone /compositions/:id page. An iframe would
+  // nest a second whole app page (its own header, patient-picker fallback,
+  // "Zurück"-link) inside this one; rendering CompositionRuntime itself
+  // means its cards, page-tabs (Übersicht, Zeitleiste, Labor...) and block
+  // launches become native DOM in this tab, sharing this page's patient
+  // context instead of re-deriving it behind an iframe boundary. The
+  // `embedded` prop drops CompositionRuntime's own now-redundant page
+  // chrome (its outer padding/max-width and "Zurück zur Patientenakte"
+  // link - this tab already has both, one level up).
+  const renderCockpit = (form: StoredForm) => (
+    <Suspense fallback={<div className="card" style={{ padding: '2rem', color: 'var(--text-muted)' }}>Klinisches Cockpit wird geladen…</div>}>
+      <CompositionRuntime
+        formId={form.id}
+        initialPatientId={patient.patientId}
+        initialNamespace={patient.namespace}
+        initialEhrId={patient.ehrId || undefined}
+        embedded
+      />
+    </Suspense>
+  );
 
   const renderDocuments = () => (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>

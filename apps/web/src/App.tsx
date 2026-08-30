@@ -32,6 +32,13 @@ const AuthStateContext = React.createContext<AuthState | null>(null);
 function useAuth(): AuthState { const state = React.useContext(AuthStateContext); if (!state) throw new Error('Auth state unavailable'); return state; }
 function Can({ permission, children }: { permission: string; children: React.ReactNode }) { return useAuth().permissions.includes(permission) ? <>{children}</> : null; }
 function Protected({ permission, children }: { permission: string; children: React.ReactNode }) { return useAuth().permissions.includes(permission) ? <>{children}</> : <Navigate to="/" replace />; }
+// Exported so a page that embeds another routed page's component directly
+// (e.g. PatientDetail embedding CompositionRuntime for the Klinisches-
+// Cockpit tab) can check the same permission the standalone route enforces
+// via <Protected> - gating whether to show that content at all, rather
+// than rendering it and having <Protected>'s own <Navigate> yank the whole
+// app away from a page it's merely embedded in.
+export { useAuth };
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<Omit<AuthState, 'reload'>>({ loading: true, authenticated: false, mode: 'local', roles: [], permissions: [] });
