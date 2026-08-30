@@ -87,7 +87,7 @@ export default function Config() {
     </div>
     <div className="card" style={{ marginBottom: '1.5rem' }}>
       <h3 style={{ marginTop: 0 }}>Session-Wiederverwendung</h3>
-      <p style={{ color: 'var(--text-muted)' }}>In Edit-/Prefill-Modus wird normalerweise die eigene, noch offene Sitzung für dasselbe Formular/dieselbe Composition und denselben Patienten fortgesetzt statt eine zweite zu starten. Dies ist die Voreinstellung für alle Formulare und Compositions, die selbst keine eigene "Session Reuse"-Einstellung haben (in FormBuilder/CompositionBuilder pro Formular einstellbar).</p>
+      <p style={{ color: 'var(--text-muted)' }}>In Edit-/Prefill-Modus wird normalerweise die eigene, noch offene Sitzung für dasselbe Formular/dieselbe Form und denselben Patienten fortgesetzt statt eine zweite zu starten. Dies ist die Voreinstellung für alle Formulare und Forms, die selbst keine eigene "Session Reuse"-Einstellung haben (in FormBuilder pro Formular bzw. im Form-Editor pro Form einstellbar).</p>
       <label className="form-label">Voreinstellung</label>
       <select className="form-input" value={config.sessionReuseDefault === 'always-new' ? 'always-new' : 'reuse'} onChange={(event) => setConfig({ ...config, sessionReuseDefault: event.target.value })}>
         <option value="reuse">Offene Sitzung fortsetzen (Standard)</option>
@@ -113,8 +113,8 @@ export default function Config() {
       <p style={{ color: 'var(--text-muted)', fontSize: '.85rem', marginBottom: 0, marginTop: '.5rem' }}>Voreinstellung für alle Formulare, die keine eigene Einstellung dafür haben (in FormBuilder pro Formular unter "Runtime" einstellbar).</p>
     </div>
     <div className="card" style={{ marginBottom: '1.5rem' }}>
-      <h3 style={{ marginTop: 0 }}>Gemeinsames Speichern (Compositions)</h3>
-      <p style={{ color: 'var(--text-muted)' }}>"Alle Änderungen speichern" in einer Composition versucht immer zuerst eine echte, atomare openEHR Contribution. Dies ist die Voreinstellung für alle Compositions, die selbst keine eigene Einstellung dafür haben.</p>
+      <h3 style={{ marginTop: 0 }}>Gemeinsames Speichern (Formulare)</h3>
+      <p style={{ color: 'var(--text-muted)' }}>"Alle Änderungen speichern" in einem Formular versucht immer zuerst eine echte, atomare openEHR Contribution. Dies ist die Voreinstellung für alle Formulare, die selbst keine eigene Einstellung dafür haben.</p>
       <label className="form-label">Voreinstellung</label>
       <select className="form-input" value={config.requireAtomicCommitByDefault === false ? 'false' : 'true'} onChange={(event) => setConfig({ ...config, requireAtomicCommitByDefault: event.target.value === 'true' })}>
         <option value="true">Immer atomar - blockieren, falls der aktive Provider das nicht unterstützt</option>

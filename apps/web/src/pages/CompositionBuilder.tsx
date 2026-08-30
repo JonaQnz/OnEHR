@@ -60,7 +60,7 @@ function newCompositionBlock(kind: CompositionBlockKind, forms: FormRow[], aqlFu
 export default function CompositionBuilder() {
   const { id: compositionId } = useParams();
   const [record, setRecord] = useState<CompositionResponse | null>(null);
-  useDocumentTitle(record?.name ? `${record.name} (Editor)` : 'Composition Builder');
+  useDocumentTitle(record?.name ? `${record.name} (Editor)` : 'Form-Editor');
   const [composition, setComposition] = useState<CompositionDefinition>(defaultComposition());
   const [forms, setForms] = useState<FormRow[]>([]);
   const [aqlFunctions, setAqlFunctions] = useState<AqlFunction[]>([]);
@@ -86,7 +86,7 @@ export default function CompositionBuilder() {
       setAqlFunctions((functions.functions || []).filter((candidate) => candidate.enabled));
       setWidgetPackages((packages.packages || []).filter((candidate) => candidate.available));
       value.pages.flatMap((page) => page.blocks).forEach((block) => { if (block.type === 'form') void loadFields(block.formId); });
-    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Composition konnte nicht geladen werden.'));
+    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Form konnte nicht geladen werden.'));
   }, [compositionId]);
 
   const loadFields = async (formId: string) => {
@@ -130,13 +130,13 @@ export default function CompositionBuilder() {
     try {
       const canonical = { ...record.canonical_json, name: record.name, extensions: { ...record.canonical_json.extensions, [COMPOSITION_EXTENSION_KEY]: composition } };
       const updated = await request<CompositionResponse>(`/forms/${encodeURIComponent(compositionId)}`, { method: 'PUT', body: JSON.stringify(canonical) });
-      setRecord(updated); setNotice('Composition gespeichert. Veröffentliche sie wie ein normales Formular im Dashboard.');
+      setRecord(updated); setNotice('Form gespeichert. Im Dashboard wie gewohnt veröffentlichen.');
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Speichern fehlgeschlagen.'); }
     finally { setSaving(false); }
   };
 
   if (error && !record) return <div style={{ padding: '2rem', color: '#b91c1c' }}>{error}</div>;
-  if (!record || !page) return <div style={{ padding: '2rem' }}>Composition wird geladen…</div>;
+  if (!record || !page) return <div style={{ padding: '2rem' }}>Form wird geladen…</div>;
 
   return <DesignerShell kind="composition" dragAndDrop><div style={{ minHeight: '100vh', background: '#f8fafc', color: '#0f172a' }}>
     <header style={{ height: 62, background: '#fff', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.25rem', position: 'sticky', top: 0, zIndex: 5 }}>
@@ -164,7 +164,7 @@ export default function CompositionBuilder() {
         <div className="panel-content" style={{ padding: '1rem' }}>
         {!selectedBlockId && <div style={{ paddingBottom: '1rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0' }}>
           <div style={{ fontSize: '.74rem', fontWeight: 800, letterSpacing: '.08em', color: '#2563eb', marginBottom: '.65rem' }}>COMPOSITION-EIGENSCHAFTEN</div>
-          <label className="form-label">Name der Composition<input className="form-input" value={record.name} onChange={(event) => setRecord((current) => current ? { ...current, name: event.target.value } : current)} /></label>
+          <label className="form-label">Name<input className="form-input" value={record.name} onChange={(event) => setRecord((current) => current ? { ...current, name: event.target.value } : current)} /></label>
           <label className="form-label">Aktive Seite<select className="form-input" value={page.id} onChange={(event) => { const index = composition.pages.findIndex((candidate) => candidate.id === event.target.value); if (index >= 0) setActivePage(index); }}><option value="">Seite wählen…</option>{composition.pages.map((candidate, index) => <option key={candidate.id} value={candidate.id}>{index + 1}. {candidate.title}</option>)}</select></label>
           <label className="form-label">Seitentitel<input className="form-input" value={page.title} onChange={(event) => updatePage(activePage, { title: event.target.value })} /></label>
           <label className="form-label">Seitenbeschreibung<textarea className="form-input" style={{ minHeight: 72 }} value={page.description || ''} onChange={(event) => updatePage(activePage, { description: event.target.value || undefined })} /></label>
@@ -196,15 +196,15 @@ export default function CompositionBuilder() {
           <div style={{ fontSize: '.74rem', fontWeight: 800, letterSpacing: '.08em', color: '#2563eb', marginBottom: '.65rem' }}>FORMULAR-EIGENSCHAFTEN</div>
           <strong style={{ display: 'block', fontSize: '.92rem', marginBottom: '.3rem' }}>{forms.find((form) => form.id === selectedBlock.formId)?.name || 'Formular auswählen'}</strong>
           <label className="form-label">Veröffentlichtes Formular<select className="form-input" value={selectedBlock.formId} onChange={(event) => { const formId = event.target.value; updateBlock(selectedBlock.id, { formId, title: forms.find((form) => form.id === formId)?.name }); if (formId) void loadFields(formId); }}><option value="">Formular auswählen…</option>{forms.map((form) => <option key={form.id} value={form.id}>{form.name} · v{form.version}</option>)}</select></label>
-          <p style={{ fontSize: '.78rem', color: '#64748b', lineHeight: 1.4, margin: '0 0 .8rem' }}>Der Composition-Modus wird an dieses Formular vererbt. Pflichtfelder sind geschützt und können nicht ausgeblendet werden.</p>
+          <p style={{ fontSize: '.78rem', color: '#64748b', lineHeight: 1.4, margin: '0 0 .8rem' }}>Der Modus dieser Form wird an dieses Formular vererbt. Pflichtfelder sind geschützt und können nicht ausgeblendet werden.</p>
           <label className="form-label">Anzeigetitel<input className="form-input" value={selectedBlock.title || ''} onChange={(event) => updateBlock(selectedBlock.id, { title: event.target.value || undefined })} /></label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
             <label className="form-label">Darstellung (Höhe)<select className="form-input" value={selectedBlock.displayMode || 'auto'} onChange={(event) => updateBlock(selectedBlock.id, { displayMode: event.target.value as 'auto' | 'fixed' })}><option value="auto">Auto-Resize (100%)</option><option value="fixed">Fixe Höhe (Scroll)</option></select></label>
             <label className="form-label">Daten vorausfüllen<select className="form-input" value={selectedBlock.load || 'never'} onChange={(event) => updateBlock(selectedBlock.id, { load: event.target.value as 'never' | 'provider' })}><option value="never">Nicht vorausfüllen</option><option value="provider">Aus EHR/KIS laden</option></select></label>
           </div>
           <div style={{ marginTop: '.85rem' }}>
-            <span className="form-label">Felder in dieser Composition</span>
-            <p style={{ color: '#64748b', fontSize: '.76rem', lineHeight: 1.4, margin: '0 0 .5rem' }}>Ein-/ausblenden und optional pro Feld ein abweichendes Label für diese Composition. Der Baustein selbst (Bindings, Pflichtfelder, Original-Label) bleibt unverändert und damit anderswo wiederverwendbar.</p>
+            <span className="form-label">Felder in dieser Form</span>
+            <p style={{ color: '#64748b', fontSize: '.76rem', lineHeight: 1.4, margin: '0 0 .5rem' }}>Ein-/ausblenden und optional pro Feld ein abweichendes Label für diese Form. Der Baustein selbst (Bindings, Pflichtfelder, Original-Label) bleibt unverändert und damit anderswo wiederverwendbar.</p>
             {(fields[selectedBlock.formId] || []).length === 0 ? <div style={{ fontSize: '.8rem', color: '#64748b' }}>Wähle ein veröffentlichtes Formular, um dessen Felder zu konfigurieren.</div> : <div style={{ display: 'grid', gap: '.5rem', maxHeight: 360, overflowY: 'auto', paddingRight: '.2rem' }}>
               {(fields[selectedBlock.formId] || []).map((field) => {
                 const hidden = (selectedBlock.hiddenFieldIds || []).includes(field.id);
@@ -219,7 +219,7 @@ export default function CompositionBuilder() {
                     <input type="checkbox" disabled={field.required} checked={!hidden} onChange={(event) => updateBlock(selectedBlock.id, { hiddenFieldIds: event.target.checked ? (selectedBlock.hiddenFieldIds || []).filter((id) => id !== field.id) : [...(selectedBlock.hiddenFieldIds || []), field.id] })} />
                     <span><strong style={{ fontWeight: 600 }}>{field.label}</strong>{field.required && <span style={{ color: '#b91c1c' }}> · Pflichtfeld</span>}<small style={{ display: 'block', color: '#64748b', marginTop: 1 }}>{eventLabel(hidden)}</small></span>
                   </label>
-                  {!hidden && <input className="form-input" style={{ marginTop: '.3rem', marginLeft: '1.4rem', width: 'calc(100% - 1.4rem)', fontSize: '.78rem', padding: '.3rem .5rem' }} placeholder={`Label in dieser Composition (Standard: „${field.label}“)`} value={labelOverride} onChange={(event) => setLabelOverride(event.target.value)} />}
+                  {!hidden && <input className="form-input" style={{ marginTop: '.3rem', marginLeft: '1.4rem', width: 'calc(100% - 1.4rem)', fontSize: '.78rem', padding: '.3rem .5rem' }} placeholder={`Label in dieser Form (Standard: „${field.label}“)`} value={labelOverride} onChange={(event) => setLabelOverride(event.target.value)} />}
                 </div>;
               })}
             </div>}
@@ -243,7 +243,7 @@ export default function CompositionBuilder() {
 function eventLabel(hidden: boolean): string { return hidden ? 'ausgeblendet' : 'sichtbar'; }
 
 function CompositionToolbox({ forms, functions, widgetPackages, enabledWidgetPackageIds, onAdd }: { forms: FormRow[]; functions: AqlFunction[]; widgetPackages: WidgetPackage[]; enabledWidgetPackageIds: string[]; onAdd: (block: CompositionBlock) => void }) {
-  return <><div style={{ fontSize: '.74rem', fontWeight: 800, letterSpacing: '.08em', color: '#64748b', marginBottom: '.75rem' }}>COMPOSITION</div><div style={{ display: 'grid', gap: '.6rem' }}>{forms.length > 0 ? <CompositionToolboxItem createBlock={() => newCompositionBlock('form', forms, functions)} label="Ganzes Formular" icon={<FileText size={16} />} onAdd={onAdd} /> : <div style={{ padding: '.65rem .7rem', border: '1px dashed #f59e0b', borderRadius: 6, color: '#92400e', fontSize: '.78rem', lineHeight: 1.4 }}>Keine veröffentlichten Formulare verfügbar.</div>}<CompositionToolboxItem createBlock={() => newCompositionBlock('text', forms, functions)} label="Text / Hinweis" icon={<Type size={16} />} onAdd={onAdd} /></div>{forms.length === 0 && <p style={{ color: '#b45309', fontSize: '.78rem', lineHeight: 1.4 }}>Veröffentliche zuerst ein Formular, bevor du es in diese Composition ziehst.</p>}<WidgetPackageToolbox packages={widgetPackages.filter((widgetPackage) => enabledWidgetPackageIds.includes(widgetPackage.id))} onAdd={onAdd} /><div style={{ fontSize: '.74rem', fontWeight: 800, letterSpacing: '.08em', color: '#64748b', margin: '1.1rem 0 .75rem' }}>LAYOUT DER AKTIVEN SEITE</div><div style={{ display: 'grid', gap: '.6rem' }}><BuilderLayoutItem label="Gruppe / Container" element="FieldSet" /><BuilderLayoutItem label="2 Spalten" element="TwoColumnRow" /><BuilderLayoutItem label="3 Spalten" element="ThreeColumnRow" /><BuilderLayoutItem label="Überschrift" element="Header" staticItem content="Abschnitt" /><BuilderLayoutItem label="Label" element="Label" staticItem content="Beschriftung" /><BuilderLayoutItem label="Absatz / Text" element="Paragraph" staticItem content="Beschreibung" /><BuilderLayoutItem label="Trennlinie" element="LineBreak" staticItem /><BuilderLayoutItem label="Aktion / Button" element="HyperLink" /></div></>;
+  return <><div style={{ fontSize: '.74rem', fontWeight: 800, letterSpacing: '.08em', color: '#64748b', marginBottom: '.75rem' }}>FORM</div><div style={{ display: 'grid', gap: '.6rem' }}>{forms.length > 0 ? <CompositionToolboxItem createBlock={() => newCompositionBlock('form', forms, functions)} label="Ganzes Formular" icon={<FileText size={16} />} onAdd={onAdd} /> : <div style={{ padding: '.65rem .7rem', border: '1px dashed #f59e0b', borderRadius: 6, color: '#92400e', fontSize: '.78rem', lineHeight: 1.4 }}>Keine veröffentlichten Formulare verfügbar.</div>}<CompositionToolboxItem createBlock={() => newCompositionBlock('text', forms, functions)} label="Text / Hinweis" icon={<Type size={16} />} onAdd={onAdd} /></div>{forms.length === 0 && <p style={{ color: '#b45309', fontSize: '.78rem', lineHeight: 1.4 }}>Veröffentliche zuerst ein Formular, bevor du es in diese Form ziehst.</p>}<WidgetPackageToolbox packages={widgetPackages.filter((widgetPackage) => enabledWidgetPackageIds.includes(widgetPackage.id))} onAdd={onAdd} /><div style={{ fontSize: '.74rem', fontWeight: 800, letterSpacing: '.08em', color: '#64748b', margin: '1.1rem 0 .75rem' }}>LAYOUT DER AKTIVEN SEITE</div><div style={{ display: 'grid', gap: '.6rem' }}><BuilderLayoutItem label="Gruppe / Container" element="FieldSet" /><BuilderLayoutItem label="2 Spalten" element="TwoColumnRow" /><BuilderLayoutItem label="3 Spalten" element="ThreeColumnRow" /><BuilderLayoutItem label="Überschrift" element="Header" staticItem content="Abschnitt" /><BuilderLayoutItem label="Label" element="Label" staticItem content="Beschriftung" /><BuilderLayoutItem label="Absatz / Text" element="Paragraph" staticItem content="Beschreibung" /><BuilderLayoutItem label="Trennlinie" element="LineBreak" staticItem /><BuilderLayoutItem label="Aktion / Button" element="HyperLink" /></div></>;
 }
 
 function WidgetPackageToolbox({ packages, onAdd }: { packages: WidgetPackage[]; onAdd: (block: CompositionBlock) => void }) {
