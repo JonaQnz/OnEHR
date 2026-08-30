@@ -81,6 +81,19 @@ test('accepts the matrix display - one row per labelColumn value, one column per
   assert.equal(composition.pages[0].blocks[0].labelColumn, 'analyte');
 });
 
+test('accepts the timeline display - chronological entries with a heading (labelColumn) and a value', () => {
+  const composition = normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'overview', title: 'Übersicht', blocks: [{
+      id: 'patient-timeline', type: 'data', title: 'Patiententimeline',
+      aqlFunctionId: 'events-query', display: 'timeline',
+      valueColumn: 'value', labelColumn: 'event', timeColumn: 'recorded_at',
+    }] }],
+  });
+  assert.equal(composition.pages[0].blocks[0].display, 'timeline');
+  assert.equal(composition.pages[0].blocks[0].timeColumn, 'recorded_at');
+});
+
 test('moves composition blocks transactionally without duplicates or mutation', () => {
   const definition = {
     schemaVersion: COMPOSITION_SCHEMA_VERSION,

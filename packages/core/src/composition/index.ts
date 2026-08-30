@@ -35,16 +35,18 @@ export interface CompositionDataBlock {
   widgetPackageId?: string;
   /** @deprecated Legacy direct-AQL blocks remain readable during migration. */
   aqlFunctionId?: string;
-  display: 'list' | 'text' | 'trend' | 'metric' | 'matrix';
+  display: 'list' | 'text' | 'trend' | 'metric' | 'matrix' | 'timeline';
   /** Rendering choice for a trend widget. Table, metric and text use display. */
   chartType?: 'line' | 'area' | 'bar';
-  /** For 'matrix': the value shown in each cell. */
+  /** For 'matrix'/'timeline': the value shown in each cell/entry. */
   valueColumn?: string;
   /** For 'matrix': distinguishes the series - one row per distinct value
-   * (e.g. one row per lab analyte), not a single fixed column. */
+   * (e.g. one row per lab analyte), not a single fixed column. For
+   * 'timeline': each entry's heading. */
   labelColumn?: string;
   /** For 'matrix': the column axis, bucketed to a calendar day (several
-   * same-day rows collapse into one cell, the latest by timestamp wins). */
+   * same-day rows collapse into one cell, the latest by timestamp wins).
+   * For 'timeline': each entry's chronological position. */
   timeColumn?: string;
   limit?: number;
   referenceRange?: { min?: number; max?: number; criticalLow?: number; criticalHigh?: number };
@@ -309,7 +311,7 @@ export function normalizeCompositionDefinition(value: unknown): CompositionDefin
           }
           if (rawBlock.type === 'data') {
             const display = rawBlock.display;
-            if (!['list', 'text', 'trend', 'metric', 'matrix'].includes(String(display))) throw new Error(`Composition data block '${blockId}' has an invalid display`);
+            if (!['list', 'text', 'trend', 'metric', 'matrix', 'timeline'].includes(String(display))) throw new Error(`Composition data block '${blockId}' has an invalid display`);
             const limit = rawBlock.limit;
             if (limit !== undefined && (!Number.isInteger(limit) || Number(limit) < 1 || Number(limit) > 100)) throw new Error(`Composition data block '${blockId}' limit must be between 1 and 100`);
             const reference = isRecord(rawBlock.referenceRange) ? Object.fromEntries(Object.entries(rawBlock.referenceRange).filter(([key, item]) => ['min', 'max', 'criticalLow', 'criticalHigh'].includes(key) && typeof item === 'number' && Number.isFinite(item))) : {};
