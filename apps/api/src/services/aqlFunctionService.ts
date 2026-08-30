@@ -351,7 +351,16 @@ export async function buildSessionRuntimeContext(
   context: FormDataProviderContext,
 ): Promise<{ composition?: LatestCompositionContext; aql: Record<string, unknown>; codeFunctions: Array<{ packageName: string; name: string; source: string }>; errors?: Array<{ source: 'composition' | 'aql'; function?: string; message: string }> }> {
   const result: { composition?: LatestCompositionContext; aql: Record<string, unknown>; codeFunctions: Array<{ packageName: string; name: string; source: string }>; errors: Array<{ source: 'composition' | 'aql'; function?: string; message: string }> } = { aql: {}, codeFunctions: [], errors: [] };
-  if (form.definition.sourceTemplates?.[0]?.id) {
+  // Unconditional regardless of the launch's own load policy ('never'
+  // included) - this populates a form script's read-only
+  // context.composition, a separate concern from provider-loading field
+  // values. A Form Section can opt out via
+  // settings.runtime.loadLatestCompositionContext: false when its scripts
+  // never read context.composition, skipping this EHRbase round-trip
+  // entirely (see FormRuntimeSettings for why this matters - it's paid on
+  // every single launch, e.g. every block of a multi-block Composition).
+  const shouldLoadComposition = form.definition.settings?.runtime?.loadLatestCompositionContext !== false;
+  if (shouldLoadComposition && form.definition.sourceTemplates?.[0]?.id) {
     try {
       result.composition = await new EhrbaseDataProvider().loadLatestCompositionContext({ form, context });
     } catch (error: any) {

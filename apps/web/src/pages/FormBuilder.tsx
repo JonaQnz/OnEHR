@@ -2407,6 +2407,20 @@ function FormBuilderContent() {
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontWeight: 'normal', cursor: 'pointer' }}>
                                   <input
                                     type="checkbox"
+                                    checked={form.canonical_json.settings?.runtime?.loadLatestCompositionContext !== false}
+                                    onChange={(e) => { updateRuntimeSetting('loadLatestCompositionContext', e.target.checked); setTimeout(() => handleSave(builderItems), 0); }}
+                                  />
+                                  Letzte Composition beim Start laden (context.composition)
+                                </label>
+                                <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+                                  Lädt beim Start jeder Session dieser Form Section die zuletzt übermittelte Composition dieses Patienten vom Provider (EHRbase), unabhängig vom "Provider-Daten laden"-Modus - nur für das Formscript, als schreibgeschützter <code>context.composition</code>. Deaktivieren, wenn kein Formscript dieser Form Section darauf zugreift - spart einen Provider-Roundtrip bei jedem Start, spürbar z. B. bei mehreren Blöcken pro Composition-Seite.
+                                </p>
+                              </div>
+
+                              <div className="inspector-field-group" style={{ marginTop: '1.5rem' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontWeight: 'normal', cursor: 'pointer' }}>
+                                  <input
+                                    type="checkbox"
                                     checked={form.canonical_json.settings?.reuse?.enabled === true}
                                     onChange={(e) => { updateReuseSetting('enabled', e.target.checked); setTimeout(() => handleSave(builderItems), 0); }}
                                   />
