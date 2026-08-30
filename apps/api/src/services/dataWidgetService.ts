@@ -2,7 +2,7 @@ import prisma from '../db/prisma';
 import { HttpError } from '../middleware/errorHandler';
 import { executeStoredAqlFunctionRecord } from './aqlFunctionService';
 
-const displays = ['metric', 'table', 'line', 'bar', 'area', 'text', 'matrix'] as const;
+const displays = ['metric', 'table', 'line', 'bar', 'area', 'text', 'matrix', 'timeline'] as const;
 type Display = (typeof displays)[number];
 type Config = { display: Display; valueColumn?: string; labelColumn?: string; timeColumn?: string; limit?: number; referenceRange?: Record<string, number>; packageName?: string };
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object' && !Array.isArray(value));
@@ -16,6 +16,9 @@ function requiredColumns(definition: Config): string[] {
   // row per distinct value), timeColumn is the column axis - so unlike
   // every other display, it needs both, not just one.
   if (definition.display === 'matrix') required.push(definition.labelColumn, definition.timeColumn);
+  // timeline is chronological entries, each needing both a heading
+  // (labelColumn) and a position on the timeline (timeColumn).
+  if (definition.display === 'timeline') required.push(definition.labelColumn, definition.timeColumn);
   return required.filter((column): column is string => Boolean(column));
 }
 
@@ -45,6 +48,7 @@ function config(value: unknown): Config {
   if ((parsed.display === 'line' || parsed.display === 'area') && !parsed.timeColumn) throw new HttpError(400, `${parsed.display} widgets require timeColumn`);
   if (parsed.display === 'bar' && !parsed.labelColumn) throw new HttpError(400, 'bar widgets require labelColumn');
   if (parsed.display === 'matrix' && (!parsed.labelColumn || !parsed.timeColumn)) throw new HttpError(400, 'matrix widgets require both labelColumn and timeColumn');
+  if (parsed.display === 'timeline' && (!parsed.labelColumn || !parsed.timeColumn)) throw new HttpError(400, 'timeline widgets require both labelColumn and timeColumn');
   return parsed;
 }
 function payload(value: unknown) {
