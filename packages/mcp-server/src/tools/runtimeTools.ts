@@ -50,10 +50,10 @@ export function registerRuntimeTools(server: McpServer, api: FormbuilderApiClien
 
   server.registerTool('list_form_sessions', {
     title: 'List form sessions',
-    description: 'Lists form sessions, optionally filtered by patient and/or form. `patientId` accepts any of the patient\'s identifiers - the internal registry id, the ehrId, or the external MRN (same as launch_form/start_composition_session) - resolved to the same patient either way.',
-    inputSchema: { patientId: z.string().optional().describe('The internal registry id, ehrId, or external MRN - any one identifies the patient.'), formId: z.string().optional() },
-  }, ({ patientId, formId }) => toResult(() => {
-    const query = new URLSearchParams({ ...(patientId ? { patientId } : {}), ...(formId ? { formId } : {}) }).toString();
+    description: 'Lists form sessions, optionally filtered by patient and/or form. `patientId` accepts any of the patient\'s identifiers - the internal registry id, the ehrId, or the external MRN (same as launch_form/start_composition_session) - resolved to the same patient either way. `formId` matches only that exact published version; `parentFormId` (a Form Section\'s stable parent_id, from list_forms/get_form) matches every version of it - use parentFormId when checking whether a patient has any prior entry of a Form Section regardless of which version it was submitted under.',
+    inputSchema: { patientId: z.string().optional().describe('The internal registry id, ehrId, or external MRN - any one identifies the patient.'), formId: z.string().optional().describe('Matches only this exact published version.'), parentFormId: z.string().optional().describe('Matches every published version sharing this parent_id.') },
+  }, ({ patientId, formId, parentFormId }) => toResult(() => {
+    const query = new URLSearchParams({ ...(patientId ? { patientId } : {}), ...(formId ? { formId } : {}), ...(parentFormId ? { parentFormId } : {}) }).toString();
     return api.get(`/api/form-sessions${query ? `?${query}` : ''}`);
   }));
 

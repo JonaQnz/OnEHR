@@ -465,8 +465,19 @@ export async function getFormSession(id: string, actor: SessionActor): Promise<F
   return publicSession(record, undefined, patient);
 }
 
-export async function listFormSessions(actor: SessionActor, patientId?: string, formId?: string): Promise<FormSession[]> {
-  const formFilter = formId ? { formId } : {};
+export async function listFormSessions(actor: SessionActor, patientId?: string, formId?: string, parentFormId?: string): Promise<FormSession[]> {
+  // parentFormId matches every published version of one Form Section
+  // (formId only ever matches the exact version a session was attached
+  // under). "Aus vorheriger Dokumentation übernehmen" (LiveForm.tsx) needs
+  // this: a Form Section gets republished routinely, which mints a new
+  // Form.id every time - without resolving across the whole parent_id
+  // lineage, a prior entry submitted under an older version silently
+  // stops showing up as "previous documentation" the moment a newer
+  // version is published, even though it's the same clinical concept.
+  const versionIds = parentFormId
+    ? (await prisma.form.findMany({ where: { parent_id: parentFormId }, select: { id: true } })).map((row) => row.id)
+    : undefined;
+  const formFilter = versionIds ? { formId: { in: versionIds } } : formId ? { formId } : {};
   // A caller may reasonably pass the internal registry id, the ehrId, or
   // the external MRN here - every other patient-identifying parameter in
   // this API (launch_form, start_composition_session, ...) already accepts
