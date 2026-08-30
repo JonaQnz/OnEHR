@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Activity,
@@ -14,6 +14,13 @@ import {
 import { formEmbedUrl, isFormEmbedEvent, launchEmbeddedForm } from '../../integration/formLaunch';
 import type { FormLaunchLoadPolicy, FormRuntimeMode } from 'core';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { useAuth } from '../../App';
+
+// Code-split like every other routed page (see App.tsx's own React.lazy
+// calls) - PatientDetail is visited far more often than a patient actually
+// having a published Klinisches Cockpit, so this shouldn't inflate every
+// patient page's bundle regardless of whether the tab ends up used.
+const CompositionRuntime = lazy(() => import('../CompositionRuntime'));
 
 const API = 'http://localhost:3001/api';
 
@@ -90,8 +97,12 @@ interface FieldDescriptor {
   options: Map<string, string>;
 }
 
-type PatientTab = 'documents' | 'overview' | 'data' | 'versions' | 'kis' | 'clinicalCompositions';
+type PatientTab = 'cockpit' | 'documents' | 'overview' | 'data' | 'versions' | 'kis' | 'clinicalCompositions';
 
+// 'cockpit' is prepended separately in the render (only when a "Klinisches
+// Cockpit" Form is actually published for this instance) rather than listed
+// here statically, so installs without that Form see the tab bar exactly as
+// before.
 const TABS: Array<{ id: PatientTab; label: string }> = [
   { id: 'documents', label: 'Formulare und Dokumente' },
   { id: 'overview', label: 'Übersicht' },
@@ -257,6 +268,12 @@ function EmptyState({ icon, title, detail }: { icon: React.ReactNode; title: str
 
 export default function PatientDetail() {
   const { id } = useParams();
+  // Same permission the standalone /compositions/:id route enforces via
+  // <Protected permission="form.execute">. Checked here (not by wrapping
+  // the embedded CompositionRuntime in <Protected>) so a user without it
+  // simply never sees the Cockpit tab, instead of the tab rendering and
+  // <Protected>'s <Navigate> then yanking the whole app to "/".
+  const canExecuteForms = useAuth().permissions.includes('form.execute');
   const [patient, setPatient] = useState<PatientRecord | null>(null);
   useDocumentTitle(patient ? [patient.lastName, patient.firstName].filter(Boolean).join(', ') || patient.patientId : 'Patient');
   const [forms, setForms] = useState<StoredForm[]>([]);
@@ -356,6 +373,26 @@ export default function PatientDetail() {
     [publishedForms],
   );
 
+  // Klinisches Cockpit is bound as the fixed per-patient start page - but
+  // integrated as the default tab of this same page (embedded inline),
+  // not a separate destination: the other tabs and the "Neues Formular"
+  // picker stay visible and reachable at all times, exactly as before.
+  // Matched by name (not a hardcoded form/parent id) so it keeps working
+  // across republishes and even a full rebuild of the Form.
+  const cockpitForm = useMemo(
+    () => (canExecuteForms ? launchableForms.find((form) => form.name === 'Klinisches Cockpit') : undefined),
+    [launchableForms, canExecuteForms],
+  );
+  // Switches to the Cockpit tab the first time it becomes available (forms
+  // load asynchronously, so it's usually not there on the very first
+  // render) - but only until the user has actually clicked a tab
+  // themselves, so it never yanks them away from a tab they picked.
+  const [userPickedTab, setUserPickedTab] = useState(false);
+  useEffect(() => {
+    if (!userPickedTab && cockpitForm) setActiveTab('cockpit');
+  }, [cockpitForm, userPickedTab]);
+  const selectTab = (tab: PatientTab) => { setUserPickedTab(true); setActiveTab(tab); };
+
   const sessionsWithData = useMemo(
     () => sessions.filter((session) => Object.keys(session.values || {}).length > 0),
     [sessions],
@@ -432,6 +469,28 @@ export default function PatientDetail() {
     );
   }
   if (!patient) return <div style={{ padding: '2rem' }}>Patient nicht gefunden.</div>;
+
+  // The Cockpit Composition is mounted directly as a real component here -
+  // NOT an iframe of the standalone /compositions/:id page. An iframe would
+  // nest a second whole app page (its own header, patient-picker fallback,
+  // "Zurück"-link) inside this one; rendering CompositionRuntime itself
+  // means its cards, page-tabs (Übersicht, Zeitleiste, Labor...) and block
+  // launches become native DOM in this tab, sharing this page's patient
+  // context instead of re-deriving it behind an iframe boundary. The
+  // `embedded` prop drops CompositionRuntime's own now-redundant page
+  // chrome (its outer padding/max-width and "Zurück zur Patientenakte"
+  // link - this tab already has both, one level up).
+  const renderCockpit = (form: StoredForm) => (
+    <Suspense fallback={<div className="card" style={{ padding: '2rem', color: 'var(--text-muted)' }}>Klinisches Cockpit wird geladen…</div>}>
+      <CompositionRuntime
+        formId={form.id}
+        initialPatientId={patient.patientId}
+        initialNamespace={patient.namespace}
+        initialEhrId={patient.ehrId || undefined}
+        embedded
+      />
+    </Suspense>
+  );
 
   const renderDocuments = () => (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -707,7 +766,7 @@ export default function PatientDetail() {
         <div className="card">
           <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Arbeitsliste</h3>
           {sessions.filter((session) => ['draft', 'in_progress', 'ready', 'failed'].includes(session.status)).length === 0 ? <span style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>Keine offenen Formularvorgänge.</span> : sessions.filter((session) => ['draft', 'in_progress', 'ready', 'failed'].includes(session.status)).slice(0, 5).map((session) => <div key={session.id} style={{ padding: '.7rem 0', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: '.5rem' }}><div><strong style={{ display: 'block', fontSize: '.88rem' }}>{formName(session)}</strong><span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{formatDateTime(session.updatedAt)}</span></div>{statusBadge(session.status)}</div>)}
-          <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem' }} onClick={() => setActiveTab('documents')}>Vorgänge öffnen</button>
+          <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem' }} onClick={() => selectTab('documents')}>Vorgänge öffnen</button>
         </div>
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)' }}><strong>Formular-Integration</strong><div style={{ color: 'var(--text-muted)', fontSize: '.8rem', marginTop: '.25rem' }}>Einbettung im KIS, Create/Edit/Prefill und Provider-Laden</div></div>
@@ -845,7 +904,7 @@ export default function PatientDetail() {
         aria-label="Bereiche der Patientenakte"
         style={{ display: 'flex', gap: '1.75rem', borderBottom: '1px solid var(--border)', marginBottom: '2rem', overflowX: 'auto' }}
       >
-        {TABS.map((tab) => {
+        {(cockpitForm ? [{ id: 'cockpit' as const, label: 'Klinisches Cockpit' }, ...TABS] : TABS).map((tab) => {
           const active = activeTab === tab.id;
           return (
             <button
@@ -853,7 +912,7 @@ export default function PatientDetail() {
               type="button"
               role="tab"
               aria-selected={active}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => selectTab(tab.id)}
               style={{
                 padding: '0 0 0.65rem',
                 border: 0,
@@ -872,6 +931,7 @@ export default function PatientDetail() {
       </div>
 
       <div role="tabpanel">
+        {activeTab === 'cockpit' && cockpitForm && renderCockpit(cockpitForm)}
         {activeTab === 'documents' && renderDocuments()}
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'data' && renderData()}
