@@ -33,7 +33,14 @@ function baseForm(openEhrOptions) {
       layout: { type: 'form', children: [] },
       bindings: {},
       locales: {},
-      ...(openEhrOptions ? { extensions: { 'org.openehr.form': openEhrOptions } } : {}),
+      // Session reuse/storageStrategy is orthogonal to Form Section vs.
+      // Form (Composition) - marking this fixture a Composition just
+      // satisfies createFormSession's "can't launch a bare Form Section
+      // standalone" guard without affecting anything this file tests.
+      extensions: {
+        'watehr.composition': { schemaVersion: 1, pages: [] },
+        ...(openEhrOptions ? { 'org.openehr.form': openEhrOptions } : {}),
+      },
     },
   };
 }
