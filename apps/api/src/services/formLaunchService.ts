@@ -53,6 +53,7 @@ export async function launchForm(input: FormLaunchRequest, actor: SessionActor):
     values: load === 'never' ? initialValues : {},
     ...(input.providerReference ? { providerReference: nonEmptyText(input.providerReference, 'providerReference') } : {}),
     forceNew: input.forceNew === true,
+    ...(input.compositionContext ? { compositionContext: input.compositionContext } : {}),
   }, actor);
   // A resumed session (revision > 0) already has real provider/draft data -
   // reloading here would silently overwrite whatever the user last saved

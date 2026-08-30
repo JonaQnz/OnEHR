@@ -344,6 +344,18 @@ export default function PatientDetail() {
     return [...grouped.values()].sort((left, right) => left.name.localeCompare(right.name, 'de'));
   }, [forms]);
 
+  // Only Forms (Compositions) can be started directly for a patient - a
+  // bare Form Section has nowhere to hang shared/general data or widgets,
+  // and the backend now rejects launching one standalone anyway (see
+  // formSessionService's assertFormSectionLaunchAllowed). Form Sections
+  // still show up everywhere else (session lists, template lookups) via
+  // the unfiltered publishedForms/formsById - only the "start something
+  // new for this patient" picker is restricted.
+  const launchableForms = useMemo(
+    () => publishedForms.filter(isCompositionForm),
+    [publishedForms],
+  );
+
   const sessionsWithData = useMemo(
     () => sessions.filter((session) => Object.keys(session.values || {}).length > 0),
     [sessions],
@@ -873,9 +885,9 @@ export default function PatientDetail() {
           <div className="card" style={{ width: '100%', maxWidth: '500px', padding: '2rem', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
             <h2 style={{ marginTop: 0, marginBottom: '1.5rem' }}>Formular auswählen</h2>
             <div style={{ overflowY: 'auto', flex: 1, marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {publishedForms.length === 0 ? (
+              {launchableForms.length === 0 ? (
                 <span style={{ color: 'var(--text-muted)' }}>Keine veröffentlichten Formulare verfügbar.</span>
-              ) : publishedForms.map((form) => (
+              ) : launchableForms.map((form) => (
                 <a
                   key={form.id}
                   href={patientFormUrl(form, patient, `/patients/${id}`)}

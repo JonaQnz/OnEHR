@@ -1,6 +1,7 @@
 import prisma from '../db/prisma';
 import {
   assertFormSessionTransition,
+  getCompositionDefinition,
   isFormRuntimeMode,
   isFormSessionChangeType,
   isFormSessionStatus,
@@ -48,6 +49,12 @@ export interface CreateSessionInput {
   /** Skips the resumable-session reuse below and always creates a fresh one -
    * only meaningful for edit/prefill (create/view never reuse regardless). */
   forceNew?: boolean;
+  /** Required when formId names a bare Form Section - see
+   * assertFormSectionLaunchAllowed below. */
+  compositionContext?: {
+    compositionSessionId: string;
+    blockId: string;
+  };
 }
 type SessionHookInput = {
   name: PluginHookName;
@@ -316,6 +323,50 @@ function assertOwner(record: any, actor: SessionActor): void {
   if (record.userId !== actor.userId && actor.userId !== 'anonymous') throw new HttpError(403, 'You do not have access to this form session');
 }
 
+/**
+ * A bare Form Section (kind "form" - no `watehr.composition` extension) can
+ * never be launched standalone for a patient; real-world clinical workflows
+ * launch a document (a Form/Composition), not a bare building block, and a
+ * standalone Form Section session also has nowhere to hang shared/general
+ * data or widgets the way a Composition's own wrapper does. It must instead
+ * be attached as a block of an already-started Composition session.
+ *
+ * `compositionContext` is never trusted at face value - a client claiming
+ * it doesn't make it true. It's independently re-verified here against the
+ * referenced CompositionSession (must exist, must belong to this actor) and
+ * its Composition's own block list (the named block must exist and must
+ * itself reference this exact formId), so this can't be bypassed by simply
+ * inventing plausible-looking ids.
+ */
+async function assertFormSectionLaunchAllowed(
+  form: { id: string; canonical_json: unknown },
+  compositionContext: CreateSessionInput['compositionContext'],
+  actor: SessionActor,
+): Promise<void> {
+  const isComposition = Boolean(
+    (form.canonical_json as { extensions?: Record<string, unknown> } | null)?.extensions?.['watehr.composition'],
+  );
+  if (isComposition) return;
+  if (!compositionContext?.compositionSessionId || !compositionContext?.blockId) {
+    throw new HttpError(
+      409,
+      'This is a Form Section, not a Form. Form Sections cannot be launched directly for a patient - launch or resume the Form (Composition) that wraps it instead.',
+    );
+  }
+  const parent = await prisma.compositionSession.findUnique({ where: { id: compositionContext.compositionSessionId } });
+  if (!parent) throw new HttpError(404, 'Referenced composition session not found');
+  if (parent.userId !== actor.userId && actor.userId !== 'anonymous') {
+    throw new HttpError(403, 'You do not have access to this composition session');
+  }
+  const parentForm = await prisma.form.findUnique({ where: { id: parent.compositionFormId } });
+  if (!parentForm) throw new HttpError(404, 'Composition not found');
+  const definition = getCompositionDefinition((parentForm.canonical_json as any).extensions || {});
+  const block = definition?.pages.flatMap((page) => page.blocks).find((candidate) => candidate.id === compositionContext.blockId);
+  if (!block || block.type !== 'form' || block.formId !== form.id) {
+    throw new HttpError(422, 'This Form Section is not a block of the referenced composition session');
+  }
+}
+
 export async function createFormSession(input: CreateSessionInput, actor: SessionActor): Promise<FormSession> {
   const formId = requiredText(input.formId, 'formId');
   const requestedPatientId = requiredText(input.patientId, 'patientId');
@@ -332,6 +383,7 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
   }
   const form = await prisma.form.findUnique({ where: { id: formId } });
   if (!form) throw new HttpError(404, 'Form not found');
+  await assertFormSectionLaunchAllowed(form, input.compositionContext, actor);
   const mode = input.mode === undefined ? 'create' : input.mode;
   if (!isFormRuntimeMode(mode)) throw new HttpError(400, 'mode must be create, edit, view, or prefill');
 
