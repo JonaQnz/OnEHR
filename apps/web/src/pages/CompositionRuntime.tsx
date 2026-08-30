@@ -55,7 +55,7 @@ function childBadge(status?: string) {
 export default function CompositionRuntime() {
   const { id } = useParams(); const [searchParams] = useSearchParams(); const navigate = useNavigate();
   const [record, setRecord] = useState<FormRecord | null>(null); const [composition, setComposition] = useState<CompositionDefinition | null>(null); const [session, setSession] = useState<CompositionSession | null>(null);
-  useDocumentTitle(record?.name || 'Composition');
+  useDocumentTitle(record?.name || 'Form-Vorgang');
   const [pageIndex, setPageIndex] = useState(0); const [patientId, setPatientId] = useState(searchParams.get('patientId') || ''); const [namespace, setNamespace] = useState(searchParams.get('patientNamespace') || ''); const [ehrId, setEhrId] = useState(searchParams.get('ehrId') || ''); const [mode, setMode] = useState<Mode>(() => { const requested = searchParams.get('mode'); return requested === 'edit' || requested === 'view' || requested === 'prefill' ? requested : 'create'; });
   const [launches, setLaunches] = useState<Record<string, Launch>>({}); const [data, setData] = useState<Record<string, DataState>>({}); const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [checking, setChecking] = useState(false);
   const [patients, setPatients] = useState<PatientOption[]>([]);
@@ -228,7 +228,7 @@ export default function CompositionRuntime() {
       }));
       await refreshSession(parent.id);
       refreshData();
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Composition-Session konnte nicht gestartet werden.'); }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Form-Vorgang konnte nicht gestartet werden.'); }
   };
   const startPage = () => (page ? startBlocks(page.blocks) : Promise.resolve());
   const startVisible = () => startBlocks(viewMode === 'stacked' ? (composition?.pages || []).filter((candidate) => !hiddenPageIds.has(candidate.id)).flatMap((candidate) => candidate.blocks) : (page?.blocks || []));
@@ -332,7 +332,7 @@ export default function CompositionRuntime() {
     return { total: transaction.operations.length, committed, failed, done: transaction.status === 'committed' };
   }, [transaction]);
   if (error && !record) return <div style={{ padding: '2rem', color: 'var(--danger)' }}>{error}</div>;
-  if (!record || !composition || !page) return <div style={{ padding: '2rem', color: 'var(--text-muted)' }}>Composition wird geladen…</div>;
+  if (!record || !composition || !page) return <div style={{ padding: '2rem', color: 'var(--text-muted)' }}>Form wird geladen…</div>;
   const complete = session?.progress.total === session?.progress.submitted && (session?.progress.total || 0) > 0;
 
   const renderBlock = (block: CompositionBlock) => {
@@ -415,7 +415,7 @@ export default function CompositionRuntime() {
       </div>
       <div style={{ height: 8, background: 'var(--border)', borderRadius: 99, overflow: 'hidden', margin: '.8rem 0' }}><div style={{ height: '100%', width: `${session.progress.total ? session.progress.submitted / session.progress.total * 100 : 0}%`, background: complete ? 'var(--success)' : 'var(--primary)', transition: 'width .2s' }} /></div>
       {session.children.map((child) => <div key={child.blockId} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.8rem', padding: '.15rem 0' }}>{childBadge(child.status)}<span style={{ color: 'var(--text-muted)' }}>{child.formId}</span>{saveOutcomes[child.blockId]?.status === 'error' && <span style={{ color: 'var(--danger)' }}>· {saveOutcomes[child.blockId].message}</span>}</div>)}
-      {complete && <div style={{ color: '#166534', fontWeight: 600, fontSize: '.85rem' }}>Der gesamte Composition-Vorgang ist abgeschlossen.</div>}
+      {complete && <div style={{ color: '#166534', fontWeight: 600, fontSize: '.85rem' }}>Der gesamte Vorgang ist abgeschlossen.</div>}
       <style>{'.lf-spin{animation:lf-spin .8s linear infinite}@keyframes lf-spin{to{transform:rotate(360deg)}}'}</style>
     </section>}
     {notice && <div className="card" style={{ marginBottom: '1rem', color: 'var(--primary)' }}>{notice}</div>}
