@@ -68,6 +68,19 @@ test('rejects invalid data displays and duplicate ids', () => {
   }), /duplicated|invalid display/i);
 });
 
+test('accepts the matrix display - one row per labelColumn value, one column per timeColumn bucket', () => {
+  const composition = normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'overview', title: 'Übersicht', blocks: [{
+      id: 'lab-matrix', type: 'data', title: 'Laborverlauf',
+      aqlFunctionId: 'lab-query', display: 'matrix',
+      valueColumn: 'value', labelColumn: 'analyte', timeColumn: 'recorded_at',
+    }] }],
+  });
+  assert.equal(composition.pages[0].blocks[0].display, 'matrix');
+  assert.equal(composition.pages[0].blocks[0].labelColumn, 'analyte');
+});
+
 test('moves composition blocks transactionally without duplicates or mutation', () => {
   const definition = {
     schemaVersion: COMPOSITION_SCHEMA_VERSION,
