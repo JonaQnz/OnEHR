@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Activity,
   ArrowLeft,
@@ -257,6 +257,8 @@ function EmptyState({ icon, title, detail }: { icon: React.ReactNode; title: str
 
 export default function PatientDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [patient, setPatient] = useState<PatientRecord | null>(null);
   useDocumentTitle(patient ? [patient.lastName, patient.firstName].filter(Boolean).join(', ') || patient.patientId : 'Patient');
   const [forms, setForms] = useState<StoredForm[]>([]);
@@ -356,6 +358,23 @@ export default function PatientDetail() {
     [publishedForms],
   );
 
+  // Klinisches Cockpit is bound as the fixed per-patient start page: opening
+  // a patient goes straight into its Composition runtime instead of this
+  // tabbed detail view. Matched by name (not a hardcoded form/parent id) so
+  // it keeps working across republishes and even a full rebuild of the Form.
+  // The `view=details` query flag (set on the "Zurück zur Patientenakte"
+  // return URL below) opts out for exactly one visit, so the tabs
+  // (Dokumente, Übersicht, Daten, Versionen, KIS...) stay reachable.
+  const cockpitForm = useMemo(
+    () => launchableForms.find((form) => form.name === 'Klinisches Cockpit'),
+    [launchableForms],
+  );
+  const skipCockpitRedirect = searchParams.get('view') === 'details';
+  useEffect(() => {
+    if (loading || !patient || !cockpitForm || skipCockpitRedirect) return;
+    navigate(patientFormUrl(cockpitForm, patient, `/patients/${id}?view=details`), { replace: true });
+  }, [loading, patient, cockpitForm, skipCockpitRedirect, navigate, id]);
+
   const sessionsWithData = useMemo(
     () => sessions.filter((session) => Object.keys(session.values || {}).length > 0),
     [sessions],
@@ -432,6 +451,10 @@ export default function PatientDetail() {
     );
   }
   if (!patient) return <div style={{ padding: '2rem' }}>Patient nicht gefunden.</div>;
+  // Redirect-in-flight for the fixed Klinisches-Cockpit start page (see the
+  // effect above) - render nothing but a loading hint instead of flashing
+  // the tabbed view for one frame before navigate() takes over.
+  if (cockpitForm && !skipCockpitRedirect) return <div style={{ padding: '2rem' }}>Öffne Klinisches Cockpit…</div>;
 
   const renderDocuments = () => (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
