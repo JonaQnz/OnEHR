@@ -82,6 +82,12 @@ export default function CompositionRuntime() {
     const requested = searchParams.get('returnUrl');
     return requested && requested.startsWith('/') && !requested.startsWith('//') ? requested : '/';
   }, [searchParams]);
+  // Set when this runtime is embedded inline as a tab of PatientDetail
+  // (rather than visited as its own page) - drops the page-level chrome
+  // ("Zurück zur Patientenakte", outer padding/max-width) that would
+  // otherwise be redundant nested inside a host page that already has its
+  // own back navigation and layout.
+  const embedded = searchParams.get('embedded') === '1';
   // Aggregated across every embedded child form's own 'dirty' embed event -
   // an iframe's own beforeunload guard only ever protects that iframe's own
   // document, never this page's route change, so the aggregate lives here.
@@ -382,8 +388,8 @@ export default function CompositionRuntime() {
   };
   const renderPageGrid = (target: CompositionPage) => <ClinicalGrid columns={target.columns || 1}>{target.blocks.filter((block) => !hiddenBlockIds.has(block.id)).map(renderBlock)}</ClinicalGrid>;
 
-  return <div style={{ maxWidth: 1280, margin: '0 auto', padding: '1.5rem' }}>
-    <a href={returnUrl} onClick={(event) => { event.preventDefault(); guardedNavigate(() => navigate(returnUrl)); }} style={{ display: 'inline-flex', gap: '.4rem', alignItems: 'center', color: 'var(--text-muted)', textDecoration: 'none', marginBottom: '1rem', cursor: 'pointer' }}><ArrowLeft size={16} /> Zurück zur Patientenakte</a>
+  return <div style={{ maxWidth: embedded ? '100%' : 1280, margin: '0 auto', padding: embedded ? 0 : '1.5rem' }}>
+    {!embedded && <a href={returnUrl} onClick={(event) => { event.preventDefault(); guardedNavigate(() => navigate(returnUrl)); }} style={{ display: 'inline-flex', gap: '.4rem', alignItems: 'center', color: 'var(--text-muted)', textDecoration: 'none', marginBottom: '1rem', cursor: 'pointer' }}><ArrowLeft size={16} /> Zurück zur Patientenakte</a>}
     <div className="card" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
       <div><h1 style={{ margin: 0 }}>{record.name}</h1><p style={{ color: 'var(--text-muted)', marginBottom: 0 }}>Mehrere Formulare als ein fortsetzbarer klinischer Vorgang.</p></div>
       <div role="group" aria-label="Ansicht" style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>

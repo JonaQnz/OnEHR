@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   Activity,
   ArrowLeft,
@@ -90,8 +90,12 @@ interface FieldDescriptor {
   options: Map<string, string>;
 }
 
-type PatientTab = 'documents' | 'overview' | 'data' | 'versions' | 'kis' | 'clinicalCompositions';
+type PatientTab = 'cockpit' | 'documents' | 'overview' | 'data' | 'versions' | 'kis' | 'clinicalCompositions';
 
+// 'cockpit' is prepended separately in the render (only when a "Klinisches
+// Cockpit" Form is actually published for this instance) rather than listed
+// here statically, so installs without that Form see the tab bar exactly as
+// before.
 const TABS: Array<{ id: PatientTab; label: string }> = [
   { id: 'documents', label: 'Formulare und Dokumente' },
   { id: 'overview', label: 'Übersicht' },
@@ -257,8 +261,6 @@ function EmptyState({ icon, title, detail }: { icon: React.ReactNode; title: str
 
 export default function PatientDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const [patient, setPatient] = useState<PatientRecord | null>(null);
   useDocumentTitle(patient ? [patient.lastName, patient.firstName].filter(Boolean).join(', ') || patient.patientId : 'Patient');
   const [forms, setForms] = useState<StoredForm[]>([]);
@@ -358,22 +360,25 @@ export default function PatientDetail() {
     [publishedForms],
   );
 
-  // Klinisches Cockpit is bound as the fixed per-patient start page: opening
-  // a patient goes straight into its Composition runtime instead of this
-  // tabbed detail view. Matched by name (not a hardcoded form/parent id) so
-  // it keeps working across republishes and even a full rebuild of the Form.
-  // The `view=details` query flag (set on the "Zurück zur Patientenakte"
-  // return URL below) opts out for exactly one visit, so the tabs
-  // (Dokumente, Übersicht, Daten, Versionen, KIS...) stay reachable.
+  // Klinisches Cockpit is bound as the fixed per-patient start page - but
+  // integrated as the default tab of this same page (embedded inline),
+  // not a separate destination: the other tabs and the "Neues Formular"
+  // picker stay visible and reachable at all times, exactly as before.
+  // Matched by name (not a hardcoded form/parent id) so it keeps working
+  // across republishes and even a full rebuild of the Form.
   const cockpitForm = useMemo(
     () => launchableForms.find((form) => form.name === 'Klinisches Cockpit'),
     [launchableForms],
   );
-  const skipCockpitRedirect = searchParams.get('view') === 'details';
+  // Switches to the Cockpit tab the first time it becomes available (forms
+  // load asynchronously, so it's usually not there on the very first
+  // render) - but only until the user has actually clicked a tab
+  // themselves, so it never yanks them away from a tab they picked.
+  const [userPickedTab, setUserPickedTab] = useState(false);
   useEffect(() => {
-    if (loading || !patient || !cockpitForm || skipCockpitRedirect) return;
-    navigate(patientFormUrl(cockpitForm, patient, `/patients/${id}?view=details`), { replace: true });
-  }, [loading, patient, cockpitForm, skipCockpitRedirect, navigate, id]);
+    if (!userPickedTab && cockpitForm) setActiveTab('cockpit');
+  }, [cockpitForm, userPickedTab]);
+  const selectTab = (tab: PatientTab) => { setUserPickedTab(true); setActiveTab(tab); };
 
   const sessionsWithData = useMemo(
     () => sessions.filter((session) => Object.keys(session.values || {}).length > 0),
@@ -451,10 +456,26 @@ export default function PatientDetail() {
     );
   }
   if (!patient) return <div style={{ padding: '2rem' }}>Patient nicht gefunden.</div>;
-  // Redirect-in-flight for the fixed Klinisches-Cockpit start page (see the
-  // effect above) - render nothing but a loading hint instead of flashing
-  // the tabbed view for one frame before navigate() takes over.
-  if (cockpitForm && !skipCockpitRedirect) return <div style={{ padding: '2rem' }}>Öffne Klinisches Cockpit…</div>;
+
+  // The Cockpit Composition itself already brings its own page-tabs (e.g.
+  // Übersicht, Zeitleiste, Labor...), "Formular auswählen"-equivalent block
+  // launches, and view toggles - embedding it via its normal runtime route
+  // (with `embedded=1` to drop that page's own redundant back-link/chrome)
+  // is what actually integrates it, instead of duplicating that UI here.
+  const renderCockpit = (form: StoredForm) => {
+    const parameters = new URLSearchParams({ patientId: patient.patientId, embedded: '1' });
+    if (patient.namespace) parameters.set('patientNamespace', patient.namespace);
+    if (patient.ehrId) parameters.set('ehrId', patient.ehrId);
+    return (
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <iframe
+          title="Klinisches Cockpit"
+          src={`/compositions/${form.id}?${parameters.toString()}`}
+          style={{ width: '100%', minHeight: '1100px', border: 0, display: 'block', background: 'var(--bg-body)' }}
+        />
+      </div>
+    );
+  };
 
   const renderDocuments = () => (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -730,7 +751,7 @@ export default function PatientDetail() {
         <div className="card">
           <h3 style={{ marginTop: 0, fontSize: '1rem' }}>Arbeitsliste</h3>
           {sessions.filter((session) => ['draft', 'in_progress', 'ready', 'failed'].includes(session.status)).length === 0 ? <span style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>Keine offenen Formularvorgänge.</span> : sessions.filter((session) => ['draft', 'in_progress', 'ready', 'failed'].includes(session.status)).slice(0, 5).map((session) => <div key={session.id} style={{ padding: '.7rem 0', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: '.5rem' }}><div><strong style={{ display: 'block', fontSize: '.88rem' }}>{formName(session)}</strong><span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{formatDateTime(session.updatedAt)}</span></div>{statusBadge(session.status)}</div>)}
-          <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem' }} onClick={() => setActiveTab('documents')}>Vorgänge öffnen</button>
+          <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem' }} onClick={() => selectTab('documents')}>Vorgänge öffnen</button>
         </div>
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)' }}><strong>Formular-Integration</strong><div style={{ color: 'var(--text-muted)', fontSize: '.8rem', marginTop: '.25rem' }}>Einbettung im KIS, Create/Edit/Prefill und Provider-Laden</div></div>
@@ -868,7 +889,7 @@ export default function PatientDetail() {
         aria-label="Bereiche der Patientenakte"
         style={{ display: 'flex', gap: '1.75rem', borderBottom: '1px solid var(--border)', marginBottom: '2rem', overflowX: 'auto' }}
       >
-        {TABS.map((tab) => {
+        {(cockpitForm ? [{ id: 'cockpit' as const, label: 'Klinisches Cockpit' }, ...TABS] : TABS).map((tab) => {
           const active = activeTab === tab.id;
           return (
             <button
@@ -876,7 +897,7 @@ export default function PatientDetail() {
               type="button"
               role="tab"
               aria-selected={active}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => selectTab(tab.id)}
               style={{
                 padding: '0 0 0.65rem',
                 border: 0,
@@ -895,6 +916,7 @@ export default function PatientDetail() {
       </div>
 
       <div role="tabpanel">
+        {activeTab === 'cockpit' && cockpitForm && renderCockpit(cockpitForm)}
         {activeTab === 'documents' && renderDocuments()}
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'data' && renderData()}
