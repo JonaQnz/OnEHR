@@ -165,6 +165,16 @@ export interface FormRuntimeSettings {
    * defaulting to `true` - unchanged behavior). Never affects the final
    * submit, which always pushes regardless of this setting. */
   pushDraftsToProvider?: boolean;
+  /** Whether creating a session for this Form Section fetches its patient's
+   * latest submitted Composition from the provider (EHRbase) to populate a
+   * form script's read-only `context.composition` - independent of, and
+   * unconditional on, the launch's own `load` policy ('never' included).
+   * Unset (the default, `true`) is unchanged behavior. A Form Section whose
+   * scripts never read `context.composition` can set this to `false` to
+   * skip that provider round-trip entirely - on a Composition with several
+   * blocks per page, each one otherwise pays this cost on every launch
+   * regardless of whether it's ever used. */
+  loadLatestCompositionContext?: boolean;
 }
 
 /** "Aus vorheriger Dokumentation übernehmen" - lets the runtime offer a
