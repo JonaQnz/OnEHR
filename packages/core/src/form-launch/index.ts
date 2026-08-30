@@ -34,6 +34,17 @@ export interface FormLaunchRequest {
   /** Per-instance display-label override, keyed by field id. Cosmetic only -
    * never changes the referenced Form Section's own canonical label. */
   fieldLabelOverrides?: Record<string, string>;
+  /** Required when formId names a bare Form Section (kind "form", no
+   * `watehr.composition` extension) - a Form Section can never be launched
+   * standalone for a patient, only as a block already wired into a running
+   * Composition session. The server independently verifies this block
+   * really exists on the referenced Composition session and really maps to
+   * this formId before allowing the launch; it is not a client-trusted
+   * flag. Omit entirely when formId is itself a Form/Composition. */
+  compositionContext?: {
+    compositionSessionId: string;
+    blockId: string;
+  };
 }
 
 export interface FormLaunchResult {

@@ -13,9 +13,14 @@ const runtimeMode = z.enum(['create', 'edit', 'view', 'prefill']);
  * create_form_session is the lower-level primitive underneath it, for
  * finer-grained control. */
 export function registerRuntimeTools(server: McpServer, api: FormbuilderApiClient): void {
+  const compositionContext = z.object({
+    compositionSessionId: z.string().describe('An existing composition session id, from start_composition_session or get_composition_session.'),
+    blockId: z.string().describe('The block id (within that composition session\'s Form definition) this Form Section fills - see get_form on the composition\'s compositionFormId for its extensions["watehr.composition"].pages[].blocks.'),
+  }).describe('Required when formId names a bare Form Section (a Form with no watehr.composition extension, i.e. kind "form") - Form Sections can never be launched standalone for a patient, only as a block already wired into a running Composition session. Verified server-side against the referenced composition session and its block list; a bogus id is rejected, not trusted. Omit entirely when formId is itself a Form/Composition.');
+
   server.registerTool('launch_form', {
     title: 'Launch a form for a patient',
-    description: 'Starts (or resumes) a form session for a patient in one call - the same entry point a real embedding host uses. Returns a session to then patch_form_session (save answers), validate_form_session, and submit_form_session_to_provider. Prefer this over create_form_session unless you need lower-level control.',
+    description: 'Starts (or resumes) a form session for a patient in one call - the same entry point a real embedding host uses. Returns a session to then patch_form_session (save answers), validate_form_session, and submit_form_session_to_provider. Prefer this over create_form_session unless you need lower-level control. formId must be a Form/Composition unless compositionContext is given - see that field\'s description. To fill a Composition\'s block, prefer start_composition_session + launch_form (with compositionContext) + attach_composition_block over launching the Form Section on its own.',
     inputSchema: {
       formId: z.string(),
       patient: z.object({ id: z.string(), namespace: z.string().optional() }),
@@ -24,12 +29,13 @@ export function registerRuntimeTools(server: McpServer, api: FormbuilderApiClien
       providerReference: z.string().optional().describe('An explicit openEHR composition version/reference to load, for edit mode.'),
       load: z.enum(['never', 'provider']).optional().describe('"provider" loads existing EHRbase data for this patient/form before returning (needed for edit/view of existing data).'),
       encounterId: z.string().optional(),
+      compositionContext: compositionContext.optional(),
     },
   }, (input) => toResult(() => api.post('/api/form-launches', input)));
 
   server.registerTool('create_form_session', {
     title: 'Create a form session (low-level)',
-    description: 'Creates a form session directly, without launch_form\'s provider-loading/initial-values convenience. Prefer launch_form for the normal "start this form for this patient" case.',
+    description: 'Creates a form session directly, without launch_form\'s provider-loading/initial-values convenience. Prefer launch_form for the normal "start this form for this patient" case. formId must be a Form/Composition unless compositionContext is given - see that field\'s description.',
     inputSchema: {
       formId: z.string(),
       patientId: z.string(),
@@ -38,6 +44,7 @@ export function registerRuntimeTools(server: McpServer, api: FormbuilderApiClien
       mode: runtimeMode.optional(),
       providerId: z.string().optional(),
       providerReference: z.string().optional(),
+      compositionContext: compositionContext.optional(),
     },
   }, (input) => toResult(() => api.post('/api/form-sessions', input)));
 
