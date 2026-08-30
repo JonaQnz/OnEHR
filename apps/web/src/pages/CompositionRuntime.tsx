@@ -179,8 +179,17 @@ export default function CompositionRuntime() {
     if (!contextReady || !record) return;
     try {
       const parent = await ensureSession(); if (!parent) return;
-      for (const block of blocks) {
-        if (block.type !== 'form' || !block.formId || launches[block.id]?.url || launches[block.id]?.loading) continue;
+      // Each block's launch+attach is independent of every other block's -
+      // they each target their own slot on the same parent composition
+      // session, and the backend already handles concurrent attaches
+      // safely (optimistic concurrency with a retry-once on conflict, see
+      // attachCompositionChild). Launching them in parallel instead of one
+      // at a time turns a page's load time from N sequential round-trips
+      // into roughly one - this used to be the dominant cost on
+      // Compositions with several blocks per page (e.g. Polytrauma -
+      // Intensivstation's 5-block "Organfunktion & Labor" tab).
+      await Promise.all(blocks.map(async (block) => {
+        if (block.type !== 'form' || !block.formId || launches[block.id]?.url || launches[block.id]?.loading) return;
         const childSessionId = parent.childSessions[block.id];
         if (childSessionId) {
           // Resuming an already-attached block bypasses launchEmbeddedForm
@@ -193,17 +202,26 @@ export default function CompositionRuntime() {
           if (block.hiddenFieldIds?.length) resumeQuery.set('hiddenFieldIds', block.hiddenFieldIds.join(','));
           if (block.fieldLabelOverrides && Object.keys(block.fieldLabelOverrides).length > 0) resumeQuery.set('fieldLabelOverrides', JSON.stringify(block.fieldLabelOverrides));
           setLaunches((current) => ({ ...current, [block.id]: { url: formEmbedUrl(`/embed/forms/${encodeURIComponent(block.formId)}?${resumeQuery.toString()}`) } }));
-          continue;
+          return;
         }
         setLaunches((current) => ({ ...current, [block.id]: { loading: true } }));
         try {
           const blockLoad = block.load || (mode === 'create' ? 'never' : 'provider');
           const blockMode = mode === 'create' && blockLoad === 'provider' ? 'prefill' : mode;
           const launch = await launchEmbeddedForm({ formId: block.formId, patient: { id: patientId.trim(), ...(namespace.trim() ? { namespace: namespace.trim() } : {}) }, mode: blockMode, load: blockLoad, hiddenFieldIds: block.hiddenFieldIds, fieldLabelOverrides: block.fieldLabelOverrides, launchId: `${parent.id}:${block.id}` });
-          const attached = await request<CompositionSession>(`/composition-sessions/${encodeURIComponent(parent.id)}/blocks/${encodeURIComponent(block.id)}`, { method: 'PUT', body: JSON.stringify({ childSessionId: launch.session.id }) });
-          setSession(attached); setLaunches((current) => ({ ...current, [block.id]: { url: formEmbedUrl(launch.launchUrl) } }));
+          // Not applying this call's own returned session snapshot here:
+          // when several blocks attach concurrently, whichever PUT resolves
+          // last on the client doesn't necessarily reflect every other
+          // block's attachment yet (each response is a snapshot as of its
+          // own server-side commit) - setSession(attached) here would risk
+          // clobbering a sibling block's just-attached state with a stale
+          // one. A single refreshSession() after all blocks have settled
+          // (below) is the correct, race-free source of truth.
+          await request<CompositionSession>(`/composition-sessions/${encodeURIComponent(parent.id)}/blocks/${encodeURIComponent(block.id)}`, { method: 'PUT', body: JSON.stringify({ childSessionId: launch.session.id }) });
+          setLaunches((current) => ({ ...current, [block.id]: { url: formEmbedUrl(launch.launchUrl) } }));
         } catch (reason) { setLaunches((current) => ({ ...current, [block.id]: { error: reason instanceof Error ? reason.message : 'Formular konnte nicht gestartet werden.' } })); }
-      }
+      }));
+      await refreshSession(parent.id);
       refreshData();
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Composition-Session konnte nicht gestartet werden.'); }
   };
