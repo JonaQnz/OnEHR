@@ -31,6 +31,9 @@ export interface FormLaunchRequest {
   encounterId?: string;
   /** Optional non-required fields hidden by a trusted Composition host. */
   hiddenFieldIds?: string[];
+  /** Per-instance display-label override, keyed by field id. Cosmetic only -
+   * never changes the referenced Form Section's own canonical label. */
+  fieldLabelOverrides?: Record<string, string>;
 }
 
 export interface FormLaunchResult {

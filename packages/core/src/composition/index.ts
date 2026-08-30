@@ -17,6 +17,10 @@ export interface CompositionFormBlock {
   load?: FormLaunchLoadPolicy;
   /** Only optional fields may be hidden; required fields remain visible. */
   hiddenFieldIds?: string[];
+  /** Per-instance display-label override, keyed by field id. Cosmetic only -
+   * never changes the referenced Form Section's own canonical label, so the
+   * same Form Section keeps its original labels everywhere else it's used. */
+  fieldLabelOverrides?: Record<string, string>;
   column?: 1 | 2 | 3;
   displayMode?: 'auto' | 'fixed';
 }
@@ -203,6 +207,16 @@ function stringList(value: unknown, name: string): string[] | undefined {
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || !item.trim())) throw new Error(`Composition ${name} must be a string array`);
   return [...new Set(value.map((item) => item.trim()))];
 }
+function stringRecord(value: unknown, name: string): Record<string, string> | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) throw new Error(`Composition ${name} must be an object`);
+  const entries = Object.entries(value).filter(([key, item]) => {
+    if (typeof key !== 'string' || !key.trim()) throw new Error(`Composition ${name} keys must be non-empty strings`);
+    if (typeof item !== 'string') throw new Error(`Composition ${name} values must be strings`);
+    return item.trim().length > 0;
+  }) as [string, string][];
+  return entries.length > 0 ? Object.fromEntries(entries.map(([key, item]) => [key.trim(), item.trim()])) : undefined;
+}
 
 const COMPOSITION_LAYOUT_ELEMENTS = new Set<CompositionLayoutElement['element']>([
   'FieldSet', 'TwoColumnRow', 'ThreeColumnRow', 'Header', 'Label', 'Paragraph', 'LineBreak', 'HyperLink', 'block',
@@ -285,7 +299,8 @@ export function normalizeCompositionDefinition(value: unknown): CompositionDefin
             const load = rawBlock.load;
             if (load !== undefined && load !== 'never' && load !== 'provider') throw new Error(`Composition form block '${blockId}' has an invalid load policy`);
             const hiddenFieldIds = stringList(rawBlock.hiddenFieldIds, `form block '${blockId}' hiddenFieldIds`);
-            return { id: blockId, type: 'form', formId: requiredId(rawBlock.formId, `form block '${blockId}' formId`), ...(typeof rawBlock.title === 'string' && rawBlock.title.trim() ? { title: rawBlock.title.trim() } : {}), ...(mode ? { mode: mode as FormRuntimeMode } : {}), ...(load ? { load } : {}), ...(hiddenFieldIds ? { hiddenFieldIds } : {}), ...(column ? { column } : {}) };
+            const fieldLabelOverrides = stringRecord(rawBlock.fieldLabelOverrides, `form block '${blockId}' fieldLabelOverrides`);
+            return { id: blockId, type: 'form', formId: requiredId(rawBlock.formId, `form block '${blockId}' formId`), ...(typeof rawBlock.title === 'string' && rawBlock.title.trim() ? { title: rawBlock.title.trim() } : {}), ...(mode ? { mode: mode as FormRuntimeMode } : {}), ...(load ? { load } : {}), ...(hiddenFieldIds ? { hiddenFieldIds } : {}), ...(fieldLabelOverrides ? { fieldLabelOverrides } : {}), ...(column ? { column } : {}) };
           }
           if (rawBlock.type === 'data') {
             const display = rawBlock.display;

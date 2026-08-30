@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LayoutGrid, Loader2, Rows3, RefreshCw, Save } from 'lucide-react';
-import { COMPOSITION_SCRIPTING_EXTENSION_KEY, getCompositionDefinition, normalizeCompositionScript, type CompositionBlock, type CompositionDataBlock, type CompositionDefinition, type CompositionPage, type FormDefinitionV1 } from 'core';
+import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LayoutGrid, Loader2, Maximize2, Minimize2, Rows3, RefreshCw, Save } from 'lucide-react';
+import { COMPOSITION_SCRIPTING_EXTENSION_KEY, getCompositionDefinition, normalizeCompositionScript, summarizeRuntimeValues, type CompositionBlock, type CompositionDataBlock, type CompositionDefinition, type CompositionPage, type FormDefinitionV1, type RuntimeValues } from 'core';
 import { formEmbedUrl, isFormEmbedEvent, launchEmbeddedForm } from '../integration/formLaunch';
 import { ClinicalGrid, ClinicalStack, ClinicalTabs } from '../components/layout/ClinicalLayout';
 import { CompositionScriptClient } from '../scripting/runtime/CompositionScriptClient';
@@ -110,6 +110,47 @@ export default function CompositionRuntime() {
   }, [id, composition]);
   const setViewMode = (next: ViewMode) => { setViewModeState(next); if (id) localStorage.setItem(`compositionViewMode:${id}`, next); };
 
+  // Compact/full toggle per Form Section block - "hin und her switchen"
+  // between the full embedded iframe and a dense one-line read summary, so
+  // a page with several instances of the same Form Section (e.g. Haupt- +
+  // mehrere Nebendiagnosen) doesn't force scrolling through every field of
+  // every one just to see which is which. A per-browser display
+  // preference, like viewMode - not clinical data, so localStorage (keyed
+  // per Composition) is the right home, not the session.
+  const [compactBlocks, setCompactBlocksState] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    if (!id) return;
+    try { setCompactBlocksState(new Set(JSON.parse(localStorage.getItem(`compositionCompactBlocks:${id}`) || '[]'))); } catch { setCompactBlocksState(new Set()); }
+  }, [id]);
+  const toggleCompact = (blockId: string) => {
+    setCompactBlocksState((current) => {
+      const next = new Set(current);
+      next.has(blockId) ? next.delete(blockId) : next.add(blockId);
+      if (id) localStorage.setItem(`compositionCompactBlocks:${id}`, JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
+  // The compact summary needs two things the parent frame doesn't normally
+  // have: the child Form Section's own definition (for field labels/
+  // summaryFieldIds) and the child session's current values (the iframe
+  // owns those, not this page) - both fetched lazily, only for blocks
+  // actually switched to compact, and refreshed whenever the composition
+  // session changes (a save/load/submit in the iframe) so the summary never
+  // shows stale values.
+  const [childForms, setChildForms] = useState<Record<string, FormRecord>>({});
+  const [childValues, setChildValues] = useState<Record<string, RuntimeValues>>({});
+  useEffect(() => {
+    if (!session || !composition || compactBlocks.size === 0) return;
+    const formBlocks = composition.pages.flatMap((candidate) => candidate.blocks).filter((block): block is Extract<CompositionBlock, { type: 'form' }> => block.type === 'form');
+    compactBlocks.forEach((blockId) => {
+      const block = formBlocks.find((candidate) => candidate.id === blockId);
+      const childSessionId = session.childSessions[blockId];
+      if (!block || !childSessionId) return;
+      if (!childForms[block.formId]) void request<FormRecord>(`/forms/${encodeURIComponent(block.formId)}`).then((record) => setChildForms((current) => ({ ...current, [block.formId]: record }))).catch(() => {});
+      void request<{ values: RuntimeValues }>(`/form-sessions/${encodeURIComponent(childSessionId)}`).then((record) => setChildValues((current) => ({ ...current, [blockId]: record.values || {} }))).catch(() => {});
+    });
+  }, [compactBlocks, session, composition]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const page = composition?.pages[pageIndex]; const contextReady = patientId.trim().length > 0 && ehrId.trim().length > 0;
   const reset = () => { setSession(null); setLaunches({}); setData({}); setNotice(''); setSaveOutcomes({}); setTransaction(null); setTransactionError(''); transactionClientId.current = crypto.randomUUID(); iframeRefs.current = {}; };
   const refreshSession = async (sessionId = session?.id) => { if (!sessionId) return; const next = await request<CompositionSession>(`/composition-sessions/${encodeURIComponent(sessionId)}`); setSession(next); return next; };
@@ -141,12 +182,24 @@ export default function CompositionRuntime() {
       for (const block of blocks) {
         if (block.type !== 'form' || !block.formId || launches[block.id]?.url || launches[block.id]?.loading) continue;
         const childSessionId = parent.childSessions[block.id];
-        if (childSessionId) { setLaunches((current) => ({ ...current, [block.id]: { url: formEmbedUrl(`/embed/forms/${encodeURIComponent(block.formId)}?sessionId=${encodeURIComponent(childSessionId)}&launchId=${encodeURIComponent(`${parent.id}:${block.id}`)}`) } })); continue; }
+        if (childSessionId) {
+          // Resuming an already-attached block bypasses launchEmbeddedForm
+          // (no new session to create) - but the host-level per-instance
+          // overrides below still have to reach the iframe by hand here,
+          // exactly like the fresh-launch branch below does via
+          // formLaunchService, or a resumed block would silently render
+          // with its bare Form Section defaults on every page reload.
+          const resumeQuery = new URLSearchParams({ sessionId: childSessionId, launchId: `${parent.id}:${block.id}` });
+          if (block.hiddenFieldIds?.length) resumeQuery.set('hiddenFieldIds', block.hiddenFieldIds.join(','));
+          if (block.fieldLabelOverrides && Object.keys(block.fieldLabelOverrides).length > 0) resumeQuery.set('fieldLabelOverrides', JSON.stringify(block.fieldLabelOverrides));
+          setLaunches((current) => ({ ...current, [block.id]: { url: formEmbedUrl(`/embed/forms/${encodeURIComponent(block.formId)}?${resumeQuery.toString()}`) } }));
+          continue;
+        }
         setLaunches((current) => ({ ...current, [block.id]: { loading: true } }));
         try {
           const blockLoad = block.load || (mode === 'create' ? 'never' : 'provider');
           const blockMode = mode === 'create' && blockLoad === 'provider' ? 'prefill' : mode;
-          const launch = await launchEmbeddedForm({ formId: block.formId, patient: { id: patientId.trim(), ...(namespace.trim() ? { namespace: namespace.trim() } : {}) }, mode: blockMode, load: blockLoad, hiddenFieldIds: block.hiddenFieldIds, launchId: `${parent.id}:${block.id}` });
+          const launch = await launchEmbeddedForm({ formId: block.formId, patient: { id: patientId.trim(), ...(namespace.trim() ? { namespace: namespace.trim() } : {}) }, mode: blockMode, load: blockLoad, hiddenFieldIds: block.hiddenFieldIds, fieldLabelOverrides: block.fieldLabelOverrides, launchId: `${parent.id}:${block.id}` });
           const attached = await request<CompositionSession>(`/composition-sessions/${encodeURIComponent(parent.id)}/blocks/${encodeURIComponent(block.id)}`, { method: 'PUT', body: JSON.stringify({ childSessionId: launch.session.id }) });
           setSession(attached); setLaunches((current) => ({ ...current, [block.id]: { url: formEmbedUrl(launch.launchUrl) } }));
         } catch (reason) { setLaunches((current) => ({ ...current, [block.id]: { error: reason instanceof Error ? reason.message : 'Formular konnte nicht gestartet werden.' } })); }
@@ -163,7 +216,14 @@ export default function CompositionRuntime() {
     if (!script.compiled) return;
     setHiddenPageIds(new Set()); setHiddenBlockIds(new Set());
     const status = { currentPage: composition.pages[pageIndex]?.id || composition.pages[0].id, completedBlocks: session?.children.filter((child) => child.status === 'submitted').map((child) => child.blockId) || [], pendingBlocks: session?.children.filter((child) => child.status !== 'submitted').map((child) => child.blockId) || [], state: (session?.status === 'submitted' ? 'submitted' : session ? 'in_progress' : 'draft') as 'draft' | 'in_progress' | 'completed' | 'submitted' };
-    const client = new CompositionScriptClient({ compiled: script.compiled, pageIds: composition.pages.map((candidate) => candidate.id), blockIds: composition.pages.flatMap((candidate) => candidate.blocks.map((block) => block.id)), dataBlockIds: composition.pages.flatMap((candidate) => candidate.blocks.filter((block) => block.type === 'data').map((block) => block.id)), status, onPageVisibility: (blockId, visible) => setHiddenPageIds((current) => { const next = new Set(current); visible ? next.delete(blockId) : next.add(blockId); return next; }), onBlockVisibility: (blockId, visible) => setHiddenBlockIds((current) => { const next = new Set(current); visible ? next.delete(blockId) : next.add(blockId); return next; }), onRefreshData: (blockId) => refreshData(blockId, true), onDataLoading: (blockId, loading) => setData((current) => ({ ...current, [blockId]: { ...current[blockId], loading } })), onNavigate: (target) => setPageIndex(composition.pages.findIndex((candidate) => candidate.id === target)), onNext: () => setPageIndex((current) => Math.min(composition.pages.length - 1, current + 1)), onPrevious: () => setPageIndex((current) => Math.max(0, current - 1)), onError: setNotice });
+    const client = new CompositionScriptClient({ compiled: script.compiled, pageIds: composition.pages.map((candidate) => candidate.id), blockIds: composition.pages.flatMap((candidate) => candidate.blocks.map((block) => block.id)), dataBlockIds: composition.pages.flatMap((candidate) => candidate.blocks.filter((block) => block.type === 'data').map((block) => block.id)), status, onPageVisibility: (blockId, visible) => setHiddenPageIds((current) => { const next = new Set(current); visible ? next.delete(blockId) : next.add(blockId); return next; }), onBlockVisibility: (blockId, visible) => setHiddenBlockIds((current) => { const next = new Set(current); visible ? next.delete(blockId) : next.add(blockId); return next; }), onRefreshData: (blockId) => refreshData(blockId, true), onDataLoading: (blockId, loading) => setData((current) => ({ ...current, [blockId]: { ...current[blockId], loading } })), onNavigate: (target) => setPageIndex(composition.pages.findIndex((candidate) => candidate.id === target)), onNext: () => setPageIndex((current) => Math.min(composition.pages.length - 1, current + 1)), onPrevious: () => setPageIndex((current) => Math.max(0, current - 1)), onError: setNotice,
+      // forms.field(blockId, fieldName).setValue(value) - a trusted,
+      // explicit escape hatch (e.g. "Vorbefund übernehmen" from a
+      // data.onPick handler). Posted straight into that block's own form
+      // iframe, same-origin, mirroring the existing EXTERNAL_FORM_SUBMIT
+      // ad-hoc message convention rather than the versioned iframe->host
+      // FormEmbedEvent protocol (this direction is host->iframe).
+      onSetFormField: (blockId, fieldName, value) => { iframeRefs.current[blockId]?.contentWindow?.postMessage({ type: 'COMPOSITION_SET_FIELD', fieldName, value }, window.location.origin); } });
     scriptClient.current = client; return () => { client.destroy(); if (scriptClient.current === client) scriptClient.current = null; };
   }, [record, composition, contextReady, patientId, namespace, ehrId, mode]); // script gets a fresh, scoped patient context
   useEffect(() => { if (!composition || !page) return; scriptClient.current?.updateStatus({ currentPage: page.id, completedBlocks: session?.children.filter((child) => child.status === 'submitted').map((child) => child.blockId) || [], pendingBlocks: session?.children.filter((child) => child.status !== 'submitted').map((child) => child.blockId) || [], state: (session?.status === 'submitted' ? 'submitted' : session ? 'in_progress' : 'draft') }); }, [composition, page, session]);
@@ -252,7 +312,14 @@ export default function CompositionRuntime() {
   if (!record || !composition || !page) return <div style={{ padding: '2rem', color: 'var(--text-muted)' }}>Composition wird geladen…</div>;
   const complete = session?.progress.total === session?.progress.submitted && (session?.progress.total || 0) > 0;
 
-  const renderBlock = (block: CompositionBlock) => (
+  const renderBlock = (block: CompositionBlock) => {
+    const isCompact = block.type === 'form' && compactBlocks.has(block.id);
+    const compactForm = block.type === 'form' ? childForms[block.formId] : undefined;
+    const compactValues = block.type === 'form' ? childValues[block.id] : undefined;
+    const compactSummary = compactForm && compactValues
+      ? summarizeRuntimeValues(compactForm.canonical_json, compactValues, compactForm.canonical_json.settings?.reuse?.summaryFieldIds)
+      : '';
+    return (
     <div key={block.id} style={{ gridColumn: `span ${block.column || 1}` }}>
       {block.type === 'form' ? (
         <section className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -260,19 +327,36 @@ export default function CompositionRuntime() {
             <FileText size={17} color="var(--primary)" />
             <strong>{block.title || 'Formular'}</strong>
             {childBadge(session?.children.find((child) => child.blockId === block.id)?.status)}
-            <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: '.78rem' }}>Modus: {mode === 'create' ? 'Neu' : mode === 'edit' ? 'Bearbeiten' : mode === 'prefill' ? 'Vorausfüllen' : 'Ansehen'}</span>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: '.78rem' }}>Modus: {mode === 'create' ? 'Neu' : mode === 'edit' ? 'Bearbeiten' : mode === 'prefill' ? 'Vorausfüllen' : 'Ansehen'}</span>
+              <button type="button" onClick={() => toggleCompact(block.id)} title={isCompact ? 'Vollständig anzeigen' : 'Kompakt anzeigen'} style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', padding: '.3rem' }}>
+                {isCompact ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+              </button>
+            </div>
           </div>
-          {launches[block.id]?.loading && <div style={{ padding: '2rem', color: 'var(--text-muted)', textAlign: 'center' }}>Formular wird vorbereitet…</div>}
-          {launches[block.id]?.error && <div style={{ padding: '1rem', color: 'var(--danger)' }}>{launches[block.id].error}</div>}
-          {launches[block.id]?.url && <iframe ref={(node) => { iframeRefs.current[block.id] = node; }} title={block.title || block.id} src={launches[block.id].url} style={{ border: 0, width: '100%', height: block.displayMode === 'fixed' ? 720 : (iframeHeights[block.id] || 300), display: 'block', background: 'var(--bg-body)', transition: 'height .2s' }} scrolling={block.displayMode === 'fixed' ? 'auto' : 'no'} />}
+          {isCompact && (
+            <div style={{ padding: '1rem 1.1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+              <span style={{ color: compactSummary ? 'var(--text-body, inherit)' : 'var(--text-muted)', fontSize: '.95rem', lineHeight: 1.5 }}>{compactSummary || (compactForm ? 'Noch keine Angaben.' : 'Lädt…')}</span>
+              <button type="button" className="btn btn-secondary" style={{ flexShrink: 0, fontSize: '.8rem', padding: '.4rem .8rem' }} onClick={() => toggleCompact(block.id)}>Bearbeiten</button>
+            </div>
+          )}
+          {/* Kept mounted (only visually hidden) rather than unmounted while
+              compact - the iframe's own unsaved edits would otherwise be
+              lost the instant someone toggles to compact mid-edit. */}
+          <div style={{ display: isCompact ? 'none' : 'block' }}>
+            {launches[block.id]?.loading && <div style={{ padding: '2rem', color: 'var(--text-muted)', textAlign: 'center' }}>Formular wird vorbereitet…</div>}
+            {launches[block.id]?.error && <div style={{ padding: '1rem', color: 'var(--danger)' }}>{launches[block.id].error}</div>}
+            {launches[block.id]?.url && <iframe ref={(node) => { iframeRefs.current[block.id] = node; }} title={block.title || block.id} src={launches[block.id].url} style={{ border: 0, width: '100%', height: block.displayMode === 'fixed' ? 720 : (iframeHeights[block.id] || 300), display: 'block', background: 'var(--bg-body)', transition: 'height .2s' }} scrolling={block.displayMode === 'fixed' ? 'auto' : 'no'} />}
+          </div>
         </section>
       ) : block.type === 'data' ? (
-        <WidgetDataCard block={block} state={data[block.id]} />
+        <WidgetDataCard block={block} state={data[block.id]} onPick={(row) => scriptClient.current?.pickData(block.id, row)} />
       ) : (
         <section className="card"><strong>{block.title}</strong><p style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{block.content}</p></section>
       )}
     </div>
-  );
+    );
+  };
   const renderPageGrid = (target: CompositionPage) => <ClinicalGrid columns={target.columns || 1}>{target.blocks.filter((block) => !hiddenBlockIds.has(block.id)).map(renderBlock)}</ClinicalGrid>;
 
   return <div style={{ maxWidth: 1280, margin: '0 auto', padding: '1.5rem' }}>

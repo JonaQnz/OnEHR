@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -11,7 +11,7 @@ import {
   Undo2,
   XCircle,
 } from 'lucide-react';
-import { FORM_LAUNCH_PROTOCOL_VERSION, type FormDefinitionV1, type FormEmbedEventName, type RuntimeValues, type FormSessionRuntimeContext, type FormSessionLifecycleState, type FormSessionChangeType, type SaveState, type CompositionVersion } from 'core';
+import { FORM_LAUNCH_PROTOCOL_VERSION, summarizeRuntimeValues, type FormDefinitionV1, type FormEmbedEventName, type RuntimeValues, type FormSessionRuntimeContext, type FormSessionLifecycleState, type FormSessionChangeType, type SaveState, type CompositionVersion } from 'core';
 import FormRuntime, { type FormRuntimeHandle } from '../components/FormRuntime';
 import PluginHost from '../components/PluginHost';
 import CompositionHistoryPanel from '../components/CompositionHistoryPanel';
@@ -52,6 +52,15 @@ interface ProviderResult {
 
 interface FormResponse {
   id: string;
+  /** The stable lineage anchor this specific version was published under -
+   * see the ownership check in the bootstrap effect below for why this
+   * matters: a session's own `formId` is fixed at attach time, but
+   * /forms/parent/:id/latest-published can start resolving to a newer
+   * sibling version (a different `id`, same `parent_id`) the moment anyone
+   * publishes a fresh edit from the Designer - without this, an
+   * already-attached session would wrongly look like it "doesn't belong"
+   * to its own form the instant that happens. */
+  parent_id?: string;
   canonical_json: FormDefinitionV1;
   name: string;
   version: string;
@@ -86,6 +95,22 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 type Tone = 'neutral' | 'positive' | 'warning' | 'error';
+
+// The Composition host serializes fieldLabelOverrides as a JSON object in
+// the `?fieldLabelOverrides=` query param (see formLaunchService.ts). Malformed
+// or absent input silently falls back to no overrides rather than breaking
+// the embedded form - this is a cosmetic feature, never worth failing render for.
+function parseFieldLabelOverrides(raw: string | null): Record<string, string> {
+  if (!raw) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const entries = Object.entries(parsed as Record<string, unknown>).filter((entry): entry is [string, string] => typeof entry[1] === 'string');
+    return Object.fromEntries(entries);
+  } catch {
+    return {};
+  }
+}
 
 // Plain clinical-language status - never the raw lifecycle_state/saveState
 // codes. Deliberately not a form-field component's concern (state-poor
@@ -207,18 +232,60 @@ export default function LiveForm() {
   // onValuesChange call - FormRuntime's own settled post-merge state, not
   // the raw payload - becomes the real baseline instead.
   const baselinePendingRef = useRef(false);
-  const handleValuesChange = (next: RuntimeValues) => {
+  // FormRuntime's own onValuesChange effect depends on this callback's
+  // identity (not just `values`) - an unmemoized inline function here would
+  // hand it a brand-new reference on every LiveForm render, which would
+  // re-fire that effect, which calls this, which re-renders LiveForm, which
+  // creates yet another new reference... a guaranteed infinite render loop
+  // (React's own "Maximum update depth exceeded") that never gives the
+  // debounced autosave timer below a quiet moment to actually fire. useCallback
+  // with an empty dependency array keeps this one function for the component's
+  // whole lifetime - it only touches state setters and a ref, all stable.
+  const handleValuesChange = useCallback((next: RuntimeValues) => {
     setDraftValues(next);
     if (baselinePendingRef.current) {
       baselinePendingRef.current = false;
       setLastSavedSignature(JSON.stringify(next));
     }
-  };
+  }, []);
 
   // Modification vs. amendment - only meaningful once editing an
   // already-`complete` composition.
   const [changeType, setChangeType] = useState<FormSessionChangeType>('modification');
   const [changeDescription, setChangeDescription] = useState('');
+
+  // "Aus vorheriger Dokumentation übernehmen" (settings.reuse) - this
+  // patient's own previously *submitted* entries of this exact Form
+  // Section, offered as a dropdown so a clinician can 1:1 copy an earlier
+  // entry into a fresh one instead of retyping it. Reuses the existing
+  // GET /form-sessions?patientId=&formId= listing (already scoped to this
+  // user by the backend) rather than a dedicated endpoint.
+  interface PriorEntry { id: string; label: string; values: RuntimeValues; updatedAt?: string }
+  const [priorEntries, setPriorEntries] = useState<PriorEntry[]>([]);
+  const [priorSelection, setPriorSelection] = useState('');
+  useEffect(() => {
+    setPriorEntries([]);
+    setPriorSelection('');
+    if (!form?.canonical_json.settings?.reuse?.enabled || !session?.patientId) return;
+    let cancelled = false;
+    request<Array<{ id: string; status: string; values: RuntimeValues; updatedAt?: string }>>(`/form-sessions?patientId=${encodeURIComponent(session.patientId)}&formId=${encodeURIComponent(form.id)}`)
+      .then((sessions) => {
+        if (cancelled) return;
+        const summaryFieldIds = form.canonical_json.settings?.reuse?.summaryFieldIds;
+        const entries = sessions
+          .filter((candidate) => candidate.status === 'submitted' && candidate.id !== session.id)
+          .map((candidate) => ({ id: candidate.id, updatedAt: candidate.updatedAt, values: candidate.values, label: summarizeRuntimeValues(form.canonical_json, candidate.values, summaryFieldIds) || `Eintrag vom ${candidate.updatedAt ? new Date(candidate.updatedAt).toLocaleDateString('de-DE') : '?'}` }));
+        setPriorEntries(entries);
+      })
+      .catch(() => { if (!cancelled) setPriorEntries([]); });
+    return () => { cancelled = true; };
+  }, [form?.id, form?.canonical_json.settings?.reuse, session?.patientId, session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const applyPriorEntry = (entryId: string) => {
+    const entry = priorEntries.find((candidate) => candidate.id === entryId);
+    setPriorSelection('');
+    if (!entry) return;
+    runtimeRef.current?.applyValues(entry.values, 'user', true);
+  };
 
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawReason, setWithdrawReason] = useState('');
@@ -287,7 +354,12 @@ export default function LiveForm() {
         const launchSessionId = searchParams.get('sessionId');
         if (launchSessionId) {
           const current = await request<SessionRecord>(`/form-sessions/${encodeURIComponent(launchSessionId)}`);
-          if (current.formId !== formData.id) throw new Error('Die gestartete Session gehört nicht zu diesem Formular.');
+          // A session's formId is fixed at attach time; latest-published can
+          // start resolving to a newer sibling version (different id, same
+          // parent_id) the moment someone re-publishes from the Designer -
+          // still the same form, so also accept a session pinned to that
+          // shared lineage anchor, not just an exact id match.
+          if (current.formId !== formData.id && current.formId !== formData.parent_id) throw new Error('Die gestartete Session gehört nicht zu diesem Formular.');
           baselinePendingRef.current = true;
           setSession(current);
           setDraftValues(current.values || {});
@@ -409,6 +481,13 @@ export default function LiveForm() {
       if (event.origin !== window.location.origin && event.origin !== hostOrigin) return;
       if (event.data?.type === 'EXTERNAL_FORM_SUBMIT') {
         handleSubmit(runtimeRef.current?.getValues() || draftValues);
+      }
+      // A Composition script's forms.field(blockId, fieldName).setValue(value)
+      // arrives here as this block's own field to set - same single-field
+      // path applyValues() already offers, just triggered from outside
+      // instead of a form script.
+      if (event.data?.type === 'COMPOSITION_SET_FIELD' && typeof event.data.fieldName === 'string') {
+        runtimeRef.current?.applyValues({ [event.data.fieldName]: event.data.value }, 'script', true);
       }
     };
     window.addEventListener('message', handleMessage);
@@ -727,6 +806,15 @@ export default function LiveForm() {
           )}
 
           <div className={isEmbedded ? undefined : 'card'} style={isEmbedded ? undefined : { padding: '1.5rem' }}>
+            {priorEntries.length > 0 && !submitted && session.mode !== 'view' && !isWithdrawn && (
+              <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap' }}>
+                <label htmlFor="lf-reuse-prior" style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--text-muted, #64748b)', whiteSpace: 'nowrap' }}>Aus vorheriger Dokumentation übernehmen</label>
+                <select id="lf-reuse-prior" className="form-input" style={{ flex: 1, minWidth: 220 }} value={priorSelection} onChange={(event) => applyPriorEntry(event.target.value)}>
+                  <option value="">Eintrag auswählen…</option>
+                  {priorEntries.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}
+                </select>
+              </div>
+            )}
             <FormRuntime
               ref={runtimeRef}
               definition={form.canonical_json}
@@ -736,11 +824,14 @@ export default function LiveForm() {
               encounterId={searchParams.get('encounterId') || undefined}
               sessionId={session.id}
               hiddenFieldIds={(searchParams.get('hiddenFieldIds') || '').split(',').map((id) => id.trim()).filter(Boolean)}
+              fieldLabelOverrides={parseFieldLabelOverrides(searchParams.get('fieldLabelOverrides'))}
               runtimeContext={session.runtimeContext}
               readOnly={submitted || session.mode === 'view' || isWithdrawn}
               busy={busy}
               submitLabel={submitted ? 'Abgesendet' : (isModifyingComplete ? 'Änderung finalisieren' : 'Finalisieren')}
               showSubmit={!isEmbedded && !isWithdrawn}
+              showHeader={!isEmbedded}
+              chromeless={isEmbedded}
               onValuesChange={handleValuesChange}
               onSubmit={handleSubmit}
               mode={session.mode || 'create'}

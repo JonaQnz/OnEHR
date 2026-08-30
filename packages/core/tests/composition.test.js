@@ -15,7 +15,7 @@ test('normalizes a multi-page composition with forms and EHRbase data blocks', (
     schemaVersion: COMPOSITION_SCHEMA_VERSION,
     pages: [
       { id: 'overview', title: 'Übersicht', blocks: [
-        { id: 'person', type: 'form', formId: 'person-form', mode: 'edit', load: 'provider', hiddenFieldIds: ['internal-note'] },
+        { id: 'person', type: 'form', formId: 'person-form', mode: 'edit', load: 'provider', hiddenFieldIds: ['internal-note'], fieldLabelOverrides: { first_name: 'Vorname des Kindes' } },
         { id: 'labs', type: 'data', title: 'Letzte Laborwerte', aqlFunctionId: 'lab-query', display: 'trend', valueColumn: 'value', timeColumn: 'time', limit: 12 },
       ] },
       { id: 'notes', title: 'Notizen', blocks: [{ id: 'note', type: 'text', content: 'Bitte Befund prüfen.' }] },
@@ -24,6 +24,26 @@ test('normalizes a multi-page composition with forms and EHRbase data blocks', (
   assert.equal(composition.pages.length, 2);
   assert.equal(composition.pages[0].blocks[0].type, 'form');
   assert.deepEqual(composition.pages[0].blocks[0].hiddenFieldIds, ['internal-note']);
+  assert.deepEqual(composition.pages[0].blocks[0].fieldLabelOverrides, { first_name: 'Vorname des Kindes' });
+});
+
+test('fieldLabelOverrides is optional, trims blank entries, and rejects non-string values', () => {
+  const withoutOverrides = normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'overview', title: 'Übersicht', blocks: [{ id: 'person', type: 'form', formId: 'person-form' }] }],
+  });
+  assert.equal(withoutOverrides.pages[0].blocks[0].fieldLabelOverrides, undefined);
+
+  const withBlankEntry = normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'overview', title: 'Übersicht', blocks: [{ id: 'person', type: 'form', formId: 'person-form', fieldLabelOverrides: { note: '  ', name: '  Vorname  ' } }] }],
+  });
+  assert.deepEqual(withBlankEntry.pages[0].blocks[0].fieldLabelOverrides, { name: 'Vorname' });
+
+  assert.throws(() => normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'overview', title: 'Übersicht', blocks: [{ id: 'person', type: 'form', formId: 'person-form', fieldLabelOverrides: { note: 42 } }] }],
+  }), /fieldLabelOverrides/);
 });
 
 test('persists explicitly enabled widget packages and preserves their named mappings', () => {
@@ -113,7 +133,7 @@ test('derives the central Composition status from child form sessions', () => {
   assert.equal(summarizeCompositionSession([{ status: 'failed' }, { status: 'ready' }]).status, 'failed');
 });
 
-test('composition scripts expose pages and blocks but never embedded form fields', () => {
+test('composition scripts expose pages and blocks, plus a trusted forms.field(...).setValue(...) escape hatch and data.onPick', () => {
   const definition = normalizeCompositionDefinition({
     schemaVersion: COMPOSITION_SCHEMA_VERSION,
     pages: [{ id: 'overview', title: 'Overview', blocks: [
@@ -125,6 +145,12 @@ test('composition scripts expose pages and blocks but never embedded form fields
   assert.match(generated, /"overview"/);
   assert.match(generated, /"person-form"/);
   assert.match(generated, /"labs"/);
-  assert.doesNotMatch(generated, /setValue|form\.field/);
+  // Composition-Script darf direkt Felder eines eingebetteten Formulars
+  // setzen (explizite Design-Entscheidung) - über eine schmale, benannte
+  // API, nicht über generischen Zugriff auf das Formular selbst.
+  assert.match(generated, /forms: CompositionFormsApi/);
+  assert.match(generated, /field\(blockId: BlockId, fieldName: string\): FormFieldHandle/);
+  assert.match(generated, /setValue\(value: unknown\): void/);
+  assert.match(generated, /onPick\(id: DataBlockId, handler: \(row: Record<string, unknown>\) => void\): void/);
   assert.equal(createEmptyCompositionScript(definition).source.includes('defineCompositionScript'), true);
 });
