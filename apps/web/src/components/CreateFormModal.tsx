@@ -15,11 +15,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 /**
- * The single entry point for creating a Form or Composition. Replaces the
+ * The single entry point for creating a Form Section or Form. Replaces the
  * old two-step flow (a native window.prompt() for a name, then - once
  * inside the builder - a separate forced full-page "select a template"
- * screen for Forms with no sourceTemplates) with one screen: name, type,
- * and template all chosen together before anything is written to the
+ * screen for Form Sections with no sourceTemplates) with one screen: name,
+ * type, and template all chosen together before anything is written to the
  * database. A blank/no-template pick still lands on that same forced
  * template screen inside FormBuilder as a fallback - it's left untouched.
  */
@@ -150,7 +150,7 @@ export function CreateFormModal({ kind: initialKind, onClose, onCreated }: {
               className={`btn ${kind === 'composition' ? '' : 'btn-secondary'}`}
               style={{ flex: 1 }}
             >
-              <LayoutPanelTop size={16} /> Composition
+              <LayoutPanelTop size={16} /> Form
             </button>
           </div>
 
@@ -239,7 +239,7 @@ export function CreateFormModal({ kind: initialKind, onClose, onCreated }: {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.5rem 1.5rem' }}>
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={creating}>Abbrechen</button>
           <button type="button" className="btn" onClick={() => void handleSubmit()} disabled={!canSubmit} style={!canSubmit ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}>
-            {creating ? 'Wird erstellt…' : kind === 'composition' ? 'Composition erstellen' : 'Formular erstellen'}
+            {creating ? 'Wird erstellt…' : kind === 'composition' ? 'Form erstellen' : 'Formular erstellen'}
           </button>
         </div>
       </div>

@@ -14,7 +14,8 @@ function actor(req: Express.Request): { userId: string; authMode: 'local' | 'hip
 router.get('/', asyncHandler(async (req, res) => {
   const patientId = typeof req.query.patientId === 'string' ? req.query.patientId : undefined;
   const formId = typeof req.query.formId === 'string' ? req.query.formId : undefined;
-  res.json(await listFormSessions(actor(req), patientId, formId));
+  const parentFormId = typeof req.query.parentFormId === 'string' ? req.query.parentFormId : undefined;
+  res.json(await listFormSessions(actor(req), patientId, formId, parentFormId));
 }));
 
 router.post('/', asyncHandler(async (req, res) => {
