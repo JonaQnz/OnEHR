@@ -268,7 +268,13 @@ export default function LiveForm() {
     setPriorSelection('');
     if (!form?.canonical_json.settings?.reuse?.enabled || !session?.patientId) return;
     let cancelled = false;
-    request<Array<{ id: string; status: string; values: RuntimeValues; updatedAt?: string }>>(`/form-sessions?patientId=${encodeURIComponent(session.patientId)}&formId=${encodeURIComponent(form.id)}`)
+    // parentFormId (not formId) so a prior entry submitted under an older
+    // published version of this same Form Section still shows up here -
+    // republishing mints a new Form.id every time, but it's still "the same
+    // Form Section" for reuse purposes. Falls back to formId only for the
+    // (real but rare) case of a Form somehow missing its own parent_id.
+    const lineageId = form.parent_id || form.id;
+    request<Array<{ id: string; status: string; values: RuntimeValues; updatedAt?: string }>>(`/form-sessions?patientId=${encodeURIComponent(session.patientId)}&parentFormId=${encodeURIComponent(lineageId)}`)
       .then((sessions) => {
         if (cancelled) return;
         const summaryFieldIds = form.canonical_json.settings?.reuse?.summaryFieldIds;
