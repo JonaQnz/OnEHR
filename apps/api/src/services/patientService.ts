@@ -1,5 +1,6 @@
 import axios from 'axios';
 import prisma from '../db/prisma';
+import { HttpError } from '../middleware/errorHandler';
 import { bindAqlParameters } from './aqlFunctionService';
 import { getConfig, getActiveEhrbaseConnection } from './configService';
 import { getEhrbaseRequestConfig } from './ehrbaseConnectionPlugins';
@@ -127,7 +128,11 @@ export async function markPatientHasPersonArchetype(ehrId: string): Promise<void
 export async function createPatient(input: CreatePatientInput) {
   const connection = getActiveEhrbaseConnection(); const namespace = input.patientNamespace || connection.subjectNamespace || 'default';
   const existing = await prisma.patient.findUnique({ where: { patientNamespace_patientId: { patientNamespace: namespace, patientId: input.patientId } } });
-  if (existing) throw new Error(`Patient with ID ${input.patientId} already exists in namespace ${namespace}`);
+  // QA review finding: a plain Error here fell through errorHandler.ts's
+  // catch-all as HTTP 500 - a routine "patient already exists" conflict
+  // (e.g. a clinician double-clicking "create patient") looked like a
+  // server crash to the frontend instead of a handled 409.
+  if (existing) throw new HttpError(409, `Patient with ID ${input.patientId} already exists in namespace ${namespace}`);
   const requestConfig = await getEhrbaseRequestConfig(connection); const headers = { ...requestConfig.headers, Prefer: 'return=representation' }; const { auth, ehrbaseUrl } = requestConfig;
   let ehrId: string;
   try { const response = await axios.get(`${ehrbaseUrl}/ehr`, { headers, auth, params: { subject_id: input.patientId, subject_namespace: namespace } }); ehrId = response.data.ehr_id.value; }
