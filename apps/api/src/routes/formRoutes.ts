@@ -477,18 +477,40 @@ router.post('/:id/publish', requirePermission('form.publish'), asyncHandler(asyn
   res.json({ message: 'Form published', form: published });
 }));
 
+/**
+ * QA review finding: create-draft and restore used to each hand-roll their
+ * own "what draft version comes next" logic, and disagreed - create-draft
+ * only looked at the ONE form being drafted from (`match[2] + 1`), while
+ * restore correctly scanned every sibling under the same parent_id for the
+ * true max major.minor across the whole lineage. Creating two drafts from
+ * the same published version (without publishing between) used to produce
+ * two forms both labeled e.g. "1.1.0-draft" - a real version-string
+ * collision. One shared implementation (restore's, the more careful one)
+ * instead of two that can drift apart again.
+ */
+export async function nextDraftVersion(parentId: string): Promise<string> {
+  const siblings = await prisma.form.findMany({ where: { parent_id: parentId } });
+  let maxMajor = 0;
+  let maxMinor = 0;
+  for (const sibling of siblings) {
+    const match = sibling.version.match(/^(\d+)\.(\d+)\.(\d+)/);
+    if (!match) continue;
+    const major = parseInt(match[1], 10);
+    const minor = parseInt(match[2], 10);
+    if (major > maxMajor) { maxMajor = major; maxMinor = minor; }
+    else if (major === maxMajor && minor > maxMinor) { maxMinor = minor; }
+  }
+  return `${maxMajor}.${maxMinor + 1}.0-draft`;
+}
+
 router.post('/:id/create-draft', asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
   const form = await prisma.form.findUnique({ where: { id: formId } });
   if (!form) throw new HttpError(404, 'Form not found');
-  
+
   // create a new draft with incremented minor version
   const newId = uuidv4();
-  let newVersion = '1.1.0-draft';
-  const match = form.version.match(/^(\d+)\.(\d+)\.(\d+)/);
-  if (match) {
-    newVersion = `${match[1]}.${parseInt(match[2]) + 1}.0-draft`;
-  }
+  const newVersion = await nextDraftVersion(form.parent_id || form.id);
 
   const canonicalForm = { ...(form.canonical_json as any), id: newId, schemaVersion: (form.canonical_json as any).schemaVersion || FORM_DEFINITION_SCHEMA_VERSION, revision: 0, extensions: (form.canonical_json as any).extensions || {}, version: newVersion, status: 'draft' };
   const draft = await prisma.form.create({
@@ -511,24 +533,8 @@ router.post('/:id/restore', requirePermission('form.publish'), asyncHandler(asyn
   if (!oldForm) throw new HttpError(404, 'Form not found');
   
   const parentId = oldForm.parent_id || oldForm.id;
-  
-  // Find the latest version string to know what minor version to bump to
-  const allVersions = await prisma.form.findMany({ where: { parent_id: parentId } });
-  let maxMajor = 0;
-  let maxMinor = 0;
-  
-  allVersions.forEach(v => {
-    const match = v.version.match(/^(\d+)\.(\d+)\.(\d+)/);
-    if (match) {
-      const maj = parseInt(match[1]);
-      const min = parseInt(match[2]);
-      if (maj > maxMajor) { maxMajor = maj; maxMinor = min; }
-      else if (maj === maxMajor && min > maxMinor) { maxMinor = min; }
-    }
-  });
-
   const newId = uuidv4();
-  const newVersion = `${maxMajor}.${maxMinor + 1}.0-draft`;
+  const newVersion = await nextDraftVersion(parentId);
 
   const canonicalForm = { ...(oldForm.canonical_json as any), id: newId, revision: 0, version: newVersion, status: 'draft' };
   const restoredDraft = await prisma.form.create({
