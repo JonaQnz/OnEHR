@@ -160,7 +160,8 @@ export function canonicalToFormBuilder(form: CanonicalForm): any[] {
             : (binding?.rmType === 'DV_QUANTITY' || node.type === 'input-quantity' ? [{ unit: 'cm' }] : undefined),
         repeatMin: node.repeatMin,
         repeatMax: node.repeatMax,
-        repeatable: node.repeatable || false
+        repeatable: node.repeatable || false,
+        ...(node.codeMappings ? { codeMappings: node.codeMappings } : {}),
       }
     };
 
@@ -498,6 +499,10 @@ export function formBuilderToCanonical(items: any[], originalForm: CanonicalForm
       layoutNode.repeatMin = meta.repeatMin;
       layoutNode.repeatMax = meta.repeatMax;
       layoutNode.repeatable = true;
+    }
+
+    if (meta.codeMappings?.enabled) {
+      layoutNode.codeMappings = meta.codeMappings;
     }
 
     if (item.props || item.hideDefaultProperties) {

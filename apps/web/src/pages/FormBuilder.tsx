@@ -2050,6 +2050,127 @@ function FormBuilderContent() {
                                )}
                              </div>
                              )}
+
+                            {/* CODE MAPPINGS PROPERTIES - opt-in DV_TEXT.mappings support (openEHR
+                                RM: TERM_MAPPING). Off by default; only offered for a DV_TEXT-bound
+                                text field, never for an already-coded (DV_CODED_TEXT) select. */}
+                            {activeEditElement.custom_metadata?.binding?.rmType === 'DV_TEXT' && (() => {
+                              type CodeMappingTerminology = { id: string; label: string; match?: '>' | '=' | '<' | '?' };
+                              type CodeMappingsMeta = { enabled: boolean; allowMultiple?: boolean; terminologies: CodeMappingTerminology[] };
+                              const codeMappings: CodeMappingsMeta = activeEditElement.custom_metadata?.codeMappings || { enabled: false, terminologies: [] };
+                              const updateCodeMappings = (next: CodeMappingsMeta) => {
+                                const updated = {
+                                  ...activeEditElement,
+                                  custom_metadata: { ...(activeEditElement.custom_metadata || {}), codeMappings: next },
+                                };
+                                updateElementFnRef.current?.(updated);
+                                setActiveEditElement(updated);
+                              };
+                              return (
+                                <div className="inspector-section" style={{ marginTop: '0.25rem' }}>
+                                  <div className="inspector-section-title">
+                                    <span className="section-emoji">🏷️</span> Terminologie-Zuordnung
+                                  </div>
+                                  <label className="inspector-checkbox-row">
+                                    <input
+                                      type="checkbox"
+                                      checked={codeMappings.enabled === true}
+                                      onChange={(e) => updateCodeMappings({
+                                        enabled: e.target.checked,
+                                        allowMultiple: codeMappings.allowMultiple ?? true,
+                                        terminologies: codeMappings.terminologies.length > 0 ? codeMappings.terminologies : (e.target.checked ? [{ id: '', label: '' }] : []),
+                                      })}
+                                    />
+                                    <span className="inspector-checkbox-label">Code-Zuordnung(en) aktivieren</span>
+                                  </label>
+                                  <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.3rem 0 0.6rem' }}>
+                                    Der Freitext bleibt Freitext - zusätzlich kann eine Codierung (z. B. ein ICD-10-Code) angehängt werden, ohne den Text selbst zu ändern. Die Terminologie legst du hier fest; zur Laufzeit gibt es nur eine schlanke Code-Eingabe, kein sichtbarer Katalog.
+                                  </p>
+                                  {codeMappings.enabled && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                      <label className="inspector-checkbox-row">
+                                        <input
+                                          type="checkbox"
+                                          checked={codeMappings.allowMultiple !== false}
+                                          onChange={(e) => updateCodeMappings({ ...codeMappings, allowMultiple: e.target.checked })}
+                                        />
+                                        <span className="inspector-checkbox-label">Mehrere Zuordnungen gleichzeitig erlauben ("+" zur Laufzeit)</span>
+                                      </label>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        {codeMappings.terminologies.map((terminology, index) => (
+                                          <div key={index} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '0.4rem', alignItems: 'center' }}>
+                                            <input
+                                              type="text"
+                                              className="inspector-input"
+                                              placeholder="terminology_id, z. B. http://fhir.de/CodeSystem/dimdi/icd-10-gm"
+                                              value={terminology.id}
+                                              onChange={(e) => updateCodeMappings({
+                                                ...codeMappings,
+                                                terminologies: codeMappings.terminologies.map((item, i) => i === index ? { ...item, id: e.target.value } : item),
+                                              })}
+                                            />
+                                            <input
+                                              type="text"
+                                              className="inspector-input"
+                                              placeholder="Anzeigename, z. B. ICD-10-GM"
+                                              value={terminology.label}
+                                              onChange={(e) => updateCodeMappings({
+                                                ...codeMappings,
+                                                terminologies: codeMappings.terminologies.map((item, i) => i === index ? { ...item, label: e.target.value } : item),
+                                              })}
+                                            />
+                                            <select
+                                              className="inspector-input"
+                                              style={{ width: '4.2rem' }}
+                                              title="TERM_MAPPING.match"
+                                              value={terminology.match || '='}
+                                              onChange={(e) => updateCodeMappings({
+                                                ...codeMappings,
+                                                terminologies: codeMappings.terminologies.map((item, i) => i === index ? { ...item, match: e.target.value as '>' | '=' | '<' | '?' } : item),
+                                              })}
+                                            >
+                                              <option value="=">=</option>
+                                              <option value=">">&gt;</option>
+                                              <option value="<">&lt;</option>
+                                              <option value="?">?</option>
+                                            </select>
+                                            <button
+                                              type="button"
+                                              title="Terminologie entfernen"
+                                              disabled={codeMappings.terminologies.length <= 1}
+                                              onClick={() => updateCodeMappings({
+                                                ...codeMappings,
+                                                terminologies: codeMappings.terminologies.filter((_, i) => i !== index),
+                                              })}
+                                              style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                width: '1.9rem', height: '1.9rem', border: '1px solid #fecaca', borderRadius: '6px',
+                                                background: 'transparent', color: '#dc2626', cursor: codeMappings.terminologies.length <= 1 ? 'not-allowed' : 'pointer',
+                                                opacity: codeMappings.terminologies.length <= 1 ? 0.4 : 1, fontSize: '0.8rem',
+                                              }}
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateCodeMappings({ ...codeMappings, terminologies: [...codeMappings.terminologies, { id: '', label: '' }] })}
+                                        style={{
+                                          display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                          background: 'none', border: '1px dashed #cbd5e1', borderRadius: '6px',
+                                          padding: '0.4rem 0.8rem', color: '#64748b', cursor: 'pointer',
+                                          fontSize: '0.8rem', justifyContent: 'center',
+                                        }}
+                                      >
+                                        + Terminologie hinzufügen
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                            </div>
                          )}
 

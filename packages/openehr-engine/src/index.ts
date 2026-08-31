@@ -1,4 +1,4 @@
-import type { CanonicalForm, FormSessionValues, JsonValue } from 'core';
+import type { CanonicalForm, CodeMappingConfig, FormSessionValues, JsonValue } from 'core';
 
 // Named (not `export *`) so this re-export is statically analyzable by
 // Rollup/cjs-module-lexer when consumed from apps/web's Vite build - a
@@ -110,6 +110,30 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     }
     return;
   }
+  if (binding.codeMappings?.enabled && source) {
+    const text = source.value;
+    if (isEmpty(text)) return;
+    output[key] = text;
+    const mappings = Array.isArray(source.mappings) ? source.mappings : [];
+    // EHRbase FLAT format's convention for a LOCATABLE's non-value
+    // structural attributes (TERM_MAPPING among them) is an underscore-
+    // prefixed segment - `_mappings` here, mirroring the same convention
+    // documented for e.g. `_uid`/`_name`. Unverified against a live
+    // EHRbase instance for this specific attribute (this app's own FLAT
+    // submit path had no prior mappings usage to confirm against) -
+    // canonicalComposition.ts's nested-RM-JSON path (used for the
+    // Contribution/atomic-commit flow) is the one built directly against
+    // the user's own confirmed-real example composition and is the
+    // higher-confidence path of the two.
+    mappings.forEach((entry, mappingIndex) => {
+      if (!isRecord(entry) || isEmpty(entry.terminologyId) || isEmpty(entry.code)) return;
+      const prefix = `${key}/_mappings/${mappingIndex}`;
+      output[`${prefix}|match`] = typeof entry.match === 'string' && entry.match ? entry.match : '=';
+      output[`${prefix}/target|code`] = entry.code;
+      output[`${prefix}/target|terminology`] = entry.terminologyId;
+    });
+    return;
+  }
   output[key] = value;
 }
 
@@ -139,6 +163,7 @@ interface FieldBinding {
   rmType?: string;
   flatPath?: string;
   options?: CodedTextOption[];
+  codeMappings?: CodeMappingConfig;
 }
 
 function layoutFieldBinding(binding: unknown): FieldBinding | undefined {
@@ -175,7 +200,10 @@ function collectFieldBindings(layout: CanonicalForm['layout']): Map<string, Fiel
         }];
       })
       : undefined;
-    if (node.id && binding) map.set(node.id, options?.length ? { ...binding, options } : binding);
+    const codeMappings = node.codeMappings?.enabled ? node.codeMappings : undefined;
+    if (node.id && binding) {
+      map.set(node.id, { ...binding, ...(options?.length ? { options } : {}), ...(codeMappings ? { codeMappings } : {}) });
+    }
     node.children?.forEach(walk);
   }
   walk(layout);
@@ -257,22 +285,54 @@ function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: str
   return values.length > 0 ? values : undefined;
 }
 
+/** Reconstructs a codeMappings.enabled field's `_mappings/N` group of flat
+ * keys (see setFlatValue) back into CodeMappingValue[] - the counterpart
+ * read half of that write convention. Silently returns [] rather than
+ * throwing on a malformed/partial group (a `target|code` with no matching
+ * `target|terminology`, say) - this is enrichment on top of the field's
+ * own already-valid text value, never something that should fail the
+ * whole read. */
+function readCodeMappings(flat: Record<string, unknown>, path: string): Array<{ terminologyId: string; code: string; match?: string }> {
+  const prefix = `${path}/_mappings/`;
+  const indices = new Set<number>();
+  for (const key of Object.keys(flat)) {
+    if (!key.startsWith(prefix)) continue;
+    const rest = key.slice(prefix.length);
+    const index = Number(rest.split(/[/|]/)[0]);
+    if (Number.isInteger(index) && index >= 0) indices.add(index);
+  }
+  return Array.from(indices).sort((a, b) => a - b).flatMap((index) => {
+    const entryPrefix = `${prefix}${index}`;
+    const code = flat[`${entryPrefix}/target|code`];
+    const terminologyId = flat[`${entryPrefix}/target|terminology`];
+    if (isEmpty(code) || isEmpty(terminologyId)) return [];
+    const match = flat[`${entryPrefix}|match`];
+    return [{ terminologyId: String(terminologyId), code: String(code), ...(typeof match === 'string' && match ? { match } : {}) }];
+  });
+}
+
 export function fromOpenEhrFlatComposition(definition: CanonicalForm, composition: Record<string, unknown>, webTemplateTree?: unknown): FormSessionValues {
   const values: FormSessionValues = {};
   const pathMap = webTemplateTree === undefined ? undefined : buildOpenEhrPathMap(webTemplateTree);
   const layoutBindings = collectFieldBindings(definition.layout);
   const processedPaths = new Set<string>();
+  const readOne = (binding: FieldBinding, flatPath: string): unknown => {
+    const value = readFlatValue(composition, flatPath, binding.rmType);
+    if (isEmpty(value) || !binding.codeMappings?.enabled) return value;
+    const mappings = readCodeMappings(composition, flatPath);
+    return { value, ...(mappings.length > 0 ? { mappings } : {}) };
+  };
   for (const [fieldId, binding] of layoutBindings) {
     const flatPath = resolveFlatPath(binding, pathMap);
     if (flatPath) processedPaths.add(flatPath);
-    const value = flatPath ? readFlatValue(composition, flatPath, binding.rmType) : undefined;
+    const value = flatPath ? readOne(binding, flatPath) : undefined;
     if (!isEmpty(value)) values[fieldId] = value;
   }
   for (const [fieldId, wrapped] of Object.entries(definition.bindings)) {
     const binding = wrapped.openehr;
     const flatPath = resolveFlatPath(binding, pathMap);
     if (flatPath && processedPaths.has(flatPath)) continue;
-    const value = flatPath ? readFlatValue(composition, flatPath, binding.rmType) : undefined;
+    const value = flatPath ? readOne(binding, flatPath) : undefined;
     if (!isEmpty(value)) values[fieldId] = value;
   }
   return values;

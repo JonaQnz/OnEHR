@@ -83,6 +83,63 @@ export interface FormElementLayout {
    * is safe even when required. */
   alwaysHidden?: boolean;
   props?: Record<string, unknown>;
+  /** Opt-in DV_TEXT.mappings support (openEHR RM: TERM_MAPPING, a list of
+   * `{match, target: CODE_PHRASE}` entries attached to a text value without
+   * changing the text itself - e.g. a free-text diagnosis description
+   * additionally tagged with an ICD-10-GM code). Off by default, same
+   * pattern as manualAdd on CompositionFormBlock - a designer opts a
+   * specific DV_TEXT-bound field into this deliberately; every existing
+   * field keeps behaving exactly as before. Distinct from DV_CODED_TEXT's
+   * own `defining_code` (the value itself IS a coded term) - this is a
+   * free-text value with independent, optional code attachment(s). */
+  codeMappings?: CodeMappingConfig;
+}
+
+export interface CodeMappingTerminologyOption {
+  /** Written verbatim as CODE_PHRASE.terminology_id - not a closed enum.
+   * Real examples: "http://fhir.de/CodeSystem/dimdi/icd-10-gm", a local
+   * catalog name like "0052 Diagnosetyp", or an application-specific id
+   * like "condition.id". */
+  id: string;
+  /** Designer-facing label shown at runtime instead of the raw id - this
+   * is the "hidden catalog": the clinician picks/sees only this short,
+   * curated list, never types a raw terminology_id. */
+  label: string;
+  /** TERM_MAPPING.match - '>' broader, '=' equivalent, '<' narrower, '?'
+   * unknown (ISO 2788/5964). Defaults to '=' when unset. */
+  match?: '>' | '=' | '<' | '?';
+}
+
+export interface CodeMappingConfig {
+  enabled: boolean;
+  /** Which terminologies a clinician can attach a code from - always at
+   * least one once enabled. */
+  terminologies: CodeMappingTerminologyOption[];
+  /** Whether more than one mapping entry can be added at runtime (the "+"
+   * control). Defaults to true when unset - matches "code im form builder
+   * erweiterbar... sodass wir mehr eingeben können". Set false to cap a
+   * field at exactly one mapping. */
+  allowMultiple?: boolean;
+}
+
+/** One DV_TEXT.mappings entry as the runtime actually stores/submits it -
+ * deliberately no `text`/`preferred_term`: the parent field's own text
+ * value already carries the human-readable rendition (see real-world
+ * example compositions), a mapping only ever adds `{match, target}`. */
+export interface CodeMappingValue {
+  terminologyId: string;
+  code: string;
+  match?: '>' | '=' | '<' | '?';
+}
+
+/** A DV_TEXT field's runtime value once codeMappings.enabled - the plain
+ * text stays in `value`, mappings ride alongside without disturbing it. A
+ * field with codeMappings.enabled but no mappings entered yet still stores
+ * a plain string (mappings omitted, not an empty array) - see
+ * form-runtime's toDescriptor/collectRuntimeFields. */
+export interface CodeMappedTextValue {
+  value: string;
+  mappings?: CodeMappingValue[];
 }
 
 /**
