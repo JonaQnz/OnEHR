@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { migrateCanonicalFormToV1 } from 'core';
 import prisma from '../db/prisma';
-import { requirePermission } from '../middleware/auth';
+import { deriveAuthMode, requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import {
   ScriptConnectorError,
@@ -43,7 +43,7 @@ router.post('/forms/:formId/call', asyncHandler(async (req, res) => {
         formId,
         form,
         userId: req.principal?.userId || 'anonymous',
-        authMode: req.principal?.authSource === 'oidc' ? 'hip' : 'local',
+        authMode: deriveAuthMode(req.principal?.authSource),
         principal: req.principal,
         patientId: typeof callContext.patientId === 'string' ? callContext.patientId : undefined,
         ehrId: typeof callContext.ehrId === 'string' ? callContext.ehrId : undefined,

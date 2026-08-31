@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { requirePermission } from '../middleware/auth';
+import { deriveAuthMode, requirePermission } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { attachCompositionChild, getCompositionSession, getCompositionSessionsForPatient, startCompositionSession, validateCompositionSession } from '../services/compositionSessionService';
 import { commitClinicalTransaction, getClinicalTransaction, prepareClinicalTransaction } from '../services/clinicalTransactionService';
 
 const router = Router();
 router.use(requirePermission('form.execute'));
-const actor = (req: Express.Request) => ({ userId: req.principal?.userId || 'anonymous', authMode: req.principal?.authSource === 'oidc' ? 'hip' as const : 'local' as const });
+const actor = (req: Express.Request) => ({ userId: req.principal?.userId || 'anonymous', authMode: deriveAuthMode(req.principal?.authSource) });
 
 router.get('/', asyncHandler(async (req, res) => {
   const patientId = req.query.patientId as string;
