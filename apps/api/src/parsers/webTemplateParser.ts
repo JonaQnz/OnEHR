@@ -1,5 +1,5 @@
-import { FieldRegistryItem, FieldConstraint, FormElementLayout, OpenEhrBinding } from 'core';
-import { parseOpenEhrAqlPath } from 'openehr-engine';
+import { FieldRegistryItem, FieldConstraint, FormElementLayout, OpenEhrBinding, type ArchetypeInstanceDefinition } from 'core';
+import { parseOpenEhrAqlPath, buildConstraintModelFromWebTemplate } from 'openehr-engine';
 import { v4 as uuidv4 } from 'uuid';
 
 export function isContextOrIgnoredNode(node: any): boolean {
@@ -515,6 +515,37 @@ export function parseWebTemplate(webTemplate: any): {
   }
 
   const layoutChildren = rootLayout?.children || [];
+
+  // OPT constraint engine enrichment - additive, best-effort, and isolated:
+  // attaches the neutral constraint model's own view (occurrences/value-type
+  // union/parsing warnings) onto each already-built FieldRegistryItem, for
+  // the Developer Inspector to display. Never allowed to break an import -
+  // this is purely extra data on top of everything the rest of this
+  // function already computed independently, so any failure here is
+  // swallowed (logged) rather than propagated.
+  try {
+    const constraintModel = buildConstraintModelFromWebTemplate(webTemplate);
+    const constraintFieldsByPath = new Map<string, NonNullable<FieldRegistryItem['constraintModel']>>();
+    function collect(instance: ArchetypeInstanceDefinition): void {
+      for (const field of instance.fields) {
+        constraintFieldsByPath.set(field.path, {
+          archetypeInstanceKey: field.archetypeInstanceKey,
+          occurrences: field.occurrences,
+          valueConstraints: field.valueConstraints,
+          parsingStatus: field.parsingStatus,
+          ...(field.warnings ? { warnings: field.warnings } : {}),
+        });
+      }
+      instance.children.forEach(collect);
+    }
+    constraintModel.archetypeInstances.forEach(collect);
+    for (const field of fields) {
+      const match = constraintFieldsByPath.get(field.openehrPath);
+      if (match) field.constraintModel = match;
+    }
+  } catch (error) {
+    console.warn('[webTemplateParser] OPT constraint model enrichment failed (non-fatal, import continues without it):', error instanceof Error ? error.message : error);
+  }
 
   return {
     templateId,
