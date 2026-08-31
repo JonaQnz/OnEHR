@@ -2051,10 +2051,15 @@ function FormBuilderContent() {
                              </div>
                              )}
 
-                            {/* CODE MAPPINGS PROPERTIES - opt-in DV_TEXT.mappings support (openEHR
-                                RM: TERM_MAPPING). Off by default; only offered for a DV_TEXT-bound
-                                text field, never for an already-coded (DV_CODED_TEXT) select. */}
-                            {activeEditElement.custom_metadata?.binding?.rmType === 'DV_TEXT' && (() => {
+                            {/* CODE MAPPINGS PROPERTIES - opt-in DV_TEXT.mappings/TERM_MAPPING
+                                support (openEHR RM). Offered for both DV_TEXT- and DV_CODED_TEXT-
+                                bound fields: most targets only need DV_TEXT.mappings (e.g.
+                                "Diagnostic category" in the real HIP Condition mapping), but some
+                                (confirmed live: "Problem/Diagnosis name") require the field to
+                                additionally carry a DV_CODED_TEXT.defining_code built from the same
+                                code - see canonicalComposition.ts's buildLeafDvValue for which shape
+                                each rmType produces. */}
+                            {(activeEditElement.custom_metadata?.binding?.rmType === 'DV_TEXT' || activeEditElement.custom_metadata?.binding?.rmType === 'DV_CODED_TEXT') && (() => {
                               type CodeMappingTerminology = { id: string; label: string; match?: '>' | '=' | '<' | '?' };
                               type CodeMappingsMeta = { enabled: boolean; allowMultiple?: boolean; terminologies: CodeMappingTerminology[] };
                               const codeMappings: CodeMappingsMeta = activeEditElement.custom_metadata?.codeMappings || { enabled: false, terminologies: [] };
@@ -2238,6 +2243,67 @@ function FormBuilderContent() {
                             ) : (
                               <p style={{ color: '#64748b', fontSize: '0.85rem' }}>This is a layout element. No openEHR binding is present.</p>
                             )}
+
+                            {/* OPT constraint engine - occurrences/value-type union/semantic
+                                bindings, looked up from the source template's own field
+                                registry (templateFields, enriched server-side by
+                                webTemplateParser.ts) by exact aqlPath match. Absent for a
+                                template imported before this existed, or a field the
+                                constraint engine didn't produce a match for - never blocks
+                                the rest of the Inspector. */}
+                            {(() => {
+                              const bindingPath = activeEditElement.custom_metadata?.binding?.path;
+                              const constraintField = bindingPath
+                                ? templateFields.find((field: any) => field.openehrPath === bindingPath)
+                                : undefined;
+                              const constraintModel = constraintField?.constraintModel;
+                              if (!constraintModel) return null;
+                              return (
+                                <div className="inspector-read-only-box" style={{ marginTop: '0.5rem' }}>
+                                  <div className="inspector-read-only-row">
+                                    <span className="inspector-read-only-label">Archetype Instance:</span>
+                                    <span className="inspector-read-only-value" style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>{constraintModel.archetypeInstanceKey}</span>
+                                  </div>
+                                  <div className="inspector-read-only-row">
+                                    <span className="inspector-read-only-label">Occurrences:</span>
+                                    <span className="inspector-read-only-value">
+                                      {constraintModel.occurrences.min}..{constraintModel.occurrences.max === null ? '*' : constraintModel.occurrences.max}
+                                    </span>
+                                  </div>
+                                  <div className="inspector-read-only-row">
+                                    <span className="inspector-read-only-label">Value Types:</span>
+                                    <span className="inspector-read-only-value">
+                                      {constraintModel.valueConstraints.map((c: any) => c.rmType).join(' | ')}
+                                    </span>
+                                  </div>
+                                  {constraintModel.valueConstraints.map((constraint: any, index: number) => (
+                                    constraint.rmType === 'DV_CODED_TEXT' && constraint.options?.length > 0 ? (
+                                      <div className="inspector-read-only-row" key={index} style={{ alignItems: 'flex-start' }}>
+                                        <span className="inspector-read-only-label">Allowed Codes ({constraint.terminologyId}):</span>
+                                        <span className="inspector-read-only-value" style={{ fontSize: '0.75rem' }}>
+                                          {constraint.options.map((option: any) => (
+                                            <div key={option.codeString} style={{ fontFamily: 'monospace' }}>
+                                              {option.codeString} — {option.text}
+                                              {option.semanticBindings?.length > 0 && (
+                                                <span style={{ color: '#64748b' }}>
+                                                  {' '}(→ {option.semanticBindings.map((b: any) => `${b.targetTerminologyId}::${b.targetCode}`).join(', ')})
+                                                </span>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </span>
+                                      </div>
+                                    ) : null
+                                  ))}
+                                  {constraintModel.parsingStatus === 'partial' && (
+                                    <div className="inspector-read-only-row">
+                                      <span className="inspector-read-only-label" style={{ color: '#b45309' }}>⚠ Partial:</span>
+                                      <span className="inspector-read-only-value" style={{ fontSize: '0.75rem' }}>{(constraintModel.warnings || []).join('; ')}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
 
