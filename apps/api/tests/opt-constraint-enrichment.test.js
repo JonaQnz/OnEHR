@@ -53,6 +53,38 @@ test('layout leaf nodes with a DV_CODED_TEXT|DV_TEXT union get allowFreeText:tru
   assert.notEqual(nameNode.allowFreeText, true);
 });
 
+test('a closed DV_CODED_TEXT field with 2-4 options (no free-text alternative) defaults to RadioButtons, not Dropdown', () => {
+  const parsed = parseWebTemplate(webTemplate);
+  function collectWithUiElement(node, out = []) {
+    if (node.uiElement) out.push(node);
+    (node.children || []).forEach((child) => collectWithUiElement(child, out));
+    return out;
+  }
+  const radioNodes = collectWithUiElement(parsed.layout);
+  assert.ok(radioNodes.length > 0, 'at least one real field in this template should default to RadioButtons');
+  for (const node of radioNodes) {
+    assert.equal(node.uiElement, 'RadioButtons');
+    assert.equal(node.type, 'input-select', 'the widget default never changes the underlying RM type/input contract');
+    assert.notEqual(node.allowFreeText, true, 'a field defaulted to radio has no free-text alternative by construction');
+  }
+});
+
+test('severity/diagnostic_category (DV_CODED_TEXT+DV_TEXT unions) do NOT get RadioButtons - no live "coded + other" widget exists yet, so the safe default is left alone', () => {
+  const parsed = parseWebTemplate(webTemplate);
+  function findByPath(node, path) {
+    if (node.binding?.path === path) return node;
+    for (const child of node.children || []) {
+      const found = findByPath(child, path);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  const severityPath = "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0005]/value";
+  const severityNode = findByPath(parsed.layout, severityPath);
+  assert.ok(severityNode);
+  assert.equal(severityNode.uiElement, undefined);
+});
+
 test('enrichment never breaks the parse even if something in it fails - the rest of parseWebTemplate always still returns fields/layout', () => {
   // A deliberately minimal/malformed-ish tree that still parses fine
   // structurally, to confirm the try/catch around enrichment is not load-

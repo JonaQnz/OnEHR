@@ -1,4 +1,4 @@
-import { FieldRegistryItem, FieldConstraint, FormElementLayout, OpenEhrBinding, type ArchetypeInstanceDefinition } from 'core';
+import { FieldRegistryItem, FieldConstraint, FormElementLayout, OpenEhrBinding, type ArchetypeInstanceDefinition, deriveDefaultWidget } from 'core';
 import { parseOpenEhrAqlPath, buildConstraintModelFromWebTemplate } from 'openehr-engine';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -554,11 +554,23 @@ export function parseWebTemplate(webTemplate: any): {
     // union, semantic bindings) is inspector-only.
     function flagFreeText(node: FormElementLayout): void {
       const path = node.binding?.path;
-      const hasCodedTextAndFreeText = path
-        ? constraintFieldsByPath.get(path)?.valueConstraints.some((c) => c.rmType === 'DV_TEXT')
-          && constraintFieldsByPath.get(path)?.valueConstraints.some((c) => c.rmType === 'DV_CODED_TEXT')
-        : false;
-      if (hasCodedTextAndFreeText) node.allowFreeText = true;
+      const constraintField = path ? constraintFieldsByPath.get(path) : undefined;
+      if (constraintField) {
+        const hasCodedText = constraintField.valueConstraints.some((c) => c.rmType === 'DV_CODED_TEXT');
+        const hasFreeText = constraintField.valueConstraints.some((c) => c.rmType === 'DV_TEXT');
+        if (hasCodedText && hasFreeText) node.allowFreeText = true;
+        // Radio-vs-dropdown default (architecture doc section 19): only
+        // ever a PRESENTATION choice on top of the exact same `type:
+        // 'input-select'`/`options` this node already had - never changes
+        // what RM type/value the field actually binds to or writes.
+        // Skipped once a designer has explicitly chosen a uiElement (never
+        // true at fresh-parse time, but this function is also called by
+        // apply_template_to_form's regeneration - defensive all the same).
+        if (node.type === 'input-select' && !node.uiElement) {
+          const suggestion = deriveDefaultWidget({ valueConstraints: constraintField.valueConstraints, occurrences: constraintField.occurrences });
+          if (suggestion.widget === 'radio') node.uiElement = 'RadioButtons';
+        }
+      }
       node.children?.forEach(flagFreeText);
     }
     layoutChildren.forEach(flagFreeText);
