@@ -60,16 +60,16 @@ test('a closed DV_CODED_TEXT field with 2-4 options (no free-text alternative) d
     (node.children || []).forEach((child) => collectWithUiElement(child, out));
     return out;
   }
-  const radioNodes = collectWithUiElement(parsed.layout);
-  assert.ok(radioNodes.length > 0, 'at least one real field in this template should default to RadioButtons');
+  const withUiElement = collectWithUiElement(parsed.layout);
+  const radioNodes = withUiElement.filter((node) => node.allowFreeText !== true);
+  assert.ok(radioNodes.length > 0, 'at least one real closed field in this template should default to RadioButtons');
   for (const node of radioNodes) {
     assert.equal(node.uiElement, 'RadioButtons');
     assert.equal(node.type, 'input-select', 'the widget default never changes the underlying RM type/input contract');
-    assert.notEqual(node.allowFreeText, true, 'a field defaulted to radio has no free-text alternative by construction');
   }
 });
 
-test('severity/diagnostic_category (DV_CODED_TEXT+DV_TEXT unions) do NOT get RadioButtons - no live "coded + other" widget exists yet, so the safe default is left alone', () => {
+test('severity/diagnostic_category (DV_CODED_TEXT+DV_TEXT unions) default to the CodedWithOther widget, not plain Dropdown', () => {
   const parsed = parseWebTemplate(webTemplate);
   function findByPath(node, path) {
     if (node.binding?.path === path) return node;
@@ -82,7 +82,9 @@ test('severity/diagnostic_category (DV_CODED_TEXT+DV_TEXT unions) do NOT get Rad
   const severityPath = "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0005]/value";
   const severityNode = findByPath(parsed.layout, severityPath);
   assert.ok(severityNode);
-  assert.equal(severityNode.uiElement, undefined);
+  assert.equal(severityNode.uiElement, 'CodedWithOther');
+  assert.equal(severityNode.allowFreeText, true);
+  assert.equal(severityNode.type, 'input-select', 'still the same underlying RM type/input contract as before this widget existed');
 });
 
 test('enrichment never breaks the parse even if something in it fails - the rest of parseWebTemplate always still returns fields/layout', () => {
