@@ -2,8 +2,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
-const { buildConstraintModelFromWebTemplate } = require('../dist/index.js');
+const { buildConstraintModelFromWebTemplate, parseTermBindingsFromOpt, mergeSemanticBindings } = require('../dist/index.js');
 const { resolveTerm, resolveTermIn } = require('../../core/dist/index.js');
 
 // Real EHRbase export for vg_Diagnosis.v1.1.1, fetched via the app's own
@@ -15,6 +16,10 @@ const { resolveTerm, resolveTermIn } = require('../../core/dist/index.js');
 // constraint engine architecture task, not template-specific special-casing
 // in the engine itself.
 const webTemplate = require(path.join(__dirname, 'fixtures', 'vg_Diagnosis.v1.1.1.webtemplate.json'));
+// The real raw OPT XML for the same template (fetched via
+// get_remote_template_opt) - only source for term_bindings, confirmed
+// absent from the WebTemplate JSON above.
+const optXml = fs.readFileSync(path.join(__dirname, 'fixtures', 'vg_Diagnosis.v1.1.1.opt.xml'), 'utf8');
 
 function findAllInstances(instances, out = []) {
   for (const instance of instances) {
@@ -169,6 +174,33 @@ test('field identity is never just the bare nodeId: primary and secondary at0005
   const secondarySeverity = secondary.fields.find((f) => f.nodeId === 'at0005');
   assert.equal(primarySeverity.nodeId, secondarySeverity.nodeId, 'sanity: same nodeId');
   assert.notEqual(primarySeverity.id, secondarySeverity.id, 'field.id must differ even though nodeId is identical');
+});
+
+test('SNOMED term bindings: parsed from raw OPT XML (never from WebTemplate JSON, which does not carry them) and attached without altering the local code', () => {
+  const bindings = parseTermBindingsFromOpt(optXml);
+  assert.ok(bindings['openEHR-EHR-CLUSTER.problem_qualifier.v2'], 'problem_qualifier.v2 must have bindings');
+  const byCode = Object.fromEntries(bindings['openEHR-EHR-CLUSTER.problem_qualifier.v2'].map((b) => [b.sourceCode, b]));
+  assert.deepEqual(byCode.at0064, { sourceCode: 'at0064', targetTerminologyId: 'SNOMED-CT', targetCode: '8319008' });
+  assert.deepEqual(byCode.at0066, { sourceCode: 'at0066', targetTerminologyId: 'SNOMED-CT', targetCode: '85097005' });
+
+  const model = buildModel('de');
+  const merged = mergeSemanticBindings(model, bindings);
+  const instances = allInstances(merged);
+  const qualifier = instances.find((i) => i.instanceKey === 'openEHR-EHR-CLUSTER.problem_qualifier.v2#1');
+  const category = qualifier.fields.find((f) => f.nodeId === 'at0063');
+  const hauptdiagnose = category.valueConstraints[0].options.find((o) => o.codeString === 'at0064');
+  assert.equal(hauptdiagnose.text, 'Hauptdiagnose', 'the clinical display text stays the local rubric');
+  assert.equal(hauptdiagnose.terminologyId, 'local', 'the option itself must stay local:: - a term binding is metadata, not a code substitution');
+  assert.deepEqual(hauptdiagnose.semanticBindings, [{ sourceCode: 'at0064', targetTerminologyId: 'SNOMED-CT', targetCode: '8319008' }]);
+  // A code with no term_binding at all (at0076/"Komplikation") must simply
+  // have no semanticBindings, not a crash or a fabricated one.
+  const komplikation = category.valueConstraints[0].options.find((o) => o.codeString === 'at0076');
+  assert.equal(komplikation.semanticBindings, undefined);
+});
+
+test('SNOMED term bindings never leak into the unrelated problem_diagnosis.v1 scope (that archetype has no term_bindings of its own in this template)', () => {
+  const bindings = parseTermBindingsFromOpt(optXml);
+  assert.equal(bindings['openEHR-EHR-EVALUATION.problem_diagnosis.v1'], undefined);
 });
 
 test('resolveTerm falls back gracefully and never throws for an unknown code/language', () => {

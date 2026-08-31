@@ -26,13 +26,19 @@ import {
   type ArchetypeTermDefinition,
   type ArchetypeTerminology,
   type CodedTextOption,
+  type DvCodedTextConstraint,
   type OpenEhrFieldDefinition,
   type OpenEhrTerminologyIndex,
   type Occurrences,
   type TemplateConstraintModel,
   type ValueConstraint,
 } from 'core';
+
+function isDvCodedTextConstraint(constraint: ValueConstraint): constraint is DvCodedTextConstraint {
+  return constraint.rmType === 'DV_CODED_TEXT' && !('unsupported' in constraint);
+}
 import { parseOpenEhrAqlPath } from '../metadata';
+import type { SemanticBindingIndex } from './parseOptXml';
 
 // A WebTemplate node's `nodeId` is the full archetype id (e.g.
 // "openEHR-EHR-EVALUATION.problem_diagnosis.v1") exactly when that node is
@@ -322,4 +328,43 @@ export function buildConstraintModelFromWebTemplate(webTemplate: WebTemplateJson
     terminologyIndex,
     warnings,
   };
+}
+
+/**
+ * Attaches term_bindings (from parseTermBindingsFromOpt, raw OPT XML) onto
+ * the matching DV_CODED_TEXT options of an already-built constraint model -
+ * a separate, additive step so buildConstraintModelFromWebTemplate() never
+ * needs raw XML to produce a complete, correct model on its own (see the
+ * module doc comment). Pure: returns a new model, the input is untouched.
+ *
+ * Deliberately only ever adds `CodedTextOption.semanticBindings` - never
+ * touches `codeString`/`terminologyId`, and has no way to reach
+ * `defining_code` at all (that only exists on a *runtime* value, built
+ * later, from `codeString`/`terminologyId` alone). This is the concrete
+ * mechanism that keeps a term_binding from ever being usable as the value
+ * actually stored for a clinical selection - see "Term Bindings separat
+ * behandeln" in the architecture doc: selecting "Hauptdiagnose"
+ * (local::at0064) must always serialize as `local::at0064`, never silently
+ * as the bound `SNOMED-CT::8319008`, however that binding is surfaced in an
+ * inspector.
+ */
+export function mergeSemanticBindings(model: TemplateConstraintModel, bindingsByArchetype: SemanticBindingIndex): TemplateConstraintModel {
+  const cloned: TemplateConstraintModel = JSON.parse(JSON.stringify(model));
+  function annotateField(field: OpenEhrFieldDefinition): void {
+    const bindings = bindingsByArchetype[field.archetypeId];
+    if (!bindings || bindings.length === 0) return;
+    for (const constraint of field.valueConstraints) {
+      if (!isDvCodedTextConstraint(constraint) || !constraint.options) continue;
+      for (const option of constraint.options) {
+        const matches = bindings.filter((b) => b.sourceCode === option.codeString);
+        if (matches.length > 0) option.semanticBindings = matches;
+      }
+    }
+  }
+  function walk(instance: ArchetypeInstanceDefinition): void {
+    instance.fields.forEach(annotateField);
+    instance.children.forEach(walk);
+  }
+  cloned.archetypeInstances.forEach(walk);
+  return cloned;
 }

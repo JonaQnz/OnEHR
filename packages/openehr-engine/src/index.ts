@@ -20,7 +20,9 @@ export { compareRuntimeValues } from './diff';
 
 export { buildCanonicalComposition, type CanonicalCompositionContext, type WebTemplateTreeNode } from './canonicalComposition';
 
-export { buildConstraintModelFromWebTemplate, type WebTemplateJson, type WtNode, type WtInput, type WtOption } from './opt/buildConstraintModel';
+export { buildConstraintModelFromWebTemplate, mergeSemanticBindings, type WebTemplateJson, type WtNode, type WtInput, type WtOption } from './opt/buildConstraintModel';
+
+export { parseTermBindingsFromOpt, type SemanticBindingIndex } from './opt/parseOptXml';
 
 export const OPEN_EHR_FORM_EXTENSION = 'org.openehr.form' as const;
 
