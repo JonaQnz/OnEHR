@@ -18,6 +18,11 @@
  * profile used by more than one clinician must never surface one user's
  * cached clinical data to another. Cleared entirely on logout (see
  * App.tsx's clearCompositionDataCache() call).
+ *
+ * mergeCachedRows() dedupes by content, not just concatenates - see its own
+ * doc comment for why (a row with no usable timeColumn value gets
+ * re-returned by every fetch, by design, and would otherwise pile up as a
+ * duplicate on every refresh).
  */
 
 const PREFIX = 'formbuilder:compositionDataCache:v1:';
@@ -68,14 +73,36 @@ export function saveCachedBlockData(key: string, data: { rows: Record<string, un
 }
 
 /** Appends newly-fetched rows (already filtered server-side to only what's
- * newer than the cache's own cachedThrough) onto the cached set. Simple
- * concatenation, not a sorted merge: the backend only ever returns rows
+ * newer than the cache's own cachedThrough) onto the cached set, deduped by
+ * exact content. Not a sorted merge: the backend only ever returns rows
  * strictly newer than `since`, and the cached rows were themselves already
  * in chronological order, so appending preserves that - callers that need
  * a specific order (Trend/Timeline) already sort their own working copy
- * regardless of what order rows arrive in. */
+ * regardless of what order rows arrive in.
+ *
+ * The dedup matters, not just defensive: diffRowsSince (compositionDataDiff
+ * .ts) deliberately always re-returns any row with no usable timeColumn
+ * value, on every single fetch, since it can never be judged "older than
+ * since" - the alternative (dropping it) would silently lose a genuinely
+ * new timeless row. Without dedup here, that same row would get appended
+ * again on every refresh and accumulate as a growing pile of duplicate
+ * entries in Timeline/Matrix/list widgets the longer a Composition stays
+ * open (found via the frontend QA review, not something that showed up
+ * from the pure-diff unit tests alone - those only exercise one fetch at
+ * a time, not the merge across repeated fetches). Content-equality (not a
+ * synthetic id, which no arbitrary AQL/widget row is guaranteed to carry)
+ * is the only generic way to recognize "this is the same row I already
+ * have" here. */
 export function mergeCachedRows(previous: Record<string, unknown>[], incoming: Record<string, unknown>[]): Record<string, unknown>[] {
-  return incoming.length === 0 ? previous : [...previous, ...incoming];
+  if (incoming.length === 0) return previous;
+  const seen = new Set(previous.map((row) => JSON.stringify(row)));
+  const deduped = incoming.filter((row) => {
+    const key = JSON.stringify(row);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return deduped.length === 0 ? previous : [...previous, ...deduped];
 }
 
 /** Clears every cached widget result for every user - called on logout so

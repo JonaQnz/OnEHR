@@ -58,6 +58,20 @@ clinician must never surface one user's cached clinical data to another.
 The cache is cleared entirely on logout (`clearCompositionDataCache()`,
 wired into `App.tsx`'s `logout()`).
 
+## Deduping timeless rows across repeated fetches
+
+`diffRowsSince` deliberately always re-returns a row with no usable
+`timeColumn` value on every fetch (it can never be judged "older than
+`since`" - dropping it would silently lose a genuinely new timeless row).
+That means `mergeCachedRows` in `compositionDataCache.ts` cannot simply
+concatenate: it dedupes by exact content (JSON-equality) against what's
+already cached, so a timeless row the backend keeps re-sending doesn't
+pile up as a duplicate entry in Timeline/Matrix/list widgets the longer a
+Composition stays open. Found via QA review, not the pure single-fetch
+diff tests (which don't exercise a *second* fetch against the same cache)
+- covered now by `mergeCachedRows`'s own dedup test in
+`compositionDataCache.test.ts`.
+
 ## The correction-visibility caveat, and how `force` handles it
 
 The incremental path can only ever learn about rows **strictly newer**

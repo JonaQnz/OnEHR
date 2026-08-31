@@ -64,6 +64,22 @@ describe('mergeCachedRows', () => {
     const previous = [{ analyt: 'Hb', wert: 14 }];
     expect(mergeCachedRows(previous, [])).toBe(previous);
   });
+
+  it('does not duplicate a row the backend keeps re-returning because it has no usable timeColumn value', () => {
+    // diffRowsSince (compositionDataDiff.ts) deliberately always re-returns
+    // a row with no usable timeColumn value on every single fetch, since it
+    // can never be judged "older than since" - e.g. a "Versorgungsverlauf"
+    // entry whose valueColumn is `composer` (a name) rather than a number,
+    // or any row with a null/unparsable recordedAt. Without dedup here,
+    // that exact row would pile up as a duplicate on every refresh.
+    const timelessRow = { compositionName: 'Aufnahme', composer: 'Dr. Meier', recordedAt: null };
+    const previous = [timelessRow];
+    // Simulates diffRowsSince re-sending it on the very next incremental fetch.
+    expect(mergeCachedRows(previous, [timelessRow])).toEqual([timelessRow]);
+    // A genuinely different timeless row is still added, not dropped.
+    const anotherTimelessRow = { compositionName: 'Entlassung', composer: 'Dr. Weber', recordedAt: null };
+    expect(mergeCachedRows(previous, [timelessRow, anotherTimelessRow])).toEqual([timelessRow, anotherTimelessRow]);
+  });
 });
 
 describe('clearCompositionDataCache', () => {
