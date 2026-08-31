@@ -30,7 +30,7 @@ export interface RuntimeGroupDescriptor {
 }
 export interface RuntimeValidationIssue extends ValidationIssue {
   path: string;
-  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max';
+  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required';
 }
 export interface RuntimeValidationResult { valid: boolean; issues: RuntimeValidationIssue[]; }
 
@@ -277,6 +277,14 @@ function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path
   if (field.options.length > 0 && !field.allowFreeText) {
     const selected = Array.isArray(value) ? value : [value];
     if (selected.some((item) => typeof item !== 'string' || !field.options.some((option) => option.value === item))) issue(issues, path, 'option', `${field.label} contains an unsupported option.`);
+  }
+  // codeMappings.requireMapping - only reached once the field has a
+  // non-empty text value (the empty() early-return above already handles
+  // required/blank), so this is purely "you typed text but attached no
+  // code", never a substitute for the field's own `required`.
+  if (field.codeMappings?.enabled && field.codeMappings.requireMapping) {
+    const mappings = isRecord(rawValue) ? (rawValue as Record<string, unknown>).mappings : undefined;
+    if (!Array.isArray(mappings) || mappings.length === 0) issue(issues, path, 'mapping-required', `${field.label} requires a code.`);
   }
   const number = numericValue(field, value);
   if (number !== undefined && field.validation?.min !== undefined && number < field.validation.min) issue(issues, path, 'min', `${field.label} must be at least ${field.validation.min}.`);

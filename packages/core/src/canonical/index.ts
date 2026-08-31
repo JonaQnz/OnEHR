@@ -132,6 +132,16 @@ export interface CodeMappingConfig {
    * erweiterbar... sodass wir mehr eingeben können". Set false to cap a
    * field at exactly one mapping. */
   allowMultiple?: boolean;
+  /** Forces at least one real code mapping whenever the field itself has a
+   * non-empty text value - free text alone no longer satisfies validation.
+   * Off by default (every existing codeMappings field keeps its current,
+   * text-is-enough behavior). Use this on a field where the attached code
+   * is the whole point of collecting it (e.g. a diagnosis name that must
+   * carry a real ICD-10-GM code for FHIR export to be meaningful), not
+   * merely a nice-to-have annotation. Never applies before the field has a
+   * value at all - an empty optional field is still governed by `required`
+   * alone. */
+  requireMapping?: boolean;
 }
 
 /** One DV_TEXT.mappings entry as the runtime actually stores/submits it -

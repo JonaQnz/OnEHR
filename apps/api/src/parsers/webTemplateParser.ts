@@ -2,6 +2,27 @@ import { FieldRegistryItem, FieldConstraint, FormElementLayout, OpenEhrBinding, 
 import { parseOpenEhrAqlPath, buildConstraintModelFromWebTemplate } from 'openehr-engine';
 import { v4 as uuidv4 } from 'uuid';
 
+// This product's clinical UI is German-first. A WebTemplate export already
+// carries every configured language's own term text in one response (see
+// docs/features/opt-constraint-engine-analysis.md) - `node.name`/
+// `option.label` alone just happen to reflect the template's own
+// defaultLanguage (frequently English for these archetypes, confirmed
+// against vg_Diagnosis.v1.1.1's real export), which is why every field
+// imported before this needed hand-translating afterwards. Preferring
+// localizedNames/localizedLabels[de] here, with a graceful fallback to
+// whatever default-language text is present, fixes that at the one place
+// labels/option text are actually read out of a WebTemplate node - no
+// change to how or in what language the template is fetched.
+const PREFERRED_LABEL_LANGUAGE = 'de';
+
+function preferredLabel(node: any, fallback: string): string {
+  return node?.localizedNames?.[PREFERRED_LABEL_LANGUAGE] || node?.name || fallback;
+}
+
+function preferredOptionText(option: any): string {
+  return option?.localizedLabels?.[PREFERRED_LABEL_LANGUAGE] || option?.label || option?.value;
+}
+
 export function isContextOrIgnoredNode(node: any): boolean {
   if (!node) return false;
   if (node.inContext === true) return true;
@@ -213,7 +234,7 @@ export function parseWebTemplate(webTemplate: any): {
 
         const field: FieldRegistryItem = {
           fieldName: `${alias}_${uniqueId}`,
-          label: node.name || node.id,
+          label: preferredLabel(node, node.id),
           templateAlias: alias,
           templateId: templateId,
           rmType: node.rmType,
@@ -266,7 +287,7 @@ export function parseWebTemplate(webTemplate: any): {
           if (listInput && listInput.list) {
             field.options = listInput.list.map((l: any) => ({
               value: l.value,
-              text: l.label || l.value
+              text: preferredOptionText(l)
             }));
           }
         }
@@ -334,7 +355,7 @@ export function parseWebTemplate(webTemplate: any): {
         return {
           type: 'container',
           id: node.id ? getUniqueContainerId(node.id) : uuidv4(),
-          label: node.name || node.id || 'Group',
+          label: preferredLabel(node, node.id || 'Group'),
           children: children,
           repeatMin: repeat.repeatMin,
           repeatMax: repeat.repeatMax,
@@ -372,7 +393,7 @@ export function parseWebTemplate(webTemplate: any): {
       const result: FormElementLayout = {
         type: 'container',
         id: node.id ? getUniqueContainerId(node.id) : uuidv4(),
-        label: node.name || node.id || 'Section',
+        label: preferredLabel(node, node.id || 'Section'),
         children: children,
         binding: containerBinding(node, alias, templateId)
       };
@@ -397,7 +418,7 @@ export function parseWebTemplate(webTemplate: any): {
       const result: FormElementLayout = {
         type: 'container',
         id: node.id ? getUniqueContainerId(node.id) : uuidv4(),
-        label: node.name || node.id || 'Group',
+        label: preferredLabel(node, node.id || 'Group'),
         children: children,
         binding: containerBinding(node, alias, templateId)
       };
@@ -436,7 +457,7 @@ export function parseWebTemplate(webTemplate: any): {
         type: inputType,
         id: uniqueId || node.id || uuidv4(),
         name: matchedField.fieldName,
-        label: node.name || node.id || '',
+        label: preferredLabel(node, node.id || ''),
         required: node.min >= 1,
         // The leaf's binding, straight from its own FieldRegistryItem -
         // previously never set here at all, only in the separate top-level
@@ -478,7 +499,7 @@ export function parseWebTemplate(webTemplate: any): {
     const result: FormElementLayout = {
       type: 'container',
       id: node.id ? getUniqueContainerId(node.id) : uuidv4(),
-      label: node.name || node.id || '',
+      label: preferredLabel(node, node.id || ''),
       children: children,
       binding: containerBinding(node, alias, templateId)
     };
