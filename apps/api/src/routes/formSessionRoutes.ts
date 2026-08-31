@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler, HttpError } from '../middleware/errorHandler';
-import { requirePermission } from '../middleware/auth';
+import { deriveAuthMode, requirePermission } from '../middleware/auth';
 import { autosaveFormSessionDraft, createFormSession, getFormSession, listFormSessions, loadFormSessionFromProvider, patchFormSession, submitFormSession, submitFormSessionToProvider, validateFormSession, withdrawFormSessionFromProvider } from '../services/formSessionService';
 import { getCompositionHistory, getCompositionVersionDetail, getCompositionVersionsForCompare } from '../services/compositionHistoryService';
 
@@ -8,7 +8,7 @@ const router = Router();
 router.use(requirePermission('form.execute'));
 
 function actor(req: Express.Request): { userId: string; authMode: 'local' | 'hip' } {
-  return { userId: req.principal?.userId || 'anonymous', authMode: req.principal?.authSource === 'oidc' ? 'hip' : 'local' };
+  return { userId: req.principal?.userId || 'anonymous', authMode: deriveAuthMode(req.principal?.authSource) };
 }
 
 router.get('/', asyncHandler(async (req, res) => {

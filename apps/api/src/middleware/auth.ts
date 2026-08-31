@@ -14,6 +14,25 @@ export function attachAuth(req: Request, _res: Response, next: NextFunction): vo
   void getCurrentAuthContext(req).then((context) => { if (context) { req.auth = context; req.principal = context.principal; } else req.principal = developmentPrincipal(); next(); }).catch(next);
 }
 
+/** Whether a principal's identity is federated through the real HIP/
+ * Keycloak plugin, or a purely local Forms-managed account - handed to
+ * plugins/script connectors/n8n workflows as SessionActor.authMode (e.g.
+ * to choose delegated-vs-service-account EHRbase auth).
+ *
+ * QA review finding: this used to be checked independently as
+ * `authSource === 'oidc'` in 4 separate route files. Principal
+ * ['authSource'] (packages/core/src/auth.ts) is actually
+ * `'local' | 'oidc' | 'launch' | \`plugin:${string}\``, and the real HIP
+ * login flow (userAuthService.ts's loginHip) always sets authSource to
+ * 'plugin:hip-keycloak', never 'oidc' - every real HIP-authenticated
+ * clinician was silently getting authMode: 'local' everywhere this
+ * value flowed (form sessions, Composition sessions, form launches,
+ * script connectors). One shared helper instead of four copies, so a
+ * future fix can't need to land in four places again. */
+export function deriveAuthMode(authSource: Principal['authSource'] | undefined): 'local' | 'hip' {
+  return authSource === 'plugin:hip-keycloak' ? 'hip' : 'local';
+}
+
 function developmentPrincipal(): Principal | undefined {
   if (getUserAuthMode(getConfig()) !== 'disabled-development-only' || process.env.NODE_ENV === 'production') return undefined;
   return { userId: 'development', subject: 'development', issuer: 'forms:development', authSource: 'local', displayName: 'Development user', roles: ['ADMIN'], permissions: ['patient.search', 'patient.read', 'form.execute', 'form-session.read-own', 'form-session.write-own', 'composition.read', 'composition.write', 'form.design', 'form.publish', 'plugin.configure', 'system.configure', 'user.manage', 'audit.read'] };

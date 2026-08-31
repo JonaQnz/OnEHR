@@ -76,10 +76,30 @@ export async function createLocalUser(input: { username: string; password: strin
     throw error;
   }
 }
+/** How many OTHER active users (besides `excludeUserId`) currently hold
+ * ADMIN - used to guard against ever leaving the system with zero active
+ * admins, whether via a role change away from ADMIN or a deactivation.
+ * Read inside the caller's own transaction so the check and the write it
+ * gates see a consistent snapshot. */
+async function countOtherActiveAdmins(tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0], excludeUserId: string): Promise<number> {
+  return tx.applicationUser.count({ where: { id: { not: excludeUserId }, status: 'active', roles: { some: { role: DbRole.ADMIN } } } });
+}
+
 export async function updateUser(id: string, input: { displayName?: string; email?: string; roles?: ApplicationRole[] }, actorUserId?: string): Promise<PublicUser> {
   const roles: DbRole[] | undefined = input.roles?.includes('ADMIN') ? [DbRole.ADMIN] : input.roles ? [DbRole.USER] : undefined;
   try {
     const user = await prisma.$transaction(async (tx) => {
+      // QA review finding: nothing stopped an admin from demoting the sole
+      // remaining ADMIN (themselves or someone else) to USER, locking the
+      // whole system out of user.manage with no recovery besides
+      // redeploying with FORMS_BOOTSTRAP_ADMIN_* env vars.
+      if (roles && !roles.includes(DbRole.ADMIN)) {
+        const current = await tx.applicationUser.findUnique({ where: { id }, include: { roles: true } });
+        const wasAdmin = current?.roles.some((entry) => entry.role === DbRole.ADMIN);
+        if (wasAdmin && (await countOtherActiveAdmins(tx, id)) === 0) {
+          throw new UserServiceError(409, 'Cannot remove ADMIN from the last remaining active administrator.');
+        }
+      }
       const updated = await tx.applicationUser.update({ where: { id }, data: { ...(input.displayName !== undefined ? { displayName: input.displayName.trim() || null } : {}), ...(input.email !== undefined ? { email: input.email.trim() || null } : {}), ...(roles ? { roles: { deleteMany: {}, create: roles.map((role) => ({ role })) } } : {}) }, include: { roles: true } });
       await tx.auditEvent.create({ data: { ...(actorUserId ? { actorUserId } : {}), action: roles ? 'user.role-changed' : 'user.updated', resourceType: 'user', resourceId: id, metadata: roles ? { roles } : {} } });
       return updated;
@@ -88,8 +108,21 @@ export async function updateUser(id: string, input: { displayName?: string; emai
   } catch (error: any) { if (error?.code === 'P2025') throw new UserServiceError(404, 'User not found'); throw error; }
 }
 export async function setUserStatus(id: string, active: boolean, actorUserId?: string): Promise<PublicUser> {
+  // Same QA finding as updateUser above: an admin could deactivate their
+  // own account (no recovery besides another admin, or nobody if they
+  // were the last one) or deactivate the last remaining active admin.
+  // Self-deactivation is blocked outright - there is never a legitimate
+  // reason to deactivate your own account through this endpoint.
+  if (!active && actorUserId && id === actorUserId) throw new UserServiceError(400, 'You cannot deactivate your own account.');
   try {
     const user = await prisma.$transaction(async (tx) => {
+      if (!active) {
+        const current = await tx.applicationUser.findUnique({ where: { id }, include: { roles: true } });
+        const isAdmin = current?.roles.some((entry) => entry.role === DbRole.ADMIN);
+        if (isAdmin && (await countOtherActiveAdmins(tx, id)) === 0) {
+          throw new UserServiceError(409, 'Cannot deactivate the last remaining active administrator.');
+        }
+      }
       const updated = await tx.applicationUser.update({ where: { id }, data: { status: active ? 'active' : 'inactive' }, include: { roles: true } });
       if (!active) await tx.applicationSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
       await tx.auditEvent.create({ data: { ...(actorUserId ? { actorUserId } : {}), action: active ? 'user.activated' : 'user.deactivated', resourceType: 'user', resourceId: id } });
