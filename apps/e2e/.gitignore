@@ -1,0 +1,6 @@
+# Contains a live session cookie captured by global-setup.ts - never commit.
+.auth/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
