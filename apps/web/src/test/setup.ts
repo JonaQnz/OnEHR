@@ -13,4 +13,4 @@ import { cleanup } from '@testing-library/react';
 // when it detects vitest's `globals: true`, which this project doesn't
 // enable (test files import describe/it/expect explicitly instead), so it
 // has to be done explicitly here.
-afterEach(() => { cleanup(); });
+afterEach(() => { cleanup(); localStorage.clear(); });

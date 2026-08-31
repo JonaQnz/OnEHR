@@ -2,6 +2,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import CompositionRuntime from './CompositionRuntime';
+import { AuthStateContext, type AuthState } from '../App';
+import { compositionDataCacheKey, loadCachedBlockData, saveCachedBlockData } from '../integration/compositionDataCache';
+
+// CompositionRuntime reads useAuth() (to scope its client-side data cache
+// per user) - App.tsx's useAuth() throws "Auth state unavailable" outside
+// a real <AuthGate>, so every render below needs this mock provider.
+const mockAuthState: AuthState = { loading: false, authenticated: true, mode: 'local', user: { id: 'test-user', displayName: 'Test User', authSource: 'local' }, roles: ['USER'], permissions: ['form.execute'], reload: async () => {} };
+function renderWithAuth(ui: React.ReactElement) {
+  return render(<AuthStateContext.Provider value={mockAuthState}>{ui}</AuthStateContext.Provider>);
+}
 
 // Covers the prop-override refactor from the Klinisches-Cockpit embedding
 // work: CompositionRuntime can now be mounted directly as a component
@@ -54,7 +64,7 @@ afterEach(() => {
 describe('CompositionRuntime embedding', () => {
   it('embedded: hides its own back-link and outer chrome, and formId overrides the route id', async () => {
     stubBackend();
-    render(
+    renderWithAuth(
       <MemoryRouter initialEntries={['/patients/some-other-id']}>
         <Routes>
           {/* Route param "id" deliberately does NOT match FORM_ID - proves
@@ -72,7 +82,7 @@ describe('CompositionRuntime embedding', () => {
 
   it('standalone route: shows its own back-link when not embedded', async () => {
     stubBackend();
-    render(
+    renderWithAuth(
       <MemoryRouter initialEntries={[`/compositions/${FORM_ID}?patientId=p1&ehrId=ehr1`]}>
         <Routes>
           <Route path="/compositions/:id" element={<CompositionRuntime />} />
@@ -81,5 +91,101 @@ describe('CompositionRuntime embedding', () => {
     );
     await waitFor(() => expect(screen.getByText('Klinisches Cockpit')).toBeInTheDocument());
     expect(screen.getByText('Zurück zur Patientenakte')).toBeInTheDocument();
+  });
+});
+
+// Covers the composition-data local-cache wiring end to end at the
+// component level (see docs/features/composition-data-cache.md) - the
+// pure-function tests in compositionDataCache.test.ts and
+// composition-data-diff.test.js each cover their own half in isolation,
+// but neither exercises refreshData() itself: cache-hit paint, the
+// background fetch actually carrying `since`, and the merge back into
+// both UI state and the cache.
+describe('CompositionRuntime data cache wiring', () => {
+  const DATA_FORM_ID = 'data-cache-1';
+  const cacheKey = compositionDataCacheKey({ userId: 'test-user', formId: DATA_FORM_ID, blockId: 'block-labor', patientId: 'p1', ehrId: 'ehr1' });
+
+  function stubBackendWithDataBlock(compositionDataHandler: (init?: RequestInit) => Promise<Response>) {
+    const composition = {
+      id: DATA_FORM_ID,
+      name: 'Datentest',
+      canonical_json: {
+        extensions: {
+          'watehr.composition': {
+            schemaVersion: '1.0',
+            pages: [{ id: 'page-1', title: 'Übersicht', blocks: [
+              { id: 'block-labor', type: 'data', title: 'Labor', display: 'list', widgetId: 'w1', timeColumn: 'recordedAt' },
+            ] }],
+          },
+        },
+      },
+    };
+    const session = { id: 'session-data-1', patientId: 'p1', mode: 'create', status: 'draft', childSessions: {}, children: [], progress: { total: 0, started: 0, ready: 0, submitted: 0 } };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith(`/forms/${DATA_FORM_ID}`)) return jsonResponse(composition);
+      if (url.endsWith('/patients')) return jsonResponse([]);
+      if (url.endsWith('/composition-sessions') && init?.method === 'POST') return jsonResponse(session);
+      if (url.includes(`/composition-sessions/${session.id}`)) return jsonResponse(session);
+      if (url.endsWith(`/forms/${DATA_FORM_ID}/composition-data`)) return compositionDataHandler(init);
+      return jsonResponse({});
+    }));
+  }
+
+  afterEach(() => { localStorage.clear(); });
+
+  it('paints instantly from a pre-existing cache, then merges an incrementally-fetched row using the cached `since` cursor', async () => {
+    const cachedThrough = Date.parse('2026-08-20T08:00:00Z');
+    saveCachedBlockData(cacheKey, { rows: [{ analyt: 'Hb', wert: 14, recordedAt: '2026-08-20T08:00:00Z' }], cachedThrough });
+    const compositionDataCalls: any[] = [];
+    stubBackendWithDataBlock(async (init) => {
+      compositionDataCalls.push(JSON.parse((init?.body as string) || '{}'));
+      return jsonResponse({ blockId: 'block-labor', rows: [{ analyt: 'Hb', wert: 13.2, recordedAt: '2026-08-21T08:00:00Z' }], cachedThrough: Date.parse('2026-08-21T08:00:00Z') });
+    });
+
+    renderWithAuth(
+      <MemoryRouter initialEntries={['/x']}>
+        <Routes>
+          <Route path="/x" element={<CompositionRuntime formId={DATA_FORM_ID} initialPatientId="p1" initialEhrId="ehr1" embedded />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Instant paint from the pre-seeded cache - the cached row is visible
+    // (WidgetDataCard's "list" display renders it as a table cell) without
+    // waiting on any network round trip to resolve.
+    await waitFor(() => expect(screen.getByText('14')).toBeInTheDocument());
+    // The background fetch actually asked for only what's new, using the
+    // cache's own cachedThrough as `since` - not a blind full refetch.
+    await waitFor(() => expect(compositionDataCalls.length).toBeGreaterThan(0));
+    expect(compositionDataCalls[0].since).toBe(cachedThrough);
+    // Once it resolves, the new row merges in alongside the cached one.
+    await waitFor(() => expect(screen.getByText('13.2')).toBeInTheDocument());
+    expect(screen.getByText('14')).toBeInTheDocument();
+    // And the cache itself now reflects the merged set, ready for the next visit.
+    const updated = loadCachedBlockData(cacheKey);
+    expect(updated?.rows).toHaveLength(2);
+    expect(updated?.cachedThrough).toBe(Date.parse('2026-08-21T08:00:00Z'));
+  });
+
+  it('fetches everything (no `since`) on a genuinely first load with nothing cached yet', async () => {
+    const compositionDataCalls: any[] = [];
+    stubBackendWithDataBlock(async (init) => {
+      compositionDataCalls.push(JSON.parse((init?.body as string) || '{}'));
+      return jsonResponse({ blockId: 'block-labor', rows: [{ analyt: 'Hb', wert: 14, recordedAt: '2026-08-20T08:00:00Z' }], cachedThrough: Date.parse('2026-08-20T08:00:00Z') });
+    });
+
+    renderWithAuth(
+      <MemoryRouter initialEntries={['/x']}>
+        <Routes>
+          <Route path="/x" element={<CompositionRuntime formId={DATA_FORM_ID} initialPatientId="p1" initialEhrId="ehr1" embedded />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText('14')).toBeInTheDocument());
+    await waitFor(() => expect(compositionDataCalls.length).toBeGreaterThan(0));
+    expect(compositionDataCalls[0].since).toBeUndefined();
+    expect(loadCachedBlockData(cacheKey)?.cachedThrough).toBe(Date.parse('2026-08-20T08:00:00Z'));
   });
 });

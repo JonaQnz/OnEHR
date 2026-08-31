@@ -7,6 +7,8 @@ import { ClinicalGrid, ClinicalStack, ClinicalTabs } from '../components/layout/
 import { CompositionScriptClient } from '../scripting/runtime/CompositionScriptClient';
 import { WidgetDataCard, type WidgetDataState } from '../components/WidgetDataCard';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { useAuth } from '../App';
+import { compositionDataCacheKey, loadCachedBlockData, mergeCachedRows, saveCachedBlockData } from '../integration/compositionDataCache';
 
 const API = 'http://localhost:3001/api';
 type Mode = 'create' | 'edit' | 'view' | 'prefill';
@@ -73,6 +75,11 @@ interface CompositionRuntimeProps {
 export default function CompositionRuntime(props: CompositionRuntimeProps = {}) {
   const { id: routeId } = useParams(); const [searchParams] = useSearchParams(); const navigate = useNavigate();
   const id = props.formId ?? routeId;
+  // Only used to scope the client-side composition-data cache per user (see
+  // compositionDataCache.ts) - a shared browser profile used by more than
+  // one clinician must never surface one user's cached clinical data to
+  // another.
+  const auth = useAuth();
   const [record, setRecord] = useState<FormRecord | null>(null); const [composition, setComposition] = useState<CompositionDefinition | null>(null); const [session, setSession] = useState<CompositionSession | null>(null);
   useDocumentTitle(record?.name || 'Form-Vorgang', { skip: props.embedded });
   const [pageIndex, setPageIndex] = useState(0); const [patientId, setPatientId] = useState(props.initialPatientId ?? searchParams.get('patientId') ?? ''); const [namespace, setNamespace] = useState(props.initialNamespace ?? searchParams.get('patientNamespace') ?? ''); const [ehrId, setEhrId] = useState(props.initialEhrId ?? searchParams.get('ehrId') ?? ''); const [mode, setMode] = useState<Mode>(() => { if (props.initialMode) return props.initialMode; const requested = searchParams.get('mode'); return requested === 'edit' || requested === 'view' || requested === 'prefill' ? requested : 'create'; });
@@ -186,13 +193,31 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
     const next = await request<CompositionSession>('/composition-sessions', { method: 'POST', body: JSON.stringify({ compositionFormId: record.id, patientId: patientId.trim(), patientNamespace: namespace.trim() || undefined, ehrId: ehrId.trim() || undefined, mode, forceNew }) });
     setSession(next); return next;
   };
+  // `force` (an explicit "Aktualisieren"-style refresh, e.g. the
+  // Medikationssicherheit page's onPageVisibility-triggered data.refresh())
+  // bypasses the cache entirely rather than just sending it along as
+  // `since` - a corrected value sharing its original entry's timeColumn
+  // would otherwise never surface until the cache's own 24h safety-net
+  // expiry, since the incremental path can only ever learn about rows
+  // strictly newer than what it already has, never revisions of rows it
+  // already cached. Every other load (mount, page switch, script-driven
+  // non-forced refresh) takes the fast incremental path.
   const refreshData = (onlyBlockId?: string, force = false) => {
     if (!record || !composition || !contextReady) return;
     const blocks = composition.pages.flatMap((candidate) => candidate.blocks).filter((block): block is CompositionDataBlock => block.type === 'data' && (!onlyBlockId || block.id === onlyBlockId));
     for (const block of blocks) {
       if (!force && (data[block.id]?.loading || data[block.id]?.rows)) continue;
-      setData((current) => ({ ...current, [block.id]: { loading: true } }));
-      void request<{ rows: Record<string, unknown>[] }>(`/forms/${encodeURIComponent(record.id)}/composition-data`, { method: 'POST', body: JSON.stringify({ blockId: block.id, patient: { id: patientId.trim(), ...(namespace.trim() ? { namespace: namespace.trim() } : {}) }, ehrId: ehrId.trim() || undefined }) }).then((result) => setData((current) => ({ ...current, [block.id]: { rows: result.rows } }))).catch((reason) => setData((current) => ({ ...current, [block.id]: { error: reason instanceof Error ? reason.message : 'Daten konnten nicht geladen werden.' } })));
+      const cacheKey = compositionDataCacheKey({ userId: auth.user?.id || 'anonymous', formId: record.id, blockId: block.id, patientId: patientId.trim(), ehrId: ehrId.trim() || undefined });
+      const cached = force ? undefined : loadCachedBlockData(cacheKey);
+      setData((current) => ({ ...current, [block.id]: cached ? { rows: cached.rows } : { loading: true } }));
+      void request<{ rows: Record<string, unknown>[]; cachedThrough?: number }>(`/forms/${encodeURIComponent(record.id)}/composition-data`, { method: 'POST', body: JSON.stringify({ blockId: block.id, patient: { id: patientId.trim(), ...(namespace.trim() ? { namespace: namespace.trim() } : {}) }, ehrId: ehrId.trim() || undefined, ...(cached?.cachedThrough !== undefined ? { since: cached.cachedThrough } : {}) }) })
+        .then((result) => {
+          const rows = cached ? mergeCachedRows(cached.rows, result.rows) : result.rows;
+          const cachedThrough = result.cachedThrough ?? cached?.cachedThrough;
+          saveCachedBlockData(cacheKey, { rows, cachedThrough });
+          setData((current) => ({ ...current, [block.id]: { rows } }));
+        })
+        .catch((reason) => setData((current) => ({ ...current, [block.id]: { error: reason instanceof Error ? reason.message : 'Daten konnten nicht geladen werden.', rows: cached?.rows } })));
     }
   };
   // Launches every form block in the given set that isn't already started.
