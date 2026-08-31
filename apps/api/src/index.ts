@@ -1,30 +1,11 @@
-import express from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import path from 'path';
 import { initConfig } from './services/configService';
-import formRoutes from './routes/formRoutes';
-import templateRoutes from './routes/templateRoutes';
-import configRoutes from './routes/configRoutes';
-import { errorHandler } from './middleware/errorHandler';
-import pluginRoutes from './routes/pluginRoutes';
 import { loadConfiguredPlugins } from './plugins/pluginRegistry';
-import authRoutes from './routes/authRoutes';
-import { attachAuth } from './middleware/auth';
-import formSessionRoutes from './routes/formSessionRoutes';
-import dataProviderRoutes from './routes/dataProviderRoutes';
-import patientRoutes from './routes/patientRoutes';
-import scriptConnectorRoutes from './routes/scriptConnectorRoutes';
-import formLaunchRoutes from './routes/formLaunchRoutes';
 import { ensureDefaultFunctionLibrary } from './services/functionLibraryBootstrap';
-import functionRoutes from './routes/functionRoutes';
-import userAdminRoutes from './routes/userAdminRoutes';
-import auditRoutes from './routes/auditRoutes';
-import ehrbaseAdminRoutes from './routes/ehrbaseAdminRoutes';
-import compositionSessionRoutes from './routes/compositionSessionRoutes';
-import dataWidgetRoutes from './routes/dataWidgetRoutes';
 import { ensureBootstrapAdmin } from './services/userAuthService';
+import { createApp } from './app';
 
 // Backend plugins run in-process via require() with no sandbox (see
 // pluginRegistry.ts) - a real isolation boundary would run each plugin in its
@@ -77,41 +58,8 @@ axios.interceptors.response.use((response) => {
   return Promise.reject(error);
 });
 
-const app = express();
+const app = createApp();
 const port = process.env.PORT || 3001;
-app.use('/api', attachAuth);
-
-app.use(cors({ origin: process.env.WEB_ORIGIN || 'http://localhost:3000', credentials: true }));
-app.use(express.json());
-
-// Incoming request logger middleware
-app.use((req, res, next) => {
-  console.log(`\n📥 [API INCOMING] ${req.method} ${req.url}`);
-  next();
-});
-
-app.use('/api/auth', authRoutes);
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-app.use('/api/form-sessions', formSessionRoutes);
-app.use('/api/composition-sessions', compositionSessionRoutes);
-app.use('/api/form-launches', formLaunchRoutes);
-app.use('/api/data-providers', dataProviderRoutes);
-app.use('/api/patients', patientRoutes);
-app.use('/api/script-connectors', scriptConnectorRoutes);
-app.use('/api/functions', functionRoutes);
-app.use('/api/widgets', dataWidgetRoutes);
-app.use('/api/admin', userAdminRoutes);
-app.use('/api/admin/audit', auditRoutes);
-app.use('/api/admin/ehrbase', ehrbaseAdminRoutes);
-
-app.use('/api/forms', formRoutes);
-app.use('/api/templates', templateRoutes);
-app.use('/api/config', configRoutes);
-app.use('/api/plugins', pluginRoutes);
-
-app.use(errorHandler);
 
 async function start() {
   await ensureBootstrapAdmin();

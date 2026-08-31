@@ -26,6 +26,23 @@ record):
   internals), #6 (`form.publish` not enforced) + shared packages #2
   (`NON_FIELD_TYPES` duplication) - PR #19,
   `fix/error-leakage-permission-dedup`.
+- apps/api #7 (draft/restore version-bump collision) - PR #21,
+  `fix/draft-version-collision`.
+- apps/api #5 (`syncPatientsFromEhrbase` sequential N+1, no
+  partial-failure recovery) - PR #22, `fix/patient-sync-resilience`
+  (bounded concurrency + per-EHR failure isolation).
+- apps/api #10 (no HTTP-layer tests at all) - a real `createApp()`
+  export (`apps/api/src/app.ts`, split out of `index.ts`) plus
+  `apps/api/tests/http/*.test.js` and its `tests/support/httpServer.js`/
+  `testAuth.js` helpers now exercise the actual Express request/response
+  cycle - `attachAuth`/`requirePermission` genuinely blocking an
+  unauthenticated/under-permissioned request, `errorHandler`'s response
+  shape (including the never-leak-internals guarantee from #4, now
+  provable at the HTTP boundary instead of only at the function level).
+  Still only covers `compositionSessionRoutes` so far, not every route
+  file - see `docs/testing/README.md`. The infrastructure and pattern are
+  the actual fix here; extending it to the remaining routes is ordinary
+  follow-up work, not a new gap.
 
 Everything else below is **not yet fixed**. Triage this list before
 picking the next thing to work on; it's roughly ordered by impact within
@@ -53,7 +70,7 @@ each area, not a strict global ranking.
 4. ✅ **Error handler leaks internal details** (`errorHandler.ts`) - any
    non-`HttpError` (Prisma, axios/EHRbase, ...) returns its raw
    `.message` to the client at 500 with no redaction.
-5. **`syncPatientsFromEhrbase` is a sequential N+1 with no
+5. ✅ **`syncPatientsFromEhrbase` is a sequential N+1 with no
    partial-failure recovery** (`patientService.ts`) - one blocking
    EHRbase call + one DB upsert per EHR, fully serialized; one flaky EHR
    aborts the whole sync for every concurrent caller awaiting it.
@@ -61,7 +78,7 @@ each area, not a strict global ranking.
    (`authorizationService.ts` + `formRoutes.ts`) - publish/archive/
    delete/restore are all gated by the same generic `'form.design'`
    check; the apparent finer-grained permission model is fictional.
-7. Inconsistent minor-version-bump logic between `create-draft` and
+7. ✅ Inconsistent minor-version-bump logic between `create-draft` and
    `restore` in `formRoutes.ts` can produce duplicate version labels
    among sibling drafts.
 8. Dead/vestigial ~35-line "plugin validation" comment block in
@@ -70,12 +87,14 @@ each area, not a strict global ranking.
    permissions exist in `ROLE_PERMISSIONS.USER` but are never checked via
    `requirePermission()` - ownership is enforced by direct comparisons
    instead; the permission strings are decorative.
-10. **No HTTP/integration tests exist at all** - all `apps/api/tests/*`
+10. ✅ **No HTTP/integration tests exist at all** - all `apps/api/tests/*`
     call service functions directly against a mocked Prisma, never
     through Express/`requirePermission`. Route-level wiring (which
-    permission a route requires, status codes, middleware ordering) is
+    permission a route requires, status codes, middleware ordering) was
     entirely unverified - this is exactly the class of bug that hid
-    finding #1.
+    finding #1. `apps/api/tests/http/*.test.js` now covers this for
+    `compositionSessionRoutes`; extending the pattern to the other route
+    files is ordinary follow-up, not a new gap.
 11. `userService.ts` (create/update/deactivate/reset-password/role
     changes) has zero dedicated tests.
 12. `dataWidgetService.ts`'s `limit` boundary (1-1000, integer-only) is
@@ -205,14 +224,34 @@ data-loss class as what's already fixed) + `apps/api` findings #1 and #2
 availability impact).~~ Done - see PRs #17/#18 above, plus a follow-on
 batch (apps/api #3/#4/#6 + shared packages #2) in PR #19.
 
-Reasonable next batch after that: `apps/api` #5 (`syncPatientsFromEhrbase`
-N+1/no partial-failure recovery) and #7 (version-bump collision between
-`create-draft`/`restore`) - both real correctness/reliability issues, no
-new architecture needed. After that, the two bigger, cross-cutting items
-worth a dedicated pass rather than a quick fix: `apps/web`'s hardcoded
-`http://localhost:3001` in ~26 files (deployment-breaking, but touches a
-lot of files at once) and `apps/api`'s complete absence of HTTP-layer
-tests (the single highest-leverage remaining gap - would have caught
-several of the bugs already fixed here). Everything else can wait for a
-dedicated pass, ideally once a CI pipeline exists to keep fixes from
-regressing silently again.
+~~Reasonable next batch after that: `apps/api` #5
+(`syncPatientsFromEhrbase` N+1/no partial-failure recovery) and #7
+(version-bump collision between `create-draft`/`restore`) - both real
+correctness/reliability issues, no new architecture needed.~~ Done - PR
+#21 (#7) and PR #22 (#5).
+
+~~After that, the two bigger, cross-cutting items worth a dedicated pass
+rather than a quick fix: `apps/web`'s hardcoded `http://localhost:3001`
+in ~26 files (deployment-breaking, but touches a lot of files at once)
+and `apps/api`'s complete absence of HTTP-layer tests (the single
+highest-leverage remaining gap - would have caught several of the bugs
+already fixed here).~~ The hardcoded-URL fix is PR #23 (open, not yet
+merged). The HTTP-layer test gap is done (#10 above,
+`fix/repeatable-composition-blocks` branch) - though only for
+`compositionSessionRoutes` so far, extending it to the rest is ordinary
+follow-up.
+
+What's left after those: apps/api #8/#9/#11/#12 (all minor/test-coverage,
+no urgency), apps/web #3-#12 (Dashboard `res.ok`, session-recreate-on-
+keystroke, autosave debounce, `request<T>()` duplication, the two
+"first row determines table columns" bugs, status-badge color-map
+duplication, missing `AbortController`/mount-guards, missing
+`aria-label`s, hardcoded hex colors, oversized single-file components),
+and the shared-packages items (#1/#3-#7, plus the test-coverage gaps in
+finding #7: `form-definition`/`form-scripting` have no test file at all,
+`validateRuntimeValues` option/unit/min/max/pattern/`repeat-max`/
+visibility-evaluator coverage, 5 of 6 plugin packages with zero tests -
+`aql-prefill-plugin`'s hand-rolled AQL predicate parser is the single
+highest-risk untested piece of logic found in the entire review).
+Everything here can wait for a dedicated pass, ideally once a CI
+pipeline exists to keep fixes from regressing silently again.
