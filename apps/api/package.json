@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node --test tests/*.test.js",
+    "test": "npm run build && node --test --test-concurrency=1 tests/*.test.js tests/http/*.test.js",
     "test:integration:ehrbase": "node --test tests/integration/ehrbase-template-smoke.test.js"
   },
   "keywords": [],
