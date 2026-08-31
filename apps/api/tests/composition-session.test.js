@@ -40,7 +40,7 @@ function installStore({ blocks, openEhrOptions } = {}) {
   let sequence = 0;
   const forms = new Map([['composition-form', compositionForm(blocks, openEhrOptions)]]);
   const now = () => new Date('2026-08-05T10:00:00.000Z');
-  const clone = (value) => ({ ...value, childSessions: { ...value.childSessions } });
+  const clone = (value) => ({ ...value, childSessions: { ...value.childSessions }, childSessionGroups: { ...value.childSessionGroups } });
 
   prisma.form.findUnique = async ({ where }) => forms.get(where.id) || null;
   prisma.compositionSession.findFirst = async ({ where }) => [...records.values()].filter((record) => (
@@ -189,6 +189,119 @@ test('a Composition never attaches a child session from another form or patient'
     await assert.rejects(
       compositions.attachCompositionChild(parent.id, 'person', 'wrong-child', actor),
       /does not match this composition context/i,
+    );
+  } finally { store.restore(); }
+});
+
+const manualAddBlocks = [{ id: 'diagnosis', type: 'form', formId: 'diagnosis-form', title: 'Diagnose', manualAdd: true }];
+const requiredManualAddBlocks = [{ id: 'diagnosis', type: 'form', formId: 'diagnosis-form', title: 'Diagnose', manualAdd: true, requireAtLeastOne: true }];
+
+test('a manualAdd block with zero instances is optional by default - not counted in progress', async () => {
+  const store = installStore({ blocks: manualAddBlocks });
+  try {
+    const parent = await compositions.startCompositionSession({ compositionFormId: 'composition-form', patientId: 'local-ada' }, actor);
+    assert.equal(parent.children.length, 0, 'an untouched, non-required manualAdd block contributes no children');
+    assert.equal(parent.progress.total, 0);
+  } finally { store.restore(); }
+});
+
+test('a manualAdd block with requireAtLeastOne shows one outstanding not_started entry until an instance is added', async () => {
+  const store = installStore({ blocks: requiredManualAddBlocks });
+  try {
+    const parent = await compositions.startCompositionSession({ compositionFormId: 'composition-form', patientId: 'local-ada' }, actor);
+    assert.equal(parent.children.length, 1);
+    assert.equal(parent.children[0].status, 'not_started');
+    assert.equal(parent.children[0].sessionId, undefined);
+    assert.equal(parent.progress.total, 1);
+  } finally { store.restore(); }
+});
+
+test('a plain (non-instance) attach against a manualAdd block is rejected', async () => {
+  const store = installStore({ blocks: manualAddBlocks });
+  try {
+    const parent = await compositions.startCompositionSession({ compositionFormId: 'composition-form', patientId: 'local-ada' }, actor);
+    store.childRows.set('diag-1', { id: 'diag-1', formId: 'diagnosis-form', status: 'draft', validation: [] });
+    await assert.rejects(
+      compositions.attachCompositionChild(parent.id, 'diagnosis', 'diag-1', actor),
+      /requires asNewInstance/i,
+    );
+  } finally { store.restore(); }
+});
+
+test('asNewInstance against a non-manualAdd block is rejected', async () => {
+  const store = installStore();
+  try {
+    const parent = await compositions.startCompositionSession({ compositionFormId: 'composition-form', patientId: 'local-ada' }, actor);
+    store.childRows.set('child-1', { id: 'child-1', formId: 'person-form', status: 'draft', validation: [] });
+    await assert.rejects(
+      compositions.attachCompositionChild(parent.id, 'person', 'child-1', actor, { asNewInstance: true }),
+      /does not allow multiple instances/i,
+    );
+  } finally { store.restore(); }
+});
+
+test('clicking "+" repeatedly adds several independent instances of the same manualAdd block', async () => {
+  const store = installStore({ blocks: manualAddBlocks });
+  try {
+    const parent = await compositions.startCompositionSession({ compositionFormId: 'composition-form', patientId: 'local-ada' }, actor);
+    store.childRows.set('diag-1', { id: 'diag-1', formId: 'diagnosis-form', status: 'draft', validation: [] });
+    store.childRows.set('diag-2', { id: 'diag-2', formId: 'diagnosis-form', status: 'draft', validation: [] });
+    store.childRows.set('diag-3', { id: 'diag-3', formId: 'diagnosis-form', status: 'draft', validation: [] });
+
+    let session = await compositions.attachCompositionChild(parent.id, 'diagnosis', 'diag-1', actor, { asNewInstance: true });
+    session = await compositions.attachCompositionChild(parent.id, 'diagnosis', 'diag-2', actor, { asNewInstance: true });
+    session = await compositions.attachCompositionChild(parent.id, 'diagnosis', 'diag-3', actor, { asNewInstance: true });
+
+    assert.deepEqual(session.childSessionGroups.diagnosis, ['diag-1', 'diag-2', 'diag-3']);
+    assert.equal(session.children.length, 3);
+    assert.equal(session.progress.total, 3);
+    assert.equal(session.progress.started, 3);
+    assert.ok(session.children.every((child) => child.manualAdd === true));
+    assert.deepEqual(session.children.map((child) => child.instanceIndex), [1, 2, 3]);
+
+    // re-attaching an already-present session id is a no-op, not a duplicate
+    const noop = await compositions.attachCompositionChild(parent.id, 'diagnosis', 'diag-1', actor, { asNewInstance: true });
+    assert.deepEqual(noop.childSessionGroups.diagnosis, ['diag-1', 'diag-2', 'diag-3']);
+  } finally { store.restore(); }
+});
+
+test('removing a draft manualAdd instance detaches it without touching the others', async () => {
+  const store = installStore({ blocks: manualAddBlocks });
+  try {
+    const parent = await compositions.startCompositionSession({ compositionFormId: 'composition-form', patientId: 'local-ada' }, actor);
+    store.childRows.set('diag-1', { id: 'diag-1', formId: 'diagnosis-form', status: 'draft', validation: [] });
+    store.childRows.set('diag-2', { id: 'diag-2', formId: 'diagnosis-form', status: 'draft', validation: [] });
+    await compositions.attachCompositionChild(parent.id, 'diagnosis', 'diag-1', actor, { asNewInstance: true });
+    await compositions.attachCompositionChild(parent.id, 'diagnosis', 'diag-2', actor, { asNewInstance: true });
+
+    const after = await compositions.removeCompositionInstance(parent.id, 'diagnosis', 'diag-1', actor);
+    assert.deepEqual(after.childSessionGroups.diagnosis, ['diag-2']);
+    assert.equal(after.children.length, 1);
+  } finally { store.restore(); }
+});
+
+test('an already-submitted manualAdd instance cannot be removed', async () => {
+  const store = installStore({ blocks: manualAddBlocks });
+  try {
+    const parent = await compositions.startCompositionSession({ compositionFormId: 'composition-form', patientId: 'local-ada' }, actor);
+    store.childRows.set('diag-1', { id: 'diag-1', formId: 'diagnosis-form', status: 'draft', validation: [] });
+    await compositions.attachCompositionChild(parent.id, 'diagnosis', 'diag-1', actor, { asNewInstance: true });
+    store.childRows.set('diag-1', { ...store.childRows.get('diag-1'), status: 'submitted' });
+
+    await assert.rejects(
+      compositions.removeCompositionInstance(parent.id, 'diagnosis', 'diag-1', actor),
+      /cannot|können nicht entfernt/i,
+    );
+  } finally { store.restore(); }
+});
+
+test('removeCompositionInstance rejects a block that is not manualAdd', async () => {
+  const store = installStore();
+  try {
+    const parent = await compositions.startCompositionSession({ compositionFormId: 'composition-form', patientId: 'local-ada' }, actor);
+    await assert.rejects(
+      compositions.removeCompositionInstance(parent.id, 'person', 'child-1', actor),
+      /does not allow multiple instances/i,
     );
   } finally { store.restore(); }
 });

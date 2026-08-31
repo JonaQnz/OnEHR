@@ -8,7 +8,9 @@ import { getConfig, resolveSessionAlwaysNew } from './configService';
 
 export type CompositionSessionActor = SessionActor;
 type ChildMap = Record<string, string>;
-type ChildSummary = { blockId: string; sessionId?: string; formId: string; status: string; valid?: boolean; issues?: Array<{ path: string; code: string; message: string }> };
+type ChildGroupMap = Record<string, string[]>;
+type ChildSummary = { blockId: string; sessionId?: string; formId: string; status: string; valid?: boolean; issues?: Array<{ path: string; code: string; message: string }>; manualAdd?: boolean; instanceIndex?: number };
+type ExpectedChild = { blockId: string; formId: string; manualAdd: boolean; requireAtLeastOne: boolean };
 
 export interface PublicCompositionSession {
   id: string;
@@ -20,6 +22,10 @@ export interface PublicCompositionSession {
   mode: FormRuntimeMode;
   status: 'draft' | 'in_progress' | 'ready' | 'submitted' | 'failed' | 'cancelled';
   childSessions: Record<string, string>;
+  /** Instance lists for manualAdd blocks only - see childSessionGroups on
+   * the CompositionSession model. Always present (possibly {}) so callers
+   * never have to special-case its absence. */
+  childSessionGroups: Record<string, string[]>;
   children: ChildSummary[];
   progress: { total: number; started: number; ready: number; submitted: number };
   revision: number;
@@ -29,6 +35,7 @@ export interface PublicCompositionSession {
 
 function text(value: unknown, field: string): string { if (typeof value !== 'string' || !value.trim()) throw new HttpError(400, `${field} is required`); return value.trim(); }
 function isMap(value: unknown): value is ChildMap { return Boolean(value && typeof value === 'object' && !Array.isArray(value)) && Object.values(value as Record<string, unknown>).every((id) => typeof id === 'string'); }
+function isGroupMap(value: unknown): value is ChildGroupMap { return Boolean(value && typeof value === 'object' && !Array.isArray(value)) && Object.values(value as Record<string, unknown>).every((ids) => Array.isArray(ids) && ids.every((id) => typeof id === 'string')); }
 function owner(record: { userId: string }, actor: CompositionSessionActor): void { if (record.userId !== actor.userId && actor.userId !== 'anonymous') throw new HttpError(403, 'You do not have access to this composition session'); }
 
 async function compositionFor(id: string, publishedOnly = false) {
@@ -37,17 +44,17 @@ async function compositionFor(id: string, publishedOnly = false) {
   if (publishedOnly && form.status !== 'published') throw new HttpError(409, 'Only published compositions can be run');
   const definition = getCompositionDefinition((form.canonical_json as any).extensions || {});
   if (!definition) throw new HttpError(422, 'Form is not a Composition');
-  const expected = definition.pages.flatMap((page) => page.blocks).filter((block) => block.type === 'form').map((block) => ({ blockId: block.id, formId: block.formId }));
+  const expected: ExpectedChild[] = definition.pages.flatMap((page) => page.blocks).filter((block) => block.type === 'form').map((block) => ({ blockId: block.id, formId: block.formId, manualAdd: block.manualAdd === true, requireAtLeastOne: block.requireAtLeastOne === true }));
   return { form, expected };
 }
 
 async function publicSession(record: any, actor: CompositionSessionActor): Promise<PublicCompositionSession> {
   const { expected } = await compositionFor(record.compositionFormId);
-  const childSessions = isMap(record.childSessions) ? record.childSessions : {};
-  const ids = Object.values(childSessions) as string[];
+  const childSessions: ChildMap = isMap(record.childSessions) ? record.childSessions : {};
+  const childSessionGroups: ChildGroupMap = isGroupMap(record.childSessionGroups) ? record.childSessionGroups : {};
+  const ids: string[] = [...Object.values(childSessions), ...Object.values(childSessionGroups).flat()];
   const rows = ids.length ? await prisma.formSession.findMany({ where: { id: { in: ids } }, select: { id: true, formId: true, status: true, validation: true } }) : [];
-  const children = expected.map((expectedChild): ChildSummary => {
-    const sessionId = childSessions[expectedChild.blockId];
+  const summarize = (expectedChild: ExpectedChild, sessionId: string | undefined, instanceIndex?: number): ChildSummary => {
     const session = sessionId ? rows.find((row) => row.id === sessionId) : undefined;
     const issues = session && Array.isArray(session.validation) ? session.validation as any : [];
     // `valid: false` reads as "checked and found invalid" - only report it
@@ -67,11 +74,27 @@ async function publicSession(record: any, actor: CompositionSessionActor): Promi
         ...(hasBeenAssessed ? { valid: session.status === 'ready' || session.status === 'submitted' } : {}),
         issues,
       } : {}),
+      ...(expectedChild.manualAdd ? { manualAdd: true } : {}),
+      ...(instanceIndex !== undefined ? { instanceIndex } : {}),
     };
+  };
+  const children = expected.flatMap((expectedChild): ChildSummary[] => {
+    if (!expectedChild.manualAdd) return [summarize(expectedChild, childSessions[expectedChild.blockId])];
+    const instanceIds = childSessionGroups[expectedChild.blockId] || [];
+    if (instanceIds.length === 0) {
+      // A manualAdd block the clinician hasn't touched at all contributes
+      // nothing to progress unless the designer explicitly required at
+      // least one instance - matching "nicht verpflichtend, außer explizit
+      // konfiguriert". When required, a synthetic not-started entry (no
+      // sessionId) keeps it visible in the progress panel and blocks
+      // validateCompositionSession until an instance actually exists.
+      return expectedChild.requireAtLeastOne ? [summarize(expectedChild, undefined)] : [];
+    }
+    return instanceIds.map((sessionId: string, index: number) => summarize(expectedChild, sessionId, index + 1));
   });
   const { progress, status: nextStatus } = summarizeCompositionSession(children);
   const persisted = record.status === nextStatus ? record : await prisma.compositionSession.update({ where: { id: record.id }, data: { status: nextStatus, revision: { increment: 1 } } });
-  return { id: persisted.id, compositionFormId: persisted.compositionFormId, compositionVersion: persisted.compositionVersion, patientId: persisted.patientId, ...(persisted.patientNamespace ? { patientNamespace: persisted.patientNamespace } : {}), ...(persisted.ehrId ? { ehrId: persisted.ehrId } : {}), mode: persisted.mode as FormRuntimeMode, status: persisted.status, childSessions, children, progress, revision: persisted.revision, createdAt: persisted.createdAt.toISOString(), updatedAt: persisted.updatedAt.toISOString() };
+  return { id: persisted.id, compositionFormId: persisted.compositionFormId, compositionVersion: persisted.compositionVersion, patientId: persisted.patientId, ...(persisted.patientNamespace ? { patientNamespace: persisted.patientNamespace } : {}), ...(persisted.ehrId ? { ehrId: persisted.ehrId } : {}), mode: persisted.mode as FormRuntimeMode, status: persisted.status, childSessions, childSessionGroups, children, progress, revision: persisted.revision, createdAt: persisted.createdAt.toISOString(), updatedAt: persisted.updatedAt.toISOString() };
 }
 
 export async function startCompositionSession(input: { compositionFormId: string; patientId: string; patientNamespace?: string; ehrId?: string; mode?: FormRuntimeMode; forceNew?: boolean }, actor: CompositionSessionActor): Promise<PublicCompositionSession> {
@@ -126,31 +149,89 @@ export async function getCompositionSession(id: string, actor: CompositionSessio
   if (!record) throw new HttpError(404, 'Composition session not found'); owner(record, actor); return publicSession(record, actor);
 }
 
-export async function attachCompositionChild(id: string, blockId: string, childSessionId: string, actor: CompositionSessionActor): Promise<PublicCompositionSession> {
+export async function attachCompositionChild(id: string, blockId: string, childSessionId: string, actor: CompositionSessionActor, options: { asNewInstance?: boolean } = {}): Promise<PublicCompositionSession> {
   const record = await prisma.compositionSession.findUnique({ where: { id: text(id, 'id') } });
   if (!record) throw new HttpError(404, 'Composition session not found'); owner(record, actor);
   const { expected } = await compositionFor(record.compositionFormId);
   const expectedChild = expected.find((item) => item.blockId === text(blockId, 'blockId'));
   if (!expectedChild) throw new HttpError(404, 'Composition form block not found');
+  const asNewInstance = options.asNewInstance === true;
+  if (asNewInstance && !expectedChild.manualAdd) throw new HttpError(422, `Composition block '${expectedChild.blockId}' does not allow multiple instances`);
+  // A manualAdd block is never auto-attached through the ordinary 1:1 path -
+  // it only ever grows through the explicit "+ instance" flow below, so a
+  // plain (non-asNewInstance) attach against one is a caller bug, not a
+  // legitimate resume.
+  if (!asNewInstance && expectedChild.manualAdd) throw new HttpError(422, `Composition block '${expectedChild.blockId}' requires asNewInstance - use POST .../instances`);
   const child = await getFormSession(text(childSessionId, 'childSessionId'), actor);
   const parentPatient = await resolvePatientReference(record.patientId, record.patientNamespace || undefined);
   const canonicalParentId = parentPatient?.patientId || record.patientId;
   if (child.formId !== expectedChild.formId || child.patientId !== canonicalParentId) throw new HttpError(422, 'Child form session does not match this composition context');
-  const children = isMap(record.childSessions) ? record.childSessions : {};
+  const patientFields = { patientId: canonicalParentId, patientNamespace: parentPatient?.patientNamespace || record.patientNamespace, ehrId: parentPatient?.ehrId || record.ehrId };
   // Optimistic concurrency, same pattern as formSessionService.patchFormSession:
-  // this is a read-modify-write on childSessions, so two concurrent attach
-  // calls against the same parent (e.g. the same Composition open in two
-  // tabs, or two blocks finishing their launch at once) could otherwise
-  // silently drop one another's attachment. A conditional update on
-  // revision - retried once against the now-current record - closes that
-  // race without requiring the caller to know/send an expected revision.
-  const updated = await prisma.compositionSession.updateMany({ where: { id: record.id, revision: record.revision }, data: { patientId: canonicalParentId, patientNamespace: parentPatient?.patientNamespace || record.patientNamespace, ehrId: parentPatient?.ehrId || record.ehrId, childSessions: { ...children, [expectedChild.blockId]: child.id }, status: 'in_progress', revision: { increment: 1 } } });
+  // this is a read-modify-write on childSessions/childSessionGroups, so two
+  // concurrent attach calls against the same parent (e.g. the same
+  // Composition open in two tabs, or two blocks finishing their launch at
+  // once) could otherwise silently drop one another's attachment. A
+  // conditional update on revision - retried once against the now-current
+  // record - closes that race without requiring the caller to know/send an
+  // expected revision.
+  const nextData = (base: { childSessions: unknown; childSessionGroups: unknown }) => {
+    if (!asNewInstance) {
+      const children = isMap(base.childSessions) ? base.childSessions : {};
+      return { childSessions: { ...children, [expectedChild.blockId]: child.id } };
+    }
+    const groups = isGroupMap(base.childSessionGroups) ? base.childSessionGroups : {};
+    const existing = groups[expectedChild.blockId] || [];
+    if (existing.includes(child.id)) return { childSessionGroups: groups }; // already attached - no-op
+    return { childSessionGroups: { ...groups, [expectedChild.blockId]: [...existing, child.id] } };
+  };
+  const updated = await prisma.compositionSession.updateMany({ where: { id: record.id, revision: record.revision }, data: { ...patientFields, ...nextData(record), status: 'in_progress', revision: { increment: 1 } } });
   if (updated.count === 0) {
     const fresh = await prisma.compositionSession.findUnique({ where: { id: record.id } });
     if (!fresh) throw new HttpError(404, 'Composition session not found');
-    const freshChildren = isMap(fresh.childSessions) ? fresh.childSessions : {};
-    if (freshChildren[expectedChild.blockId] === child.id) return publicSession(fresh, actor); // another request already attached the same block/session - no-op
-    const retried = await prisma.compositionSession.update({ where: { id: record.id }, data: { patientId: canonicalParentId, patientNamespace: parentPatient?.patientNamespace || fresh.patientNamespace, ehrId: parentPatient?.ehrId || fresh.ehrId, childSessions: { ...freshChildren, [expectedChild.blockId]: child.id }, status: 'in_progress', revision: { increment: 1 } } });
+    if (!asNewInstance) {
+      const freshChildren = isMap(fresh.childSessions) ? fresh.childSessions : {};
+      if (freshChildren[expectedChild.blockId] === child.id) return publicSession(fresh, actor); // another request already attached the same block/session - no-op
+    } else {
+      const freshGroups = isGroupMap(fresh.childSessionGroups) ? fresh.childSessionGroups : {};
+      if ((freshGroups[expectedChild.blockId] || []).includes(child.id)) return publicSession(fresh, actor);
+    }
+    const retried = await prisma.compositionSession.update({ where: { id: record.id }, data: { patientId: canonicalParentId, patientNamespace: parentPatient?.patientNamespace || fresh.patientNamespace, ehrId: parentPatient?.ehrId || fresh.ehrId, ...nextData(fresh), status: 'in_progress', revision: { increment: 1 } } });
+    return publicSession(retried, actor);
+  }
+  const fresh = await prisma.compositionSession.findUnique({ where: { id: record.id } });
+  if (!fresh) throw new HttpError(404, 'Composition session not found');
+  return publicSession(fresh, actor);
+}
+
+/**
+ * Detaches one instance of a manualAdd block - metadata-only, never deletes
+ * the underlying FormSession row (harmless to leave orphaned; a future
+ * cleanup pass could sweep those, out of scope here). Refuses to detach an
+ * already-submitted instance - once real clinical data has been saved for
+ * it, removing it from the composition would silently hide, not undo, that
+ * save.
+ */
+export async function removeCompositionInstance(id: string, blockId: string, childSessionId: string, actor: CompositionSessionActor): Promise<PublicCompositionSession> {
+  const record = await prisma.compositionSession.findUnique({ where: { id: text(id, 'id') } });
+  if (!record) throw new HttpError(404, 'Composition session not found'); owner(record, actor);
+  const { expected } = await compositionFor(record.compositionFormId);
+  const expectedChild = expected.find((item) => item.blockId === text(blockId, 'blockId'));
+  if (!expectedChild) throw new HttpError(404, 'Composition form block not found');
+  if (!expectedChild.manualAdd) throw new HttpError(422, `Composition block '${expectedChild.blockId}' does not allow multiple instances`);
+  const sessionId = text(childSessionId, 'childSessionId');
+  const child = await getFormSession(sessionId, actor).catch(() => undefined);
+  if (child && (child.status === 'submitted')) throw new HttpError(409, 'Bereits abgesendete Einträge können nicht entfernt werden.');
+  const removeFrom = (groups: unknown): ChildGroupMap => {
+    const map = isGroupMap(groups) ? groups : {};
+    const existing = map[expectedChild.blockId] || [];
+    return { ...map, [expectedChild.blockId]: existing.filter((existingId) => existingId !== sessionId) };
+  };
+  const updated = await prisma.compositionSession.updateMany({ where: { id: record.id, revision: record.revision }, data: { childSessionGroups: removeFrom(record.childSessionGroups), revision: { increment: 1 } } });
+  if (updated.count === 0) {
+    const fresh = await prisma.compositionSession.findUnique({ where: { id: record.id } });
+    if (!fresh) throw new HttpError(404, 'Composition session not found');
+    const retried = await prisma.compositionSession.update({ where: { id: record.id }, data: { childSessionGroups: removeFrom(fresh.childSessionGroups), revision: { increment: 1 } } });
     return publicSession(retried, actor);
   }
   const fresh = await prisma.compositionSession.findUnique({ where: { id: record.id } });
