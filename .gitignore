@@ -13,8 +13,13 @@ lib/
 .env.test.local
 .env.production.local
 
-# Configuration files with credentials
-data/config.json
+# Runtime data directory - the api service's docker-compose bind mount
+# (DATA_DIR=/app/data), holding mutable local state (config.json with
+# credentials, uploaded assets, ...). Never meant to be version controlled.
+# Root-anchored (leading /) so this doesn't also match an unrelated data/
+# directory elsewhere in the tree (e.g. apps/data/config.json is its own,
+# intentionally tracked file).
+/data/
 
 # Logs
 logs
