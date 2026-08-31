@@ -25,6 +25,7 @@ const PatientDetail = React.lazy(() => import('./pages/patients/PatientDetail'))
 import { FrontendPluginProvider } from './components/FrontendPluginRegistry';
 import type { FrontendPluginRegistration } from 'plugin-api';
 import { loadFrontendPluginRegistrations } from './plugins/frontendPluginCatalog';
+import { clearCompositionDataCache } from './integration/compositionDataCache';
 import './App.css';
 
 type AuthState = { loading: boolean; authenticated: boolean; mode: 'local' | 'hip' | 'disabled-development-only'; user?: { id: string; displayName: string; authSource: string; email?: string }; roles: string[]; permissions: string[]; reload: () => Promise<void> };
@@ -37,8 +38,11 @@ function Protected({ permission, children }: { permission: string; children: Rea
 // Cockpit tab) can check the same permission the standalone route enforces
 // via <Protected> - gating whether to show that content at all, rather
 // than rendering it and having <Protected>'s own <Navigate> yank the whole
-// app away from a page it's merely embedded in.
-export { useAuth };
+// app away from a page it's merely embedded in. AuthStateContext/AuthState
+// are exported too so a component test can wrap its render in a mock
+// provider instead of hitting useAuth()'s "Auth state unavailable" throw.
+export { useAuth, AuthStateContext };
+export type { AuthState };
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<Omit<AuthState, 'reload'>>({ loading: true, authenticated: false, mode: 'local', roles: [], permissions: [] });
@@ -54,7 +58,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const location = useLocation(); const auth = useAuth(); const isBuilder = location.pathname.includes('/builder');
-  const logout = async () => { await fetch('http://localhost:3001/api/auth/logout', { method: 'POST', credentials: 'include' }); await auth.reload(); };
+  // Clears the client-side composition-data cache (see
+  // integration/compositionDataCache.ts) on logout - a shared browser
+  // profile used by more than one clinician must never surface one user's
+  // cached clinical data to the next person who logs in on it.
+  const logout = async () => { await fetch('http://localhost:3001/api/auth/logout', { method: 'POST', credentials: 'include' }); clearCompositionDataCache(); await auth.reload(); };
   if (isBuilder || location.pathname.includes('/composition-builder')) return <main style={{ width: '100vw', height: '100vh', overflow: 'auto', padding: 0, margin: 0 }}><React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}><Routes><Route path="/forms/:id/builder" element={<Protected permission="form.design"><FormBuilder /></Protected>} /><Route path="/compositions/:id/builder" element={<Protected permission="form.design"><CompositionBuilder /></Protected>} /></Routes></React.Suspense></main>;
   return <div className="app-container"><nav className="sidebar"><div className="sidebar-header"><img src="/onehr-logo.png" alt="OnEHR" style={{ width: '100%', maxWidth: 170, height: 'auto' }} /></div><ul className="sidebar-nav">
     <li><Link to="/" className={location.pathname === '/' ? 'active' : ''}><LayoutDashboard size={18} /><span>Bibliothek</span></Link></li>

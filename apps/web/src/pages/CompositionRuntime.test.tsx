@@ -2,6 +2,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import CompositionRuntime from './CompositionRuntime';
+import { AuthStateContext, type AuthState } from '../App';
+
+// CompositionRuntime reads useAuth() (to scope its client-side data cache
+// per user) - App.tsx's useAuth() throws "Auth state unavailable" outside
+// a real <AuthGate>, so every render below needs this mock provider.
+const mockAuthState: AuthState = { loading: false, authenticated: true, mode: 'local', user: { id: 'test-user', displayName: 'Test User', authSource: 'local' }, roles: ['USER'], permissions: ['form.execute'], reload: async () => {} };
+function renderWithAuth(ui: React.ReactElement) {
+  return render(<AuthStateContext.Provider value={mockAuthState}>{ui}</AuthStateContext.Provider>);
+}
 
 // Covers the prop-override refactor from the Klinisches-Cockpit embedding
 // work: CompositionRuntime can now be mounted directly as a component
@@ -54,7 +63,7 @@ afterEach(() => {
 describe('CompositionRuntime embedding', () => {
   it('embedded: hides its own back-link and outer chrome, and formId overrides the route id', async () => {
     stubBackend();
-    render(
+    renderWithAuth(
       <MemoryRouter initialEntries={['/patients/some-other-id']}>
         <Routes>
           {/* Route param "id" deliberately does NOT match FORM_ID - proves
@@ -72,7 +81,7 @@ describe('CompositionRuntime embedding', () => {
 
   it('standalone route: shows its own back-link when not embedded', async () => {
     stubBackend();
-    render(
+    renderWithAuth(
       <MemoryRouter initialEntries={[`/compositions/${FORM_ID}?patientId=p1&ehrId=ehr1`]}>
         <Routes>
           <Route path="/compositions/:id" element={<CompositionRuntime />} />

@@ -22,6 +22,7 @@ import { requirePermission } from '../middleware/auth';
 import { executeStoredAqlFunctionRecord } from '../services/aqlFunctionService';
 import { executeDataWidget } from '../services/dataWidgetService';
 import { resolvePatientReference } from '../services/patientService';
+import { diffRowsSince } from '../services/compositionDataDiff';
 import {
   FormScriptAiError,
   formScriptAiRateLimiter,
@@ -243,11 +244,23 @@ router.post('/generate-from-template', asyncHandler(async (req, res) => {
 /**
  * Executes only AQL functions explicitly referenced by a published Composition.
  * The browser never receives raw AQL nor EHRbase credentials.
+ *
+ * `since` (optional, epoch ms) supports the frontend's local cache: when
+ * given and the block has a timeColumn, the full result is still fetched
+ * from EHRbase/the AQL function here (this doesn't skip that query - AQL is
+ * arbitrary, author-written text, not something this endpoint can safely
+ * rewrite a WHERE clause into), but only rows newer than `since` are sent
+ * back, alongside `cachedThrough` (the newest timestamp across the FULL
+ * result, not just what's returned) for the client to advance its cursor
+ * to. Saves the response payload size and the frontend's own re-render
+ * work on every subsequent load of an already-cached widget; it does not
+ * reduce EHRbase query load itself.
  */
 router.post('/:id/composition-data', asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
   const blockId = requireNonEmptyString(req.body?.blockId, 'blockId');
   const patientId = requireNonEmptyString(req.body?.patient?.id, 'patient.id');
+  const since = typeof req.body?.since === 'number' && Number.isFinite(req.body.since) ? req.body.since : undefined;
   const record = await prisma.form.findUnique({ where: { id: formId } });
   if (!record) throw new HttpError(404, 'Composition not found');
   if (record.status !== 'published') throw new HttpError(409, 'Only published compositions can query clinical data');
@@ -264,6 +277,10 @@ router.post('/:id/composition-data', asyncHandler(async (req, res) => {
   const requestedNamespace = typeof req.body?.patient?.namespace === 'string' && req.body.patient.namespace.trim() ? req.body.patient.namespace.trim() : undefined;
   const patient = await resolvePatientReference(patientId, requestedNamespace);
   const ehrId = patient?.ehrId || (typeof req.body?.ehrId === 'string' && req.body.ehrId.trim() ? req.body.ehrId.trim() : undefined);
+  // Narrows a freshly-fetched full row set down to only what's newer than
+  // `since`, when the block has a timeColumn to compare by - shared by
+  // both the widgetId and aqlFunctionId paths below.
+  const diffed = (rows: Record<string, unknown>[]) => diffRowsSince(rows, block.timeColumn, since);
   if (block.widgetId) {
     if (!ehrId) throw new HttpError(422, 'A patient EHR ID is required to load a Composition widget');
     const result = await executeDataWidget(block.widgetId, {
@@ -271,7 +288,7 @@ router.post('/:id/composition-data', asyncHandler(async (req, res) => {
       ...(typeof req.body?.patient?.namespace === 'string' && req.body.patient.namespace.trim() ? { patientNamespace: req.body.patient.namespace.trim() } : {}),
       ehrId,
     });
-    res.json({ blockId, widget: result.widget, rows: result.rows });
+    res.json({ blockId, widget: result.widget, ...diffed(result.rows) });
     return;
   }
   const aqlFunction = await prisma.aqlFunction.findFirst({ where: { id: block.aqlFunctionId, enabled: true } });
@@ -285,7 +302,8 @@ router.post('/:id/composition-data', asyncHandler(async (req, res) => {
   if (ehrId) parameters.ehrId = ehrId;
   if (typeof req.body?.encounterId === 'string' && req.body.encounterId.trim()) parameters.encounterId = req.body.encounterId.trim();
   const rows = await executeStoredAqlFunctionRecord(aqlFunction, parameters);
-  res.json({ blockId, rows: Array.isArray(rows) ? rows.slice(0, block.limit || 100) : [] });
+  const { rows: newRows, cachedThrough } = diffed(Array.isArray(rows) ? rows : []);
+  res.json({ blockId, rows: newRows.slice(0, block.limit || 100), cachedThrough });
 }));
 
 router.get('/:id', asyncHandler(async (req, res) => {
