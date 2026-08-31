@@ -1,4 +1,4 @@
-import { NON_FIELD_LAYOUT_TYPES, type CanonicalForm, type FormElementLayout, type JsonPrimitive, type JsonValue, type ValidationIssue } from '../canonical';
+import { NON_FIELD_LAYOUT_TYPES, type CanonicalForm, type CodeMappingConfig, type FormElementLayout, type JsonPrimitive, type JsonValue, type ValidationIssue } from '../canonical';
 
 export type RuntimePrimitive = JsonPrimitive;
 export type RuntimeJsonValue = JsonValue;
@@ -16,6 +16,8 @@ export interface RuntimeFieldDescriptor {
   aqlPath?: string | undefined; binding?: unknown; semanticType?: string | undefined; archetypeNodeId?: string | undefined;
   /** Never rendered, in any mode - see FormElementLayout.alwaysHidden. */
   alwaysHidden: boolean;
+  /** See FormElementLayout.codeMappings - opt-in DV_TEXT.mappings support. */
+  codeMappings?: CodeMappingConfig | undefined;
 }
 export interface RuntimeGroupDescriptor {
   id: string;
@@ -87,6 +89,7 @@ function toDescriptor(node: FormElementLayout, locales: RuntimeLocales, repeatab
     binding: node.binding, semanticType: node.binding?.rmType, archetypeNodeId: node.binding?.archetypeNodeId,
     alwaysHidden: node.alwaysHidden === true,
     ...(defaultValue !== undefined ? { defaultValue: defaultValue as RuntimeJsonValue } : {}),
+    ...(node.codeMappings?.enabled ? { codeMappings: node.codeMappings } : {}),
   };
 }
 
@@ -102,7 +105,8 @@ export function collectRuntimeFields(form: Pick<CanonicalForm, 'layout' | 'local
  * resolved to their label, DV_QUANTITY as "magnitude unit", booleans as
  * Ja/Nein, everything else via String(). Empty/undefined/empty-array values
  * always resolve to "" so callers can filter them out uniformly. */
-export function formatRuntimeValue(field: Pick<RuntimeFieldDescriptor, 'type' | 'options'>, value: RuntimeValue): string {
+export function formatRuntimeValue(field: Pick<RuntimeFieldDescriptor, 'type' | 'options' | 'codeMappings'>, value: RuntimeValue): string {
+  if (field.codeMappings?.enabled && isRecord(value)) value = (value as Record<string, unknown>).value as RuntimeValue;
   if (value === undefined || value === null || value === '') return '';
   if (Array.isArray(value)) {
     if (value.length === 0) return '';
@@ -237,7 +241,20 @@ function numericValue(field: RuntimeFieldDescriptor, value: RuntimeValue): numbe
 
 function issue(issues: RuntimeValidationIssue[], path: string, code: RuntimeValidationIssue['code'], message: string): void { issues.push({ path, code, message }); }
 
-function validateOne(field: RuntimeFieldDescriptor, value: RuntimeValue, path: string, issues: RuntimeValidationIssue[]): void {
+/** A codeMappings.enabled field's runtime value is `{value, mappings?}`
+ * (CodeMappedTextValue) instead of a plain string - the mappings are
+ * optional annotation (openEHR RM: DV_TEXT.mappings is 0..*), so
+ * required/type/pattern checks below apply to the text itself, exactly as
+ * for any other text field. A clinician who fills in only a code and
+ * leaves the text blank still trips `required` - the mapping never
+ * satisfies it on the text's behalf. */
+function unwrapCodeMappedValue(field: RuntimeFieldDescriptor, value: RuntimeValue): RuntimeValue {
+  if (!field.codeMappings?.enabled || !isRecord(value)) return value;
+  return (value as Record<string, unknown>).value as RuntimeValue;
+}
+
+function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path: string, issues: RuntimeValidationIssue[]): void {
+  const value = unwrapCodeMappedValue(field, rawValue);
   if (empty(value)) { if (field.required) issue(issues, path, 'required', `${field.label} is required.`); return; }
   if (field.type === 'input-quantity') {
     if (!isRecord(value) || numericValue(field, value) === undefined) { issue(issues, path, 'type', `${field.label} requires a numeric quantity.`); return; }

@@ -138,7 +138,30 @@ function buildLeafDvValue(rmType: string | undefined, field: RuntimeFieldDescrip
   if (rmType === 'DV_DATE') return { _type: 'DV_DATE', value: String(value) };
   if (rmType === 'DV_DATE_TIME') return { _type: 'DV_DATE_TIME', value: String(value) };
   if (rmType === 'DV_DURATION') return { _type: 'DV_DURATION', value: String(value) };
-  if (rmType === 'DV_TEXT') return { _type: 'DV_TEXT', value: String(value) };
+  if (rmType === 'DV_TEXT') {
+    // codeMappings.enabled fields carry {value, mappings?} instead of a
+    // plain string (see core's CodeMappedTextValue) - the text itself is
+    // unaffected, mappings ride alongside as DV_TEXT.mappings (RM:
+    // List<TERM_MAPPING>). Deliberately no `purpose`/`preferred_term` -
+    // real-world example compositions for this exact use (a free-text
+    // diagnosis tagged with an ICD-10-GM code) only ever carry
+    // {match, target: {terminology_id, code_string}}.
+    if (field?.codeMappings?.enabled && source) {
+      const text = source.value;
+      if (isEmpty(text)) return undefined;
+      const mappings = Array.isArray(source.mappings) ? source.mappings : [];
+      const termMappings = mappings.flatMap((entry): Canonical[] => {
+        if (!isRecord(entry) || isEmpty(entry.terminologyId) || isEmpty(entry.code)) return [];
+        return [{
+          _type: 'TERM_MAPPING',
+          match: typeof entry.match === 'string' && entry.match ? entry.match : '=',
+          target: codePhrase(String(entry.terminologyId), String(entry.code)),
+        }];
+      });
+      return { _type: 'DV_TEXT', value: String(text), ...(termMappings.length > 0 ? { mappings: termMappings } : {}) };
+    }
+    return { _type: 'DV_TEXT', value: String(value) };
+  }
   if (rmType === 'DV_IDENTIFIER' && source) return { _type: 'DV_IDENTIFIER', ...source };
   // Best-effort generic passthrough for any other DV_* leaf this app lets a
   // field bind to without dedicated handling - same scope boundary as

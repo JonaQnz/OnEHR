@@ -479,6 +479,46 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
       return <div style={{ display: 'flex', gap: '0.5rem' }}><input style={{ ...style, flex: 1 }} type="number" disabled={disabled} value={String(quantity.magnitude ?? '')} onChange={(event) => onChange({ ...quantity, magnitude: event.target.value === '' ? null : Number(event.target.value) })} />{field.unitOptions.length > 0 ? <select style={{ ...style, maxWidth: '10rem' }} disabled={disabled} value={String(quantity.unit || '')} onChange={(event) => onChange({ ...quantity, unit: event.target.value })}><option value="">Einheit</option>{field.unitOptions.map((option) => <option key={option.unit} value={option.unit}>{option.unit}</option>)}</select> : null}</div>;
     }
     if (node.uiElement === 'Range' || node.type === 'input-range') return <input style={style} type="range" disabled={disabled} min={node.min_value ?? field.validation?.min ?? 0} max={node.max_value ?? field.validation?.max ?? 100} step={node.step ?? 1} value={Number(value ?? node.min_value ?? 0)} onChange={(event) => onChange(Number(event.target.value))} />;
+    if (field.codeMappings?.enabled) {
+      // {value, mappings?} (core.CodeMappedTextValue) instead of a plain
+      // string - the text field itself is untouched, mappings render as
+      // extra rows below it. Terminology is always designer-configured
+      // (field.codeMappings.terminologies) - the clinician only ever
+      // types/edits the code itself, per "Katalog hidden": no visible
+      // terminology browser, just a code entry per configured terminology.
+      const compound = (value && typeof value === 'object' && !Array.isArray(value)) ? value as { value?: unknown; mappings?: Array<{ terminologyId: string; code: string; match?: string }> } : { value };
+      const text = compound.value;
+      const mappings = Array.isArray(compound.mappings) ? compound.mappings : [];
+      const terminologies = field.codeMappings.terminologies;
+      const commitMappings = (next: typeof mappings) => onChange({ value: text, ...(next.length > 0 ? { mappings: next } : {}) });
+      const canAddMore = terminologies.length > 0 && (field.codeMappings.allowMultiple !== false || mappings.length === 0);
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <input style={style} type={inputType(node)} disabled={disabled} value={String(text ?? '')} placeholder={node.placeholder || ''} onChange={(event) => onChange({ value: event.target.value, ...(mappings.length > 0 ? { mappings } : {}) })} />
+          {mappings.map((mapping, index) => {
+            const terminology = terminologies.find((candidate) => candidate.id === mapping.terminologyId);
+            return (
+              <div key={index} style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', paddingLeft: '0.6rem', borderLeft: '2px solid #e2e8f0' }}>
+                {terminologies.length > 1 ? (
+                  <select disabled={disabled} value={mapping.terminologyId} onChange={(event) => commitMappings(mappings.map((item, i) => i === index ? { terminologyId: event.target.value, code: item.code, match: terminologies.find((candidate) => candidate.id === event.target.value)?.match } : item))} style={{ ...style, width: 'auto', flexShrink: 0, padding: '0.4rem 0.5rem' }}>
+                    {terminologies.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}
+                  </select>
+                ) : (
+                  <span style={{ fontSize: '0.78rem', color: '#64748b', flexShrink: 0, minWidth: '6rem' }}>{terminology?.label || mapping.terminologyId}</span>
+                )}
+                <input style={{ ...style, flex: 1, padding: '0.4rem 0.6rem' }} type="text" disabled={disabled} value={mapping.code} placeholder="Code" onChange={(event) => commitMappings(mappings.map((item, i) => i === index ? { ...item, code: event.target.value } : item))} />
+                <button type="button" disabled={disabled} title="Zuordnung entfernen" onClick={() => commitMappings(mappings.filter((_item, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer', padding: '0.3rem' }}>×</button>
+              </div>
+            );
+          })}
+          {!disabled && canAddMore && (
+            <button type="button" onClick={() => commitMappings([...mappings, { terminologyId: terminologies[0].id, code: '', ...(terminologies[0].match ? { match: terminologies[0].match } : {}) }])} style={{ alignSelf: 'flex-start', border: '1px dashed #94a3b8', background: 'transparent', borderRadius: '6px', padding: '0.3rem 0.7rem', color: '#475569', cursor: 'pointer', fontSize: '0.78rem' }}>
+              + Code hinzufügen
+            </button>
+          )}
+        </div>
+      );
+    }
     return <input style={style} type={inputType(node)} disabled={disabled} value={String(value ?? '')} placeholder={node.placeholder || ''} onChange={eventValue} />;
   };
 

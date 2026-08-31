@@ -251,3 +251,92 @@ test('resolves fields bound via the legacy top-level definition.bindings envelop
   const noteEl = entry.data.items.find((item) => item.archetype_node_id === 'at0003');
   assert.equal(noteEl.value.value, 'From legacy binding');
 });
+
+// codeMappings.enabled fields (DV_TEXT.mappings, e.g. a free-text diagnosis
+// name tagged with an ICD-10-GM code) - shape confirmed against a real
+// production Composition (vg_Diagnosis.v1.1.0's "Problem/Diagnosis name":
+// {_type:'DV_TEXT', value: '...', mappings: [{_type:'TERM_MAPPING', match:'=',
+// target: {_type:'CODE_PHRASE', terminology_id:{...}, code_string:'F16.0'}}]}).
+test('codeMappings.enabled: a DV_TEXT field with a mapping produces real DV_TEXT.mappings, matching a live production example', () => {
+  const codedDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [
+        {
+          id: 'notes', type: 'input-text',
+          binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0003]', rmType: 'DV_TEXT' },
+          codeMappings: { enabled: true, terminologies: [{ id: 'http://fhir.de/CodeSystem/dimdi/icd-10-gm', label: 'ICD-10-GM' }] },
+        },
+      ],
+    },
+  };
+  const composition = buildCanonicalComposition(codedDefinition, {
+    notes: { value: 'Psychische und Verhaltensstörungen durch Halluzinogene: Akute Intoxikation [akuter Rausch]', mappings: [{ terminologyId: 'http://fhir.de/CodeSystem/dimdi/icd-10-gm', code: 'F16.0' }] },
+  }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
+  const noteEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0003');
+  assert.deepEqual(noteEl.value, {
+    _type: 'DV_TEXT',
+    value: 'Psychische und Verhaltensstörungen durch Halluzinogene: Akute Intoxikation [akuter Rausch]',
+    mappings: [{
+      _type: 'TERM_MAPPING',
+      match: '=',
+      target: { _type: 'CODE_PHRASE', terminology_id: { _type: 'TERMINOLOGY_ID', value: 'http://fhir.de/CodeSystem/dimdi/icd-10-gm' }, code_string: 'F16.0' },
+    }],
+  });
+});
+
+test('codeMappings.enabled: an explicit match type is preserved (e.g. "?" for an approximate/unknown reference mapping)', () => {
+  const codedDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'notes', type: 'input-text',
+        binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0003]', rmType: 'DV_TEXT' },
+        codeMappings: { enabled: true, terminologies: [{ id: 'condition.id', label: 'Case identifier', match: '?' }] },
+      }],
+    },
+  };
+  const composition = buildCanonicalComposition(codedDefinition, {
+    notes: { value: '00010002218401', mappings: [{ terminologyId: 'condition.id', code: '00010002218401', match: '?' }] },
+  }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
+  const noteEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0003');
+  assert.equal(noteEl.value.mappings[0].match, '?');
+});
+
+test('codeMappings.enabled: multiple mapping entries on the same field are all preserved, in order', () => {
+  const codedDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'notes', type: 'input-text',
+        binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0003]', rmType: 'DV_TEXT' },
+        codeMappings: { enabled: true, allowMultiple: true, terminologies: [{ id: 'icd10gm', label: 'ICD-10-GM' }, { id: 'snomed', label: 'SNOMED CT' }] },
+      }],
+    },
+  };
+  const composition = buildCanonicalComposition(codedDefinition, {
+    notes: { value: 'Diagnose', mappings: [{ terminologyId: 'icd10gm', code: 'F16.0' }, { terminologyId: 'snomed', code: '86299006' }] },
+  }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
+  const noteEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0003');
+  assert.deepEqual(noteEl.value.mappings.map((m) => m.target.code_string), ['F16.0', '86299006']);
+});
+
+test('codeMappings.enabled: a field with no mapping entered yet stays a plain DV_TEXT with no mappings attribute at all', () => {
+  const codedDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'notes', type: 'input-text',
+        binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0003]', rmType: 'DV_TEXT' },
+        codeMappings: { enabled: true, terminologies: [{ id: 'icd10gm', label: 'ICD-10-GM' }] },
+      }],
+    },
+  };
+  const composition = buildCanonicalComposition(codedDefinition, { notes: { value: 'Nur Text, kein Code' } }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
+  const noteEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0003');
+  assert.deepEqual(noteEl.value, { _type: 'DV_TEXT', value: 'Nur Text, kein Code' });
+});
