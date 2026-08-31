@@ -6,23 +6,34 @@ shared packages (`packages/core`, `packages/mcp-server`,
 quality/correctness risks, duplicated logic, quality-of-life issues, and
 test-coverage gaps (especially edge cases). ~35 findings total.
 
-**The three most severe, confirmed findings were fixed immediately** (see
-PR #16, `fix/critical-data-loss-bugs`) - a broken regex in
-`openehr-engine` silently dropping every repeat but the first when
-reading back a repeating field, a Composition-block insertion bug that
-could desync a page's block order from its layout order, and a shared
-mutable array reference corrupting sibling rows of a repeat-min>1 group.
-The composition-data cache's own duplicate-row bug found during this
-review was fixed directly in PR #14 (`feature/composition-data-local-cache`).
+**Fixed so far** (each ✅ item below is done, with its own PR/tests - not
+removed from this list so the original finding stays readable as a
+record):
 
-Everything below is **not yet fixed** - deliberately deferred to keep the
-first pass scoped to confirmed data-loss/corruption bugs. Triage this
-list before picking the next thing to work on; it's roughly ordered by
-impact within each area, not a strict global ranking.
+- The three most severe, confirmed findings, fixed immediately: a broken
+  regex in `openehr-engine` silently dropping every repeat but the first
+  when reading back a repeating field, a Composition-block insertion bug
+  that could desync a page's block order from its layout order, and a
+  shared mutable array reference corrupting sibling rows of a
+  repeat-min>1 group (PR #16, `fix/critical-data-loss-bugs`).
+- The composition-data cache's own duplicate-row bug found during this
+  review (PR #14, `feature/composition-data-local-cache`).
+- apps/web #1 (`isFormEmbedEvent` dropping `'dirty'` events) - PR #17,
+  `fix/dirty-event-whitelist`.
+- apps/api #1 (`authMode` derivation) and #2 (admin self-lockout guard) -
+  PR #18, `fix/auth-mode-and-admin-lockout`.
+- apps/api #3 (duplicate-patient 500→409), #4 (error handler leaking
+  internals), #6 (`form.publish` not enforced) + shared packages #2
+  (`NON_FIELD_TYPES` duplication) - PR #19,
+  `fix/error-leakage-permission-dedup`.
+
+Everything else below is **not yet fixed**. Triage this list before
+picking the next thing to work on; it's roughly ordered by impact within
+each area, not a strict global ranking.
 
 ## apps/api
 
-1. **`authMode` derivation bug** (`formSessionRoutes.ts`,
+1. ✅ **`authMode` derivation bug** (`formSessionRoutes.ts`,
    `compositionSessionRoutes.ts`, `formLaunchRoutes.ts`,
    `scriptConnectorRoutes.ts`) - all four independently compute
    `authMode: req.principal?.authSource === 'oidc' ? 'hip' : 'local'`, but
@@ -31,22 +42,22 @@ impact within each area, not a strict global ranking.
    `authMode: 'local'` everywhere this flows (n8n workflows, plugins,
    script connectors). Fix as one shared `actorFromRequest(req)` helper,
    not four independent patches.
-2. **No last-admin/self-lockout guard** (`userAdminRoutes.ts`) - an admin
+2. ✅ **No last-admin/self-lockout guard** (`userAdminRoutes.ts`) - an admin
    can deactivate themselves or demote the sole remaining ADMIN via
    `PATCH /users/:id`, with no recovery besides redeploying with
    `FORMS_BOOTSTRAP_ADMIN_*` env vars.
-3. **Duplicate-patient creation returns 500, not 409**
+3. ✅ **Duplicate-patient creation returns 500, not 409**
    (`patientService.ts` `createPatient`) - throws a plain `Error`, which
    `errorHandler.ts` maps to 500 for anything that isn't `HttpError`. A
    routine "patient already exists" case looks like a server crash.
-4. **Error handler leaks internal details** (`errorHandler.ts`) - any
+4. ✅ **Error handler leaks internal details** (`errorHandler.ts`) - any
    non-`HttpError` (Prisma, axios/EHRbase, ...) returns its raw
    `.message` to the client at 500 with no redaction.
 5. **`syncPatientsFromEhrbase` is a sequential N+1 with no
    partial-failure recovery** (`patientService.ts`) - one blocking
    EHRbase call + one DB upsert per EHR, fully serialized; one flaky EHR
    aborts the whole sync for every concurrent caller awaiting it.
-6. **`'form.publish'` permission defined but never enforced**
+6. ✅ **`'form.publish'` permission defined but never enforced**
    (`authorizationService.ts` + `formRoutes.ts`) - publish/archive/
    delete/restore are all gated by the same generic `'form.design'`
    check; the apparent finer-grained permission model is fictional.
@@ -72,7 +83,7 @@ impact within each area, not a strict global ranking.
 
 ## apps/web
 
-1. **`isFormEmbedEvent` omits `'dirty'` from its event whitelist**
+1. ✅ **`isFormEmbedEvent` omits `'dirty'` from its event whitelist**
    (`integration/formLaunch.ts`) - `packages/core`'s
    `FormEmbedEventName` includes `'dirty'` and `LiveForm.tsx` really does
    publish it, but the guard rejects it before `CompositionRuntime.tsx`
@@ -150,7 +161,7 @@ Already fixed (PR #16): the `openehr-engine` repeat-index regex, the
    despite the type requiring one, surfacing as a crash further
    downstream in `collectRuntimeFields` instead of a clear validation
    error at the boundary.
-2. **`NON_FIELD_TYPES` duplicated** between `packages/core/src/
+2. ✅ **`NON_FIELD_TYPES` duplicated** between `packages/core/src/
    form-runtime/index.ts` (drives `collectRuntimeFields`) and the inline
    exclusion list in `form-scripting/index.ts`'s `isDataField()` (drives
    generated Form Script types) - the exact "same enum defined twice"
@@ -186,11 +197,22 @@ Already fixed (PR #16): the `openehr-engine` repeat-index regex, the
 
 ## Suggested next slice
 
-Given the pattern so far (fix the worst data-loss risks first, in small
+~~Given the pattern so far (fix the worst data-loss risks first, in small
 reviewable batches with regression tests), a reasonable next batch:
 `apps/web` finding #1 (`isFormEmbedEvent` dirty-event bug - same
 data-loss class as what's already fixed) + `apps/api` findings #1 and #2
 (authMode bug + admin-lockout guard - the two with real security/
-availability impact). Everything else here can wait for a dedicated pass,
-ideally once a CI pipeline exists to keep it from regressing silently
-again.
+availability impact).~~ Done - see PRs #17/#18 above, plus a follow-on
+batch (apps/api #3/#4/#6 + shared packages #2) in PR #19.
+
+Reasonable next batch after that: `apps/api` #5 (`syncPatientsFromEhrbase`
+N+1/no partial-failure recovery) and #7 (version-bump collision between
+`create-draft`/`restore`) - both real correctness/reliability issues, no
+new architecture needed. After that, the two bigger, cross-cutting items
+worth a dedicated pass rather than a quick fix: `apps/web`'s hardcoded
+`http://localhost:3001` in ~26 files (deployment-breaking, but touches a
+lot of files at once) and `apps/api`'s complete absence of HTTP-layer
+tests (the single highest-leverage remaining gap - would have caught
+several of the bugs already fixed here). Everything else can wait for a
+dedicated pass, ideally once a CI pipeline exists to keep fixes from
+regressing silently again.
