@@ -1,5 +1,6 @@
 export * from './canonical';
 export * from './openehr';
+export * from './openehr-constraint';
 export * from './form-definition';
 export * from './form-runtime';
 export * from './form-session';

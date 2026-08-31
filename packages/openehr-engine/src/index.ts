@@ -20,6 +20,8 @@ export { compareRuntimeValues } from './diff';
 
 export { buildCanonicalComposition, type CanonicalCompositionContext, type WebTemplateTreeNode } from './canonicalComposition';
 
+export { buildConstraintModelFromWebTemplate, type WebTemplateJson, type WtNode, type WtInput, type WtOption } from './opt/buildConstraintModel';
+
 export const OPEN_EHR_FORM_EXTENSION = 'org.openehr.form' as const;
 
 export interface OpenEhrFormOptions {
