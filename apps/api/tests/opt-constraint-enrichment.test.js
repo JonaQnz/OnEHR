@@ -29,6 +29,30 @@ test('parseWebTemplate additively attaches the OPT constraint model onto matchin
   assert.deepEqual(category.constraintModel.occurrences, { min: 0, max: null });
 });
 
+test('layout leaf nodes with a DV_CODED_TEXT|DV_TEXT union get allowFreeText:true, closing the "free text silently rejected/mis-serialized" gap', () => {
+  const parsed = parseWebTemplate(webTemplate);
+  function findByPath(node, path) {
+    if (node.binding?.path === path) return node;
+    for (const child of node.children || []) {
+      const found = findByPath(child, path);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  const severityPath = "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0005]/value";
+  const severityNode = findByPath(parsed.layout, severityPath);
+  assert.ok(severityNode, 'severity layout node must be found');
+  assert.equal(severityNode.allowFreeText, true);
+
+  // A field with NO DV_TEXT alternative (problem/diagnosis name, plain
+  // DV_TEXT-only, or diagnostic_service_category-style single-type field)
+  // must NOT get allowFreeText - only genuine unions do.
+  const namePath = "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0002]/value";
+  const nameNode = findByPath(parsed.layout, namePath);
+  assert.ok(nameNode);
+  assert.notEqual(nameNode.allowFreeText, true);
+});
+
 test('enrichment never breaks the parse even if something in it fails - the rest of parseWebTemplate always still returns fields/layout', () => {
   // A deliberately minimal/malformed-ish tree that still parses fine
   // structurally, to confirm the try/catch around enrichment is not load-

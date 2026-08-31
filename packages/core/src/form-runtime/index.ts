@@ -18,6 +18,9 @@ export interface RuntimeFieldDescriptor {
   alwaysHidden: boolean;
   /** See FormElementLayout.codeMappings - opt-in DV_TEXT.mappings support. */
   codeMappings?: CodeMappingConfig | undefined;
+  /** See FormElementLayout.allowFreeText - a DV_CODED_TEXT|DV_TEXT union;
+   * a value not matching any `options` entry is free text, not an error. */
+  allowFreeText: boolean;
 }
 export interface RuntimeGroupDescriptor {
   id: string;
@@ -77,6 +80,7 @@ function toDescriptor(node: FormElementLayout, locales: RuntimeLocales, repeatab
     id, name: node.name || id, type: node.type, label: resolveLabel(node, id, locales),
     description: node.description || node.helpText, required: node.required === true, readOnly: node.readOnly === true,
     options: (node.options || []).map((option) => ({ value: String(option.value), text: String(option.text) })),
+    allowFreeText: node.allowFreeText === true,
     unitOptions: (node.unitOptions || []).map((option) => typeof option === 'string' ? { unit: option } : { ...option }),
     validation: node.validation, visibility: node.visibility ?? node.enableWhen,
     repeatable: node.repeatable === true, repeatMin: node.repeatMin ?? 0, repeatMax: node.repeatMax ?? -1,
@@ -265,7 +269,12 @@ function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path
   if (['input-number', 'input-proportion', 'input-range'].includes(field.type) && !Number.isFinite(numericValue(field, value))) { issue(issues, path, 'type', `${field.label} requires a number.`); return; }
   if (field.type === 'input-boolean' && typeof value !== 'boolean') issue(issues, path, 'type', `${field.label} requires a boolean.`);
   if (['input-select', 'input-ordinal'].includes(field.type) && typeof value !== 'string' && !Array.isArray(value)) issue(issues, path, 'type', `${field.label} requires a selected option.`);
-  if (field.options.length > 0) {
+  // A DV_CODED_TEXT|DV_TEXT union field (field.allowFreeText, from the OPT
+  // constraint model) legitimately has values that don't match any
+  // `options` entry - that's the free-text alternative, not an invalid
+  // selection. Every other coded field keeps the exact strict check it
+  // always had.
+  if (field.options.length > 0 && !field.allowFreeText) {
     const selected = Array.isArray(value) ? value : [value];
     if (selected.some((item) => typeof item !== 'string' || !field.options.some((option) => option.value === item))) issue(issues, path, 'option', `${field.label} contains an unsupported option.`);
   }

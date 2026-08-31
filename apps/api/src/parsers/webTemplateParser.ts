@@ -543,6 +543,25 @@ export function parseWebTemplate(webTemplate: any): {
       const match = constraintFieldsByPath.get(field.openehrPath);
       if (match) field.constraintModel = match;
     }
+    // Also flag allowFreeText directly on the LAYOUT tree's own leaf nodes
+    // (not just the flat field registry) - this is what
+    // toOpenEhrFlatComposition/validateRuntimeValues actually read at
+    // runtime once a form is generated from this layout, so it's the one
+    // piece of constraint-model enrichment with real behavioral effect
+    // (closing the "a DV_CODED_TEXT|DV_TEXT union field rejects/mis-
+    // serializes free text" gap - see FormElementLayout.allowFreeText).
+    // Everything else attached above (occurrences, full value-constraint
+    // union, semantic bindings) is inspector-only.
+    function flagFreeText(node: FormElementLayout): void {
+      const path = node.binding?.path;
+      const hasCodedTextAndFreeText = path
+        ? constraintFieldsByPath.get(path)?.valueConstraints.some((c) => c.rmType === 'DV_TEXT')
+          && constraintFieldsByPath.get(path)?.valueConstraints.some((c) => c.rmType === 'DV_CODED_TEXT')
+        : false;
+      if (hasCodedTextAndFreeText) node.allowFreeText = true;
+      node.children?.forEach(flagFreeText);
+    }
+    layoutChildren.forEach(flagFreeText);
   } catch (error) {
     console.warn('[webTemplateParser] OPT constraint model enrichment failed (non-fatal, import continues without it):', error instanceof Error ? error.message : error);
   }

@@ -104,6 +104,16 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
   if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE') {
     const code = source?.code ?? source?.value ?? value;
     const option = binding.options?.find((candidate) => candidate.value === String(code));
+    // A DV_CODED_TEXT|DV_TEXT union field (binding.allowFreeText, from the
+    // OPT constraint model) whose value doesn't match any known option is
+    // the free-text alternative being used, not a coded selection that
+    // happens to be missing metadata - writing it into `code_string` would
+    // be RM-invalid (a "local" terminology code that's actually a
+    // sentence). Fall through to the plain DV_TEXT convention instead.
+    if (!option && binding.allowFreeText) {
+      if (!isEmpty(code)) output[key] = code;
+      return;
+    }
     // EHRbase requires the full CODE_PHRASE for a DV_CODED_TEXT. Old form
     // sessions keep only the selected option value, so enrich it from the
     // form's option metadata and use the openEHR local terminology by default.
@@ -170,6 +180,12 @@ interface FieldBinding {
   flatPath?: string;
   options?: CodedTextOption[];
   codeMappings?: CodeMappingConfig;
+  /** See FormElementLayout.allowFreeText (core/canonical) - must be read
+   * together with `options` wherever a DV_CODED_TEXT value is written, or a
+   * free-text value would silently get forced into a bogus `code_string`
+   * instead of falling back to DV_TEXT (see setFlatValue's DV_CODED_TEXT
+   * branch). */
+  allowFreeText?: boolean;
 }
 
 function layoutFieldBinding(binding: unknown): FieldBinding | undefined {
@@ -207,8 +223,9 @@ function collectFieldBindings(layout: CanonicalForm['layout']): Map<string, Fiel
       })
       : undefined;
     const codeMappings = node.codeMappings?.enabled ? node.codeMappings : undefined;
+    const allowFreeText = (node as unknown as Record<string, unknown>).allowFreeText === true;
     if (node.id && binding) {
-      map.set(node.id, { ...binding, ...(options?.length ? { options } : {}), ...(codeMappings ? { codeMappings } : {}) });
+      map.set(node.id, { ...binding, ...(options?.length ? { options } : {}), ...(codeMappings ? { codeMappings } : {}), ...(allowFreeText ? { allowFreeText } : {}) });
     }
     node.children?.forEach(walk);
   }
