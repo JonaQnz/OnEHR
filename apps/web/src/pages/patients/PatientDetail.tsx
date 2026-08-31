@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { API_BASE_URL } from '../../integration/apiBaseUrl';
 import {
   Activity,
   ArrowLeft,
@@ -22,7 +23,7 @@ import { useAuth } from '../../App';
 // patient page's bundle regardless of whether the tab ends up used.
 const CompositionRuntime = lazy(() => import('../CompositionRuntime'));
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 
 interface PatientRecord {
   id: string;

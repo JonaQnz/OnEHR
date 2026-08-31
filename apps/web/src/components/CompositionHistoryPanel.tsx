@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { CHANGE_TYPE_LABELS, LIFECYCLE_STATE_LABELS, type CompositionVersion } from 'core';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API}${path}`, {

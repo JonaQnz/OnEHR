@@ -3,8 +3,9 @@ import { BarChart3, Braces, Database, Plus, RefreshCw, Save, Trash2 } from 'luci
 import type { CompositionDataBlock } from 'core';
 import { WidgetDataCard, type WidgetDataState } from '../components/WidgetDataCard';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 type Display = 'line' | 'area' | 'bar' | 'metric' | 'table' | 'text' | 'matrix' | 'timeline';
 type Aql = { id: string; packageName: string; name: string; description: string; query: string; enabled: boolean };
 type Range = { min?: number; max?: number; criticalLow?: number; criticalHigh?: number };

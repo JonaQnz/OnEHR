@@ -3,8 +3,9 @@ import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { FormDefinitionV1, RuntimeValues } from 'core';
 import FormRuntime from '../components/FormRuntime';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 
 export default function FormRuntimePage() {
   const { id } = useParams();

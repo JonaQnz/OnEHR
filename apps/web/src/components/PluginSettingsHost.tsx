@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
 interface PluginContribution {
   pluginId: string;
@@ -11,7 +12,7 @@ interface PluginContribution {
 }
 interface PluginSnapshot { contributions?: PluginContribution[] }
 interface Entry { pluginId: string; contribution: PluginContribution; draft: Record<string, unknown>; saving: boolean; message?: string; error?: string }
-const API = 'http://localhost:3001/api/plugins';
+const API = `${API_BASE_URL}/plugins`;
 function asText(value: unknown): string { return value === undefined || value === null ? '' : String(value); }
 function fields(contribution: PluginContribution): Record<string, Record<string, unknown>> {
   const properties = contribution.propertySchema?.properties;

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FileText, LayoutPanelTop, Search, X } from 'lucide-react';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 
 type LocalTemplate = { id: string; template_id: string; alias?: string; version?: string };
 type RemoteTemplate = { template_id: string; concept?: string; version?: string };

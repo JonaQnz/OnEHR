@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { SemanticDiff, SemanticDiffEntry } from 'core';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API}${path}`, {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { API_BASE_URL } from '../../integration/apiBaseUrl';
 import {
   COMPOSITION_SCRIPTING_EXTENSION_KEY,
   getCompositionDefinition,
@@ -7,7 +8,7 @@ import {
   type FormScriptDiagnostic,
 } from 'core';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 
 interface CompositionScriptEditorProps {
   compositionId: string;

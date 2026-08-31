@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Search, Plus, FileEdit, Download, Copy, UploadCloud, FolderOpen, ExternalLink, Archive, RotateCcw, ChevronDown, ChevronRight, Trash2, LayoutPanelTop, BarChart3 } from 'lucide-react';
 import { CreateFormModal } from '../components/CreateFormModal';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
 type LibraryTab = 'forms' | 'sections' | 'widgets';
 
@@ -35,7 +36,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     void fetchForms();
-    fetch('http://localhost:3001/api/templates/remote')
+    fetch(`${API_BASE_URL}/templates/remote`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setRemoteTemplates(data);
@@ -50,7 +51,7 @@ export default function Dashboard() {
 
   const fetchForms = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/forms');
+      const response = await fetch(`${API_BASE_URL}/forms`);
       const data: unknown = await response.json().catch(() => undefined);
       if (!response.ok) throw new Error('Formulare konnten nicht geladen werden.');
       if (!Array.isArray(data)) throw new Error('Die API hat keine Formularliste zurückgegeben.');
@@ -66,7 +67,7 @@ export default function Dashboard() {
   const fetchWidgetSegments = async () => {
     setWidgetsLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/widgets', { credentials: 'include' });
+      const response = await fetch(`${API_BASE_URL}/widgets`, { credentials: 'include' });
       const data: unknown = await response.json().catch(() => undefined);
       if (!response.ok) throw new Error('Widget Segments konnten nicht geladen werden.');
       const list = Array.isArray(data) ? data : Array.isArray((data as any)?.widgets) ? (data as any).widgets : [];
@@ -99,7 +100,7 @@ export default function Dashboard() {
     reader.onload = async (event) => {
       try {
         const json = JSON.parse(event.target?.result as string);
-        const res = await fetch('http://localhost:3001/api/forms/import/full', {
+        const res = await fetch(`${API_BASE_URL}/forms/import/full`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(json)
@@ -130,13 +131,13 @@ export default function Dashboard() {
 
   const handlePublish = (id: string) => {
     if (!confirm('Are you sure you want to publish this form? This will create a new version.')) return;
-    fetch(`http://localhost:3001/api/forms/${id}/publish`, { method: 'POST' })
+    fetch(`${API_BASE_URL}/forms/${id}/publish`, { method: 'POST' })
       .then(res => res.json())
       .then(() => fetchForms());
   };
 
   const handleCreateDraft = (id: string, isComposition: boolean) => {
-    fetch(`http://localhost:3001/api/forms/${id}/create-draft`, { method: 'POST' })
+    fetch(`${API_BASE_URL}/forms/${id}/create-draft`, { method: 'POST' })
       .then(res => res.json())
       .then(data => {
         if (data.form) {
@@ -147,13 +148,13 @@ export default function Dashboard() {
 
   const handleArchive = (id: string) => {
     if (!confirm('Are you sure you want to archive/shut off this version? It will no longer be active.')) return;
-    fetch(`http://localhost:3001/api/forms/${id}/archive`, { method: 'POST' })
+    fetch(`${API_BASE_URL}/forms/${id}/archive`, { method: 'POST' })
       .then(() => fetchForms());
   };
 
   const handleRestore = (id: string, isComposition: boolean) => {
     if (!confirm('Are you sure you want to restore this version? It will create a new draft from this layout.')) return;
-    fetch(`http://localhost:3001/api/forms/${id}/restore`, { method: 'POST' })
+    fetch(`${API_BASE_URL}/forms/${id}/restore`, { method: 'POST' })
       .then(res => res.json())
       .then(data => {
         if (data.form) {
@@ -164,7 +165,7 @@ export default function Dashboard() {
 
   const handleDelete = (id: string) => {
     if (!confirm('Are you sure you want to delete this form?')) return;
-    fetch(`http://localhost:3001/api/forms/${id}/delete`, { method: 'POST' })
+    fetch(`${API_BASE_URL}/forms/${id}/delete`, { method: 'POST' })
       .then(() => fetchForms());
   };
 

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Braces, Database, FileCode2, Plus, Save } from 'lucide-react';
 import { registeredFunctionPackages } from '../scripting/runtime/registeredFunctions';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 
 interface StoredCodeFunction { id: string; packageName: string; name: string; description: string; source: string; enabled: boolean; }
 interface StoredAqlFunction { id: string; packageName: string; name: string; description: string; query: string; ehrbaseVersion?: string; parameters: Record<string, unknown>; autoload: boolean; enabled: boolean; }

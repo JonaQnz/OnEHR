@@ -9,8 +9,9 @@ import { WidgetDataCard, type WidgetDataState } from '../components/WidgetDataCa
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useAuth } from '../App';
 import { compositionDataCacheKey, loadCachedBlockData, mergeCachedRows, saveCachedBlockData } from '../integration/compositionDataCache';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 type Mode = 'create' | 'edit' | 'view' | 'prefill';
 type ViewMode = 'tabs' | 'stacked';
 type FormRecord = { id: string; name: string; canonical_json: FormDefinitionV1 };

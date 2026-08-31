@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
 import PluginSettingsHost from '../components/PluginSettingsHost';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
 type ConnectionDraft = {
   id: string; name: string; url: string; authPlugin: 'none' | 'basic' | 'hip-keycloak';
@@ -16,7 +17,7 @@ export default function Config() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  useEffect(() => { fetch('http://localhost:3001/api/config', { credentials: 'include' }).then((res) => res.json()).then((data) => setConfig(data)).catch(() => setError('Configuration could not be loaded.')).finally(() => setLoading(false)); }, []);
+  useEffect(() => { fetch(`${API_BASE_URL}/config`, { credentials: 'include' }).then((res) => res.json()).then((data) => setConfig(data)).catch(() => setError('Configuration could not be loaded.')).finally(() => setLoading(false)); }, []);
   const change = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setConfig({ ...config, [event.target.name]: event.target.value });
   const connections: ConnectionDraft[] = Array.isArray(config.ehrbaseConnections) ? config.ehrbaseConnections : [];
   const updateConnection = (id: string, key: keyof ConnectionDraft, value: string) => setConfig({ ...config, ehrbaseConnections: connections.map((item) => item.id === id ? { ...item, [key]: value } : item) });
@@ -33,7 +34,7 @@ export default function Config() {
   const save = async (event: React.FormEvent) => {
     event.preventDefault(); setError(''); setMessage('');
     try {
-      const response = await fetch('http://localhost:3001/api/config', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
+      const response = await fetch(`${API_BASE_URL}/config`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
       setConfig(data.config); setMessage('Configuration saved successfully!');
