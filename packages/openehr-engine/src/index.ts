@@ -24,6 +24,8 @@ export { buildConstraintModelFromWebTemplate, mergeSemanticBindings, type WebTem
 
 export { parseTermBindingsFromOpt, type SemanticBindingIndex } from './opt/parseOptXml';
 
+export { buildRuntimeValue, serializeRuntimeValue, deserializeRuntimeValue, RuntimeValueError } from './opt/runtimeValue';
+
 export const OPEN_EHR_FORM_EXTENSION = 'org.openehr.form' as const;
 
 export interface OpenEhrFormOptions {
