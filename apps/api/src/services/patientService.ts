@@ -18,6 +18,23 @@ function rowValue(row: AqlRow, name: string): unknown { return row[name] ?? row[
 // with the stored-query execution path) does that column-name join.
 function normalizeRows(data: unknown): AqlRow[] { return rowsFromResultSet(data); }
 
+/** Runs `fn` over `items` with at most `concurrency` in flight at once,
+ * isolating each item's own failure instead of letting one rejection
+ * abort the whole batch (used by syncPatientsFromEhrbase - see its own
+ * comment for why this matters there). Exported for its own unit test. */
+export async function mapWithConcurrency<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>): Promise<{ failures: Array<{ item: T; error: unknown }> }> {
+  const failures: Array<{ item: T; error: unknown }> = [];
+  let nextIndex = 0;
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const index = nextIndex; nextIndex += 1;
+      try { await fn(items[index]); } catch (error) { failures.push({ item: items[index], error }); }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.max(0, Math.min(concurrency, items.length)) }, () => worker()));
+  return { failures };
+}
+
 async function ehrSubject(ehrId: string): Promise<{ patientId?: string; namespace?: string }> {
   const { ehrbaseUrl, headers, auth } = await getEhrbaseRequestConfig();
   // GET /ehr/{ehr_id} only embeds an OBJECT_REF (namespace/type/id) for
@@ -65,8 +82,19 @@ export async function syncPatientsFromEhrbase(force = false): Promise<number> {
       for (const row of rows) { const ehrId = text(rowValue(row, 'ehrId')); if (ehrId && !personByEhrId.has(ehrId)) personByEhrId.set(ehrId, row); }
     }
 
+    // QA review finding: this used to be a fully sequential for-loop (one
+    // blocking EHRbase call + one DB upsert per EHR) with no partial-
+    // failure recovery at all - one flaky/timing-out EHR threw, which
+    // aborted the entire sync (rejecting `runningSync` for every
+    // concurrent caller awaiting it) AND skipped the `lastSyncAt = Date
+    // .now()` below entirely, so a persistently-broken single EHR kept
+    // re-triggering (and re-timing-out) a full resync on every single
+    // `GET /patients`. mapWithConcurrency bounds how many EHRbase calls
+    // run at once (avoids hammering EHRbase for a large registry) and
+    // isolates each EHR's own failure so the rest of the batch - and
+    // lastSyncAt - are unaffected by it.
     let synced = 0;
-    for (const ehrId of allEhrIds) {
+    const { failures } = await mapWithConcurrency(allEhrIds, 5, async (ehrId) => {
       const row = personByEhrId.get(ehrId);
       const subject = await ehrSubject(ehrId);
       const patientId = (row && text(rowValue(row, 'patientId'))) || subject.patientId || ehrId;
@@ -105,7 +133,15 @@ export async function syncPatientsFromEhrbase(force = false): Promise<number> {
         },
       });
       synced += 1;
+    });
+    if (failures.length > 0) {
+      console.error('[PATIENT SYNC]', `${failures.length}/${allEhrIds.length} EHRs failed to sync`, failures.map(({ item, error }) => ({ ehrId: item, error: error instanceof Error ? error.message : String(error) })));
     }
+    // Always advances, even on partial failure - the whole point of the
+    // fix above. A total outage (discoverAllEhrIds itself failing, e.g.
+    // EHRbase unreachable) still throws normally, above, and correctly
+    // leaves lastSyncAt untouched - only a per-EHR failure inside this
+    // loop is treated as "the sync still ran".
     lastSyncAt = Date.now();
     return synced;
   })().finally(() => { runningSync = undefined; });
