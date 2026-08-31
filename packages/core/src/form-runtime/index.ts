@@ -190,7 +190,17 @@ export function createInitialRuntimeValues(form: Pick<CanonicalForm, 'layout' | 
     fields.filter((field) => field.repeatableGroupId === group.id && field.defaultValue !== undefined).forEach((field) => {
       itemDefaults[field.id] = field.repeatable ? [field.defaultValue as RuntimeJsonValue] : field.defaultValue as RuntimeJsonValue;
     });
-    values[group.id] = Array.from({ length: group.repeatMin }, () => ({ ...itemDefaults }));
+    // `{ ...itemDefaults }` alone only shallow-copies - a repeatable
+    // sub-field's default is an array (`[field.defaultValue]` above), and
+    // a shallow copy of an object copies an array-typed property's
+    // *reference*, not its contents. With repeatMin > 1 every generated
+    // row ended up sharing that exact same array instance, so editing one
+    // row's repeatable sub-field silently mutated every other row's too.
+    // Cloning any array-typed default per row (scalars are fine to share -
+    // they're copied by value regardless) fixes it.
+    values[group.id] = Array.from({ length: group.repeatMin }, () => Object.fromEntries(
+      Object.entries(itemDefaults).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]),
+    ));
   });
   fields.forEach((field) => {
     if (field.repeatableGroupId || field.defaultValue === undefined) return;

@@ -160,7 +160,15 @@ export function insertCompositionBlock(
       const blocks = [...page.blocks];
       blocks.splice(insertionIndex(targetIndex, blocks.length), 0, block);
       const layout = [...(page.layout || defaultPageLayout(page.id, page.blocks))];
-      const layoutIndex = Math.min(targetIndex, layout.length);
+      // Was `Math.min(targetIndex, layout.length)` with no lower clamp,
+      // unlike `blocks`' own insertionIndex() above - a negative
+      // targetIndex (e.g. -1) left this negative, and Array#splice treats
+      // a negative index as "from the end" (splice(-1, ...) inserts before
+      // the last element), while blocks.splice above correctly clamped to
+      // 0. The block landed at blocks[0] but its layout entry landed near
+      // the end of layout[] - a real desync between the two arrays that
+      // are supposed to describe the same page's block order.
+      const layoutIndex = insertionIndex(targetIndex, layout.length);
       layout.splice(layoutIndex, 0, { id: `layout/${page.id}/${block.id}`, element: 'block', blockId: block.id, ...(block.column ? { column: block.column } : {}) });
       return { ...page, blocks, layout };
     }),

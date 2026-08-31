@@ -225,7 +225,16 @@ function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: str
   if (matches.length === 0) return undefined;
   const values: unknown[] = [];
   for (const key of matches) {
-    const indices = Array.from(key.matchAll(/:(\\d+)(?=\/|$|\\|)/g), (match) => Number(match[1]));
+    // Was `\\d` (a literal backslash + "d", matching nothing in a real flat
+    // key) instead of `\d` (a digit) - every repeat-index extraction
+    // silently failed, so `indices` was always `[]` and the loop below
+    // returned only the very first matched key's value on line 238,
+    // discarding every other repeat of a repeating field entirely. The
+    // lookahead's trailing `\\|` also had a stray backslash making its
+    // last alternative an always-true empty string (harmless on its own -
+    // an OR'd empty branch never rejects a match - but not what "index
+    // must be followed by /, end-of-string, or |" was supposed to mean).
+    const indices = Array.from(key.matchAll(/:(\d+)(?=\/|$|\|)/g), (match) => Number(match[1]));
     let value: unknown;
     if (rmType === 'DV_QUANTITY') {
       if (!key.endsWith('|magnitude')) continue;

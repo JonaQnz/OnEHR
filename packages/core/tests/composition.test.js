@@ -122,6 +122,26 @@ test('inserts a composition block at a clamped target index', () => {
   assert.deepEqual(result.pages[0].layout.map((entry) => entry.blockId), ['notice']);
 });
 
+test('a negative target index clamps to the front for both blocks AND layout, never desyncing them', () => {
+  // QA review finding: the layout-array insertion index used to be
+  // Math.min(targetIndex, layout.length) with no lower clamp (unlike
+  // blocks', via insertionIndex()) - a negative targetIndex left it
+  // negative, and Array#splice treats a negative index as "from the end",
+  // landing the layout entry near the end of layout[] while the block
+  // itself correctly landed at blocks[0]. Both arrays describe the same
+  // page's block order and must stay in the same order as each other.
+  const definition = {
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'one', title: 'One', blocks: [
+      { id: 'a', type: 'text', content: 'A' },
+      { id: 'b', type: 'text', content: 'B' },
+    ] }],
+  };
+  const result = insertCompositionBlock(definition, 'one', { id: 'notice', type: 'text', content: 'Hi' }, -1);
+  assert.deepEqual(result.pages[0].blocks.map((block) => block.id), ['notice', 'a', 'b']);
+  assert.deepEqual(result.pages[0].layout.map((entry) => entry.blockId), ['notice', 'a', 'b']);
+});
+
 test('migrates legacy flat blocks into persisted layout slots', () => {
   const composition = normalizeCompositionDefinition({
     schemaVersion: COMPOSITION_SCHEMA_VERSION,
