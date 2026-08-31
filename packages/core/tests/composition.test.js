@@ -200,3 +200,43 @@ test('composition scripts expose pages and blocks, plus a trusted forms.field(..
   assert.match(generated, /onPick\(id: DataBlockId, handler: \(row: Record<string, unknown>\) => void\): void/);
   assert.equal(createEmptyCompositionScript(definition).source.includes('defineCompositionScript'), true);
 });
+
+test('manualAdd form blocks accept manualAdd/requireAtLeastOne and default both to off', () => {
+  const withoutFlags = normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'overview', title: 'Übersicht', blocks: [{ id: 'person', type: 'form', formId: 'person-form' }] }],
+  });
+  assert.equal(withoutFlags.pages[0].blocks[0].manualAdd, undefined);
+  assert.equal(withoutFlags.pages[0].blocks[0].requireAtLeastOne, undefined);
+
+  const optional = normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'overview', title: 'Übersicht', blocks: [{ id: 'diagnosis', type: 'form', formId: 'diagnosis-form', manualAdd: true }] }],
+  });
+  assert.equal(optional.pages[0].blocks[0].manualAdd, true);
+  assert.equal(optional.pages[0].blocks[0].requireAtLeastOne, undefined);
+
+  const required = normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'overview', title: 'Übersicht', blocks: [{ id: 'diagnosis', type: 'form', formId: 'diagnosis-form', manualAdd: true, requireAtLeastOne: true }] }],
+  });
+  assert.equal(required.pages[0].blocks[0].requireAtLeastOne, true);
+});
+
+test('requireAtLeastOne without manualAdd is rejected - it is only meaningful on a manually-added block', () => {
+  assert.throws(() => normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'overview', title: 'Übersicht', blocks: [{ id: 'diagnosis', type: 'form', formId: 'diagnosis-form', requireAtLeastOne: true }] }],
+  }), /requireAtLeastOne requires manualAdd/);
+});
+
+test('manualAdd and requireAtLeastOne reject non-boolean values', () => {
+  assert.throws(() => normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'overview', title: 'Übersicht', blocks: [{ id: 'diagnosis', type: 'form', formId: 'diagnosis-form', manualAdd: 'yes' }] }],
+  }), /manualAdd must be a boolean/);
+  assert.throws(() => normalizeCompositionDefinition({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'overview', title: 'Übersicht', blocks: [{ id: 'diagnosis', type: 'form', formId: 'diagnosis-form', manualAdd: true, requireAtLeastOne: 'yes' }] }],
+  }), /requireAtLeastOne must be a boolean/);
+});

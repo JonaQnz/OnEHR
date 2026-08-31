@@ -23,6 +23,19 @@ export interface CompositionFormBlock {
   fieldLabelOverrides?: Record<string, string>;
   column?: 1 | 2 | 3;
   displayMode?: 'auto' | 'fixed';
+  /** When true, this block is never auto-started when its page loads.
+   * Instead the runtime offers a "+ <title> hinzufügen" control that a
+   * clinician clicks explicitly, as many times as needed - each click
+   * creates one more independent instance of this Form Section (e.g.
+   * several Diagnose or Befund entries on one Composition). Off by default,
+   * so every existing Composition's blocks keep auto-starting exactly as
+   * before - a designer opts a specific block into this deliberately. */
+  manualAdd?: boolean;
+  /** Only meaningful when manualAdd is true: whether at least one instance
+   * of this block must exist before the composition session can be
+   * considered complete/valid. Off by default - a manualAdd block is
+   * ordinarily fully optional, the clinician may leave it untouched. */
+  requireAtLeastOne?: boolean;
 }
 
 export interface CompositionDataBlock {
@@ -315,7 +328,11 @@ export function normalizeCompositionDefinition(value: unknown): CompositionDefin
             if (load !== undefined && load !== 'never' && load !== 'provider') throw new Error(`Composition form block '${blockId}' has an invalid load policy`);
             const hiddenFieldIds = stringList(rawBlock.hiddenFieldIds, `form block '${blockId}' hiddenFieldIds`);
             const fieldLabelOverrides = stringRecord(rawBlock.fieldLabelOverrides, `form block '${blockId}' fieldLabelOverrides`);
-            return { id: blockId, type: 'form', formId: requiredId(rawBlock.formId, `form block '${blockId}' formId`), ...(typeof rawBlock.title === 'string' && rawBlock.title.trim() ? { title: rawBlock.title.trim() } : {}), ...(mode ? { mode: mode as FormRuntimeMode } : {}), ...(load ? { load } : {}), ...(hiddenFieldIds ? { hiddenFieldIds } : {}), ...(fieldLabelOverrides ? { fieldLabelOverrides } : {}), ...(column ? { column } : {}) };
+            if (rawBlock.manualAdd !== undefined && typeof rawBlock.manualAdd !== 'boolean') throw new Error(`Composition form block '${blockId}' manualAdd must be a boolean`);
+            if (rawBlock.requireAtLeastOne !== undefined && typeof rawBlock.requireAtLeastOne !== 'boolean') throw new Error(`Composition form block '${blockId}' requireAtLeastOne must be a boolean`);
+            if (rawBlock.requireAtLeastOne === true && rawBlock.manualAdd !== true) throw new Error(`Composition form block '${blockId}' requireAtLeastOne requires manualAdd`);
+            const manualAdd = rawBlock.manualAdd === true;
+            return { id: blockId, type: 'form', formId: requiredId(rawBlock.formId, `form block '${blockId}' formId`), ...(typeof rawBlock.title === 'string' && rawBlock.title.trim() ? { title: rawBlock.title.trim() } : {}), ...(mode ? { mode: mode as FormRuntimeMode } : {}), ...(load ? { load } : {}), ...(hiddenFieldIds ? { hiddenFieldIds } : {}), ...(fieldLabelOverrides ? { fieldLabelOverrides } : {}), ...(column ? { column } : {}), ...(manualAdd ? { manualAdd: true as const, ...(rawBlock.requireAtLeastOne === true ? { requireAtLeastOne: true as const } : {}) } : {}) };
           }
           if (rawBlock.type === 'data') {
             const display = rawBlock.display;

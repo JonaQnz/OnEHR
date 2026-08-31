@@ -202,6 +202,17 @@ export default function CompositionBuilder() {
             <label className="form-label">Darstellung (Höhe)<select className="form-input" value={selectedBlock.displayMode || 'auto'} onChange={(event) => updateBlock(selectedBlock.id, { displayMode: event.target.value as 'auto' | 'fixed' })}><option value="auto">Auto-Resize (100%)</option><option value="fixed">Fixe Höhe (Scroll)</option></select></label>
             <label className="form-label">Daten vorausfüllen<select className="form-input" value={selectedBlock.load || 'never'} onChange={(event) => updateBlock(selectedBlock.id, { load: event.target.value as 'never' | 'provider' })}><option value="never">Nicht vorausfüllen</option><option value="provider">Aus EHR/KIS laden</option></select></label>
           </div>
+          <div style={{ marginTop: '.85rem', paddingTop: '.75rem', borderTop: '1px solid #f1f5f9' }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '.45rem', fontSize: '.82rem', fontWeight: 600 }}>
+              <input type="checkbox" checked={selectedBlock.manualAdd === true} onChange={(event) => updateBlock(selectedBlock.id, { manualAdd: event.target.checked || undefined, ...(event.target.checked ? {} : { requireAtLeastOne: undefined }) })} />
+              Manuell hinzufügen (+) statt automatisch starten
+            </label>
+            <p style={{ fontSize: '.76rem', color: '#64748b', lineHeight: 1.4, margin: '.2rem 0 0 1.55rem' }}>Diese Form Section startet nicht automatisch, wenn die Seite geöffnet wird. Stattdessen erscheint im Vorgang ein „+“-Button, mit dem beliebig viele Einträge hinzugefügt werden können - z. B. mehrere Diagnosen oder Befunde.</p>
+            {selectedBlock.manualAdd && <label style={{ display: 'flex', alignItems: 'center', gap: '.45rem', fontSize: '.82rem', marginTop: '.5rem', marginLeft: '1.55rem' }}>
+              <input type="checkbox" checked={selectedBlock.requireAtLeastOne === true} onChange={(event) => updateBlock(selectedBlock.id, { requireAtLeastOne: event.target.checked || undefined })} />
+              Mindestens 1 Eintrag erforderlich
+            </label>}
+          </div>
           <div style={{ marginTop: '.85rem' }}>
             <span className="form-label">Felder in dieser Form</span>
             <p style={{ color: '#64748b', fontSize: '.76rem', lineHeight: 1.4, margin: '0 0 .5rem' }}>Ein-/ausblenden und optional pro Feld ein abweichendes Label für diese Form. Der Baustein selbst (Bindings, Pflichtfelder, Original-Label) bleibt unverändert und damit anderswo wiederverwendbar.</p>

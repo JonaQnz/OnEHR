@@ -89,7 +89,13 @@ model CompositionSession {
   mode               FormSessionMode          @default(create)
   status             CompositionSessionStatus @default(draft)
   // Block id -> child FormSession id. Values remain in the child session.
+  // Used for every ordinary (non-repeatable) form block, 1:1.
   childSessions      Json                     @default("{}") @map("child_sessions")
+  // Block id -> ordered array of child FormSession ids, used ONLY for
+  // blocks with manualAdd: true (see CompositionFormBlock). A manualAdd
+  // block never has an entry in childSessions - all of its instances (zero,
+  // one, or many) live here instead.
+  childSessionGroups Json                     @default("{}") @map("child_session_groups")
   revision           Int                      @default(0)
   createdAt          DateTime                 @default(now()) @map("created_at")
   updatedAt          DateTime                 @updatedAt @map("updated_at")

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LayoutGrid, Loader2, Maximize2, Minimize2, Rows3, RefreshCw, Save } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LayoutGrid, Loader2, Maximize2, Minimize2, Plus, Rows3, RefreshCw, Save, X } from 'lucide-react';
 import { COMPOSITION_SCRIPTING_EXTENSION_KEY, getCompositionDefinition, normalizeCompositionScript, summarizeRuntimeValues, type CompositionBlock, type CompositionDataBlock, type CompositionDefinition, type CompositionPage, type FormDefinitionV1, type RuntimeValues } from 'core';
 import { formEmbedUrl, isFormEmbedEvent, launchEmbeddedForm } from '../integration/formLaunch';
 import { ClinicalGrid, ClinicalStack, ClinicalTabs } from '../components/layout/ClinicalLayout';
@@ -15,8 +15,8 @@ type Mode = 'create' | 'edit' | 'view' | 'prefill';
 type ViewMode = 'tabs' | 'stacked';
 type FormRecord = { id: string; name: string; canonical_json: FormDefinitionV1 };
 type Launch = { url?: string; error?: string; loading?: boolean };
-type Child = { blockId: string; sessionId?: string; formId: string; status: string; valid?: boolean; issues?: Array<{ path: string; code: string; message: string }> };
-type CompositionSession = { id: string; patientId: string; patientNamespace?: string; ehrId?: string; mode: Mode; status: string; childSessions: Record<string, string>; children: Child[]; progress: { total: number; started: number; ready: number; submitted: number } };
+type Child = { blockId: string; sessionId?: string; formId: string; status: string; valid?: boolean; issues?: Array<{ path: string; code: string; message: string }>; manualAdd?: boolean; instanceIndex?: number };
+type CompositionSession = { id: string; patientId: string; patientNamespace?: string; ehrId?: string; mode: Mode; status: string; childSessions: Record<string, string>; childSessionGroups: Record<string, string[]>; children: Child[]; progress: { total: number; started: number; ready: number; submitted: number } };
 type DataState = WidgetDataState;
 type PatientOption = { id: string; patientId: string; patientNamespace?: string; namespace?: string; ehrId?: string | null; firstName?: string; lastName?: string };
 type SaveOutcome = { status: 'pending' | 'ok' | 'error'; message?: string };
@@ -239,7 +239,23 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
       // Compositions with several blocks per page (e.g. Polytrauma -
       // Intensivstation's 5-block "Organfunktion & Labor" tab).
       await Promise.all(blocks.map(async (block) => {
-        if (block.type !== 'form' || !block.formId || launches[block.id]?.url || launches[block.id]?.loading) return;
+        if (block.type !== 'form' || !block.formId) return;
+        if (block.manualAdd) {
+          // manualAdd blocks are never auto-created - only the "+" button
+          // (addManualInstance) attaches a new instance. On (re)load,
+          // resume-mount every instance that already exists so a page
+          // revisit doesn't lose previously added Diagnose/Befund entries.
+          (parent.childSessionGroups[block.id] || []).forEach((instanceSessionId) => {
+            const key = `${block.id}:${instanceSessionId}`;
+            if (launches[key]?.url || launches[key]?.loading) return;
+            const resumeQuery = new URLSearchParams({ sessionId: instanceSessionId, launchId: `${parent.id}:${block.id}:${instanceSessionId}` });
+            if (block.hiddenFieldIds?.length) resumeQuery.set('hiddenFieldIds', block.hiddenFieldIds.join(','));
+            if (block.fieldLabelOverrides && Object.keys(block.fieldLabelOverrides).length > 0) resumeQuery.set('fieldLabelOverrides', JSON.stringify(block.fieldLabelOverrides));
+            setLaunches((current) => ({ ...current, [key]: { url: formEmbedUrl(`/embed/forms/${encodeURIComponent(block.formId)}?${resumeQuery.toString()}`) } }));
+          });
+          return;
+        }
+        if (launches[block.id]?.url || launches[block.id]?.loading) return;
         const childSessionId = parent.childSessions[block.id];
         if (childSessionId) {
           // Resuming an already-attached block bypasses launchEmbeddedForm
@@ -282,6 +298,43 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
   };
   const startPage = () => (page ? startBlocks(page.blocks) : Promise.resolve());
   const startVisible = () => startBlocks(viewMode === 'stacked' ? (composition?.pages || []).filter((candidate) => !hiddenPageIds.has(candidate.id)).flatMap((candidate) => candidate.blocks) : (page?.blocks || []));
+  // "+ <Titel> hinzufügen" - creates one more independent instance of a
+  // manualAdd block. Mirrors startBlocks' own fresh-launch branch (same
+  // launchEmbeddedForm call) but attaches via POST .../instances, which
+  // appends rather than overwrites, so previously added instances are
+  // never disturbed.
+  const [addingInstance, setAddingInstance] = useState<Record<string, boolean>>({});
+  const addManualInstance = async (block: Extract<CompositionBlock, { type: 'form' }>) => {
+    if (!contextReady || !record || addingInstance[block.id]) return;
+    setAddingInstance((current) => ({ ...current, [block.id]: true }));
+    try {
+      const parent = await ensureSession(); if (!parent) return;
+      const blockLoad = block.load || (mode === 'create' ? 'never' : 'provider');
+      const blockMode = mode === 'create' && blockLoad === 'provider' ? 'prefill' : mode;
+      const launch = await launchEmbeddedForm({ formId: block.formId, patient: { id: patientId.trim(), ...(namespace.trim() ? { namespace: namespace.trim() } : {}) }, mode: blockMode, load: blockLoad, hiddenFieldIds: block.hiddenFieldIds, fieldLabelOverrides: block.fieldLabelOverrides, launchId: `${parent.id}:${block.id}:${crypto.randomUUID()}`, compositionContext: { compositionSessionId: parent.id, blockId: block.id } });
+      await request<CompositionSession>(`/composition-sessions/${encodeURIComponent(parent.id)}/blocks/${encodeURIComponent(block.id)}/instances`, { method: 'POST', body: JSON.stringify({ childSessionId: launch.session.id }) });
+      setLaunches((current) => ({ ...current, [`${block.id}:${launch.session.id}`]: { url: formEmbedUrl(launch.launchUrl) } }));
+      await refreshSession(parent.id);
+    } catch (reason) {
+      setNotice(reason instanceof Error ? reason.message : 'Ein weiterer Eintrag konnte nicht hinzugefügt werden.');
+    } finally {
+      setAddingInstance((current) => ({ ...current, [block.id]: false }));
+    }
+  };
+  const [removingInstance, setRemovingInstance] = useState<Record<string, boolean>>({});
+  const removeManualInstance = async (blockId: string, childSessionId: string) => {
+    if (!session || removingInstance[childSessionId]) return;
+    setRemovingInstance((current) => ({ ...current, [childSessionId]: true }));
+    try {
+      await request<CompositionSession>(`/composition-sessions/${encodeURIComponent(session.id)}/blocks/${encodeURIComponent(blockId)}/instances/${encodeURIComponent(childSessionId)}`, { method: 'DELETE' });
+      setLaunches((current) => { const next = { ...current }; delete next[`${blockId}:${childSessionId}`]; return next; });
+      await refreshSession();
+    } catch (reason) {
+      setNotice(reason instanceof Error ? reason.message : 'Eintrag konnte nicht entfernt werden.');
+    } finally {
+      setRemovingInstance((current) => ({ ...current, [childSessionId]: false }));
+    }
+  };
   useEffect(() => { void startVisible(); }, [pageIndex, composition, patientId, namespace, ehrId, mode, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!record || !composition || !contextReady) return;
@@ -392,6 +445,42 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
     const compactSummary = compactForm && compactValues
       ? summarizeRuntimeValues(compactForm.canonical_json, compactValues, compactForm.canonical_json.settings?.reuse?.summaryFieldIds)
       : '';
+    if (block.type === 'form' && block.manualAdd) {
+      const instances = session?.children.filter((child) => child.blockId === block.id && child.sessionId) || [];
+      const outstandingRequired = block.requireAtLeastOne && instances.length === 0;
+      return (
+        <div key={block.id} style={{ gridColumn: `span ${block.column || 1}` }}>
+          <section className="card" style={{ padding: '.85rem 1rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+              <FileText size={17} color="var(--primary)" />
+              <strong>{block.title || 'Formular'}</strong>
+              <span style={{ color: 'var(--text-muted)', fontSize: '.78rem' }}>{instances.length === 0 ? 'Noch kein Eintrag' : `${instances.length} Eintrag${instances.length === 1 ? '' : 'e'}`}{outstandingRequired && <span style={{ color: 'var(--danger)', marginLeft: '.4rem' }}>· mindestens 1 erforderlich</span>}</span>
+            </div>
+            {instances.map((child, index) => {
+              const key = `${block.id}:${child.sessionId}`;
+              const removable = child.status !== 'submitted';
+              return (
+                <div key={child.sessionId} className="card" style={{ padding: 0, overflow: 'hidden', borderColor: 'var(--border)' }}>
+                  <div style={{ padding: '.6rem .85rem', display: 'flex', alignItems: 'center', gap: '.5rem', borderBottom: '1px solid var(--border)' }}>
+                    <strong style={{ fontSize: '.85rem' }}>{block.title || 'Eintrag'} #{child.instanceIndex ?? index + 1}</strong>
+                    {childBadge(child.status)}
+                    <button type="button" title={removable ? 'Eintrag entfernen' : 'Bereits abgesendete Einträge können nicht entfernt werden'} disabled={!removable || removingInstance[child.sessionId!]} onClick={() => void removeManualInstance(block.id, child.sessionId!)} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', color: removable ? 'var(--danger)' : 'var(--text-muted)', cursor: removable ? 'pointer' : 'not-allowed', padding: '.3rem', opacity: removable ? 1 : .5 }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                  {launches[key]?.loading && <div style={{ padding: '2rem', color: 'var(--text-muted)', textAlign: 'center' }}>Formular wird vorbereitet…</div>}
+                  {launches[key]?.error && <div style={{ padding: '1rem', color: 'var(--danger)' }}>{launches[key].error}</div>}
+                  {launches[key]?.url && <iframe ref={(node) => { iframeRefs.current[key] = node; }} title={`${block.title || block.id} #${index + 1}`} src={launches[key].url} style={{ border: 0, width: '100%', height: iframeHeights[key] || 300, display: 'block', background: 'var(--bg-body)', transition: 'height .2s' }} scrolling="no" />}
+                </div>
+              );
+            })}
+            <button type="button" className="btn btn-secondary" style={{ alignSelf: 'flex-start' }} disabled={addingInstance[block.id]} onClick={() => void addManualInstance(block)}>
+              {addingInstance[block.id] ? <Loader2 size={15} className="lf-spin" /> : <Plus size={15} />} {block.title || 'Eintrag'} hinzufügen
+            </button>
+          </section>
+        </div>
+      );
+    }
     return (
     <div key={block.id} style={{ gridColumn: `span ${block.column || 1}` }}>
       {block.type === 'form' ? (
@@ -464,7 +553,7 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
         </div>
       </div>
       <div style={{ height: 8, background: 'var(--border)', borderRadius: 99, overflow: 'hidden', margin: '.8rem 0' }}><div style={{ height: '100%', width: `${session.progress.total ? session.progress.submitted / session.progress.total * 100 : 0}%`, background: complete ? 'var(--success)' : 'var(--primary)', transition: 'width .2s' }} /></div>
-      {session.children.map((child) => <div key={child.blockId} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.8rem', padding: '.15rem 0' }}>{childBadge(child.status)}<span style={{ color: 'var(--text-muted)' }}>{child.formId}</span>{saveOutcomes[child.blockId]?.status === 'error' && <span style={{ color: 'var(--danger)' }}>· {saveOutcomes[child.blockId].message}</span>}</div>)}
+      {session.children.map((child, index) => <div key={child.sessionId || `${child.blockId}-${child.instanceIndex ?? index}`} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.8rem', padding: '.15rem 0' }}>{childBadge(child.status)}<span style={{ color: 'var(--text-muted)' }}>{child.formId}{child.instanceIndex ? ` #${child.instanceIndex}` : ''}</span>{saveOutcomes[child.blockId]?.status === 'error' && <span style={{ color: 'var(--danger)' }}>· {saveOutcomes[child.blockId].message}</span>}</div>)}
       {complete && <div style={{ color: '#166534', fontWeight: 600, fontSize: '.85rem' }}>Der gesamte Vorgang ist abgeschlossen.</div>}
       <style>{'.lf-spin{animation:lf-spin .8s linear infinite}@keyframes lf-spin{to{transform:rotate(360deg)}}'}</style>
     </section>}

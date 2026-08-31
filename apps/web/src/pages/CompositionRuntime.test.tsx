@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import CompositionRuntime from './CompositionRuntime';
 import { AuthStateContext, type AuthState } from '../App';
@@ -187,5 +187,102 @@ describe('CompositionRuntime data cache wiring', () => {
     await waitFor(() => expect(compositionDataCalls.length).toBeGreaterThan(0));
     expect(compositionDataCalls[0].since).toBeUndefined();
     expect(loadCachedBlockData(cacheKey)?.cachedThrough).toBe(Date.parse('2026-08-20T08:00:00Z'));
+  });
+});
+
+// Covers the manualAdd ("+"-button) repeatable-block feature: a block
+// flagged manualAdd in the Composition definition must never auto-start
+// like an ordinary form block, must offer an explicit "+ hinzufügen"
+// control instead, and clicking it must attach a new instance via the
+// dedicated .../instances endpoint (which appends) rather than the plain
+// PUT .../blocks/:blockId endpoint (which would overwrite).
+describe('CompositionRuntime manualAdd (repeatable) blocks', () => {
+  const MANUAL_FORM_ID = 'manual-add-1';
+
+  function stubBackendWithManualBlock(sessionOverrides: Partial<Record<string, unknown>> = {}, requireAtLeastOne = false) {
+    const composition = {
+      id: MANUAL_FORM_ID,
+      name: 'Entlassung',
+      canonical_json: {
+        extensions: {
+          'watehr.composition': {
+            schemaVersion: '1.0',
+            pages: [{ id: 'page-1', title: 'Übersicht', blocks: [
+              { id: 'diagnosis', type: 'form', formId: 'diagnosis-form', title: 'Diagnose', manualAdd: true, ...(requireAtLeastOne ? { requireAtLeastOne: true } : {}) },
+            ] }],
+          },
+        },
+      },
+    };
+    let session: any = { id: 'manual-session-1', patientId: 'p1', mode: 'create', status: 'draft', childSessions: {}, childSessionGroups: {}, children: [], progress: { total: 0, started: 0, ready: 0, submitted: 0 }, ...sessionOverrides };
+    const launchCalls: any[] = [];
+    const instanceCalls: any[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith(`/forms/${MANUAL_FORM_ID}`)) return jsonResponse(composition);
+      if (url.endsWith('/patients')) return jsonResponse([]);
+      if (url.endsWith('/composition-sessions') && init?.method === 'POST') return jsonResponse(session);
+      if (url.endsWith('/form-launches') && init?.method === 'POST') {
+        launchCalls.push(JSON.parse((init.body as string) || '{}'));
+        return jsonResponse({ session: { id: 'diag-instance-1' }, launchUrl: '/embed/forms/diagnosis-form?sessionId=diag-instance-1' });
+      }
+      if (url.includes(`/composition-sessions/${session.id}/blocks/diagnosis/instances`) && init?.method === 'POST') {
+        instanceCalls.push(JSON.parse((init.body as string) || '{}'));
+        session = { ...session, childSessionGroups: { diagnosis: ['diag-instance-1'] }, children: [{ blockId: 'diagnosis', sessionId: 'diag-instance-1', formId: 'diagnosis-form', status: 'in_progress', manualAdd: true, instanceIndex: 1 }], progress: { total: 1, started: 1, ready: 0, submitted: 0 } };
+        return jsonResponse(session);
+      }
+      if (url.includes(`/composition-sessions/${session.id}`)) return jsonResponse(session);
+      return jsonResponse({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return { launchCalls, instanceCalls };
+  }
+
+  it('never auto-starts a manualAdd block - only an explicit "+ hinzufügen" control is offered', async () => {
+    const { launchCalls } = stubBackendWithManualBlock();
+    renderWithAuth(
+      <MemoryRouter initialEntries={['/x']}>
+        <Routes>
+          <Route path="/x" element={<CompositionRuntime formId={MANUAL_FORM_ID} initialPatientId="p1" initialEhrId="ehr1" embedded />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText(/Diagnose hinzufügen/i)).toBeInTheDocument());
+    // No launch/attach happened just from opening the page - manualAdd
+    // blocks are opt-in, never auto-created like an ordinary form block.
+    expect(launchCalls.length).toBe(0);
+    expect(screen.getByText('Noch kein Eintrag')).toBeInTheDocument();
+  });
+
+  it('clicking "+" launches and attaches a new instance via POST .../instances, not PUT .../blocks/:blockId', async () => {
+    const { launchCalls, instanceCalls } = stubBackendWithManualBlock();
+    renderWithAuth(
+      <MemoryRouter initialEntries={['/x']}>
+        <Routes>
+          <Route path="/x" element={<CompositionRuntime formId={MANUAL_FORM_ID} initialPatientId="p1" initialEhrId="ehr1" embedded />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const addButton = await screen.findByText(/Diagnose hinzufügen/i);
+    fireEvent.click(addButton);
+
+    await waitFor(() => expect(instanceCalls.length).toBe(1));
+    expect(launchCalls.length).toBe(1);
+    expect(instanceCalls[0]).toEqual({ childSessionId: 'diag-instance-1' });
+    await waitFor(() => expect(screen.getByText('Diagnose #1')).toBeInTheDocument());
+  });
+
+  it('a block with requireAtLeastOne and zero instances shows the outstanding-required hint', async () => {
+    stubBackendWithManualBlock({ children: [{ blockId: 'diagnosis', formId: 'diagnosis-form', status: 'not_started', manualAdd: true }], progress: { total: 1, started: 0, ready: 0, submitted: 0 } }, true);
+    renderWithAuth(
+      <MemoryRouter initialEntries={['/x']}>
+        <Routes>
+          <Route path="/x" element={<CompositionRuntime formId={MANUAL_FORM_ID} initialPatientId="p1" initialEhrId="ehr1" embedded />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText(/Diagnose hinzufügen/i)).toBeInTheDocument());
+    expect(screen.getByText('Noch kein Eintrag')).toBeInTheDocument();
+    expect(screen.getByText(/mindestens 1 erforderlich/i)).toBeInTheDocument();
   });
 });
