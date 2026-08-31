@@ -1,4 +1,4 @@
-import type { CanonicalForm, FormElementLayout, JsonPrimitive, JsonValue, ValidationIssue } from '../canonical';
+import { NON_FIELD_LAYOUT_TYPES, type CanonicalForm, type FormElementLayout, type JsonPrimitive, type JsonValue, type ValidationIssue } from '../canonical';
 
 export type RuntimePrimitive = JsonPrimitive;
 export type RuntimeJsonValue = JsonValue;
@@ -29,20 +29,9 @@ export interface RuntimeValidationIssue extends ValidationIssue {
 }
 export interface RuntimeValidationResult { valid: boolean; issues: RuntimeValidationIssue[]; }
 
-const NON_FIELD_TYPES = new Set([
-  'form',
-  'container',
-  'row',
-  'column',
-  'header',
-  'paragraph',
-  'line-break',
-  'button',
-  'section',
-  'tab',
-  'alert',
-  'text',
-]);
+// Moved to canonical/index.ts as NON_FIELD_LAYOUT_TYPES (QA review
+// finding: this was hand-duplicated with form-scripting's own separate
+// copy, and the two had already drifted apart) - imported above.
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const nodeId = (node: FormElementLayout): string | undefined => node.id || node.name;
 
@@ -104,7 +93,7 @@ function toDescriptor(node: FormElementLayout, locales: RuntimeLocales, repeatab
 export function collectRuntimeFields(form: Pick<CanonicalForm, 'layout' | 'locales'>): RuntimeFieldDescriptor[] {
   const fields: RuntimeFieldDescriptor[] = [];
   walk(form.layout, (node, repeatableGroupId) => {
-    if (nodeId(node) && !NON_FIELD_TYPES.has(node.type)) fields.push(toDescriptor(node, form.locales, repeatableGroupId));
+    if (nodeId(node) && !NON_FIELD_LAYOUT_TYPES.has(node.type)) fields.push(toDescriptor(node, form.locales, repeatableGroupId));
   });
   return fields;
 }

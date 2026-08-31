@@ -1,4 +1,4 @@
-import type { CanonicalForm, FormElementLayout } from '../canonical';
+import { NON_FIELD_LAYOUT_TYPES, type CanonicalForm, type FormElementLayout } from '../canonical';
 
 export const FORM_SCRIPT_LANGUAGE = 'typescript' as const;
 
@@ -193,7 +193,11 @@ function isButton(node: FormElementLayout): boolean {
 
 function isDataField(node: FormElementLayout): boolean {
   return Boolean(nodeId(node))
-    && !['form', 'container', 'row', 'column', 'header', 'paragraph', 'line-break', 'section', 'tab', 'alert', 'text'].includes(node.type)
+    && !NON_FIELD_LAYOUT_TYPES.has(node.type)
+    // isButton() also catches uiElement === 'Button' on a node whose type
+    // isn't literally 'button' - NON_FIELD_LAYOUT_TYPES already excludes
+    // type === 'button' too, so this is a deliberately redundant extra
+    // check for that case, not dead code.
     && !isButton(node);
 }
 

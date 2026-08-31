@@ -422,7 +422,15 @@ router.put('/:id', asyncHandler(async (req, res) => {
   res.json(form);
 }));
 
-router.post('/:id/publish', asyncHandler(async (req, res) => {
+// QA review finding: 'form.publish' was defined in authorizationService.ts's
+// ROLE_PERMISSIONS.ADMIN and included in the dev principal, but never
+// actually passed to requirePermission() anywhere - publish/archive/
+// delete/restore were gated only by the router-level 'form.design' check
+// above, same as ordinary editing. Only harmless today because the
+// two-role model (USER/ADMIN) always grants both together; the permission
+// model implied finer-grained control that didn't actually exist. Stacked
+// on top of (not instead of) the router-level 'form.design' check.
+router.post('/:id/publish', requirePermission('form.publish'), asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
   const form = await prisma.form.findUnique({ where: { id: formId } });
   if (!form) throw new HttpError(404, 'Form not found');
@@ -497,7 +505,7 @@ router.post('/:id/create-draft', asyncHandler(async (req, res) => {
   res.status(201).json({ message: 'Draft created', form: draft });
 }));
 
-router.post('/:id/restore', asyncHandler(async (req, res) => {
+router.post('/:id/restore', requirePermission('form.publish'), asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
   const oldForm = await prisma.form.findUnique({ where: { id: formId } });
   if (!oldForm) throw new HttpError(404, 'Form not found');
@@ -537,7 +545,7 @@ router.post('/:id/restore', asyncHandler(async (req, res) => {
   res.status(201).json({ message: 'Restored as new draft', form: restoredDraft });
 }));
 
-router.post('/:id/archive', asyncHandler(async (req, res) => {
+router.post('/:id/archive', requirePermission('form.publish'), asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
   const form = await prisma.form.findUnique({ where: { id: formId } });
   if (!form) throw new HttpError(404, 'Form not found');
@@ -551,7 +559,7 @@ router.post('/:id/archive', asyncHandler(async (req, res) => {
   res.json({ message: 'Form archived', form: archived });
 }));
 
-router.post('/:id/delete', asyncHandler(async (req, res) => {
+router.post('/:id/delete', requirePermission('form.publish'), asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
   const form = await prisma.form.findUnique({ where: { id: formId } });
   if (!form) throw new HttpError(404, 'Form not found');

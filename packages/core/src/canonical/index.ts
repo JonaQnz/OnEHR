@@ -86,6 +86,37 @@ export interface FormElementLayout {
 }
 
 /**
+ * Layout node `type`s that are structural/decorative, never a real data
+ * field - excluded from both `form-runtime`'s `collectRuntimeFields` (what
+ * the runtime validates/initializes) and `form-scripting`'s `isDataField`
+ * (what a generated Form Script's FieldId type includes).
+ *
+ * QA review finding: these two consumers used to each hand-maintain their
+ * own copy of this list, and had already drifted apart (form-scripting's
+ * copy was missing 'button', only incidentally still correct because it
+ * separately excludes buttons via its own isButton() check). If a layout
+ * type is ever added to one list and not the other, generated Form Script
+ * FieldId types and runtime validation silently disagree about what
+ * counts as a field - the same class of gap that caused the Matrix-widget
+ * display-type bug (a display value existing in one enum copy but not
+ * its duplicate elsewhere). One shared list instead.
+ */
+export const NON_FIELD_LAYOUT_TYPES = new Set([
+  'form',
+  'container',
+  'row',
+  'column',
+  'header',
+  'paragraph',
+  'line-break',
+  'button',
+  'section',
+  'tab',
+  'alert',
+  'text',
+]);
+
+/**
  * The single consolidated openEHR identity record for one form element -
  * leaf field or structural container alike. `path` is EHRbase's own
  * WebTemplate aqlPath, verbatim (it already *is* the AQL path in openEHR's
