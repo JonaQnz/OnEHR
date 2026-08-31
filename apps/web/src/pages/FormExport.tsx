@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
 function downloadJson(data: any, filename: string) {
   if (!data) return;
@@ -26,12 +27,12 @@ export default function FormExport() {
 
   useEffect(() => {
     // Optionally fetch the form to get its name
-    fetch(`http://localhost:3001/api/forms/${id}`)
+    fetch(`${API_BASE_URL}/forms/${id}`)
       .then(res => res.json())
       .then(data => setFormName(data.name || 'Form'))
       .catch(() => {});
 
-    fetch(`http://localhost:3001/api/forms/${id}/export/cambio`)
+    fetch(`${API_BASE_URL}/forms/${id}/export/cambio`)
       .then(async res => {
         if (!res.ok) {
           const errText = await res.text();
@@ -46,7 +47,7 @@ export default function FormExport() {
       .then(data => setCambio(data))
       .catch(err => setCambio({ error: err.message }));
       
-    fetch(`http://localhost:3001/api/forms/${id}/export/mappings`)
+    fetch(`${API_BASE_URL}/forms/${id}/export/mappings`)
       .then(async res => {
         if (!res.ok) {
           const errText = await res.text();
@@ -61,7 +62,7 @@ export default function FormExport() {
       .then(data => setMappings(data))
       .catch(err => setMappings({ error: err.message }));
 
-    fetch(`http://localhost:3001/api/forms/${id}/export/full`)
+    fetch(`${API_BASE_URL}/forms/${id}/export/full`)
       .then(async res => {
         if (!res.ok) {
           const errText = await res.text();

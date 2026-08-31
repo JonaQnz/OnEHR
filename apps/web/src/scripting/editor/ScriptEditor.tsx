@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { API_BASE_URL } from '../../integration/apiBaseUrl';
 import type {
   FormDefinitionV1,
   FormScriptConnectorOperationDefinition,
@@ -13,7 +14,7 @@ import {
   getFormScriptConnectorConfiguration,
 } from 'core';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 
 interface FormRecord {
   canonical_json: FormDefinitionV1;

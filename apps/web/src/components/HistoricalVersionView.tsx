@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { CHANGE_TYPE_LABELS, LIFECYCLE_STATE_LABELS, type CompositionVersion, type FormDefinitionV1, type RuntimeValues } from 'core';
 import FormRuntime from './FormRuntime';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API}${path}`, {

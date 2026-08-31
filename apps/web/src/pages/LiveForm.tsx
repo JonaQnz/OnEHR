@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -19,7 +20,7 @@ import HistoricalVersionView from '../components/HistoricalVersionView';
 import CompositionDiffView from '../components/CompositionDiffView';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 
 interface SessionRecord {
   id: string;

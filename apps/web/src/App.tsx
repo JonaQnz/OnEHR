@@ -26,6 +26,7 @@ import { FrontendPluginProvider } from './components/FrontendPluginRegistry';
 import type { FrontendPluginRegistration } from 'plugin-api';
 import { loadFrontendPluginRegistrations } from './plugins/frontendPluginCatalog';
 import { clearCompositionDataCache } from './integration/compositionDataCache';
+import { API_BASE_URL } from './integration/apiBaseUrl';
 import './App.css';
 
 type AuthState = { loading: boolean; authenticated: boolean; mode: 'local' | 'hip' | 'disabled-development-only'; user?: { id: string; displayName: string; authSource: string; email?: string }; roles: string[]; permissions: string[]; reload: () => Promise<void> };
@@ -47,7 +48,7 @@ export type { AuthState };
 function AuthGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<Omit<AuthState, 'reload'>>({ loading: true, authenticated: false, mode: 'local', roles: [], permissions: [] });
   const reload = React.useCallback(async () => {
-    try { const response = await fetch('http://localhost:3001/api/auth/me', { credentials: 'include' }); const data = await response.json(); setState({ loading: false, authenticated: Boolean(data.authenticated), mode: data.mode === 'hip' || data.mode === 'disabled-development-only' ? data.mode : 'local', user: data.user || undefined, roles: Array.isArray(data.roles) ? data.roles : [], permissions: Array.isArray(data.permissions) ? data.permissions : [] }); }
+    try { const response = await fetch(`${API_BASE_URL}/auth/me`, { credentials: 'include' }); const data = await response.json(); setState({ loading: false, authenticated: Boolean(data.authenticated), mode: data.mode === 'hip' || data.mode === 'disabled-development-only' ? data.mode : 'local', user: data.user || undefined, roles: Array.isArray(data.roles) ? data.roles : [], permissions: Array.isArray(data.permissions) ? data.permissions : [] }); }
     catch { setState((current) => ({ ...current, loading: false })); }
   }, []);
   React.useEffect(() => { void reload(); }, [reload]);
@@ -62,7 +63,7 @@ function AppContent() {
   // integration/compositionDataCache.ts) on logout - a shared browser
   // profile used by more than one clinician must never surface one user's
   // cached clinical data to the next person who logs in on it.
-  const logout = async () => { await fetch('http://localhost:3001/api/auth/logout', { method: 'POST', credentials: 'include' }); clearCompositionDataCache(); await auth.reload(); };
+  const logout = async () => { await fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' }); clearCompositionDataCache(); await auth.reload(); };
   if (isBuilder || location.pathname.includes('/composition-builder')) return <main style={{ width: '100vw', height: '100vh', overflow: 'auto', padding: 0, margin: 0 }}><React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}><Routes><Route path="/forms/:id/builder" element={<Protected permission="form.design"><FormBuilder /></Protected>} /><Route path="/compositions/:id/builder" element={<Protected permission="form.design"><CompositionBuilder /></Protected>} /></Routes></React.Suspense></main>;
   return <div className="app-container"><nav className="sidebar"><div className="sidebar-header"><img src="/onehr-logo.png" alt="OnEHR" style={{ width: '100%', maxWidth: 170, height: 'auto' }} /></div><ul className="sidebar-nav">
     <li><Link to="/" className={location.pathname === '/' ? 'active' : ''}><LayoutDashboard size={18} /><span>Bibliothek</span></Link></li>

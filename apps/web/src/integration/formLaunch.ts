@@ -5,8 +5,9 @@ import {
   type FormLaunchRequest,
   type FormLaunchResult,
 } from 'core';
+import { API_BASE_URL } from './apiBaseUrl';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 
 export async function launchEmbeddedForm(request: FormLaunchRequest): Promise<FormLaunchResult> {
   const response = await fetch(`${API}/form-launches`, {

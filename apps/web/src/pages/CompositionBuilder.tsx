@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { useDrag } from 'react-dnd';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3, FileText, GripVertical, Save, Trash2, Type } from 'lucide-react';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 import {
   COMPOSITION_EXTENSION_KEY,
   COMPOSITION_SCHEMA_VERSION,
@@ -27,7 +28,7 @@ import '../styles/builder-theme.css';
 void ClinicalGrid;
 void (null as unknown as CompositionFormBlock);
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 const id = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 type FormRow = { id: string; name: string; status: string; version: string };
 type AqlFunction = { id: string; packageName: string; name: string; description: string; enabled: boolean };

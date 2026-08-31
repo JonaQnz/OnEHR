@@ -6,6 +6,7 @@ import type {
   RuntimeValues,
 } from 'core';
 import { appendScriptLog } from './scriptLogStore';
+import { API_BASE_URL } from '../../integration/apiBaseUrl';
 
 export interface FormScriptUiState {
   visible?: boolean;
@@ -175,7 +176,7 @@ export class FormScriptClient {
     const startedAt = performance.now();
     try {
       const response = await fetch(
-        `http://localhost:3001/api/script-connectors/forms/${encodeURIComponent(this.options.formId)}/call`,
+        `${API_BASE_URL}/script-connectors/forms/${encodeURIComponent(this.options.formId)}/call`,
         {
           method: 'POST',
           credentials: 'include',

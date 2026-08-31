@@ -1,8 +1,9 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
 type User = { id: string; username?: string; displayName?: string; email?: string; status: 'active' | 'inactive'; roles: ('USER' | 'ADMIN')[] };
-const api = 'http://localhost:3001/api/admin/users';
+const api = `${API_BASE_URL}/admin/users`;
 
 export default function UsersAdmin() {
   useDocumentTitle('Users');

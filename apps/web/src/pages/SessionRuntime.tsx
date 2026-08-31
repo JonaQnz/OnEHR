@@ -5,8 +5,9 @@ import type { FormDefinitionV1, RuntimeValues, FormSessionRuntimeContext } from 
 import FormRuntime, { type FormRuntimeHandle } from '../components/FormRuntime';
 import PluginHost from '../components/PluginHost';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 
 interface SessionRecord {
   id: string;

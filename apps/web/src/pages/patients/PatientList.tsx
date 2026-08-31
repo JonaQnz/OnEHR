@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Plus, UserRound, Settings, RefreshCw, UserCheck, UserX, FileEdit } from 'lucide-react';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { API_BASE_URL } from '../../integration/apiBaseUrl';
 
-const API = 'http://localhost:3001/api';
+const API = API_BASE_URL;
 
 export default function PatientList() {
   useDocumentTitle('Patienten');

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
 export type PluginSlotName = 'settings' | 'designer' | 'runtime' | 'form' | 'dataProvider';
 
@@ -74,7 +75,7 @@ function FormSettingsEditor({ context, contribution, onResult, disabled, visible
   return <div style={{ margin: '0.5rem 0', padding: '0.65rem', border: '1px solid #dbeafe', borderRadius: 6, background: '#fff' }}><div style={{ fontSize: '0.72rem', color: '#475569', marginBottom: '0.35rem' }}>Webhook-Einstellungen für dieses Formular</div><div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.25rem' }}>{visibleKeys && visibleKeys.size === 0 ? <div style={{ color: '#64748b', fontSize: '0.78rem' }}>Keine global aktivierten n8n Webhooks.</div> : formSettingsFields(schemaProperties(contribution.propertySchema), draft, (key, value) => setDraft((current) => ({ ...current, [key]: value })), visibleKeys)}</div><button className="btn btn-secondary" type="button" disabled={disabled} onClick={apply} style={{ marginTop: '0.5rem' }}>Form-Einstellungen übernehmen</button></div>;
 }
 
-const API = 'http://localhost:3001/api/plugins';
+const API = `${API_BASE_URL}/plugins`;
 
 function slotLabel(slot: PluginSlotName): string {
   if (slot === 'designer') return 'Plugin Designer';

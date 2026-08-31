@@ -18,6 +18,7 @@ import FormRuntime from '../components/FormRuntime';
 import ScriptEditor from '../scripting/editor/ScriptEditor';
 import ScriptLogs from '../scripting/editor/ScriptLogs';
 import { DesignerShell } from '../designer/DesignerShell';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
 function LiveJsonEditor({ form, onSave }: { form: any, onSave: (f: any, items: any[]) => void }) {
   const [jsonString, setJsonString] = useState('');
@@ -37,7 +38,7 @@ function LiveJsonEditor({ form, onSave }: { form: any, onSave: (f: any, items: a
       const newForm = { ...form, canonical_json: parsed };
       onSave(newForm, items);
       
-      fetch(`http://localhost:3001/api/forms/${form.id}`, {
+      fetch(`${API_BASE_URL}/forms/${form.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(parsed)
@@ -550,8 +551,8 @@ function FormBuilderContent() {
     void (async () => {
       try {
         const [patientsRes, defaultsRes] = await Promise.all([
-          fetch('http://localhost:3001/api/patients'),
-          fetch('http://localhost:3001/api/config/preview-defaults'),
+          fetch(`${API_BASE_URL}/patients`),
+          fetch(`${API_BASE_URL}/config/preview-defaults`),
         ]);
         const patients = await patientsRes.json();
         const defaults = await defaultsRes.json();
@@ -849,7 +850,7 @@ function FormBuilderContent() {
 
 
   const fetchForm = () => {
-    fetch(`http://localhost:3001/api/forms/${id}`)
+    fetch(`${API_BASE_URL}/forms/${id}`)
       .then(res => res.json())
       .then(data => {
         setForm(data);
@@ -859,12 +860,12 @@ function FormBuilderContent() {
 
         const sourceTemplate = data.canonical_json.sourceTemplates?.[0];
         if (sourceTemplate) {
-          fetch(`http://localhost:3001/api/templates`)
+          fetch(`${API_BASE_URL}/templates`)
             .then(res => res.json())
             .then(templates => {
               const matched = templates.find((t: any) => t.template_id === sourceTemplate.id);
               if (matched) {
-                fetch(`http://localhost:3001/api/templates/${matched.id}/fields`)
+                fetch(`${API_BASE_URL}/templates/${matched.id}/fields`)
                   .then(res => res.json())
                   .then(fields => {
                     setTemplateFields(fields);
@@ -882,7 +883,7 @@ function FormBuilderContent() {
 
   useEffect(() => {
     fetchForm();
-    fetch('http://localhost:3001/api/templates/remote')
+    fetch(`${API_BASE_URL}/templates/remote`)
       .then(res => {
         if (!res.ok) {
           throw new Error(`Server responded with status ${res.status}`);
@@ -902,7 +903,7 @@ function FormBuilderContent() {
         setRemoteTemplates([]);
         setRemoteTemplatesError(err.message || "Failed to connect to the server.");
       });
-    fetch('http://localhost:3001/api/templates')
+    fetch(`${API_BASE_URL}/templates`)
       .then(res => res.json())
       .then(data => setLocalTemplatesForVersion(Array.isArray(data) ? data : []))
       .catch(() => setLocalTemplatesForVersion([]));
@@ -1023,7 +1024,7 @@ function FormBuilderContent() {
 
     const updatedCanonical = formBuilderToCanonical(items, formRef.current.canonical_json);
 
-    fetch(`http://localhost:3001/api/forms/${id}`, {
+    fetch(`${API_BASE_URL}/forms/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedCanonical)
@@ -1047,11 +1048,11 @@ function FormBuilderContent() {
 
   const selectTemplate = (templateId: string) => {
     setLoadingTemplate(true);
-    fetch(`http://localhost:3001/api/templates/remote/${encodeURIComponent(templateId)}/import`, { method: 'POST' })
+    fetch(`${API_BASE_URL}/templates/remote/${encodeURIComponent(templateId)}/import`, { method: 'POST' })
       .then(res => res.json())
       .then(importData => {
         if (importData.template) {
-          fetch(`http://localhost:3001/api/forms/${id}/apply-template`, {
+          fetch(`${API_BASE_URL}/forms/${id}/apply-template`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ templateId: importData.template.id })

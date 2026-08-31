@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Package, Power, RefreshCw } from 'lucide-react';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
 interface PluginManifest {
   id: string;
@@ -35,7 +36,7 @@ interface PluginResponse {
   };
 }
 
-const API = 'http://localhost:3001/api/plugins';
+const API = `${API_BASE_URL}/plugins`;
 
 export default function Plugins() {
   useDocumentTitle('Plugins');
