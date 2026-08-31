@@ -1,6 +1,7 @@
 import {
   FORM_LAUNCH_PROTOCOL_VERSION,
   type FormEmbedEvent,
+  type FormEmbedEventName,
   type FormLaunchRequest,
   type FormLaunchResult,
 } from 'core';
@@ -25,10 +26,30 @@ export function formEmbedUrl(launchUrl: string, hostOrigin = window.location.ori
   return url.toString();
 }
 
+// A `Record<FormEmbedEventName, true>` rather than a plain array/union
+// check of literals - QA review finding: the previous inline check
+// (`event.event === 'loaded' || ... === 'resize'`, no 'dirty') silently
+// dropped every 'dirty' postMessage before CompositionRuntime.tsx ever
+// saw it, which meant the "Ungespeicherte Änderungen" navigation guard
+// there was entirely dead code - a clinician could leave a Composition
+// with unsaved child-form edits and lose them with no warning. Listing
+// every FormEmbedEventName as a required key here means TypeScript
+// itself refuses to compile if `core`'s FormEmbedEventName union and this
+// runtime check ever drift apart again, the same class of "duplicated
+// enum" gap that has bitten this codebase before (see the Matrix-widget
+// display-type bug).
+const FORM_EMBED_EVENT_NAMES: Record<FormEmbedEventName, true> = {
+  loaded: true,
+  submitted: true,
+  error: true,
+  resize: true,
+  dirty: true,
+};
+
 export function isFormEmbedEvent(value: unknown): value is FormEmbedEvent {
   if (!value || typeof value !== 'object') return false;
   const event = value as Partial<FormEmbedEvent>;
   return event.protocolVersion === FORM_LAUNCH_PROTOCOL_VERSION
-    && (event.event === 'loaded' || event.event === 'submitted' || event.event === 'error' || event.event === 'resize')
+    && typeof event.event === 'string' && Object.prototype.hasOwnProperty.call(FORM_EMBED_EVENT_NAMES, event.event)
     && typeof event.formId === 'string';
 }
