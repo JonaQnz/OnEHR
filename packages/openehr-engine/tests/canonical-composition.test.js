@@ -39,6 +39,14 @@ const webTemplateTree = {
           nodeId: 'at0003', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0003]',
         },
         {
+          // WebTemplate reports this slot as the concrete DV_CODED_TEXT -
+          // mirrors "Diagnostic category" (at0063) in the real vg_Diagnosis
+          // template, which is what the codeMappings-override regression
+          // test below reproduces.
+          id: 'qualifier_category', name: 'Category qualifier', rmType: 'DV_CODED_TEXT', min: 0, max: 1,
+          nodeId: 'at0007', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0007]',
+        },
+        {
           id: 'medication', name: 'Medication', rmType: 'CLUSTER', min: 0, max: -1,
           nodeId: 'at0004', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0004]',
           children: [
@@ -99,7 +107,9 @@ test('builds a canonical Composition with category/context defaults, a leaf, a r
   assert.equal(entry.subject._type, 'PARTY_SELF');
   const items = entry.data.items;
   const weightEl = items.find((item) => item.archetype_node_id === 'at0002');
-  assert.deepEqual(weightEl.value, { _type: 'DV_QUANTITY', magnitude: 70, unit: 'kg' });
+  // RM attribute name is `units` (plural, mandatory) - not `unit`. See
+  // buildLeafDvValue's DV_QUANTITY branch comment for the live-bug context.
+  assert.deepEqual(weightEl.value, { _type: 'DV_QUANTITY', magnitude: 70, units: 'kg' });
 
   const noteEls = items.filter((item) => item.archetype_node_id === 'at0003');
   assert.equal(noteEls.length, 2);
@@ -110,11 +120,37 @@ test('builds a canonical Composition with category/context defaults, a leaf, a r
   const first = medClusters[0].items.find((item) => item.archetype_node_id === 'at0005');
   assert.equal(first.value.value, 'Ibuprofen');
   const firstDose = medClusters[0].items.find((item) => item.archetype_node_id === 'at0006');
-  assert.deepEqual(firstDose.value, { _type: 'DV_QUANTITY', magnitude: 400, unit: 'mg' });
+  assert.deepEqual(firstDose.value, { _type: 'DV_QUANTITY', magnitude: 400, units: 'mg' });
   const second = medClusters[1].items.find((item) => item.archetype_node_id === 'at0005');
   assert.equal(second.value.value, 'Paracetamol');
   // Second row has no dose value at all - the optional leaf is omitted, not fabricated.
   assert.equal(medClusters[1].items.find((item) => item.archetype_node_id === 'at0006'), undefined);
+});
+
+// Regression: RM data_types.quantity 6.2.8 defines DV_QUANTITY's mandatory
+// (1..1) unit attribute as `units` (plural) - this app previously wrote
+// `unit` (singular, not a real RM attribute) into the canonical composition
+// JSON, silently violating the RM invariant for every quantity-bound field
+// in the app (vitals, lab magnitudes, anything numeric with a unit). The
+// FLAT-format path is unaffected and deliberately different - EHRbase's own
+// FLAT suffix convention for this really is `|unit` (singular).
+test('DV_QUANTITY serializes the RM-mandatory unit attribute as `units`, not `unit`', () => {
+  const quantityDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'weight', type: 'quantity',
+        binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0002]', rmType: 'DV_QUANTITY' },
+      }],
+    },
+  };
+  const composition = buildCanonicalComposition(quantityDefinition, {
+    weight: { magnitude: 82, unit: 'kg' },
+  }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
+  const weightEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0002');
+  assert.equal(weightEl.value.units, 'kg');
+  assert.equal('unit' in weightEl.value, false);
 });
 
 test('omits an entirely-empty optional ADMIN_ENTRY rather than emitting an empty shell', () => {
@@ -286,6 +322,97 @@ test('codeMappings.enabled: a DV_TEXT field with a mapping produces real DV_TEXT
   });
 });
 
+// Regression: live 400 from EHRbase - "DV_CODED_TEXT/defining_code/
+// code_string does not match any option. found: Secondary diagnosis". Root
+// cause: buildNode only trusted the binding's own declared rmType over the
+// WebTemplate's when the template reported the ambiguous wrapper type
+// 'ELEMENT' - for a WebTemplate slot with a concrete, unambiguous type
+// (here DV_CODED_TEXT, exactly like vg_Diagnosis's real "Diagnostic
+// category"/at0063), the binding's codeMappings-driven DV_TEXT override was
+// silently ignored and the field was still built as DV_CODED_TEXT, turning
+// the free-text value straight into an invalid defining_code.code_string.
+test('codeMappings.enabled on a field the WebTemplate itself reports as DV_CODED_TEXT still serializes as DV_TEXT.mappings, not an invalid DV_CODED_TEXT', () => {
+  const codedDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'category_qualifier', type: 'input-text',
+        binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0007]', rmType: 'DV_TEXT' },
+        codeMappings: { enabled: true, terminologies: [{ id: 'https://hip.vitagroup.ag/sid/condition-category-code', label: 'Kategorie-Code' }] },
+      }],
+    },
+  };
+  const composition = buildCanonicalComposition(codedDefinition, {
+    category_qualifier: { value: 'Secondary diagnosis', mappings: [{ terminologyId: 'https://hip.vitagroup.ag/sid/condition-category-code', code: 'ND' }] },
+  }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
+  const el = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0007');
+  assert.deepEqual(el.value, {
+    _type: 'DV_TEXT',
+    value: 'Secondary diagnosis',
+    mappings: [{
+      _type: 'TERM_MAPPING',
+      match: '=',
+      target: { _type: 'CODE_PHRASE', terminology_id: { _type: 'TERMINOLOGY_ID', value: 'https://hip.vitagroup.ag/sid/condition-category-code' }, code_string: 'ND' },
+    }],
+  });
+});
+
+// Mirror image of the regression above: the real HIP Condition mapping
+// document requires "Problem/Diagnosis name" (at0002, WebTemplate rmType
+// DV_TEXT) to be written as DV_CODED_TEXT with BOTH defining_code and
+// mappings populated from the same code (storageClass "DvCodedText"),
+// unlike "Diagnostic category" (at0063) which only needed DV_TEXT.mappings.
+// A deliberate, explicit bend of RM data_types.text 5.2.4's own "Misuse"
+// guidance for free text tagged with a code - HIP's own converter
+// contract wins here per product decision, not RM purity.
+test('codeMappings.enabled on a DV_CODED_TEXT binding builds both defining_code and mappings from the same code, even though the WebTemplate itself reports the node as DV_TEXT', () => {
+  const codedDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'notes', type: 'input-text',
+        binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0003]', rmType: 'DV_CODED_TEXT' },
+        codeMappings: { enabled: true, terminologies: [{ id: 'http://fhir.de/CodeSystem/dimdi/icd-10-gm', label: 'ICD-10-GM' }] },
+      }],
+    },
+  };
+  const composition = buildCanonicalComposition(codedDefinition, {
+    notes: { value: 'Test3', mappings: [{ terminologyId: 'http://fhir.de/CodeSystem/dimdi/icd-10-gm', code: 'M10.2' }] },
+  }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
+  const noteEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0003');
+  assert.deepEqual(noteEl.value, {
+    _type: 'DV_CODED_TEXT',
+    value: 'Test3',
+    defining_code: { _type: 'CODE_PHRASE', terminology_id: { _type: 'TERMINOLOGY_ID', value: 'http://fhir.de/CodeSystem/dimdi/icd-10-gm' }, code_string: 'M10.2' },
+    mappings: [{
+      _type: 'TERM_MAPPING',
+      match: '=',
+      target: { _type: 'CODE_PHRASE', terminology_id: { _type: 'TERMINOLOGY_ID', value: 'http://fhir.de/CodeSystem/dimdi/icd-10-gm' }, code_string: 'M10.2' },
+    }],
+  });
+});
+
+test('codeMappings.enabled on a DV_CODED_TEXT binding falls back to plain DV_TEXT when no code has been entered yet (defining_code is RM-mandatory, cannot be fabricated)', () => {
+  const codedDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'notes', type: 'input-text',
+        binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0003]', rmType: 'DV_CODED_TEXT' },
+        codeMappings: { enabled: true, terminologies: [{ id: 'http://fhir.de/CodeSystem/dimdi/icd-10-gm', label: 'ICD-10-GM' }] },
+      }],
+    },
+  };
+  const composition = buildCanonicalComposition(codedDefinition, {
+    notes: { value: 'Nur Text, noch kein Code' },
+  }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
+  const noteEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0003');
+  assert.deepEqual(noteEl.value, { _type: 'DV_TEXT', value: 'Nur Text, noch kein Code' });
+});
+
 test('codeMappings.enabled: an explicit match type is preserved (e.g. "?" for an approximate/unknown reference mapping)', () => {
   const codedDefinition = {
     ...definition,
@@ -339,4 +466,65 @@ test('codeMappings.enabled: a field with no mapping entered yet stays a plain DV
   const composition = buildCanonicalComposition(codedDefinition, { notes: { value: 'Nur Text, kein Code' } }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
   const noteEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0003');
   assert.deepEqual(noteEl.value, { _type: 'DV_TEXT', value: 'Nur Text, kein Code' });
+});
+
+// allowFreeText - a DV_CODED_TEXT|DV_TEXT union field (from the OPT
+// constraint model, set at import time by webTemplateParser.ts), reusing
+// qualifier_category/at0007 (same node the codeMappings-override test above
+// uses to reproduce "WebTemplate reports DV_CODED_TEXT"). Distinct from
+// codeMappings: this is the field's OWN rmType being DV_CODED_TEXT with a
+// closed options list plus a genuine free-text alternative, not a DV_TEXT
+// field opted into external terminology tagging.
+test('allowFreeText: a DV_CODED_TEXT field with a known option still builds a full defining_code, regardless of allowFreeText', () => {
+  const freeTextDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'qualifier_category', type: 'input-select',
+        binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0007]', rmType: 'DV_CODED_TEXT' },
+        options: [{ value: 'at0064', text: 'Hauptdiagnose' }, { value: 'at0066', text: 'Nebendiagnose' }],
+        allowFreeText: true,
+      }],
+    },
+  };
+  const composition = buildCanonicalComposition(freeTextDefinition, { qualifier_category: 'at0064' }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
+  const el = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0007');
+  assert.deepEqual(el.value, { _type: 'DV_CODED_TEXT', value: 'Hauptdiagnose', defining_code: { _type: 'CODE_PHRASE', terminology_id: { _type: 'TERMINOLOGY_ID', value: 'local' }, code_string: 'at0064' } });
+});
+
+test('allowFreeText: an unmatched value on a DV_CODED_TEXT|DV_TEXT union field serializes as plain DV_TEXT, never a bogus defining_code', () => {
+  const freeTextDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'qualifier_category', type: 'input-select',
+        binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0007]', rmType: 'DV_CODED_TEXT' },
+        options: [{ value: 'at0064', text: 'Hauptdiagnose' }, { value: 'at0066', text: 'Nebendiagnose' }],
+        allowFreeText: true,
+      }],
+    },
+  };
+  const composition = buildCanonicalComposition(freeTextDefinition, { qualifier_category: 'Sonderfall, nicht in der Liste' }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
+  const el = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0007');
+  assert.deepEqual(el.value, { _type: 'DV_TEXT', value: 'Sonderfall, nicht in der Liste' });
+});
+
+test('allowFreeText: without the flag (every existing form), an unmatched value still gets forced into a bogus defining_code - unchanged legacy behavior', () => {
+  const strictDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'qualifier_category', type: 'input-select',
+        binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0007]', rmType: 'DV_CODED_TEXT' },
+        options: [{ value: 'at0064', text: 'Hauptdiagnose' }],
+      }],
+    },
+  };
+  const composition = buildCanonicalComposition(strictDefinition, { qualifier_category: 'not-a-real-code' }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
+  const el = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0007');
+  assert.equal(el.value._type, 'DV_CODED_TEXT');
+  assert.equal(el.value.defining_code.code_string, 'not-a-real-code');
 });

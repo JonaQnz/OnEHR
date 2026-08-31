@@ -115,18 +115,82 @@ function nodeIdentity(node: WebTemplateTreeNode, opts?: { templateId?: string })
  * the flat and canonical shapes diverge enough (indexed keys vs. nested
  * objects) that a shared helper would need as much branching as either
  * implementation alone; what IS shared is which types get real handling. */
+/** Shared by both the DV_TEXT and DV_CODED_TEXT codeMappings branches below -
+ * builds the TERM_MAPPING list from a codeMappings.enabled field's runtime
+ * `{value, mappings?}` shape. Deliberately no `purpose`/`preferred_term` -
+ * real-world example compositions for this exact use (a free-text diagnosis
+ * tagged with an ICD-10-GM code) only ever carry {match, target:
+ * {terminology_id, code_string}}. */
+function buildTermMappings(source: Record<string, unknown>): Canonical[] {
+  const mappings = Array.isArray(source.mappings) ? source.mappings : [];
+  return mappings.flatMap((entry): Canonical[] => {
+    if (!isRecord(entry) || isEmpty(entry.terminologyId) || isEmpty(entry.code)) return [];
+    return [{
+      _type: 'TERM_MAPPING',
+      match: typeof entry.match === 'string' && entry.match ? entry.match : '=',
+      target: codePhrase(String(entry.terminologyId), String(entry.code)),
+    }];
+  });
+}
+
 function buildLeafDvValue(rmType: string | undefined, field: RuntimeFieldDescriptor | undefined, value: unknown): unknown {
   if (isEmpty(value)) return undefined;
   const source = isRecord(value) ? value : undefined;
   if (rmType === 'DV_QUANTITY') {
+    // RM data_types.quantity 6.2.8: the mandatory (1..1) unit attribute on
+    // DV_QUANTITY is named `units` (plural) - `unit` is not a real RM
+    // attribute. Confirmed live-path-relevant: this canonical (nested RM
+    // JSON) branch is the one actually used for real submissions (see the
+    // codeMappings override comment on buildNode above); every DV_QUANTITY
+    // field in the app (vitals, lab magnitudes, anything numeric with a
+    // unit) was serializing an EHRbase-unrecognized `unit` key instead of
+    // the required `units`, which DV_QUANTITY's own invariant makes
+    // mandatory. The FLAT-format path (index.ts's setFlatValue) is
+    // unaffected - EHRbase's FLAT suffix convention for this is genuinely
+    // `|unit` (singular), a different, correct convention from the
+    // structured JSON attribute name used here.
     const magnitude = source?.magnitude ?? value;
     if (isEmpty(magnitude)) return undefined;
-    return { _type: 'DV_QUANTITY', magnitude: typeof magnitude === 'string' ? Number(magnitude) : magnitude, unit: source?.unit ?? '1' };
+    return { _type: 'DV_QUANTITY', magnitude: typeof magnitude === 'string' ? Number(magnitude) : magnitude, units: source?.unit ?? '1' };
   }
   if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE') {
+    // codeMappings.enabled on a DV_CODED_TEXT-bound field is a deliberate
+    // dual-encoding some HIP FHIR mapping documents require (e.g.
+    // "Problem/Diagnosis name"/at0002 in the real Condition<->vg_Diagnosis
+    // mapping: storageClass "DvCodedText" with BOTH `mappings` and
+    // `definingCode` populated from the same code, unlike "Diagnostic
+    // category"/at0063's storageClass "DvText" which only needed
+    // `mappings`). This bends openEHR RM data_types.text 5.2.4's own
+    // "Misuse" guidance (free text tagged with a code should be DV_TEXT +
+    // TERM_MAPPING, not DV_CODED_TEXT, since DV_CODED_TEXT.value is
+    // supposed to be the terminology's own exact rubric) - a deliberate,
+    // explicit product decision ("HIP converter is king") for this one
+    // field, not a general pattern. Using an external terminology_id here
+    // (never "local") means EHRbase has no registered rubric to validate
+    // `value` against, so the free-typed text is accepted regardless.
+    if (field?.codeMappings?.enabled && source) {
+      const text = source.value;
+      if (isEmpty(text)) return undefined;
+      const termMappings = buildTermMappings(source);
+      const [primary] = termMappings;
+      // No code entered yet: DV_CODED_TEXT.defining_code is RM-mandatory
+      // (1..1), so there is nothing valid to build - fall back to the
+      // plain DV_TEXT the WebTemplate itself would otherwise have used,
+      // rather than fabricate a code or drop the diagnosis text entirely.
+      if (!primary) return { _type: 'DV_TEXT', value: String(text) };
+      return { _type: 'DV_CODED_TEXT', value: String(text), defining_code: primary.target, mappings: termMappings };
+    }
     const code = source?.code ?? source?.value ?? value;
     if (isEmpty(code)) return undefined;
     const option = field?.options.find((candidate) => candidate.value === String(code));
+    // Same free-text fallback as openehr-engine/src/index.ts's setFlatValue
+    // (the FLAT-format live path) - a DV_CODED_TEXT|DV_TEXT union field
+    // (field.allowFreeText, from the OPT constraint model) whose value
+    // matches no known option is free text being used, not a coded
+    // selection missing metadata; writing it into defining_code.code_string
+    // would be RM-invalid. CODE_PHRASE has no DV_TEXT equivalent to fall
+    // back to, so this only applies to DV_CODED_TEXT itself.
+    if (!option && field?.allowFreeText && rmType === 'DV_CODED_TEXT') return { _type: 'DV_TEXT', value: String(code) };
     const displayValue = source?.value ?? source?.text ?? source?.label ?? option?.text ?? code;
     const terminology = source?.terminology ?? source?.terminologyId ?? 'local';
     const definingCode = codePhrase(String(terminology), String(code));
@@ -142,22 +206,11 @@ function buildLeafDvValue(rmType: string | undefined, field: RuntimeFieldDescrip
     // codeMappings.enabled fields carry {value, mappings?} instead of a
     // plain string (see core's CodeMappedTextValue) - the text itself is
     // unaffected, mappings ride alongside as DV_TEXT.mappings (RM:
-    // List<TERM_MAPPING>). Deliberately no `purpose`/`preferred_term` -
-    // real-world example compositions for this exact use (a free-text
-    // diagnosis tagged with an ICD-10-GM code) only ever carry
-    // {match, target: {terminology_id, code_string}}.
+    // List<TERM_MAPPING>).
     if (field?.codeMappings?.enabled && source) {
       const text = source.value;
       if (isEmpty(text)) return undefined;
-      const mappings = Array.isArray(source.mappings) ? source.mappings : [];
-      const termMappings = mappings.flatMap((entry): Canonical[] => {
-        if (!isRecord(entry) || isEmpty(entry.terminologyId) || isEmpty(entry.code)) return [];
-        return [{
-          _type: 'TERM_MAPPING',
-          match: typeof entry.match === 'string' && entry.match ? entry.match : '=',
-          target: codePhrase(String(entry.terminologyId), String(entry.code)),
-        }];
-      });
+      const termMappings = buildTermMappings(source);
       return { _type: 'DV_TEXT', value: String(text), ...(termMappings.length > 0 ? { mappings: termMappings } : {}) };
     }
     return { _type: 'DV_TEXT', value: String(value) };
@@ -406,7 +459,27 @@ function buildNode(node: WebTemplateTreeNode, scope: RuntimeValues, index: Field
     // at-code typed as "DV_TEXT or DV_IDENTIFIER") - the field's OWN
     // resolved binding type is the only reliable source for what to
     // actually serialize in that case.
-    const effectiveRmType = node.rmType === 'ELEMENT' ? (leafField.semanticType || node.rmType) : node.rmType;
+    //
+    // A second, narrower override: a field with codeMappings explicitly
+    // enabled is a deliberate form-designer choice to serialize this slot
+    // as either DV_TEXT.mappings or DV_CODED_TEXT (with both
+    // defining_code and mappings - see buildLeafDvValue) - the specific
+    // direction depends on what the target FHIR converter's own mapping
+    // document requires per field, which can differ from whatever
+    // concrete type the WebTemplate itself reports for the node.
+    // Confirmed live both ways: "Diagnostic category" (at0063, WebTemplate
+    // rmType DV_CODED_TEXT, binding declares DV_TEXT) and "Problem/
+    // Diagnosis name" (at0002, WebTemplate rmType DV_TEXT, binding
+    // declares DV_CODED_TEXT for the HIP Condition mapping's dual-
+    // attribute requirement). Without this override, buildNode always
+    // trusted node.rmType for any concrete (non-'ELEMENT') WebTemplate
+    // type, so the binding's declared type was silently ignored either
+    // way - once wrote an invalid DV_CODED_TEXT defining_code.code_string
+    // from free text ("does not match any option"), the other would have
+    // kept building a plain DV_TEXT with no defining_code/mappings at all.
+    const effectiveRmType = node.rmType === 'ELEMENT' || leafField.codeMappings?.enabled
+      ? (leafField.semanticType || node.rmType)
+      : node.rmType;
     return buildElement(node, leafField, buildLeafDvValue(effectiveRmType, leafField, fieldValue(scope, leafField.id)));
   }
   switch (node.rmType) {
