@@ -229,6 +229,18 @@ interface FieldBinding {
    * instead of falling back to DV_TEXT (see setFlatValue's DV_CODED_TEXT
    * branch). */
   allowFreeText?: boolean;
+  /** The id of the nearest enclosing `repeatable: true` container, if any -
+   * mirrors core/form-runtime's own `repeatableGroupId` derivation exactly
+   * (a repeatable container's own id, inherited by every descendant until
+   * another repeatable container is entered). A repeatable *group* container
+   * itself has no `.binding` (confirmed live: a Laborpanel's
+   * `laboratory_analyte_result` container carries `repeatMin`/`repeatMax`/
+   * `repeatable` but no binding at all) - only this per-member marker lets
+   * toOpenEhrFlatComposition recognise `values[groupId]` as a group's row
+   * array instead of silently dropping it as an unbound field (see the
+   * comment above the group-handling loop there for what that dropping
+   * looked like in practice). */
+  repeatableGroupId?: string;
 }
 
 function layoutFieldBinding(binding: unknown): FieldBinding | undefined {
@@ -249,7 +261,16 @@ function layoutFieldBinding(binding: unknown): FieldBinding | undefined {
 
 function collectFieldBindings(layout: CanonicalForm['layout']): Map<string, FieldBinding> {
   const map = new Map<string, FieldBinding>();
-  function walk(node: CanonicalForm['layout']): void {
+  // repeatableGroupId threading mirrors core/form-runtime/index.ts's own
+  // `walk()` exactly: a `container` node with `repeatable: true` and an id
+  // becomes the group id for itself and every descendant, until another
+  // repeatable container is entered - not just direct children, since a
+  // group's members here sit two levels deeper (container > row > column >
+  // field), matching every real repeatable-group form in this app.
+  function walk(node: CanonicalForm['layout'], repeatableGroupId?: string): void {
+    const nodeType = (node as unknown as Record<string, unknown>).type;
+    const isRepeatableContainer = nodeType === 'container' && (node as unknown as Record<string, unknown>).repeatable === true && Boolean(node.id);
+    const childGroupId = isRepeatableContainer ? node.id : repeatableGroupId;
     const binding = layoutFieldBinding(node.binding);
     const rawOptions = (node as unknown as Record<string, unknown>).options;
     const options = Array.isArray(rawOptions)
@@ -270,9 +291,17 @@ function collectFieldBindings(layout: CanonicalForm['layout']): Map<string, Fiel
     const codeMappings = node.codeMappings?.enabled ? node.codeMappings : undefined;
     const allowFreeText = (node as unknown as Record<string, unknown>).allowFreeText === true;
     if (node.id && binding) {
-      map.set(node.id, { ...binding, ...(options?.length ? { options } : {}), ...(codeMappings ? { codeMappings } : {}), ...(allowFreeText ? { allowFreeText } : {}) });
+      map.set(node.id, {
+        ...binding,
+        ...(options?.length ? { options } : {}),
+        ...(codeMappings ? { codeMappings } : {}),
+        ...(allowFreeText ? { allowFreeText } : {}),
+        // The group container's own id never applies to itself as a member -
+        // only to its descendants (repeatableGroupId, not childGroupId).
+        ...(repeatableGroupId ? { repeatableGroupId } : {}),
+      });
     }
-    node.children?.forEach(walk);
+    node.children?.forEach((child) => walk(child, childGroupId));
   }
   walk(layout);
   return map;
@@ -280,6 +309,55 @@ function collectFieldBindings(layout: CanonicalForm['layout']): Map<string, Fiel
 
 function resolveFlatPath(binding: FieldBinding, pathMap?: Map<string, OpenEhrPathMapping>): string | undefined {
   return text(binding.flatPath) || (binding.path ? pathMap?.get(binding.path)?.flatPath : undefined) || text(binding.path);
+}
+
+/** Inserts `:index` right after a repeating group's own path segment (its
+ * literal id, e.g. "laboratory_analyte_result") - the openEHR FLAT
+ * convention for a repeating structural node's occurrence index, confirmed
+ * against readFlatValue's own reader (its regex already accepts `:\d+`
+ * after ANY segment, generically, to support exactly this). Writing the
+ * index at the END of the path instead (indexedPath's plain convention,
+ * correct for a simple repeating LEAF field) would misplace it past the
+ * leaf - `.../laboratory_analyte_result/analyte_name:0` isn't a group
+ * repetition EHRbase's FLAT parser recognises, it's nonsense.
+ *
+ * The group's own structural path segment is NOT derivable from the
+ * groupId string itself - groupId is the form's UI-level field id (e.g.
+ * "laboratory_analyte_result"), while flatPath is built from the openEHR
+ * archetype's own node ids (e.g. ".../items[CLUSTER.laboratory_test_analyte]
+ * /items[at0024]") and has no reason to contain the UI id as a literal
+ * substring (an earlier version of this function assumed it did, via
+ * `flatPath.indexOf('/${groupId}/')`, and silently never matched on any
+ * real form - confirmed live, this is why the first fix attempt still
+ * produced `undefined` for every indexed lookup). Instead the insertion
+ * point is derived structurally: the longest common path prefix shared by
+ * every member field's flatPath is exactly the group's own repeating
+ * segment, since sibling members diverge only in their leaf-level archetype
+ * code (`items[at0024]` vs `items[at0001]` etc.) after that point. */
+function commonPathPrefix(paths: string[]): string {
+  const segmentsList = paths.filter((path) => path.length > 0).map((path) => path.split('/'));
+  const first = segmentsList[0];
+  if (!first) return '';
+  let end = first.length;
+  for (let i = 1; i < segmentsList.length; i++) {
+    const segs = segmentsList[i] ?? [];
+    let j = 0;
+    while (j < end && j < segs.length && segs[j] === first[j]) j++;
+    end = j;
+  }
+  // A single-member group (or, degenerately, members that share an
+  // identical path) makes the "common prefix" the whole path, which would
+  // place the index inside the leaf's own segment rather than the group's.
+  // Back off one segment so it lands on the group's structural node instead.
+  if (end === first.length && segmentsList.every((segs) => segs.length === first.length && segs.every((seg, i) => seg === first[i]))) {
+    end = Math.max(0, end - 1);
+  }
+  return first.slice(0, end).join('/');
+}
+
+function insertIndexAtPrefix(flatPath: string, groupPrefix: string, index: number): string {
+  if (!groupPrefix || !flatPath.startsWith(`${groupPrefix}/`)) return flatPath;
+  return `${groupPrefix}:${index}${flatPath.slice(groupPrefix.length)}`;
 }
 
 export function toOpenEhrFlatComposition(definition: CanonicalForm, values: FormSessionValues, context: OpenEhrCompositionContext = {}, webTemplateTree?: unknown): Record<string, unknown> {
@@ -294,6 +372,38 @@ export function toOpenEhrFlatComposition(definition: CanonicalForm, values: Form
   const pathMap = webTemplateTree === undefined ? undefined : buildOpenEhrPathMap(webTemplateTree);
   const layoutBindings = collectFieldBindings(definition.layout);
   const processed = new Set<string>();
+  // Repeatable *groups* first (values[groupId] = one row object per
+  // occurrence, keyed by field id exactly like FormRuntime's own
+  // `row[field.id]` reads - see core/form-runtime's repeatableGroupId doc).
+  // Must run before the plain per-field loop below: a group id is never
+  // itself a bound leaf field (its container has no `.binding` at all - see
+  // FieldBinding.repeatableGroupId's own comment), so without this pass
+  // `values[groupId]` would just silently fail the `!binding` check in that
+  // loop and the entire group would be dropped - confirmed live, this is
+  // exactly how a Laborpanel's 9 analyte rows never reached EHRbase at all
+  // (only the panel's own top-level "Test name" field, a real leaf, made it
+  // through). Every other CanonicalForm-consuming form (no repeatable
+  // groups) sees zero behavioural change from this loop, since the `some(...)`
+  // guard only fires for a key that's genuinely a group id.
+  for (const [groupId, rows] of Object.entries(values)) {
+    if (!Array.isArray(rows) || layoutBindings.has(groupId)) continue;
+    const memberEntries = Array.from(layoutBindings.entries()).filter(([, binding]) => binding.repeatableGroupId === groupId);
+    if (memberEntries.length === 0) continue;
+    const memberPaths = memberEntries
+      .map(([, binding]) => resolveFlatPath(binding, pathMap))
+      .filter((path): path is string => Boolean(path));
+    const groupPrefix = commonPathPrefix(memberPaths);
+    rows.forEach((row, index) => {
+      if (!isRecord(row)) return;
+      for (const [subFieldId, subBinding] of memberEntries) {
+        const subValue = row[subFieldId];
+        if (isEmpty(subValue)) continue;
+        const flatPath = resolveFlatPath(subBinding, pathMap);
+        if (!flatPath) continue;
+        setFlatValue(flat, insertIndexAtPrefix(flatPath, groupPrefix, index), subBinding, subValue);
+      }
+    });
+  }
   for (const [fieldId, value] of Object.entries(values)) {
     const binding = layoutBindings.get(fieldId);
     const flatPath = binding && resolveFlatPath(binding, pathMap);
