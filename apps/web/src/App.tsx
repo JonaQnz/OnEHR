@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Settings, Puzzle, UserRound, Beaker, UsersRound, LogOut, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Settings, Puzzle, UserRound, Beaker, UsersRound, LogOut, BarChart3, Bug } from 'lucide-react';
+import { useDebugMode } from './hooks/useDebugMode';
 import React from 'react';
 import Login from './pages/Login';
 // Every other page is route-level code-split: each pulls its own bundle in on
@@ -59,6 +60,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const location = useLocation(); const auth = useAuth(); const isBuilder = location.pathname.includes('/builder');
+  const [debugMode, setDebugMode] = useDebugMode();
   // Clears the client-side composition-data cache (see
   // integration/compositionDataCache.ts) on logout - a shared browser
   // profile used by more than one clinician must never surface one user's
@@ -73,7 +75,15 @@ function AppContent() {
     <Can permission="form.design"><li><Link to="/functions" className={location.pathname === '/functions' ? 'active' : ''}><Beaker size={18} /><span>Functions</span></Link></li></Can>
     <Can permission="form.design"><li><Link to="/widgets" className={location.pathname === '/widgets' ? 'active' : ''}><BarChart3 size={18} /><span>Widgets</span></Link></li></Can>
     <Can permission="user.manage"><li><Link to="/admin/users" className={location.pathname === '/admin/users' ? 'active' : ''}><UsersRound size={18} /><span>Users</span></Link></li></Can>
-  </ul><div style={{ marginTop: 'auto', padding: '1rem', borderTop: '1px solid var(--border)' }}><div style={{ fontSize: '.85rem', marginBottom: '.5rem' }}>{auth.user?.displayName}</div><button className="btn secondary" onClick={() => void logout()} style={{ width: '100%', justifyContent: 'center' }}><LogOut size={16} /> Logout</button></div></nav>
+  </ul><div style={{ marginTop: 'auto', padding: '1rem', borderTop: '1px solid var(--border)' }}>
+    <Can permission="system.configure">
+      <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.82rem', marginBottom: '.75rem', cursor: 'pointer', color: debugMode ? 'var(--primary)' : 'var(--text-muted)' }} title="Zeigt rohe FHIR/openEHR-Aufrufprotokolle pro Patient (Tab „Debug“) zum Download, z.B. für Bruno.">
+        <Bug size={16} />
+        <span style={{ flex: 1 }}>Debug-Modus</span>
+        <input type="checkbox" checked={debugMode} onChange={(event) => setDebugMode(event.target.checked)} />
+      </label>
+    </Can>
+    <div style={{ fontSize: '.85rem', marginBottom: '.5rem' }}>{auth.user?.displayName}</div><button className="btn secondary" onClick={() => void logout()} style={{ width: '100%', justifyContent: 'center' }}><LogOut size={16} /> Logout</button></div></nav>
   <main className="main-content"><React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}><Routes><Route path="/" element={<Dashboard />} /><Route path="/patients" element={<PatientList />} /><Route path="/patients/:id" element={<PatientDetail />} /><Route path="/config" element={<Protected permission="system.configure"><Config /></Protected>} /><Route path="/plugins" element={<Protected permission="plugin.configure"><Plugins /></Protected>} /><Route path="/functions" element={<Protected permission="form.design"><FunctionsAdmin /></Protected>} /><Route path="/widgets" element={<Protected permission="form.design"><WidgetsAdmin /></Protected>} /><Route path="/admin/users" element={<Protected permission="user.manage"><UsersAdmin /></Protected>} /><Route path="/forms/:id/export" element={<Protected permission="form.design"><FormExport /></Protected>} /><Route path="/forms/:id/runtime" element={<SessionRuntime />} /><Route path="/compositions/:id" element={<Protected permission="form.execute"><CompositionRuntime /></Protected>} /></Routes></React.Suspense></main></div>;
 }
 function App() { const [frontendPlugins, setFrontendPlugins] = React.useState<FrontendPluginRegistration[]>([]); React.useEffect(() => { void loadFrontendPluginRegistrations().then(setFrontendPlugins).catch((error: unknown) => console.error('[PLUGIN] Failed to load frontend plugins', error)); }, []); return <Router><FrontendPluginProvider plugins={frontendPlugins}><AuthGate><React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}><Routes><Route path="/live/:parentId" element={<LiveForm />} /><Route path="/embed/forms/:parentId" element={<LiveForm />} /><Route path="*" element={<AppContent />} /></Routes></React.Suspense></AuthGate></FrontendPluginProvider></Router>; }

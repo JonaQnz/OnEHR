@@ -191,7 +191,13 @@ function buildLeafDvValue(rmType: string | undefined, field: RuntimeFieldDescrip
     // would be RM-invalid. CODE_PHRASE has no DV_TEXT equivalent to fall
     // back to, so this only applies to DV_CODED_TEXT itself.
     if (!option && field?.allowFreeText && rmType === 'DV_CODED_TEXT') return { _type: 'DV_TEXT', value: String(code) };
-    const displayValue = source?.value ?? source?.text ?? source?.label ?? option?.text ?? code;
+    // option?.rmValue (the archetype's original/default-language term text)
+    // must win over option?.text (the UI's preferred-language display text,
+    // German-first) - EHRbase's FLAT-composition validator checks
+    // DV_CODED_TEXT.value against the former regardless of UI language, and
+    // rejects e.g. "Vermutet"/"Aktiv" expecting "Suspected"/"Active". See
+    // FormElementLayout.options[].rmValue's doc comment (packages/core).
+    const displayValue = source?.value ?? source?.text ?? source?.label ?? option?.rmValue ?? option?.text ?? code;
     const terminology = source?.terminology ?? source?.terminologyId ?? 'local';
     const definingCode = codePhrase(String(terminology), String(code));
     if (rmType === 'CODE_PHRASE') return definingCode;
@@ -215,7 +221,18 @@ function buildLeafDvValue(rmType: string | undefined, field: RuntimeFieldDescrip
     }
     return { _type: 'DV_TEXT', value: String(value) };
   }
-  if (rmType === 'DV_IDENTIFIER' && source) return { _type: 'DV_IDENTIFIER', ...source };
+  if (rmType === 'DV_IDENTIFIER') {
+    if (source) return { _type: 'DV_IDENTIFIER', ...source };
+    // A field bound straight to a DV_IDENTIFIER slot with no dedicated
+    // compound-value widget (this app has none) still submits a plain
+    // string - confirmed live (vg_MedicationAdministration's
+    // "ID der Verordnung"/at0103 protocol slot: DV_IDENTIFIER is the ONLY
+    // declared alternative, no DV_TEXT to fall back to the way Lab's
+    // requester_order_identifier could). `id` is DV_IDENTIFIER's one
+    // RM-mandatory (1..1) attribute; `issuer`/`assigner`/`type` are all
+    // 0..1 and safely omitted rather than filled with fabricated values.
+    return { _type: 'DV_IDENTIFIER', id: String(value) };
+  }
   // Best-effort generic passthrough for any other DV_* leaf this app lets a
   // field bind to without dedicated handling - same scope boundary as
   // setFlatValue's `output[key] = value` fallback.
@@ -337,15 +354,54 @@ function resolveScopes(node: WebTemplateTreeNode, scope: RuntimeValues, index: F
   return [scope];
 }
 
-function buildStructuralChildren(node: WebTemplateTreeNode, scope: RuntimeValues, index: FieldIndex): Canonical[] {
+/**
+ * Builds one `_type`-tagged canonical node per entry in `children`, for
+ * whichever of `node.children` or a pre-filtered subset (buildEntryData
+ * passes only its own data/description children) - shared so both call
+ * sites get the same polymorphic-slot dedup below rather than diverging.
+ *
+ * A polymorphic/union RM slot (e.g. a result value typed "DV_QUANTITY or
+ * DV_TEXT or DV_CODED_TEXT") appears in the WebTemplate as multiple sibling
+ * nodes that all share the same aqlPath, one per alternative type -
+ * confirmed live (vg_ObservationLab's "Analyte result"/at0001 has three
+ * such siblings under its CLUSTER.laboratory_test_analyte.v1). buildNode's
+ * own leaf branch already resolves the aqlPath to whichever one field
+ * actually has a value (index.resolveField), regardless of which sibling
+ * node is asking - so without this guard every sibling still gets built,
+ * each producing its own ELEMENT at the exact same archetype_node_id: one
+ * genuinely valid (serialized with its own concrete rmType), the rest built
+ * using a DIFFERENT alternative's rmType against the SAME resolved value
+ * (e.g. a DV_QUANTITY {magnitude, unit} object serialized as if it were
+ * DV_CODED_TEXT), producing DV_CODED_TEXT.value: "[object Object]" and a
+ * defining_code.code_string that's an object, not a string. EHRbase rejects
+ * the whole Composition over that duplicate with
+ * "Invariant Inv_null_flavour_indicated failed on type ELEMENT" - it never
+ * mentions the duplication itself, since a null-flavour-lacking malformed
+ * ELEMENT is exactly what that invariant polices. Track which aqlPaths
+ * already resolved to a real field among a node's own children and skip any
+ * further sibling that maps to the identical one; a genuinely repeating
+ * single leaf node is unaffected, since its repeats come from
+ * resolveScopes() returning multiple scopes for that one node, never from
+ * more than one node sharing its aqlPath.
+ */
+function buildChildren(children: WebTemplateTreeNode[], scope: RuntimeValues, index: FieldIndex, context: CanonicalCompositionContext = {}): Canonical[] {
   const results: Canonical[] = [];
-  for (const child of node.children || []) {
+  const builtLeafPaths = new Set<string>();
+  for (const child of children) {
+    if (child.aqlPath && !STRUCTURAL_RM_TYPES.has(child.rmType) && index.resolveField(child.aqlPath, scope)) {
+      if (builtLeafPaths.has(child.aqlPath)) continue;
+      builtLeafPaths.add(child.aqlPath);
+    }
     for (const childScope of resolveScopes(child, scope, index)) {
-      const built = buildNode(child, childScope, index);
+      const built = buildNode(child, childScope, index, context);
       if (built !== undefined) results.push(built as Canonical);
     }
   }
   return results;
+}
+
+function buildStructuralChildren(node: WebTemplateTreeNode, scope: RuntimeValues, index: FieldIndex): Canonical[] {
+  return buildChildren(node.children || [], scope, index);
 }
 
 function itemTree(node: WebTemplateTreeNode, scope: RuntimeValues, index: FieldIndex): Canonical {
@@ -389,13 +445,7 @@ function wrapperNodeId(children: WebTemplateTreeNode[], segment: string): string
 
 function buildEntryData(node: WebTemplateTreeNode, scope: RuntimeValues, index: FieldIndex, context: CanonicalCompositionContext, segment: string): Canonical {
   const dataChildren = (node.children || []).filter((child) => !isEntryMetaChild(child) && (child.aqlPath || '').includes(`/${segment}[`));
-  const items: Canonical[] = [];
-  for (const child of dataChildren) {
-    for (const childScope of resolveScopes(child, scope, index)) {
-      const built = buildNode(child, childScope, index, context);
-      if (built !== undefined) items.push(built as Canonical);
-    }
-  }
+  const items = buildChildren(dataChildren, scope, index, context);
   return { _type: 'ITEM_TREE', name: dvText('Tree'), archetype_node_id: wrapperNodeId(dataChildren, segment) || 'at0001', items };
 }
 
@@ -410,6 +460,45 @@ function entryAttributes(context: CanonicalCompositionContext): Canonical {
     encoding: codePhrase('IANA_character-sets', 'UTF-8'),
     subject: { _type: 'PARTY_SELF' },
   };
+}
+
+/** `protocol` (0..1 on CARE_ENTRY - both OBSERVATION and ACTION) is a
+ * sibling branch of `data`/`description` right alongside it in the
+ * WebTemplate tree, never nested under either - confirmed live
+ * (vg_ObservationLab's `requester_order_identifier` and
+ * vg_MedicationAdministration's `order_identifier` both bind under
+ * `/protocol[atXXXX]/...`). isEntryMetaChild already excludes these from
+ * buildEntryData's data/description walk (nesting them under data.items
+ * would be RM-invalid - protocol is the CARE_ENTRY's own separate
+ * attribute), but nothing ever built them into an actual `protocol`
+ * attribute - confirmed live twice now, once for each entry type
+ * (a filled `requester_order_identifier` silently committed with no
+ * `protocol` at all, `null` when read back via AQL). Shared by both the
+ * OBSERVATION and ACTION cases below rather than duplicated.
+ */
+function buildProtocol(node: WebTemplateTreeNode, scope: RuntimeValues, index: FieldIndex, context: CanonicalCompositionContext): Canonical | undefined {
+  const protocolChildren = (node.children || []).filter((child) => (child.aqlPath || '').includes('/protocol['));
+  if (protocolChildren.length === 0) return undefined;
+  const items = buildChildren(protocolChildren, scope, index, context);
+  if (items.length === 0) return undefined;
+  return { _type: 'ITEM_TREE', name: dvText('Tree'), archetype_node_id: wrapperNodeId(protocolChildren, 'protocol') || 'at0004', items };
+}
+
+/** Resolves a field bound to a fixed CARE_ENTRY-level RM attribute that the
+ * WebTemplate export never exposes as a visible tree node at all - `time`
+ * and `ism_transition/current_state` on ACTION, same category as
+ * EVENT_CONTEXT's own `setting` (buildEventContext, above) which already
+ * establishes this pattern: these are real, submittable openEHR attributes,
+ * just never archetype-modeled ELEMENTs, so nothing in the WebTemplate tree
+ * walk would ever visit a field bound to them - they have to be looked up
+ * directly by their own conventional suffix path instead. */
+function resolveFixedAttributeField(node: WebTemplateTreeNode, index: FieldIndex, scope: RuntimeValues, suffix: string): { field: RuntimeFieldDescriptor; raw: RuntimeValue } | undefined {
+  if (!node.aqlPath) return undefined;
+  const field = index.resolveField(`${node.aqlPath}${suffix}`, scope);
+  if (!field) return undefined;
+  const raw = fieldValue(scope, field.id);
+  if (raw === undefined) return undefined;
+  return { field, raw };
 }
 
 function findEventChild(node: WebTemplateTreeNode): WebTemplateTreeNode | undefined {
@@ -482,6 +571,38 @@ function buildNode(node: WebTemplateTreeNode, scope: RuntimeValues, index: Field
       : node.rmType;
     return buildElement(node, leafField, buildLeafDvValue(effectiveRmType, leafField, fieldValue(scope, leafField.id)));
   }
+  // A polymorphic/union RM slot can also appear as a WRAPPER 'ELEMENT' node
+  // whose OWN aqlPath has no matching field at all - the real bindings
+  // target one of its concrete-type children's aqlPath instead, one level
+  // deeper. Confirmed live: vg_ObservationLab.v1.2.0's "Analyte result"
+  // (at0001) is exactly this shape - the wrapper's aqlPath ends
+  // `.../items[at0001]` (no `/value`), while its DV_QUANTITY/DV_TEXT/
+  // DV_CODED_TEXT alternative children each end `.../items[at0001]/value`,
+  // which is what every real field binding actually uses. Without this
+  // branch, `leafField` above resolves to undefined for the wrapper (its
+  // own aqlPath truly has no field), so `node.rmType === 'ELEMENT'` falls
+  // through to the generic `default:` structural case below, which
+  // recurses into the children and wraps whichever one resolves inside a
+  // SECOND, invalid "ELEMENT" that carries an `items` array instead of a
+  // `value` - EHRbase rejects that outer shell with
+  // Inv_null_flavour_indicated (it has no `value` attribute at all, by
+  // definition, since ELEMENT never has `items`). Resolve directly against
+  // whichever child alternative actually has a value, and build a single,
+  // valid ELEMENT using this wrapper's own identity (archetype_node_id/
+  // name) instead of ever reaching that generic path.
+  if (node.rmType === 'ELEMENT' && node.children?.length) {
+    for (const child of node.children) {
+      if (!child.aqlPath) continue;
+      const childField = index.resolveField(child.aqlPath, scope);
+      if (!childField) continue;
+      const raw = fieldValue(scope, childField.id);
+      if (raw === undefined) continue;
+      const effectiveChildRmType = childField.codeMappings?.enabled ? (childField.semanticType || child.rmType) : child.rmType;
+      const built = buildElement(node, childField, buildLeafDvValue(effectiveChildRmType, childField, raw));
+      if (built !== undefined) return built;
+    }
+    return undefined;
+  }
   switch (node.rmType) {
     case 'SECTION': {
       const items = buildStructuralChildren(node, scope, index);
@@ -499,26 +620,74 @@ function buildNode(node: WebTemplateTreeNode, scope: RuntimeValues, index: Field
       const events = data.events as Canonical[];
       const hasContent = events.some((event) => ((event.data as Canonical)?.items as unknown[])?.length > 0);
       if (!hasContent && (node.min ?? 0) === 0) return undefined;
-      return { _type: 'OBSERVATION', name: dvText(nodeLabel(node)), ...nodeIdentity(node), ...entryAttributes(context), data };
+      const protocol = buildProtocol(node, scope, index, context);
+      return { _type: 'OBSERVATION', name: dvText(nodeLabel(node)), ...nodeIdentity(node), ...entryAttributes(context), data, ...(protocol ? { protocol } : {}) };
     }
     case 'ACTION': {
       const data = buildEntryData(node, scope, index, context, 'description');
       if ((data.items as unknown[]).length === 0 && (node.min ?? 0) === 0) return undefined;
+      const protocol = buildProtocol(node, scope, index, context);
+      // `time` and `ism_transition/current_state` are real, submittable
+      // ACTION attributes that the WebTemplate export never models as a
+      // visible ELEMENT (same category as EVENT_CONTEXT's own `setting` -
+      // see buildEventContext) - a form CAN still bind a field to their
+      // conventional path, but nothing ever looked for one; every ACTION
+      // silently got today's timestamp and a hardcoded "completed" status
+      // regardless of what was actually submitted. Use a bound field's real
+      // value when a form provides one, falling back to the previous fixed
+      // defaults exactly as before for any form that doesn't.
+      const timeField = resolveFixedAttributeField(node, index, scope, '/time');
+      const time = timeField
+        ? buildLeafDvValue('DV_DATE_TIME', timeField.field, timeField.raw) as Canonical | undefined
+        : undefined;
+      // ISM_TRANSITION.current_state is always drawn from openEHR's own
+      // fixed state-machine terminology ("openehr", never "local"/a HIP
+      // code system) - build it directly rather than through
+      // buildLeafDvValue's generic DV_CODED_TEXT path, which defaults an
+      // uncoded plain-string value's terminology to "local".
+      const statusField = resolveFixedAttributeField(node, index, scope, '/ism_transition/current_state');
+      const currentState: Canonical | undefined = statusField ? (() => {
+        const code = String(statusField.raw);
+        const option = statusField.field.options.find((candidate) => candidate.value === code);
+        return { _type: 'DV_CODED_TEXT', value: option?.rmValue || option?.text || code, defining_code: codePhrase('openehr', code) };
+      })() : undefined;
       return {
         _type: 'ACTION', name: dvText(nodeLabel(node)), ...nodeIdentity(node), ...entryAttributes(context),
-        time: dvDateTime(context.time || new Date().toISOString()),
-        ism_transition: { _type: 'ISM_TRANSITION', current_state: { _type: 'DV_CODED_TEXT', value: 'completed', defining_code: codePhrase('openehr', '532') } },
+        time: time || dvDateTime(context.time || new Date().toISOString()),
+        ism_transition: { _type: 'ISM_TRANSITION', current_state: currentState || { _type: 'DV_CODED_TEXT', value: 'completed', defining_code: codePhrase('openehr', '532') } },
         description: data,
+        ...(protocol ? { protocol } : {}),
       };
     }
     case 'INSTRUCTION': {
       const activityNode = node.children?.find((child) => child.rmType === 'ACTIVITY');
       const description = activityNode ? buildEntryData(activityNode, scope, index, context, 'description') : buildEntryData(node, scope, index, context, 'description');
       if ((description.items as unknown[]).length === 0 && (node.min ?? 0) === 0) return undefined;
+      // `protocol` (0..1 on INSTRUCTION, same RM shape as OBSERVATION/ACTION's
+      // own protocol - see buildProtocol) is a sibling of `activities`, never
+      // nested under the ACTIVITY - confirmed live (vg_ServiceRequest's
+      // `request_status`/at0127 binds under `/protocol[at0008]/items[at0127]`
+      // directly off the INSTRUCTION content node). Same gap as the
+      // OBSERVATION/ACTION protocol fix: nothing ever built this attribute at
+      // all, so any field bound under INSTRUCTION's own /protocol[...]
+      // silently vanished regardless of form config.
+      const protocol = buildProtocol(node, scope, index, context);
       return {
         _type: 'INSTRUCTION', name: dvText(nodeLabel(node)), ...nodeIdentity(node), ...entryAttributes(context),
         narrative: dvText(nodeLabel(activityNode || node)),
-        activities: [{ _type: 'ACTIVITY', name: dvText(nodeLabel(activityNode || node)), archetype_node_id: (activityNode?.nodeId || activityNode?.id) || `${node.nodeId || node.id}-activity`, description, timing: { _type: 'DV_PARSABLE', value: 'R1', formalism: 'timing' } }],
+        // ACTIVITY.action_archetype_id is RM-mandatory (1..1, RM data_types
+        // activity_type - the archetype-id pattern of the ACTION this
+        // activity is meant to instantiate) but never modeled as a
+        // form-editable field - confirmed live (EHRbase rejects a
+        // structured-JSON ACTIVITY with no action_archetype_id at all:
+        // "does not match existence 1..1", vg_ServiceRequest.v1.1.1). No
+        // form in this app ties an INSTRUCTION's activity to one specific
+        // ACTION archetype, so ".*" (match any ACTION archetype) is the
+        // standard openEHR convention for "unconstrained" - EHRbase's own
+        // FLAT-format export already defaults unset instances to this same
+        // pattern (seen live as "/.*/", its regex-delimited display form).
+        activities: [{ _type: 'ACTIVITY', name: dvText(nodeLabel(activityNode || node)), archetype_node_id: (activityNode?.nodeId || activityNode?.id) || `${node.nodeId || node.id}-activity`, action_archetype_id: '.*', description, timing: { _type: 'DV_PARSABLE', value: 'R1', formalism: 'timing' } }],
+        ...(protocol ? { protocol } : {}),
       };
     }
     case 'CLUSTER':
@@ -554,9 +723,27 @@ function buildEventContext(node: WebTemplateTreeNode | undefined, scope: Runtime
   const settingDv = settingValue !== undefined
     ? buildLeafDvValue('DV_CODED_TEXT', settingField, settingValue)
     : { _type: 'DV_CODED_TEXT', value: 'other care', defining_code: codePhrase('openehr', '238') };
+  // start_time is mandatory (1..1) on EVENT_CONTEXT but, like ACTION's own
+  // `time` (see resolveFixedAttributeField), the WebTemplate export never
+  // models the EVENT_CONTEXT node itself with an aqlPath (only its named
+  // children, e.g. `setting`, carry one - see the settingNode lookup above),
+  // so resolveFixedAttributeField's node.aqlPath+suffix approach doesn't
+  // apply here. `/context/start_time` is a fixed, template-independent RM
+  // path (COMPOSITION-scoped, not archetype-scoped) - a form CAN still bind
+  // a field to it directly (confirmed real: vg_ServiceRequest's HIP mapping
+  // targets exactly this path from FHIR `authoredOn`), but nothing ever
+  // looked for one; every composition silently got "now" regardless of what
+  // was actually submitted. Use a bound field's real value when a form
+  // provides one, falling back to "now" exactly as before for any form that
+  // doesn't.
+  const startTimeField = index.resolveField('/context/start_time', scope);
+  const startTimeRaw = startTimeField ? fieldValue(scope, startTimeField.id) : undefined;
+  const startTime = startTimeRaw !== undefined
+    ? (buildLeafDvValue('DV_DATE_TIME', startTimeField, startTimeRaw) as Canonical | undefined)
+    : undefined;
   const eventContext: Canonical = {
     _type: 'EVENT_CONTEXT',
-    start_time: dvDateTime(context.time || new Date().toISOString()),
+    start_time: startTime || dvDateTime(context.time || new Date().toISOString()),
     setting: settingDv,
   };
   const otherContextNode = node?.children?.find((child) => child.id === 'other_context' || child.aqlPath?.endsWith('/context/other_context'));

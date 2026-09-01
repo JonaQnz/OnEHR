@@ -11,15 +11,18 @@ import type {
   FormDataProviderSubmitResult,
   FormSessionValues,
   PartyReference,
+  RuntimeValues,
 } from 'core';
 import { mapChangeType, mapLifecycleState, parseVersionNumber } from 'core';
 import {
+  buildCanonicalComposition,
   fromOpenEhrFlatComposition,
   toOpenEhrFlatComposition,
 } from 'openehr-engine';
 import { getConfig } from './configService';
 import { getEhrbaseRequestConfig } from './ehrbaseConnectionPlugins';
 import { getRemoteWebTemplate } from './ehrbaseService';
+import { logIntegrationCall } from './integrationCallLogService';
 
 type ProviderHttp = Pick<AxiosInstance, 'get' | 'post' | 'put' | 'delete'>;
 type ProviderConfig = ReturnType<typeof getConfig>;
@@ -148,6 +151,31 @@ function requiresWebTemplateMapping(definition: CanonicalForm): boolean {
   };
   walk(definition.layout);
   return required;
+}
+
+/**
+ * codeMappings.enabled fields (core.CodeMappingConfig - free text tagged
+ * with an external terminology code, e.g. an ICD-10-GM-coded diagnosis
+ * name) write DV_TEXT/DV_CODED_TEXT.mappings (TERM_MAPPING). Confirmed live
+ * against EHRbase (2026-09-01): TERM_MAPPING has no representation in the
+ * FLAT format at all - it's a plain RM attribute, not archetype-constrained,
+ * so it never appears in EHRbase's own WebTemplate-driven FLAT mapper (its
+ * own generated FLAT *example* for a template with such a field omits
+ * `mappings` entirely). A FLAT POST/PUT carrying any `path/mappings/N|...`
+ * key is rejected wholesale ("Could not consume Parts"), for every field in
+ * the composition, not just the mapped one. commitComposition's submit path
+ * (not draft/autosave - see its own comment) routes such a form through
+ * commitContribution's canonical (nested RM) JSON path instead, which this
+ * CDR does accept for `mappings` (confirmed against a real production
+ * Composition - see canonicalComposition.ts's buildLeafDvValue). */
+function hasCodeMappings(definition: CanonicalForm): boolean {
+  let found = false;
+  const walk = (node: CanonicalForm['layout']): void => {
+    if ((node as unknown as { codeMappings?: { enabled?: boolean } }).codeMappings?.enabled) found = true;
+    node.children?.forEach(walk);
+  };
+  walk(definition.layout);
+  return found;
 }
 
 function text(value: unknown): string | undefined {
@@ -745,12 +773,32 @@ export class EhrbaseDataProvider implements FormDataProvider {
       },
     };
     let response: ProviderResponse;
+    const contributionUrl = `${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/contribution`;
+    // Best-effort: the composition's own templateId, when the caller is
+    // committing exactly one canonical Composition (the common
+    // codeMappings-routed submit case) - falls back to "contribution" for
+    // any other shape (multi-operation grouped saves) rather than guessing.
+    const singleOperationTemplateId = input.operations.length === 1
+      ? (input.operations[0].data as any)?.archetype_details?.template_id?.value
+      : undefined;
+    const logResourceType = typeof singleOperationTemplateId === 'string' ? singleOperationTemplateId : 'contribution';
     try {
-      response = await this.http.post(`${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/contribution`, body, {
+      response = await this.http.post(contributionUrl, body, {
         ...options,
         headers: { ...options.headers, Prefer: 'return=representation' },
       }) as ProviderResponse;
+      logIntegrationCall({
+        protocol: 'openehr', resourceType: logResourceType, operation: 'commit-canonical', method: 'POST', url: contributionUrl,
+        requestBody: body, responseBody: response.data, statusCode: response.status, success: true,
+        ehrId, patientId: input.context.patientId,
+      });
     } catch (error: any) {
+      logIntegrationCall({
+        protocol: 'openehr', resourceType: logResourceType, operation: 'commit-canonical', method: 'POST', url: contributionUrl,
+        requestBody: body, responseBody: error?.response?.data, statusCode: error?.response?.status,
+        success: false, errorMessage: error instanceof Error ? error.message : String(error),
+        ehrId, patientId: input.context.patientId,
+      });
       if (error?.response?.status === 412) {
         throw new EhrbaseProviderError('One or more compositions changed since they were loaded. Reload before saving.', 'CONTRIBUTION_VERSION_CONFLICT', 409);
       }
@@ -874,16 +922,14 @@ export class EhrbaseDataProvider implements FormDataProvider {
       return this.handleError(error);
     }
     const id = templateId(input.form);
-    const wtTree = requiresWebTemplateMapping(input.form.definition) ? await getWebTemplateTree(id) : undefined;
-    const flatBody = toOpenEhrFlatComposition(
-      input.form.definition,
-      input.values,
-      { composerName: input.context.userId },
-      wtTree,
-    );
-    let response: ProviderResponse;
-    const options = await this.requestOptions();
-    if (extra?.auditHeaders) options.headers = { ...options.headers, ...extra.auditHeaders };
+    // See hasCodeMappings's own comment: TERM_MAPPING has no FLAT
+    // representation on this CDR at all. Only submit (not draft/autosave -
+    // commitContribution has no incomplete/draft lifecycle) reroutes to the
+    // canonical-JSON Contribution path; an in-progress autosave still goes
+    // through FLAT below and simply can't carry the mapping yet, same as
+    // it couldn't carry any other WebTemplate-invisible RM data.
+    const needsCanonicalComposition = label === 'submit' && hasCodeMappings(input.form.definition);
+    const wtTree = (requiresWebTemplateMapping(input.form.definition) || needsCanonicalComposition) ? await getWebTemplateTree(id) : undefined;
 
     // draft() always trusts its given reference as an update target - the
     // caller (formSessionService) only ever hands it a reference it already
@@ -897,6 +943,41 @@ export class EhrbaseDataProvider implements FormDataProvider {
     // autosaved draft.
     const updatesExistingComposition = label === 'draft' ? Boolean(input.reference) : (mode === 'edit' || Boolean(input.continuesDraft));
     let versionUid = updatesExistingComposition ? versionUidFromReference(input.reference) : undefined;
+
+    if (needsCanonicalComposition) {
+      if (updatesExistingComposition && !versionUid) versionUid = await this.findLatestCompositionVersion(ehrId, id);
+      const canonical = buildCanonicalComposition(input.form.definition, input.values as unknown as RuntimeValues, wtTree, { composerName: input.context.userId });
+      console.info('[EhrbaseDataProvider] Submitting composition via Contribution (canonical JSON - codeMappings present, FLAT cannot carry TERM_MAPPING)', {
+        ehrId, templateId: id, operation: versionUid ? 'update-existing' : 'create-new',
+      });
+      const contribution = await this.commitContribution({
+        context: input.context,
+        operations: [{
+          operationIndex: 0,
+          data: canonical as Record<string, unknown>,
+          ...(versionUid ? { precedingVersionUid: versionUid } : {}),
+          desiredChangeType: versionUid ? 'modification' : 'creation',
+        }],
+      });
+      const fullVersionUid = contribution.versions.find((entry) => entry.operationIndex === 0)?.versionUid;
+      return {
+        result: { providerId: this.id, reference: fullVersionUid, metadata: { ehrId, templateId: id, contributionUid: contribution.contributionUid } },
+        ehrId,
+        templateId: id,
+        fullVersionUid,
+      };
+    }
+
+    const flatBody = toOpenEhrFlatComposition(
+      input.form.definition,
+      input.values,
+      { composerName: input.context.userId },
+      wtTree,
+    );
+    let response: ProviderResponse;
+    const options = await this.requestOptions();
+    if (extra?.auditHeaders) options.headers = { ...options.headers, ...extra.auditHeaders };
+
     console.info(`[EhrbaseDataProvider] ${label === 'draft' ? 'Autosaving draft composition' : 'Submitting composition'}`, {
       ehrId,
       templateId: id,
@@ -949,7 +1030,14 @@ export class EhrbaseDataProvider implements FormDataProvider {
           headers: { ...options.headers, Prefer: 'return=representation' },
         }) as ProviderResponse;
       }
-    } catch (error) {
+    } catch (error: any) {
+      logIntegrationCall({
+        protocol: 'openehr', resourceType: id, operation: 'commit-flat', method: updatesExistingComposition ? 'PUT' : 'POST',
+        url: `${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/composition`,
+        requestBody: flatBody, responseBody: error?.response?.data, statusCode: error?.response?.status,
+        success: false, errorMessage: error instanceof Error ? error.message : String(error),
+        ehrId, patientId: input.context.patientId,
+      });
       return this.handleError(error);
     }
     const reference = referenceFrom(response);
@@ -958,6 +1046,12 @@ export class EhrbaseDataProvider implements FormDataProvider {
       templateId: id,
       status: response.status,
       reference,
+    });
+    logIntegrationCall({
+      protocol: 'openehr', resourceType: id, operation: 'commit-flat', method: updatesExistingComposition ? 'PUT' : 'POST',
+      url: `${await this.providerBaseUrl()}/ehr/${encodeURIComponent(ehrId)}/composition`,
+      requestBody: flatBody, responseBody: response.data, statusCode: response.status, success: true,
+      ehrId, patientId: input.context.patientId,
     });
     return {
       result: { providerId: this.id, reference, metadata: { ehrId, templateId: id } },

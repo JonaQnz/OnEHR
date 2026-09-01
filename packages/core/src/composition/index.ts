@@ -338,7 +338,7 @@ export function normalizeCompositionDefinition(value: unknown): CompositionDefin
             const display = rawBlock.display;
             if (!['list', 'text', 'trend', 'metric', 'matrix', 'timeline'].includes(String(display))) throw new Error(`Composition data block '${blockId}' has an invalid display`);
             const limit = rawBlock.limit;
-            if (limit !== undefined && (!Number.isInteger(limit) || Number(limit) < 1 || Number(limit) > 100)) throw new Error(`Composition data block '${blockId}' limit must be between 1 and 100`);
+            if (limit !== undefined && (!Number.isInteger(limit) || Number(limit) < 1 || Number(limit) > 1000)) throw new Error(`Composition data block '${blockId}' limit must be between 1 and 1000`);
             const reference = isRecord(rawBlock.referenceRange) ? Object.fromEntries(Object.entries(rawBlock.referenceRange).filter(([key, item]) => ['min', 'max', 'criticalLow', 'criticalHigh'].includes(key) && typeof item === 'number' && Number.isFinite(item))) : {};
             const widgetId = typeof rawBlock.widgetId === 'string' && rawBlock.widgetId.trim() ? rawBlock.widgetId.trim() : undefined;
             const aqlFunctionId = typeof rawBlock.aqlFunctionId === 'string' && rawBlock.aqlFunctionId.trim() ? rawBlock.aqlFunctionId.trim() : undefined;

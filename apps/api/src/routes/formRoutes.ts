@@ -430,18 +430,27 @@ router.put('/:id', asyncHandler(async (req, res) => {
 // two-role model (USER/ADMIN) always grants both together; the permission
 // model implied finer-grained control that didn't actually exist. Stacked
 // on top of (not instead of) the router-level 'form.design' check.
+/**
+ * Increment version logic: "0.1.0-draft" -> "1.0.0". Every fresh form is
+ * seeded at "0.1.0-draft" (major 0, minor 1) - a first-ever publish must
+ * land on "1.0.0", not carry the seed minor through. Re-drafts of an
+ * already-published form (via nextDraftVersion) start from major >= 1
+ * instead, so that branch's minor/patch already encode the real next
+ * version and must pass through unchanged.
+ */
+export function nextPublishedVersion(currentVersion: string): string {
+  const match = currentVersion.match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return '1.0.0';
+  return match[1] === '0' ? '1.0.0' : `${match[1]}.${match[2]}.${match[3]}`;
+}
+
 router.post('/:id/publish', requirePermission('form.publish'), asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
   const form = await prisma.form.findUnique({ where: { id: formId } });
   if (!form) throw new HttpError(404, 'Form not found');
   if (form.status === 'published') throw new HttpError(400, 'Form is already published');
 
-  // Increment version logic: "0.1.0-draft" -> "1.0.0"
-  let newVersion = '1.0.0';
-  const match = form.version.match(/^(\d+)\.(\d+)\.(\d+)/);
-  if (match) {
-    newVersion = `${match[1] === '0' ? '1' : match[1]}.${match[2]}.${match[3]}`;
-  }
+  const newVersion = nextPublishedVersion(form.version);
   
   const canonicalForm = prepareConnectors(migrateCanonicalFormToV1({
     ...(form.canonical_json as any),

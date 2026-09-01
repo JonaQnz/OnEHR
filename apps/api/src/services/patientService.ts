@@ -3,10 +3,49 @@ import prisma from '../db/prisma';
 import { HttpError } from '../middleware/errorHandler';
 import { bindAqlParameters } from './aqlFunctionService';
 import { getConfig, getActiveEhrbaseConnection } from './configService';
-import { getEhrbaseRequestConfig } from './ehrbaseConnectionPlugins';
+import { ehrbaseConnectionAuthPlugins, getEhrbaseRequestConfig } from './ehrbaseConnectionPlugins';
 import { rowsFromResultSet } from './ehrbaseService';
+import { logIntegrationCall } from './integrationCallLogService';
 
-export interface CreatePatientInput { patientId: string; patientNamespace?: string; firstName: string; lastName: string; birthDate?: string; gender?: string; }
+export interface PatientCreationConfiguration {
+  mode: 'ehrbase' | 'fhir';
+  configured: boolean;
+  /** Only present when mode is 'fhir' and configured - the Person Form Section whose values createPatient must be given. */
+  formId?: string;
+  error?: string;
+}
+
+/** Whether patient creation goes through EHRbase's plain /ehr endpoint
+ * (every non-HIP connection - unchanged, always "configured") or the FHIR
+ * CDR connector (a HIP connection - Patient/EHR-id linkage lives there
+ * instead, see ehrbaseConnectionPlugins.createFhirPatient). The 'fhir' mode
+ * fails closed rather than silently falling back to the EHRbase path, so a
+ * half-configured HIP connection surfaces as a clear setup error instead of
+ * quietly creating patients nobody meant to create there. */
+export function getPatientCreationConfiguration(): PatientCreationConfiguration {
+  const connection = getActiveEhrbaseConnection();
+  if (connection.authPlugin !== 'hip-keycloak') return { mode: 'ehrbase', configured: true };
+  const missing: string[] = [];
+  if (!connection.fhirBaseUrl) missing.push('FHIR-Basis-URL');
+  if (!connection.fhirPatientFormId) missing.push('Person-Formular');
+  const mapping = connection.fhirPatientMapping || {};
+  if (!mapping.firstName || !mapping.lastName) missing.push('Mapping Vorname/Nachname');
+  if (missing.length) {
+    return { mode: 'fhir', configured: false, error: `Die FHIR API zur Patientenanlage ist nicht konfiguriert: ${missing.join(', ')} fehlt/fehlen.` };
+  }
+  return { mode: 'fhir', configured: true, formId: connection.fhirPatientFormId! };
+}
+
+export interface CreatePatientInput {
+  patientId: string; patientNamespace?: string; firstName: string; lastName: string; birthDate?: string; gender?: string;
+  /** Full Person Form values (fieldName -> submitted value, exactly the
+   * shape a Person Form Section's own session values take), required when
+   * getPatientCreationConfiguration().mode is 'fhir' - buildIsikPatientResource
+   * needs more than firstName/lastName/birthDate/gender (address, insurance,
+   * ...) and pulls it from here via connection.fhirPatientMapping. Ignored
+   * in 'ehrbase' mode. */
+  personFormValues?: Record<string, unknown>;
+}
 type AqlRow = Record<string, unknown>;
 let lastSyncAt = 0;
 let runningSync: Promise<number> | undefined;
@@ -97,7 +136,18 @@ export async function syncPatientsFromEhrbase(force = false): Promise<number> {
     const { failures } = await mapWithConcurrency(allEhrIds, 5, async (ehrId) => {
       const row = personByEhrId.get(ehrId);
       const subject = await ehrSubject(ehrId);
-      const patientId = (row && text(rowValue(row, 'patientId'))) || subject.patientId || ehrId;
+      // Only a real discovery (a Person composition's own patientId, or the
+      // EHR's registered external_ref subject id) - never the bare ehrId.
+      // The ehrId fallback below is only for the `create` branch (a brand
+      // new EHR never seen before genuinely has no better id yet); baking
+      // it into `patientId` here made it leak into `update` too, silently
+      // clobbering a real business identifier (e.g. an MRN entered at
+      // native/FHIR patient creation) with the raw ehrId on every sync that
+      // didn't happen to see a Person composition or subject ref - which is
+      // exactly the case for a patient created via the FHIR CDR, since its
+      // linked EHR's ehr_status carries no matching external_ref subject.
+      const discoveredPatientId = (row && text(rowValue(row, 'patientId'))) || subject.patientId;
+      const patientId = discoveredPatientId || ehrId;
       const namespace = (row && text(rowValue(row, 'patientNamespace'))) || subject.namespace || getActiveEhrbaseConnection().subjectNamespace || 'default';
       await prisma.patient.upsert({
         where: { ehrId },
@@ -116,14 +166,16 @@ export async function syncPatientsFromEhrbase(force = false): Promise<number> {
         // origin is deliberately absent here: a patient discovered by sync
         // starts "imported", but if createFormSession has since flipped it
         // to "native" that must never be undone by a later sync.
-        // firstName/lastName/birthDate/gender are only overwritten when a
-        // Person composition was actually found this time (`row` truthy) -
-        // otherwise a real name entered at native creation, or found on a
-        // previous sync, must never be clobbered back to "Unbekannt" just
-        // because this particular sync run didn't see a composition for it.
+        // firstName/lastName/birthDate/gender/patientId are only overwritten
+        // when something better was actually found this time (`row` truthy,
+        // or `subject.patientId` from the EHR's own external_ref) -
+        // otherwise a real identifier/name entered at native/FHIR creation,
+        // or found on a previous sync, must never be clobbered back to a
+        // placeholder just because this particular sync run didn't see one.
         update: {
-          patientId, patientNamespace: namespace,
+          patientNamespace: namespace,
           hasPersonArchetype: Boolean(row),
+          ...(discoveredPatientId ? { patientId: discoveredPatientId } : {}),
           ...(row ? {
             firstName: text(rowValue(row, 'firstName')) || 'Unbekannt',
             lastName: text(rowValue(row, 'lastName')) || patientId,
@@ -161,6 +213,33 @@ export async function markPatientHasPersonArchetype(ehrId: string): Promise<void
   await prisma.patient.updateMany({ where: { ehrId, hasPersonArchetype: false }, data: { hasPersonArchetype: true } });
 }
 
+async function createEhrOnEhrbase(connection: ReturnType<typeof getActiveEhrbaseConnection>, patientId: string, namespace: string): Promise<string> {
+  const requestConfig = await getEhrbaseRequestConfig(connection); const headers = { ...requestConfig.headers, Prefer: 'return=representation' }; const { auth, ehrbaseUrl } = requestConfig;
+  try { const response = await axios.get(`${ehrbaseUrl}/ehr`, { headers, auth, params: { subject_id: patientId, subject_namespace: namespace } }); return response.data.ehr_id.value; }
+  catch (error: any) {
+    if (error.response?.status !== 404) throw new Error('Failed to create EHR in EHRbase');
+    const status = { _type: 'EHR_STATUS', archetype_node_id: 'openEHR-EHR-EHR_STATUS.generic.v1', name: { value: 'EHR Status' }, subject: { external_ref: { id: { _type: 'GENERIC_ID', value: patientId, scheme: 'id_scheme' }, namespace, type: 'PERSON' } }, is_queryable: true, is_modifiable: true };
+    const url = `${ehrbaseUrl}/ehr`;
+    try {
+      const response = await axios.post(url, status, { headers, auth });
+      const ehrId = response.data.ehr_id?.value || response.data.ehr_id;
+      logIntegrationCall({
+        protocol: 'openehr', resourceType: 'EHR_STATUS', operation: 'create-ehr', method: 'POST', url,
+        requestBody: status, responseBody: response.data, statusCode: response.status, success: true,
+        ehrId, patientId,
+      });
+      return ehrId;
+    } catch (createError: any) {
+      logIntegrationCall({
+        protocol: 'openehr', resourceType: 'EHR_STATUS', operation: 'create-ehr', method: 'POST', url,
+        requestBody: status, responseBody: createError?.response?.data, statusCode: createError?.response?.status,
+        success: false, errorMessage: createError instanceof Error ? createError.message : String(createError), patientId,
+      });
+      throw createError;
+    }
+  }
+}
+
 export async function createPatient(input: CreatePatientInput) {
   const connection = getActiveEhrbaseConnection(); const namespace = input.patientNamespace || connection.subjectNamespace || 'default';
   const existing = await prisma.patient.findUnique({ where: { patientNamespace_patientId: { patientNamespace: namespace, patientId: input.patientId } } });
@@ -169,16 +248,34 @@ export async function createPatient(input: CreatePatientInput) {
   // (e.g. a clinician double-clicking "create patient") looked like a
   // server crash to the frontend instead of a handled 409.
   if (existing) throw new HttpError(409, `Patient with ID ${input.patientId} already exists in namespace ${namespace}`);
-  const requestConfig = await getEhrbaseRequestConfig(connection); const headers = { ...requestConfig.headers, Prefer: 'return=representation' }; const { auth, ehrbaseUrl } = requestConfig;
+
+  const creationConfig = getPatientCreationConfiguration();
   let ehrId: string;
-  try { const response = await axios.get(`${ehrbaseUrl}/ehr`, { headers, auth, params: { subject_id: input.patientId, subject_namespace: namespace } }); ehrId = response.data.ehr_id.value; }
-  catch (error: any) { if (error.response?.status !== 404) throw new Error('Failed to create EHR in EHRbase'); const status = { _type: 'EHR_STATUS', archetype_node_id: 'openEHR-EHR-EHR_STATUS.generic.v1', name: { value: 'EHR Status' }, subject: { external_ref: { id: { _type: 'GENERIC_ID', value: input.patientId, scheme: 'id_scheme' }, namespace, type: 'PERSON' } }, is_queryable: true, is_modifiable: true }; const response = await axios.post(`${ehrbaseUrl}/ehr`, status, { headers, auth }); ehrId = response.data.ehr_id?.value || response.data.ehr_id; }
+  let fhirPatientId: string | undefined;
+  if (creationConfig.mode === 'fhir') {
+    if (!creationConfig.configured) throw new HttpError(500, creationConfig.error!);
+    const plugin = ehrbaseConnectionAuthPlugins[connection.authPlugin];
+    if (!plugin.createFhirPatient) throw new HttpError(500, `Connection '${connection.name}' does not support FHIR patient creation`);
+    if (!input.personFormValues) throw new HttpError(400, 'personFormValues is required when patient creation is routed through the FHIR API (see get_patient_creation_configuration)');
+    const created = await plugin.createFhirPatient(connection, input.personFormValues);
+    if (!created.ehrId) throw new HttpError(502, `FHIR CDR created Patient ${created.fhirPatientId} but returned no linked openEHR EHR id`);
+    ehrId = created.ehrId;
+    fhirPatientId = created.fhirPatientId;
+  } else {
+    ehrId = await createEhrOnEhrbase(connection, input.patientId, namespace);
+  }
+
   // hasPersonArchetype starts false even though firstName/lastName were just
   // typed in here - no vg_Person composition exists on EHRbase yet, only a
   // bare EHR_STATUS; the next sync flips it true once Stammdaten is actually
   // documented (and, per the update branch above, never clobbers this name
   // with "Unbekannt" in the meantime).
-  return prisma.patient.create({ data: { patientId: input.patientId, patientNamespace: namespace, firstName: input.firstName, lastName: input.lastName, birthDate: input.birthDate, gender: input.gender, ehrId, origin: 'native', hasPersonArchetype: false } });
+  const patient = await prisma.patient.create({ data: { patientId: input.patientId, patientNamespace: namespace, firstName: input.firstName, lastName: input.lastName, birthDate: input.birthDate, gender: input.gender, ehrId, origin: 'native', hasPersonArchetype: false } });
+  // fhirPatientId is not persisted (no schema column - the Prisma record's
+  // ehrId is what everything else keys off) - included here only so a
+  // caller that just created a HIP-routed patient can see/log the FHIR
+  // Patient id without a second lookup.
+  return fhirPatientId ? { ...patient, fhirPatientId } : patient;
 }
 export async function listPatients(sync = true) {
   if (sync) {

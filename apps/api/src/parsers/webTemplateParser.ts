@@ -23,6 +23,22 @@ function preferredOptionText(option: any): string {
   return option?.localizedLabels?.[PREFERRED_LABEL_LANGUAGE] || option?.label || option?.value;
 }
 
+// EHRbase's FLAT-composition validator checks a submitted DV_CODED_TEXT's
+// `value` against the archetype's ORIGINAL (defaultLanguage, effectively
+// always English for these archetypes) term text - independent of which
+// language the UI is currently displaying. Confirmed live: a "Vermutet"/
+// "Aktiv"/"In Bearbeitung" value (German, correct for the UI) gets rejected
+// with "expected: Suspected/Active/Working; found: <German text>". `label`
+// on a WebTemplate option node is that original/default-language text
+// (verified against vg_Diagnosis.v1.1.1: defaultLanguage "en", label
+// "Suspected" for at0074 vs. localizedLabels.de "Vermutet") - so this must
+// be kept and carried through to the runtime serializer as its own field,
+// never overwritten by preferredOptionText's German preference the way
+// `text` deliberately is for display.
+function originalLanguageOptionText(option: any): string | undefined {
+  return option?.label || option?.value;
+}
+
 export function isContextOrIgnoredNode(node: any): boolean {
   if (!node) return false;
   if (node.inContext === true) return true;
@@ -285,10 +301,18 @@ export function parseWebTemplate(webTemplate: any): {
           const codeInput = node.inputs.find((i: any) => i.suffix === 'code' || i.type === 'CODED_TEXT');
           const listInput = codeInput || node.inputs[0];
           if (listInput && listInput.list) {
-            field.options = listInput.list.map((l: any) => ({
-              value: l.value,
-              text: preferredOptionText(l)
-            }));
+            field.options = listInput.list.map((l: any) => {
+              const rmValue = originalLanguageOptionText(l);
+              const text = preferredOptionText(l);
+              return {
+                value: l.value,
+                text,
+                // Only carried when it actually differs from the display
+                // text, so English-default templates (rmValue === text)
+                // don't bloat every option with a redundant duplicate field.
+                ...(rmValue && rmValue !== text ? { rmValue } : {}),
+              };
+            });
           }
         }
 

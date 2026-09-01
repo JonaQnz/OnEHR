@@ -32,7 +32,20 @@ export interface FormElementLayout {
   }>;
   options?: Array<{
     value: string;
+    /** Display text, in the UI's preferred language (German-first - see
+     * webTemplateParser's preferredOptionText). Never sent to openEHR as a
+     * DV_CODED_TEXT's `value` - use `rmValue` for that. */
     text: string;
+    /** The archetype's original/default-language term text for this code -
+     * what EHRbase's FLAT-composition validator actually checks a submitted
+     * DV_CODED_TEXT.value against, regardless of UI display language.
+     * Absent when it's identical to `text` (e.g. an English-default
+     * template with no separate translation). Read by openehr-engine's
+     * setFlatValue/buildLeafDvValue in preference to `text` - see the
+     * comment there for the live bug this fixes (a German `text` like
+     * "Vermutet"/"Aktiv" being rejected by EHRbase, which expects
+     * "Suspected"/"Active"). */
+    rmValue?: string;
   }>;
   /** True when this field's underlying openEHR constraint is a
    * DV_CODED_TEXT|DV_TEXT union (a coded value set with a genuine free-text

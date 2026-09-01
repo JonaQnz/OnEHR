@@ -5,7 +5,13 @@ export type RuntimeJsonValue = JsonValue;
 export type RuntimeValue = JsonValue | undefined;
 export type RuntimeValues = Record<string, RuntimeValue>;
 
-export interface RuntimeOption { value: string; text: string; }
+/** rmValue: the archetype's original/default-language term text for this
+ * code - what openehr-engine's serializers must write into a submitted
+ * DV_CODED_TEXT.value (EHRbase validates against it regardless of `text`'s
+ * display language). Absent when identical to `text`. See
+ * FormElementLayout.options[].rmValue (packages/core/canonical) for the
+ * live bug this exists to fix. */
+export interface RuntimeOption { value: string; text: string; rmValue?: string; }
 export interface RuntimeUnitOption { unit: string; min?: number; max?: number; precision?: number; }
 export interface RuntimeFieldDescriptor {
   id: string; name: string; type: string; label: string; description?: string | undefined;
@@ -79,7 +85,11 @@ function toDescriptor(node: FormElementLayout, locales: RuntimeLocales, repeatab
   return {
     id, name: node.name || id, type: node.type, label: resolveLabel(node, id, locales),
     description: node.description || node.helpText, required: node.required === true, readOnly: node.readOnly === true,
-    options: (node.options || []).map((option) => ({ value: String(option.value), text: String(option.text) })),
+    options: (node.options || []).map((option) => ({
+      value: String(option.value),
+      text: String(option.text),
+      ...(option.rmValue ? { rmValue: String(option.rmValue) } : {}),
+    })),
     allowFreeText: node.allowFreeText === true,
     unitOptions: (node.unitOptions || []).map((option) => typeof option === 'string' ? { unit: option } : { ...option }),
     validation: node.validation, visibility: node.visibility ?? node.enableWhen,

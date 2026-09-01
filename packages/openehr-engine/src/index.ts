@@ -90,6 +90,32 @@ const STRUCTURAL_RM_TYPES = new Set([
   'PARTY_PROXY', 'PARTY_IDENTIFIED', 'PARTY_RELATED', 'PARTY_SELF',
 ]);
 
+/** Shared by both codeMappings.enabled branches below (a DV_TEXT-bound field,
+ * and - see the DV_CODED_TEXT branch's own comment - the "HIP converter is
+ * king" DV_CODED_TEXT-bound one) so the `mappings/N` FLAT convention can't
+ * drift between them. Mirrors canonicalComposition.ts's buildTermMappings
+ * for the same reason that file gives: real example compositions for this
+ * use only ever carry {match, target: {terminology_id, code_string}}.
+ *
+ * No leading underscore: confirmed live against EHRbase (2026-09-01) -
+ * `_mappings` was rejected wholesale ("Could not consume Parts"). The
+ * underscore convention is for LOCATABLE meta-attributes (`_uid`, `_name`,
+ * `_feeder_audit`); `mappings` is DV_TEXT's own genuine, value-bearing RM
+ * attribute (data_types.text 5.2.4: DV_TEXT.mappings: List<TERM_MAPPING>),
+ * not a meta-attribute, so it takes its plain RM name like any other. */
+function writeCodeMappingsFlat(output: Record<string, unknown>, key: string, text: unknown, mappings: unknown): boolean {
+  if (isEmpty(text)) return false;
+  output[key] = text;
+  (Array.isArray(mappings) ? mappings : []).forEach((entry, mappingIndex) => {
+    if (!isRecord(entry) || isEmpty(entry.terminologyId) || isEmpty(entry.code)) return;
+    const prefix = `${key}/mappings/${mappingIndex}`;
+    output[`${prefix}|match`] = typeof entry.match === 'string' && entry.match ? entry.match : '=';
+    output[`${prefix}/target|code`] = entry.code;
+    output[`${prefix}/target|terminology`] = entry.terminologyId;
+  });
+  return true;
+}
+
 function setFlatValue(output: Record<string, unknown>, path: string, binding: FieldBinding, value: unknown, index?: number): void {
   const { rmType } = binding;
   if (isEmpty(value) || (rmType && STRUCTURAL_RM_TYPES.has(rmType))) return;
@@ -102,6 +128,20 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     return;
   }
   if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE') {
+    // codeMappings.enabled on a DV_CODED_TEXT-bound field must be checked
+    // BEFORE the generic CODE_PHRASE handling below, not after - this
+    // branch used to live further down as a separate `if`, which a
+    // DV_CODED_TEXT-typed field's `return` above always skipped entirely
+    // (confirmed live: "Diagnose"/diagnose_name - DV_CODED_TEXT + codeMappings
+    // - never took this path at all, so its free-text diagnosis name was
+    // instead written into `|code`, an RM-invalid "local" code_string that's
+    // actually a sentence, which EHRbase rejected wholesale). Matches
+    // buildLeafDvValue's already-correct precedence in canonicalComposition.ts
+    // (see its own comment for why this dual-encoding exists at all).
+    if (binding.codeMappings?.enabled && source) {
+      writeCodeMappingsFlat(output, key, source.value, source.mappings);
+      return;
+    }
     const code = source?.code ?? source?.value ?? value;
     const option = binding.options?.find((candidate) => candidate.value === String(code));
     // A DV_CODED_TEXT|DV_TEXT union field (binding.allowFreeText, from the
@@ -117,7 +157,12 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     // EHRbase requires the full CODE_PHRASE for a DV_CODED_TEXT. Old form
     // sessions keep only the selected option value, so enrich it from the
     // form's option metadata and use the openEHR local terminology by default.
-    const displayValue = source?.value ?? source?.text ?? source?.label ?? option?.text ?? code;
+    // option?.rmValue (the archetype's original/default-language term text)
+    // must win over option?.text (the UI's preferred-language display text,
+    // German-first) - EHRbase's FLAT-composition validator checks
+    // DV_CODED_TEXT.value against the former regardless of UI language. See
+    // CodedTextOption's rmValue doc comment for the live bug this fixes.
+    const displayValue = source?.value ?? source?.text ?? source?.label ?? option?.rmValue ?? option?.text ?? code;
     const terminology = source?.terminology ?? source?.terminologyId ?? option?.terminology ?? 'local';
     if (!isEmpty(code)) {
       output[`${key}|code`] = code;
@@ -127,10 +172,6 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     return;
   }
   if (binding.codeMappings?.enabled && source) {
-    const text = source.value;
-    if (isEmpty(text)) return;
-    output[key] = text;
-    const mappings = Array.isArray(source.mappings) ? source.mappings : [];
     // EHRbase FLAT format's convention for a LOCATABLE's non-value
     // structural attributes (TERM_MAPPING among them) is an underscore-
     // prefixed segment - `_mappings` here, mirroring the same convention
@@ -141,13 +182,7 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     // Contribution/atomic-commit flow) is the one built directly against
     // the user's own confirmed-real example composition and is the
     // higher-confidence path of the two.
-    mappings.forEach((entry, mappingIndex) => {
-      if (!isRecord(entry) || isEmpty(entry.terminologyId) || isEmpty(entry.code)) return;
-      const prefix = `${key}/_mappings/${mappingIndex}`;
-      output[`${prefix}|match`] = typeof entry.match === 'string' && entry.match ? entry.match : '=';
-      output[`${prefix}/target|code`] = entry.code;
-      output[`${prefix}/target|terminology`] = entry.terminologyId;
-    });
+    writeCodeMappingsFlat(output, key, source.value, source.mappings);
     return;
   }
   output[key] = value;
@@ -170,7 +205,15 @@ export function buildOpenEhrPathMap(tree: unknown): Map<string, OpenEhrPathMappi
 
 interface CodedTextOption {
   value: string;
+  /** Display text (UI's preferred language) - never write this into
+   * DV_CODED_TEXT.value, see rmValue. */
   text?: string;
+  /** The archetype's original/default-language term text - what EHRbase's
+   * FLAT-composition validator checks DV_CODED_TEXT.value against. Falls
+   * back to `text` when absent (an English-default template with no
+   * separate translation, or an older Form Section saved before this field
+   * existed - see setFlatValue's DV_CODED_TEXT branch). */
+  rmValue?: string;
   terminology?: string;
 }
 
@@ -214,10 +257,12 @@ function collectFieldBindings(layout: CanonicalForm['layout']): Map<string, Fiel
         if (!isRecord(option) || !text(option.value)) return [];
         const value = text(option.value)!;
         const optionText = text(option.text) || text(option.label);
+        const rmValue = text(option.rmValue);
         const terminology = text(option.terminology) || text(option.terminologyId);
         return [{
           value,
           ...(optionText ? { text: optionText } : {}),
+          ...(rmValue ? { rmValue } : {}),
           ...(terminology ? { terminology } : {}),
         }];
       })
@@ -308,15 +353,15 @@ function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: str
   return values.length > 0 ? values : undefined;
 }
 
-/** Reconstructs a codeMappings.enabled field's `_mappings/N` group of flat
- * keys (see setFlatValue) back into CodeMappingValue[] - the counterpart
- * read half of that write convention. Silently returns [] rather than
- * throwing on a malformed/partial group (a `target|code` with no matching
- * `target|terminology`, say) - this is enrichment on top of the field's
- * own already-valid text value, never something that should fail the
- * whole read. */
+/** Reconstructs a codeMappings.enabled field's `mappings/N` group of flat
+ * keys (see writeCodeMappingsFlat) back into CodeMappingValue[] - the
+ * counterpart read half of that write convention. Silently returns []
+ * rather than throwing on a malformed/partial group (a `target|code` with
+ * no matching `target|terminology`, say) - this is enrichment on top of
+ * the field's own already-valid text value, never something that should
+ * fail the whole read. */
 function readCodeMappings(flat: Record<string, unknown>, path: string): Array<{ terminologyId: string; code: string; match?: string }> {
-  const prefix = `${path}/_mappings/`;
+  const prefix = `${path}/mappings/`;
   const indices = new Set<number>();
   for (const key of Object.keys(flat)) {
     if (!key.startsWith(prefix)) continue;

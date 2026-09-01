@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler, HttpError } from '../middleware/errorHandler';
-import { createPatient, listPatients, getPatient, syncPatientsFromEhrbase } from '../services/patientService';
+import { createPatient, getPatientCreationConfiguration, listPatients, getPatient, syncPatientsFromEhrbase } from '../services/patientService';
 import { requirePermission } from '../middleware/auth';
 
 const router = Router();
@@ -40,13 +40,22 @@ router.get('/:id/compositions', requirePermission('patient.read'), asyncHandler(
   res.json(rows);
 }));
 
+// Lets a caller (the Form Builder UI, an agent) check up front whether
+// patient creation is routed through EHRbase directly or the FHIR CDR
+// connector, and - in FHIR mode - which Person Form Section's values it
+// needs, before attempting create_patient. See patientService's own doc
+// comment for why this fails closed instead of silently falling back.
+router.get('/creation-configuration', requirePermission('patient.search'), (_req, res) => {
+  res.json(getPatientCreationConfiguration());
+});
+
 router.post('/', requirePermission('patient.search'), asyncHandler(async (req, res) => {
-  const { patientId, firstName, lastName, birthDate, gender } = req.body;
+  const { patientId, firstName, lastName, birthDate, gender, personFormValues } = req.body;
   if (!patientId || !firstName || !lastName) {
     throw new HttpError(400, 'Missing required fields: patientId, firstName, lastName');
   }
 
-  const patient = await createPatient({ patientId, firstName, lastName, birthDate, gender });
+  const patient = await createPatient({ patientId, firstName, lastName, birthDate, gender, ...(personFormValues ? { personFormValues } : {}) });
   res.status(201).json({ message: 'Patient created', patient });
 }));
 
