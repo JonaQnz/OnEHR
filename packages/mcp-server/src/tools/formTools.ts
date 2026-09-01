@@ -120,4 +120,10 @@ export function registerFormTools(server: McpServer, api: FormbuilderApiClient):
     description: 'Creates a new draft form with a layout and bindings auto-generated to cover every field of an imported WebTemplate - a faster starting point than create_form + hand-written bindings for straightforward forms.',
     inputSchema: { templateId: z.string(), formName: z.string().optional() },
   }, ({ templateId, formName }) => toResult(() => api.post('/api/forms/generate-from-template', { templateId, formName })));
+
+  server.registerTool('audit_form_bindings', {
+    title: 'Audit a form\'s bindings against the current live template',
+    description: 'Checks a Form Section\'s stored bindings against the CURRENT state of its source template, fetched live from EHRbase (not the possibly-stale local import cache - re-import first with import_remote_template if you want the audit itself to reflect a template change you just made on EHRbase). A binding is a snapshot taken when the form was built or last regenerated; it never updates itself. Flags: unresolved-path (the archetype path no longer exists in the template - re-versioned or restructured), rmtype-mismatch (the RM type at that path changed), and stale-option (a stored DV_CODED_TEXT/CODE_PHRASE option is no longer a valid code - EHRbase would reject a submission that picks it). Read-only - never modifies the form or the template. Deliberately does not flag "should this now be a repeatable group" - apply_template_to_form is the authoritative fix for that class of drift, not this audit.',
+    inputSchema: { id: z.string().describe('The form to audit.') },
+  }, ({ id }) => toResult(() => api.get(`/api/forms/${encodeURIComponent(id)}/audit-bindings`)));
 }

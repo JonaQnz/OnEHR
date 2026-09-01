@@ -28,6 +28,8 @@ import {
   formScriptAiRateLimiter,
   generateFormScriptCandidate,
 } from '../scripting/formScriptAiService';
+import { getRemoteWebTemplate } from '../services/ehrbaseService';
+import { auditFormBindings } from 'openehr-engine';
 
 const router = Router();
 router.use((req, res, next) => requirePermission(req.method === 'GET' || /\/composition-data$/.test(req.path) ? 'form.execute' : 'form.design')(req, res, next));
@@ -312,6 +314,33 @@ router.get('/:id', asyncHandler(async (req, res) => {
   if (!form) throw new HttpError(404, 'Form not found');
   const canonicalForm = migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id);
   res.json({ ...form, canonical_json: canonicalForm });
+}));
+
+/**
+ * Checks a Form Section's stored bindings against the CURRENT live state of
+ * its source template on EHRbase - not the (possibly stale) local Template
+ * row's cached parsed_registry_json, which only refreshes on an explicit
+ * re-import. A binding is a snapshot: once EHRbase's own copy of the
+ * archetype/template changes (re-versioned, a value set edited), nothing
+ * tells an already-built Form Section it's drifted until a real submission
+ * fails - or, for the FLAT-composition group-binding class of bug fixed
+ * alongside this, doesn't fail loudly at all, it just silently drops data.
+ * This is a read-only check; it never modifies the Form Section or the
+ * template.
+ */
+router.get('/:id/audit-bindings', asyncHandler(async (req, res) => {
+  const formId = requireNonEmptyString(req.params.id, 'id');
+  const form = await prisma.form.findUnique({ where: { id: formId } });
+  if (!form) throw new HttpError(404, 'Form not found');
+  const canonicalForm = migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id);
+  const templateId = canonicalForm.sourceTemplates?.[0]?.id;
+  if (!templateId) {
+    res.json({ templateId: null, findings: [], message: 'This form has no sourceTemplates entry - nothing to audit against.' });
+    return;
+  }
+  const webTemplate = await getRemoteWebTemplate(templateId);
+  const findings = auditFormBindings(canonicalForm, webTemplate?.tree);
+  res.json({ templateId, findings });
 }));
 
 router.post('/:id/script/check', asyncHandler(async (req, res) => {

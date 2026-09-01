@@ -42,6 +42,14 @@ export interface OpenEhrCompositionContext {
 export interface OpenEhrPathMapping {
   flatPath: string;
   rmType?: string;
+  /** The current, valid coded values at this node - only present for a
+   * DV_CODED_TEXT/CODE_PHRASE node whose WebTemplate carries an
+   * `inputs[].list` (the same source webTemplateParser reads for a
+   * generated Form Section's own `options`). Used by auditFormBindings to
+   * flag a Form Section option EHRbase would now reject - the template's
+   * value set can change between imports independently of any Form Section
+   * built against an earlier version of it. */
+  codes?: string[];
 }
 
 type JsonObject = Record<string, JsonValue>;
@@ -188,6 +196,25 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
   output[key] = value;
 }
 
+/** A DV_CODED_TEXT/CODE_PHRASE WebTemplate node's own current code list,
+ * from whichever `inputs[]` entry actually carries the value set - mirrors
+ * webTemplateParser's own `needsOptions`/`codeInput`/`listInput` selection
+ * exactly (a coded field's real options can live on a specific `suffix:
+ * 'code'`/`type: 'CODED_TEXT'` input rather than the first one), so this
+ * reports the same code set a fresh Form Section generated from this node
+ * would get. */
+function currentCodesOf(node: UnknownRecord): string[] | undefined {
+  const rmType = text(node.rmType);
+  if (rmType !== 'DV_CODED_TEXT' && rmType !== 'CODE_PHRASE') return undefined;
+  const inputs = Array.isArray(node.inputs) ? node.inputs.filter(isRecord) : [];
+  const codeInput = inputs.find((input) => text(input.suffix) === 'code' || text(input.type) === 'CODED_TEXT');
+  const listInput = codeInput || inputs[0];
+  const list = listInput && Array.isArray(listInput.list) ? listInput.list.filter(isRecord) : undefined;
+  if (!list || list.length === 0) return undefined;
+  const codes = list.map((entry) => text(entry.value)).filter((value): value is string => Boolean(value));
+  return codes.length > 0 ? codes : undefined;
+}
+
 export function buildOpenEhrPathMap(tree: unknown): Map<string, OpenEhrPathMapping> {
   const map = new Map<string, OpenEhrPathMapping>();
   function walk(node: unknown, prefix: string): void {
@@ -196,11 +223,79 @@ export function buildOpenEhrPathMap(tree: unknown): Map<string, OpenEhrPathMappi
     const current = id ? (prefix ? `${prefix}/${id}` : id) : prefix;
     const aqlPath = text(node.aqlPath);
     const rmType = text(node.rmType);
-    if (aqlPath && current) map.set(aqlPath, { flatPath: current, ...(rmType ? { rmType } : {}) });
+    const codes = currentCodesOf(node);
+    if (aqlPath && current) map.set(aqlPath, { flatPath: current, ...(rmType ? { rmType } : {}), ...(codes ? { codes } : {}) });
     if (Array.isArray(node.children)) node.children.forEach((child) => walk(child, current));
   }
   walk(tree, '');
   return map;
+}
+
+export type BindingAuditIssue = 'unresolved-path' | 'rmtype-mismatch' | 'stale-option';
+
+export interface BindingAuditFinding {
+  /** The Form Section field/container's own id (from its layout node). */
+  fieldId: string;
+  /** The stored binding's archetype path, exactly as saved on the form -
+   * what actually got checked against the current template. */
+  path: string;
+  issue: BindingAuditIssue;
+  detail: string;
+}
+
+/** Checks a Form Section's own stored bindings against the CURRENT state of
+ * its source template (a freshly re-imported WebTemplate tree, e.g. via
+ * import_remote_template) rather than whatever the template looked like
+ * when the Form Section was originally built or last regenerated.
+ *
+ * A binding is a snapshot, not a live reference - a template can change
+ * (an archetype gets re-versioned, a value set gains/loses codes, a node's
+ * RM type changes) with nothing to tell an existing Form Section it's now
+ * stale, until a doctor's submission fails at EHRbase with a 4xx or -
+ * worse, per the FLAT-composition group-binding bug fixed alongside this -
+ * silently drops data instead of failing loudly at all. This surfaces that
+ * drift proactively, at design/publish time, from the same information a
+ * regeneration would use.
+ *
+ * Deliberately narrow in scope for what it flags: whether each binding's
+ * path still resolves, whether its rmType still matches, and whether a
+ * coded field's stored options are still valid codes. It does NOT attempt
+ * to detect "this field should now be part of a repeatable group" -
+ * webTemplateParser's own generator (generate_form_from_template/
+ * apply_template_to_form) is the authoritative source for repeat structure
+ * and already reflects a re-imported template correctly; re-deriving that
+ * judgement independently here risked false positives the generator itself
+ * doesn't have. */
+export function auditFormBindings(definition: Pick<CanonicalForm, 'layout'>, webTemplateTree: unknown): BindingAuditFinding[] {
+  const pathMap = buildOpenEhrPathMap(webTemplateTree);
+  const findings: BindingAuditFinding[] = [];
+  function walk(node: CanonicalForm['layout']): void {
+    const binding = layoutFieldBinding(node.binding);
+    const fieldId = node.id || '(unnamed)';
+    if (binding?.path) {
+      const mapping = pathMap.get(binding.path);
+      if (!mapping) {
+        findings.push({ fieldId, path: binding.path, issue: 'unresolved-path', detail: `No node in the current template resolves this path anymore - the archetype was likely re-versioned or restructured since this binding was set.` });
+      } else {
+        if (binding.rmType && mapping.rmType && binding.rmType !== mapping.rmType) {
+          findings.push({ fieldId, path: binding.path, issue: 'rmtype-mismatch', detail: `Form Section expects ${binding.rmType}, current template has ${mapping.rmType} at this path.` });
+        }
+        const rawOptions = (node as unknown as UnknownRecord).options;
+        if (mapping.codes && Array.isArray(rawOptions)) {
+          const staleValues = rawOptions
+            .filter(isRecord)
+            .map((option) => text(option.value))
+            .filter((value): value is string => Boolean(value) && !mapping.codes!.includes(value!));
+          if (staleValues.length > 0) {
+            findings.push({ fieldId, path: binding.path, issue: 'stale-option', detail: `Option(s) ${staleValues.join(', ')} are no longer valid codes in the current template - EHRbase would reject a submission that picks one of them.` });
+          }
+        }
+      }
+    }
+    node.children?.forEach(walk);
+  }
+  walk(definition.layout);
+  return findings;
 }
 
 interface CodedTextOption {
