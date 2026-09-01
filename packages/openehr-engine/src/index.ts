@@ -232,14 +232,19 @@ interface FieldBinding {
   /** The id of the nearest enclosing `repeatable: true` container, if any -
    * mirrors core/form-runtime's own `repeatableGroupId` derivation exactly
    * (a repeatable container's own id, inherited by every descendant until
-   * another repeatable container is entered). A repeatable *group* container
-   * itself has no `.binding` (confirmed live: a Laborpanel's
-   * `laboratory_analyte_result` container carries `repeatMin`/`repeatMax`/
-   * `repeatable` but no binding at all) - only this per-member marker lets
-   * toOpenEhrFlatComposition recognise `values[groupId]` as a group's row
-   * array instead of silently dropping it as an unbound field (see the
-   * comment above the group-handling loop there for what that dropping
-   * looked like in practice). */
+   * another repeatable container is entered). A hand-authored repeatable
+   * *group* container typically has no `.binding` of its own (e.g. a
+   * Laborpanel's `laboratory_analyte_result` container carries
+   * `repeatMin`/`repeatMax`/`repeatable` but no binding at all) - this
+   * per-member marker is what lets toOpenEhrFlatComposition recognise
+   * `values[groupId]` as a group's row array instead of silently dropping it
+   * as an unbound field.
+   *
+   * A *generated* repeatable container (webTemplateParser's
+   * containerBinding()) DOES carry its own binding, pointing at the
+   * repeating archetype node itself - collectFieldBindings keeps that in a
+   * separate `groupBindings` map (see below), not here, precisely so this
+   * per-member detection keeps working unchanged for either shape. */
   repeatableGroupId?: string;
 }
 
@@ -259,8 +264,32 @@ function layoutFieldBinding(binding: unknown): FieldBinding | undefined {
   };
 }
 
-function collectFieldBindings(layout: CanonicalForm['layout']): Map<string, FieldBinding> {
-  const map = new Map<string, FieldBinding>();
+interface CollectedBindings {
+  /** Per-member/leaf-field bindings, keyed by field id - never contains a
+   * repeatable group's own container id (see `groupBindings` for that). */
+  layoutBindings: Map<string, FieldBinding>;
+  /** Every repeatable container's own id, whether or not it carries a
+   * binding - the authoritative "is this key in `values` a group?" check.
+   * Determining this from `layoutBindings`' absence (the previous approach)
+   * broke the moment a container DID have a binding, which is exactly what
+   * webTemplateParser's generator always emits (containerBinding()) - a
+   * generated Form Section's repeatable groups were silently dropped the
+   * same way hand-authored ones used to be, just via the opposite root
+   * cause (binding present, not absent). */
+  repeatableGroupIds: Set<string>;
+  /** A repeatable container's OWN binding, when it has one (generated forms
+   * only - hand-authored ones typically omit it). Kept separate from
+   * `layoutBindings` so the plain per-field loop never mistakes a group's
+   * row array for one leaf field's value, and used to anchor the FLAT `:N`
+   * index precisely at the archetype's own repeating node instead of
+   * reverse-engineering it from members' common path prefix. */
+  groupBindings: Map<string, FieldBinding>;
+}
+
+function collectFieldBindings(layout: CanonicalForm['layout']): CollectedBindings {
+  const layoutBindings = new Map<string, FieldBinding>();
+  const repeatableGroupIds = new Set<string>();
+  const groupBindings = new Map<string, FieldBinding>();
   // repeatableGroupId threading mirrors core/form-runtime/index.ts's own
   // `walk()` exactly: a `container` node with `repeatable: true` and an id
   // becomes the group id for itself and every descendant, until another
@@ -290,8 +319,11 @@ function collectFieldBindings(layout: CanonicalForm['layout']): Map<string, Fiel
       : undefined;
     const codeMappings = node.codeMappings?.enabled ? node.codeMappings : undefined;
     const allowFreeText = (node as unknown as Record<string, unknown>).allowFreeText === true;
-    if (node.id && binding) {
-      map.set(node.id, {
+    if (isRepeatableContainer && node.id) {
+      repeatableGroupIds.add(node.id);
+      if (binding) groupBindings.set(node.id, binding);
+    } else if (node.id && binding) {
+      layoutBindings.set(node.id, {
         ...binding,
         ...(options?.length ? { options } : {}),
         ...(codeMappings ? { codeMappings } : {}),
@@ -304,7 +336,7 @@ function collectFieldBindings(layout: CanonicalForm['layout']): Map<string, Fiel
     node.children?.forEach((child) => walk(child, childGroupId));
   }
   walk(layout);
-  return map;
+  return { layoutBindings, repeatableGroupIds, groupBindings };
 }
 
 function resolveFlatPath(binding: FieldBinding, pathMap?: Map<string, OpenEhrPathMapping>): string | undefined {
@@ -370,29 +402,40 @@ export function toOpenEhrFlatComposition(definition: CanonicalForm, values: Form
     ...(templateId ? { 'ctx/template_id': templateId } : {}),
   };
   const pathMap = webTemplateTree === undefined ? undefined : buildOpenEhrPathMap(webTemplateTree);
-  const layoutBindings = collectFieldBindings(definition.layout);
+  const { layoutBindings, repeatableGroupIds, groupBindings } = collectFieldBindings(definition.layout);
   const processed = new Set<string>();
   // Repeatable *groups* first (values[groupId] = one row object per
   // occurrence, keyed by field id exactly like FormRuntime's own
   // `row[field.id]` reads - see core/form-runtime's repeatableGroupId doc).
   // Must run before the plain per-field loop below: a group id is never
-  // itself a bound leaf field (its container has no `.binding` at all - see
-  // FieldBinding.repeatableGroupId's own comment), so without this pass
-  // `values[groupId]` would just silently fail the `!binding` check in that
-  // loop and the entire group would be dropped - confirmed live, this is
-  // exactly how a Laborpanel's 9 analyte rows never reached EHRbase at all
-  // (only the panel's own top-level "Test name" field, a real leaf, made it
-  // through). Every other CanonicalForm-consuming form (no repeatable
-  // groups) sees zero behavioural change from this loop, since the `some(...)`
-  // guard only fires for a key that's genuinely a group id.
+  // itself a bound leaf field, so without this pass `values[groupId]` would
+  // just silently fail the `!binding` check in that loop and the entire
+  // group would be dropped - confirmed live, this is exactly how a
+  // Laborpanel's 9 analyte rows never reached EHRbase at all (only the
+  // panel's own top-level "Test name" field, a real leaf, made it through).
+  // `repeatableGroupIds` (not "absent from layoutBindings") is the
+  // authoritative "is this a group?" check - a generated Form Section's
+  // repeatable container DOES carry its own binding (webTemplateParser's
+  // containerBinding()), so inferring group-ness from the binding's absence
+  // silently reintroduced this exact bug for every generated form the
+  // moment it had a real repeatable group, just via the opposite mechanism
+  // (binding present, not missing). Every other CanonicalForm-consuming
+  // form (no repeatable groups) sees zero behavioural change from this
+  // loop, since `repeatableGroupIds` only ever contains genuine group ids.
   for (const [groupId, rows] of Object.entries(values)) {
-    if (!Array.isArray(rows) || layoutBindings.has(groupId)) continue;
+    if (!Array.isArray(rows) || !repeatableGroupIds.has(groupId)) continue;
     const memberEntries = Array.from(layoutBindings.entries()).filter(([, binding]) => binding.repeatableGroupId === groupId);
     if (memberEntries.length === 0) continue;
+    // A generated container's own binding names the repeating archetype
+    // node directly and is the authoritative index-anchor point. Only
+    // hand-authored groups (no container binding) fall back to inferring it
+    // from the members' longest common path prefix.
+    const groupOwnBinding = groupBindings.get(groupId);
+    const groupOwnPath = groupOwnBinding ? resolveFlatPath(groupOwnBinding, pathMap) : undefined;
     const memberPaths = memberEntries
       .map(([, binding]) => resolveFlatPath(binding, pathMap))
       .filter((path): path is string => Boolean(path));
-    const groupPrefix = commonPathPrefix(memberPaths);
+    const groupPrefix = groupOwnPath || commonPathPrefix(memberPaths);
     rows.forEach((row, index) => {
       if (!isRecord(row)) return;
       for (const [subFieldId, subBinding] of memberEntries) {
@@ -405,6 +448,7 @@ export function toOpenEhrFlatComposition(definition: CanonicalForm, values: Form
     });
   }
   for (const [fieldId, value] of Object.entries(values)) {
+    if (repeatableGroupIds.has(fieldId)) continue;
     const binding = layoutBindings.get(fieldId);
     const flatPath = binding && resolveFlatPath(binding, pathMap);
     if (!binding || !flatPath) continue;
@@ -413,7 +457,7 @@ export function toOpenEhrFlatComposition(definition: CanonicalForm, values: Form
     processed.add(flatPath);
   }
   for (const [fieldId, value] of Object.entries(values)) {
-    if (layoutBindings.has(fieldId)) continue;
+    if (layoutBindings.has(fieldId) || repeatableGroupIds.has(fieldId)) continue;
     const binding = definition.bindings[fieldId]?.openehr;
     const flatPath = binding && resolveFlatPath(binding, pathMap);
     if (!binding || !flatPath || processed.has(flatPath)) continue;
@@ -492,7 +536,7 @@ function readCodeMappings(flat: Record<string, unknown>, path: string): Array<{ 
 export function fromOpenEhrFlatComposition(definition: CanonicalForm, composition: Record<string, unknown>, webTemplateTree?: unknown): FormSessionValues {
   const values: FormSessionValues = {};
   const pathMap = webTemplateTree === undefined ? undefined : buildOpenEhrPathMap(webTemplateTree);
-  const layoutBindings = collectFieldBindings(definition.layout);
+  const { layoutBindings } = collectFieldBindings(definition.layout);
   const processedPaths = new Set<string>();
   const readOne = (binding: FieldBinding, flatPath: string): unknown => {
     const value = readFlatValue(composition, flatPath, binding.rmType);

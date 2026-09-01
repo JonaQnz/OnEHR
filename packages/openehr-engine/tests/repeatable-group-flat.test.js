@@ -108,3 +108,80 @@ test('a form with no repeatable groups at all is unaffected (no group-id false p
   const flat = toOpenEhrFlatComposition(def, { diagnosis_name: 'Mammakarzinom links' });
   assert.equal(flat['/content/data/items[at0002]'], 'Mammakarzinom links');
 });
+
+// webTemplateParser's generator (containerBinding(), apps/api/src/parsers)
+// - unlike every hand-authored group above - always sets a `.binding` on a
+// repeatable container itself, pointing at the repeating archetype node.
+// Discovered 2026-09-01 while scoping an unrelated feature: this silently
+// reintroduced the exact same data-loss bug the fix above addressed, just
+// via the opposite mechanism - the container's OWN binding made
+// `layoutBindings.has(groupId)` true, so the old "is this a group?" check
+// (group-ness inferred from a binding's absence) treated a genuine
+// generated group as a plain, unbound field and skipped it entirely. Any
+// Form Section produced by generate_form_from_template/apply_template_to_form
+// for a template with a real repeating structure (not just a repeating
+// leaf) would have hit this on its very first submission.
+function generatedDefinition() {
+  return {
+    sourceTemplates: [{ alias: 'lab', id: 'vg_ObservationLab.v1.2.0', version: '1.2.0', type: 'openEhrWebTemplate' }],
+    layout: {
+      type: 'form',
+      children: [
+        { id: 'test_name', type: 'input-text', binding: { path: '/content/data/events/data/items[at0005]', rmType: 'DV_TEXT' } },
+        {
+          id: 'laboratory_analyte_result', type: 'container', repeatable: true, repeatMin: 1, repeatMax: -1,
+          // The generator's containerBinding() - a real binding on the
+          // group container itself, naming the repeating archetype node.
+          binding: { path: GROUP_PATH, rmType: 'CLUSTER' },
+          children: [
+            { type: 'row', children: [{ type: 'column', children: [
+              { id: 'analyte_name', type: 'input-text', binding: { path: `${GROUP_PATH}/items[at0024]`, rmType: 'DV_TEXT' } },
+            ] }] },
+            { type: 'row', children: [{ type: 'column', children: [
+              { id: 'quantity_value', type: 'input-quantity', binding: { path: `${GROUP_PATH}/items[at0001]`, rmType: 'DV_QUANTITY' } },
+            ] }] },
+          ],
+        },
+      ],
+    },
+    bindings: {},
+  };
+}
+
+test('a GENERATED repeatable group (container carries its own binding) still writes every row, not zero', () => {
+  const flat = toOpenEhrFlatComposition(generatedDefinition(), threeAnalytes());
+  assert.equal(flat['/content/data/events/data/items[at0005]'], 'Kleines Blutbild');
+  assert.equal(flat[`${GROUP_PATH}:0/items[at0024]`], 'Hämoglobin');
+  assert.equal(flat[`${GROUP_PATH}:1/items[at0024]`], 'Leukozyten');
+  assert.equal(flat[`${GROUP_PATH}:2/items[at0024]`], 'Thrombozyten');
+  assert.equal(flat[`${GROUP_PATH}:0/items[at0001]|magnitude`], 13.8);
+});
+
+test('a GENERATED group with only ONE member field still anchors the index on the container, not the leaf', () => {
+  // The commonPathPrefix() fallback needs a "single-member group" special
+  // case to avoid landing the index inside the leaf's own segment - a
+  // group with its own binding sidesteps that heuristic entirely, so this
+  // must keep working even with exactly one member.
+  const def = generatedDefinition();
+  def.layout.children[1].children = [
+    { type: 'row', children: [{ type: 'column', children: [
+      { id: 'analyte_name', type: 'input-text', binding: { path: `${GROUP_PATH}/items[at0024]`, rmType: 'DV_TEXT' } },
+    ] }] },
+  ];
+  const flat = toOpenEhrFlatComposition(def, {
+    test_name: 'Kleines Blutbild',
+    laboratory_analyte_result: [{ analyte_name: 'Hämoglobin' }, { analyte_name: 'Leukozyten' }],
+  });
+  assert.equal(flat[`${GROUP_PATH}:0/items[at0024]`], 'Hämoglobin');
+  assert.equal(flat[`${GROUP_PATH}:1/items[at0024]`], 'Leukozyten');
+  assert.equal(Object.prototype.hasOwnProperty.call(flat, `${GROUP_PATH}/items[at0024]:0`), false);
+});
+
+test('a GENERATED group id never leaks into the plain per-field loop as a scalar value', () => {
+  // Regression guard for the group container's own binding being visible
+  // to the generic per-field loop: it must never try to write
+  // `values[groupId]` (an array of row objects) as if it were one field's
+  // scalar value at the container's own path.
+  const flat = toOpenEhrFlatComposition(generatedDefinition(), threeAnalytes());
+  assert.equal(Object.prototype.hasOwnProperty.call(flat, GROUP_PATH), false);
+});
