@@ -1,0 +1,399 @@
+{
+  "exportVersion": "1.0",
+  "form": {
+    "id": "3de1ad0c-41d5-4c9e-a788-f60287f8b999",
+    "name": "Arzneimittelgabe (Basis)",
+    "layout": {
+      "type": "form",
+      "children": [
+        {
+          "id": "arzneimittelanwendung",
+          "name": "arzneimittelanwendung",
+          "type": "container",
+          "label": "Arzneimittelgabe",
+          "children": [
+            {
+              "id": "name",
+              "name": "vg_medicationadministration.v1.0.2_name",
+              "type": "input-text",
+              "label": "Arzneimittelname",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[openEHR-EHR-CLUSTER.medication.v2]/items[at0132]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/arzneimittel2/name",
+                "rmVersion": "v2",
+                "templateId": "vg_MedicationAdministration.v1.0.2",
+                "archetypeId": "openEHR-EHR-CLUSTER.medication.v2",
+                "templateAlias": "vg_medicationadministration.v1.0.2",
+                "archetypeNodeId": "at0132",
+                "templateVersion": "1.0.2"
+              },
+              "helpText": "Name bzw. Anzeige des verabreichten Arzneimittels (FHIR medicationCodeableConcept.coding.display).",
+              "required": true
+            },
+            {
+              "id": "beschreibung",
+              "name": "vg_medicationadministration.v1.0.2_beschreibung",
+              "type": "input-text",
+              "label": "Arzneimittelbeschreibung",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[openEHR-EHR-CLUSTER.medication.v2]/items[at0133]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/arzneimittel2/beschreibung",
+                "rmVersion": "v2",
+                "templateId": "vg_MedicationAdministration.v1.0.2",
+                "archetypeId": "openEHR-EHR-CLUSTER.medication.v2",
+                "templateAlias": "vg_medicationadministration.v1.0.2",
+                "archetypeNodeId": "at0133",
+                "templateVersion": "1.0.2"
+              },
+              "helpText": "Freitext aus FHIR medicationCodeableConcept.text.",
+              "required": false
+            },
+            {
+              "id": "dosis",
+              "name": "vg_medicationadministration.v1.0.2_quantity_value",
+              "type": "input-quantity",
+              "label": "Verabreichte Dosis",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[openEHR-EHR-CLUSTER.dosage.v2]/items[at0144]/value",
+                "rmType": "DV_QUANTITY",
+                "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/dosierung/dosis/quantity_value",
+                "rmVersion": "v2",
+                "templateId": "vg_MedicationAdministration.v1.0.2",
+                "archetypeId": "openEHR-EHR-CLUSTER.dosage.v2",
+                "templateAlias": "vg_medicationadministration.v1.0.2",
+                "archetypeNodeId": "at0144",
+                "templateVersion": "1.0.2"
+              },
+              "helpText": "Strukturierte Menge und Einheit aus FHIR dosage.dose.",
+              "required": false,
+              "unitOptions": []
+            },
+            {
+              "id": "dosisbeschreibung",
+              "name": "vg_medicationadministration.v1.0.2_dosisbeschreibung",
+              "type": "input-text",
+              "label": "Dosisbeschreibung",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[openEHR-EHR-CLUSTER.dosage.v2]/items[at0178]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/dosierung/dosisbeschreibung",
+                "rmVersion": "v2",
+                "templateId": "vg_MedicationAdministration.v1.0.2",
+                "archetypeId": "openEHR-EHR-CLUSTER.dosage.v2",
+                "templateAlias": "vg_medicationadministration.v1.0.2",
+                "archetypeNodeId": "at0178",
+                "templateVersion": "1.0.2"
+              },
+              "helpText": "Freitext aus FHIR dosage.text.",
+              "required": false
+            },
+            {
+              "id": "verabreichungsweg",
+              "name": "vg_medicationadministration.v1.0.2_verabreichungsweg",
+              "type": "input-text",
+              "label": "Verabreichungsweg",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[at0140]/items[at0147]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/details_zur_verabreichung/verabreichungsweg",
+                "rmVersion": "v1",
+                "templateId": "vg_MedicationAdministration.v1.0.2",
+                "archetypeId": "openEHR-EHR-ACTION.medication.v1",
+                "templateAlias": "vg_medicationadministration.v1.0.2",
+                "archetypeNodeId": "at0147",
+                "templateVersion": "1.0.2"
+              },
+              "required": false
+            },
+            {
+              "id": "ausfuehrende_person",
+              "name": "vg_medicationadministration.v1.0.2_text_value_4",
+              "type": "input-text",
+              "label": "Ausführende Person",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[openEHR-EHR-CLUSTER.person.v1]/items[at0003]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/person/identifikator/text_value",
+                "rmVersion": "v1",
+                "templateId": "vg_MedicationAdministration.v1.0.2",
+                "archetypeId": "openEHR-EHR-CLUSTER.person.v1",
+                "templateAlias": "vg_medicationadministration.v1.0.2",
+                "archetypeNodeId": "at0003",
+                "templateVersion": "1.0.2"
+              },
+              "helpText": "Identifikator bzw. Anzeige des FHIR performer.actor.",
+              "required": false
+            },
+            {
+              "id": "id_der_verordnung",
+              "name": "vg_medicationadministration.v1.0.2_id_der_verordnung",
+              "type": "input-text",
+              "label": "ID der Verordnung",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.medication.v1]/protocol[at0030]/items[at0103]/value",
+                "rmType": "DV_IDENTIFIER",
+                "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/id_der_verordnung",
+                "rmVersion": "v1",
+                "templateId": "vg_MedicationAdministration.v1.0.2",
+                "archetypeId": "openEHR-EHR-ACTION.medication.v1",
+                "templateAlias": "vg_medicationadministration.v1.0.2",
+                "archetypeNodeId": "at0103",
+                "templateVersion": "1.0.2"
+              },
+              "helpText": "FHIR request.identifier.",
+              "required": false
+            },
+            {
+              "id": "klinische_indikation",
+              "name": "vg_medicationadministration.v1.0.2_klinische_indikation",
+              "type": "input-text",
+              "label": "Klinische Indikation",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[at0156]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/klinische_indikation",
+                "rmVersion": "v1",
+                "templateId": "vg_MedicationAdministration.v1.0.2",
+                "archetypeId": "openEHR-EHR-ACTION.medication.v1",
+                "templateAlias": "vg_medicationadministration.v1.0.2",
+                "archetypeNodeId": "at0156",
+                "templateVersion": "1.0.2"
+              },
+              "required": false
+            },
+            {
+              "id": "patientenanweisung",
+              "name": "vg_medicationadministration.v1.0.2_patientenanweisung",
+              "type": "input-text",
+              "label": "Patientenanweisung",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[at0033]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/patientenanweisung",
+                "rmVersion": "v1",
+                "templateId": "vg_MedicationAdministration.v1.0.2",
+                "archetypeId": "openEHR-EHR-ACTION.medication.v1",
+                "templateAlias": "vg_medicationadministration.v1.0.2",
+                "archetypeNodeId": "at0033",
+                "templateVersion": "1.0.2"
+              },
+              "required": false
+            },
+            {
+              "id": "kommentar_3",
+              "name": "vg_medicationadministration.v1.0.2_kommentar_3",
+              "type": "input-text",
+              "label": "Kommentar",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[at0024]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/kommentar",
+                "rmVersion": "v1",
+                "templateId": "vg_MedicationAdministration.v1.0.2",
+                "archetypeId": "openEHR-EHR-ACTION.medication.v1",
+                "templateAlias": "vg_medicationadministration.v1.0.2",
+                "archetypeNodeId": "at0024",
+                "templateVersion": "1.0.2"
+              },
+              "required": false
+            }
+          ]
+        }
+      ]
+    },
+    "status": "published",
+    "locales": {
+      "en": {
+        "[name='vg_medicationadministration.v1.0.2_name']": {
+          "label": "Medication name"
+        },
+        "[name='vg_medicationadministration.v1.0.2_kommentar_3']": {
+          "label": "Comment"
+        },
+        "[name='vg_medicationadministration.v1.0.2_beschreibung']": {
+          "label": "Medication description"
+        },
+        "[name='vg_medicationadministration.v1.0.2_text_value_4']": {
+          "label": "Performer"
+        },
+        "[name='vg_medicationadministration.v1.0.2_quantity_value']": {
+          "label": "Administered dose"
+        },
+        "[name='vg_medicationadministration.v1.0.2_dosisbeschreibung']": {
+          "label": "Dose description"
+        },
+        "[name='vg_medicationadministration.v1.0.2_id_der_verordnung']": {
+          "label": "Request identifier"
+        },
+        "[name='vg_medicationadministration.v1.0.2_verabreichungsweg']": {
+          "label": "Route"
+        },
+        "[name='vg_medicationadministration.v1.0.2_patientenanweisung']": {
+          "label": "Patient instruction"
+        },
+        "[name='vg_medicationadministration.v1.0.2_klinische_indikation']": {
+          "label": "Clinical indication"
+        }
+      }
+    },
+    "version": "1.1.0",
+    "bindings": {
+      "vg_medicationadministration.v1.0.2_name": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[openEHR-EHR-CLUSTER.medication.v2]/items[at0132]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/arzneimittel2/name",
+          "rmVersion": "v2",
+          "templateId": "vg_MedicationAdministration.v1.0.2",
+          "archetypeId": "openEHR-EHR-CLUSTER.medication.v2",
+          "templateAlias": "vg_medicationadministration.v1.0.2",
+          "archetypeNodeId": "at0132",
+          "templateVersion": "1.0.2"
+        }
+      },
+      "vg_medicationadministration.v1.0.2_kommentar_3": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[at0024]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/kommentar",
+          "rmVersion": "v1",
+          "templateId": "vg_MedicationAdministration.v1.0.2",
+          "archetypeId": "openEHR-EHR-ACTION.medication.v1",
+          "templateAlias": "vg_medicationadministration.v1.0.2",
+          "archetypeNodeId": "at0024",
+          "templateVersion": "1.0.2"
+        }
+      },
+      "vg_medicationadministration.v1.0.2_beschreibung": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[openEHR-EHR-CLUSTER.medication.v2]/items[at0133]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/arzneimittel2/beschreibung",
+          "rmVersion": "v2",
+          "templateId": "vg_MedicationAdministration.v1.0.2",
+          "archetypeId": "openEHR-EHR-CLUSTER.medication.v2",
+          "templateAlias": "vg_medicationadministration.v1.0.2",
+          "archetypeNodeId": "at0133",
+          "templateVersion": "1.0.2"
+        }
+      },
+      "vg_medicationadministration.v1.0.2_text_value_4": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[openEHR-EHR-CLUSTER.person.v1]/items[at0003]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/person/identifikator/text_value",
+          "rmVersion": "v1",
+          "templateId": "vg_MedicationAdministration.v1.0.2",
+          "archetypeId": "openEHR-EHR-CLUSTER.person.v1",
+          "templateAlias": "vg_medicationadministration.v1.0.2",
+          "archetypeNodeId": "at0003",
+          "templateVersion": "1.0.2"
+        }
+      },
+      "vg_medicationadministration.v1.0.2_quantity_value": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[openEHR-EHR-CLUSTER.dosage.v2]/items[at0144]/value",
+          "rmType": "DV_QUANTITY",
+          "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/dosierung/dosis/quantity_value",
+          "rmVersion": "v2",
+          "templateId": "vg_MedicationAdministration.v1.0.2",
+          "archetypeId": "openEHR-EHR-CLUSTER.dosage.v2",
+          "templateAlias": "vg_medicationadministration.v1.0.2",
+          "archetypeNodeId": "at0144",
+          "templateVersion": "1.0.2"
+        }
+      },
+      "vg_medicationadministration.v1.0.2_dosisbeschreibung": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[openEHR-EHR-CLUSTER.dosage.v2]/items[at0178]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/dosierung/dosisbeschreibung",
+          "rmVersion": "v2",
+          "templateId": "vg_MedicationAdministration.v1.0.2",
+          "archetypeId": "openEHR-EHR-CLUSTER.dosage.v2",
+          "templateAlias": "vg_medicationadministration.v1.0.2",
+          "archetypeNodeId": "at0178",
+          "templateVersion": "1.0.2"
+        }
+      },
+      "vg_medicationadministration.v1.0.2_id_der_verordnung": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.medication.v1]/protocol[at0030]/items[at0103]/value",
+          "rmType": "DV_IDENTIFIER",
+          "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/id_der_verordnung",
+          "rmVersion": "v1",
+          "templateId": "vg_MedicationAdministration.v1.0.2",
+          "archetypeId": "openEHR-EHR-ACTION.medication.v1",
+          "templateAlias": "vg_medicationadministration.v1.0.2",
+          "archetypeNodeId": "at0103",
+          "templateVersion": "1.0.2"
+        }
+      },
+      "vg_medicationadministration.v1.0.2_verabreichungsweg": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[at0140]/items[at0147]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/details_zur_verabreichung/verabreichungsweg",
+          "rmVersion": "v1",
+          "templateId": "vg_MedicationAdministration.v1.0.2",
+          "archetypeId": "openEHR-EHR-ACTION.medication.v1",
+          "templateAlias": "vg_medicationadministration.v1.0.2",
+          "archetypeNodeId": "at0147",
+          "templateVersion": "1.0.2"
+        }
+      },
+      "vg_medicationadministration.v1.0.2_patientenanweisung": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[at0033]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/patientenanweisung",
+          "rmVersion": "v1",
+          "templateId": "vg_MedicationAdministration.v1.0.2",
+          "archetypeId": "openEHR-EHR-ACTION.medication.v1",
+          "templateAlias": "vg_medicationadministration.v1.0.2",
+          "archetypeNodeId": "at0033",
+          "templateVersion": "1.0.2"
+        }
+      },
+      "vg_medicationadministration.v1.0.2_klinische_indikation": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[at0156]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_medicationadministration.v1.0.2/arzneimittelanwendung/klinische_indikation",
+          "rmVersion": "v1",
+          "templateId": "vg_MedicationAdministration.v1.0.2",
+          "archetypeId": "openEHR-EHR-ACTION.medication.v1",
+          "templateAlias": "vg_medicationadministration.v1.0.2",
+          "archetypeNodeId": "at0156",
+          "templateVersion": "1.0.2"
+        }
+      }
+    },
+    "revision": 3,
+    "extensions": {
+      "formbuilder.scripting": {
+        "operations": [],
+        "allowedOperations": []
+      }
+    },
+    "formScript": {
+      "language": "typescript",
+      "source": "import { defineFormScript } from \"@formbuilder/runtime\";\n\nexport default defineFormScript(() => {});\n",
+      "compiled": "\nexport default defineFormScript(() => { });\n//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZm9ybS1zY3JpcHQuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyJmb3JtLXNjcmlwdC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQSxPQUFPLEVBQUUsZ0JBQWdCLEVBQUUsTUFBTSxzQkFBc0IsQ0FBQztBQUV4RCxlQUFlLGdCQUFnQixDQUFDLEdBQUcsRUFBRSxHQUFFLENBQUMsQ0FBQyxDQUFDIiwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHsgZGVmaW5lRm9ybVNjcmlwdCB9IGZyb20gXCJAZm9ybWJ1aWxkZXIvcnVudGltZVwiO1xuXG5leHBvcnQgZGVmYXVsdCBkZWZpbmVGb3JtU2NyaXB0KCgpID0+IHt9KTtcbiJdfQ==",
+      "generatedTypes": "declare module \"@formbuilder/runtime\" {\n  export type MaybePromise<T> = T | Promise<T>;\n  export type ChangeSource = \"user\" | \"script\" | \"load\" | \"api\" | \"computed\";\n  export type FieldId = \"vg_medicationadministration.v1.0.2_beschreibung\" | \"vg_medicationadministration.v1.0.2_dosisbeschreibung\" | \"vg_medicationadministration.v1.0.2_id_der_verordnung\" | \"vg_medicationadministration.v1.0.2_klinische_indikation\" | \"vg_medicationadministration.v1.0.2_kommentar_3\" | \"vg_medicationadministration.v1.0.2_name\" | \"vg_medicationadministration.v1.0.2_patientenanweisung\" | \"vg_medicationadministration.v1.0.2_quantity_value\" | \"vg_medicationadministration.v1.0.2_text_value_4\" | \"vg_medicationadministration.v1.0.2_verabreichungsweg\";\n  export type GroupId = \"arzneimittelanwendung\";\n  export type RepeatableGroupId = never;\n  export type SectionId = never;\n  export type TabId = never;\n  export type ButtonId = never;\n  export type TextId = never;\n  export type AlertId = never;\n  export type ConnectorOperation = never;\n\n  export interface GroupItems {\n    [groupId: string]: never;\n  }\n\n  export interface FormValues {\n    \"vg_medicationadministration.v1.0.2_name\": string | null;\n    \"vg_medicationadministration.v1.0.2_beschreibung\": string | null;\n    \"vg_medicationadministration.v1.0.2_quantity_value\": { magnitude: number; unit: string } | null;\n    \"vg_medicationadministration.v1.0.2_dosisbeschreibung\": string | null;\n    \"vg_medicationadministration.v1.0.2_verabreichungsweg\": string | null;\n    \"vg_medicationadministration.v1.0.2_text_value_4\": string | null;\n    \"vg_medicationadministration.v1.0.2_id_der_verordnung\": string | null;\n    \"vg_medicationadministration.v1.0.2_klinische_indikation\": string | null;\n    \"vg_medicationadministration.v1.0.2_patientenanweisung\": string | null;\n    \"vg_medicationadministration.v1.0.2_kommentar_3\": string | null;\n\n  }\n\n  export interface ConnectorInputs {\n    [operation: string]: never;\n  }\n\n  export interface ConnectorOutputs {\n    [operation: string]: never;\n  }\n\n  export interface ConnectorCatalog {\n    [connector: string]: never;\n  }\n\n  export interface ChangeEvent<T> {\n    value: T;\n    previousValue: T;\n    source: ChangeSource;\n    initialLoad: boolean;\n    signal: AbortSignal;\n  }\n\n  export interface SetValueOptions { emitChange?: boolean; }\n  export interface ChangeHandlerOptions { debounce?: number; cancelPrevious?: boolean; }\n  export interface FieldApi<T> {\n    readonly value: T | undefined;\n    setValue(value: T, options?: SetValueOptions): void;\n    clear(options?: SetValueOptions): void;\n    onChange(handler: (event: ChangeEvent<T>) => MaybePromise<void>, options?: ChangeHandlerOptions): void;\n    validate(handler: (value: T | undefined, context: ValidationContext) => MaybePromise<string | null | undefined>): void;\n  }\n\n  export interface GroupChangeEvent<T> {\n    index: number;\n    field: keyof T & FieldId;\n    fieldId: keyof T & FieldId;\n    value: T[keyof T];\n    previousValue: T[keyof T];\n    source: ChangeSource;\n  }\n\n  export interface GroupApi<T extends Record<string, unknown>> {\n    readonly items: readonly Readonly<T>[];\n    addItem(initial?: Partial<T>): number;\n    removeItem(index: number): void;\n    replaceItems(items: readonly T[]): void;\n    onAddItem(handler: (event: { index: number; item: Readonly<T> }) => MaybePromise<void>): void;\n    onRemoveItem(handler: (event: { index: number; item: Readonly<T> }) => MaybePromise<void>): void;\n    onItemChange(handler: (event: GroupChangeEvent<T>) => MaybePromise<void>): void;\n  }\n\n  export interface ComputedConfig<K extends FieldId, D extends readonly FieldId[]> {\n    dependsOn: D;\n    persist?: boolean;\n    calculate(values: Pick<FormValues, D[number]>): MaybePromise<FormValues[K]>;\n  }\n\n  export interface ValidationContext {\n    readonly form: FormApi;\n  }\n\n  export interface FormApi {\n    readonly values: Partial<FormValues>;\n    readonly errors: Partial<Record<FieldId, string>>;\n    field<K extends FieldId>(id: K): FieldApi<FormValues[K]>;\n    group<K extends RepeatableGroupId>(id: K): GroupApi<GroupItems[K]>;\n    updateValues(values: Partial<FormValues>): void;\n    computed<K extends FieldId, D extends readonly FieldId[]>(id: K, config: ComputedConfig<K, D>): void;\n    setErrors(errors: Partial<Record<FieldId, string | null | undefined>>): void;\n    isValid(): boolean;\n  }\n\n  export interface UiState {\n    visible?: boolean;\n    enabled?: boolean;\n    readonly?: boolean;\n    required?: boolean;\n  }\n\n  export interface UiComponentApi {\n    show(): void;\n    hide(): void;\n    enable(): void;\n    disable(): void;\n    setVisible(value: boolean): void;\n    setEnabled(value: boolean): void;\n    setReadonly(value: boolean): void;\n    setRequired(value: boolean): void;\n    setState(state: UiState): void;\n  }\n\n  export interface UiFieldApi extends UiComponentApi {\n    setLabel(value: string): void;\n    setPlaceholder(value: string): void;\n    setHelpText(value: string): void;\n    setOptions(options: readonly { value: string; label: string }[]): void;\n    onFocus(handler: () => MaybePromise<void>): void;\n    onBlur(handler: () => MaybePromise<void>): void;\n  }\n\n  export interface UiButtonApi extends UiComponentApi {\n    onClick(handler: () => MaybePromise<void>): void;\n    setLoading(value: boolean): void;\n  }\n\n  export interface UiApi {\n    field<K extends FieldId>(id: K): UiFieldApi;\n    group(id: GroupId): UiComponentApi;\n    section(id: SectionId): UiComponentApi;\n    tab(id: TabId): UiComponentApi;\n    button(id: ButtonId): UiButtonApi;\n    toast: {\n      success(message: string): void;\n      error(message: string): void;\n      info(message: string): void;\n      warning(message: string): void;\n    };\n  }\n\n  export interface LifecycleEvent {\n    cancel(message?: string): void;\n  }\n\n  export interface EventApi {\n    beforeLoad(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterLoad(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    beforeSave(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterSave(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    beforeSubmit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterSubmit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onInit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onReset(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onValidation(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onDestroy(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n  }\n\n  export interface FormScriptContext {\n    formId: string;\n    formVersion: string;\n    templateId?: string;\n    patientId?: string;\n    ehrId?: string;\n    encounterId?: string;\n    sessionId?: string;\n    locale: string;\n    mode: \"create\" | \"edit\" | \"view\" | \"preview\";\n    user: { id?: string; displayName?: string; roles: string[] };\n    /** Latest Flat Composition for the form template. It is read-only context, never field values. */\n    composition?: {\n      ehrId: string;\n      templateId: string;\n      reference?: string;\n      flat: Record<string, unknown>;\n      loadedAt: string;\n    };\n    /** Results of enabled, autoloaded AQL functions, keyed as \"package.name\". */\n    aql: Record<string, unknown>;\n  }\n\n  export interface StateApi {\n    get<T = unknown>(key: string): T | undefined;\n    set<T = unknown>(key: string, value: T): void;\n    delete(key: string): void;\n  }\n\n  export interface LoggerApi {\n    debug(message: string, details?: unknown): void;\n    info(message: string, details?: unknown): void;\n    warn(message: string, details?: unknown): void;\n    error(message: string | unknown, error?: unknown): void;\n  }\n\n  export interface ApiCallOptions {\n    signal?: AbortSignal;\n    timeoutMs?: number;\n  }\n\n  export interface Api {\n    call<K extends ConnectorOperation>(\n      operation: K,\n      input: ConnectorInputs[K],\n      options?: ApiCallOptions,\n    ): Promise<ConnectorOutputs[K]>;\n    request<C extends keyof ConnectorCatalog & string, O extends keyof ConnectorCatalog[C] & string>(\n      request: {\n        connector: C;\n        operation: O;\n        input: ConnectorCatalog[C][O] extends { input: infer I } ? I : never;\n      },\n      options?: ApiCallOptions,\n    ): Promise<ConnectorCatalog[C][O] extends { output: infer R } ? R : never>;\n  }\n\n  export interface FormScriptSdk {\n    form: FormApi;\n    ui: UiApi;\n    api: Api;\n    context: FormScriptContext;\n    /** Synchronous, browser-safe functions contributed by installed function packages. */\n    functions: Record<string, Record<string, (...args: unknown[]) => unknown>>;\n    state: StateApi;\n    events: EventApi;\n    logger: LoggerApi;\n  }\n\n  export function defineFormScript(\n    setup: (sdk: FormScriptSdk) => MaybePromise<void>,\n  ): (sdk: FormScriptSdk) => MaybePromise<void>;\n}\n",
+      "diagnostics": [],
+      "compiledAt": "2026-09-01T12:42:17.611Z"
+    },
+    "schemaVersion": "1.0",
+    "sourceTemplates": [
+      {
+        "id": "vg_MedicationAdministration.v1.0.2",
+        "type": "openEhrWebTemplate",
+        "alias": "vg_medicationadministration.v1.0.2",
+        "version": "1.0.2"
+      }
+    ]
+  }
+}

@@ -1,0 +1,447 @@
+{
+  "exportVersion": "1.0",
+  "form": {
+    "id": "66f056d4-de67-4650-8732-0b131a5152b1",
+    "name": "Person (Basis)",
+    "layout": {
+      "type": "form",
+      "children": [
+        {
+          "id": "name",
+          "name": "name",
+          "type": "container",
+          "label": "Name",
+          "children": [
+            {
+              "id": "vorname",
+              "name": "vg_person.v1.1.1_vorname",
+              "type": "input-text",
+              "label": "Vorname",
+              "binding": {
+                "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.structured_name.v1 and name/value='Name']/items[at0002]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_person.v1.1.1/personendaten/person/name/vorname",
+                "rmVersion": "v0",
+                "templateId": "vg_Person.v1.1.1",
+                "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+                "templateAlias": "vg_person.v1.1.1",
+                "archetypeNodeId": "at0002",
+                "templateVersion": "1.1.1"
+              },
+              "required": true,
+              "repeatMax": -1,
+              "repeatMin": 1,
+              "repeatable": true
+            },
+            {
+              "id": "familienname",
+              "name": "vg_person.v1.1.1_familienname",
+              "type": "input-text",
+              "label": "Familienname",
+              "binding": {
+                "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.structured_name.v1 and name/value='Name']/items[at0005 and name/value='Familienname']/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_person.v1.1.1/personendaten/person/name/familienname",
+                "rmVersion": "v0",
+                "templateId": "vg_Person.v1.1.1",
+                "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+                "templateAlias": "vg_person.v1.1.1",
+                "archetypeNodeId": "at0001",
+                "templateVersion": "1.1.1"
+              },
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "stammdaten",
+          "name": "stammdaten",
+          "type": "container",
+          "label": "Stammdaten",
+          "children": [
+            {
+              "id": "administratives_geschlecht",
+              "name": "vg_person.v1.1.1_administratives_geschlecht",
+              "type": "input-text",
+              "label": "Administratives Geschlecht",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.gender.v1]/data[at0002]/items[at0022]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_person.v1.1.1/geschlecht/administratives_geschlecht",
+                "rmVersion": "v1",
+                "templateId": "vg_Person.v1.1.1",
+                "archetypeId": "openEHR-EHR-EVALUATION.gender.v1",
+                "templateAlias": "vg_person.v1.1.1",
+                "archetypeNodeId": "at0022",
+                "templateVersion": "1.1.1"
+              },
+              "helpText": "Amtlich erfasstes Geschlecht laut Personenstand.",
+              "required": false
+            },
+            {
+              "id": "geburtsdatum",
+              "name": "vg_person.v1.1.1_geburtsdatum",
+              "type": "input-date",
+              "label": "Geburtsdatum",
+              "binding": {
+                "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person_birth_data_iso.v0]/items[at0001]/value",
+                "rmType": "DV_DATE",
+                "flatPath": "vg_person.v1.1.1/personendaten/daten_zur_geburt/geburtsdatum",
+                "rmVersion": "v0",
+                "templateId": "vg_Person.v1.1.1",
+                "archetypeId": "openEHR-EHR-CLUSTER.person_birth_data_iso.v0",
+                "templateAlias": "vg_person.v1.1.1",
+                "archetypeNodeId": "at0001",
+                "templateVersion": "1.1.1"
+              },
+              "required": true
+            },
+            {
+              "id": "vitalstatus",
+              "name": "vg_person.v1.1.1_vitalstatus",
+              "type": "input-select",
+              "label": "Vitalstatus",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.vital_status.v1]/data[at0001]/items[at0006]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_person.v1.1.1/vitalstatus/vitalstatus",
+                "rmVersion": "v1",
+                "templateId": "vg_Person.v1.1.1",
+                "archetypeId": "openEHR-EHR-EVALUATION.vital_status.v1",
+                "templateAlias": "vg_person.v1.1.1",
+                "archetypeNodeId": "at0006",
+                "templateVersion": "1.1.1"
+              },
+              "options": [
+                {
+                  "text": "Patient lebt",
+                  "value": "L"
+                },
+                {
+                  "text": "Patient verstorben",
+                  "value": "T"
+                },
+                {
+                  "text": "unbekannt, Patient nicht mehr auffindbar (lost to follow-up)",
+                  "value": "A"
+                },
+                {
+                  "text": "unbekannt, Betreuung/Nachsorge nicht mehr nötig",
+                  "value": "N"
+                },
+                {
+                  "text": "unbekannt, Patient ist anderenorts in Betreuung",
+                  "value": "B"
+                },
+                {
+                  "text": "unbekannt, Patient verweigert weitere Betreuung",
+                  "value": "V"
+                },
+                {
+                  "text": "unbekannt",
+                  "value": "X"
+                }
+              ],
+              "helpText": "Lebt die Person aktuell, oder ist sie verstorben?",
+              "required": true,
+              "uiElement": "Autocomplete",
+              "defaultValue": "L"
+            }
+          ]
+        },
+        {
+          "id": "anschrift",
+          "name": "anschrift",
+          "type": "container",
+          "label": "Anschrift",
+          "children": [
+            {
+              "id": "straße",
+              "name": "vg_person.v1.1.1_straße",
+              "type": "input-text",
+              "label": "Straße",
+              "binding": {
+                "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.address.v1 and name/value='Straßenanschrift']/items[at0001 and name/value='Straße']/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_person.v1.1.1/personendaten/person/straßenanschrift/straße",
+                "rmVersion": "v0",
+                "templateId": "vg_Person.v1.1.1",
+                "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+                "templateAlias": "vg_person.v1.1.1",
+                "archetypeNodeId": "at0001",
+                "templateVersion": "1.1.1"
+              },
+              "required": false
+            },
+            {
+              "id": "hausnummer",
+              "name": "vg_person.v1.1.1_hausnummer",
+              "type": "input-text",
+              "label": "Hausnummer",
+              "binding": {
+                "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.address.v1 and name/value='Straßenanschrift']/items[at0001 and name/value='Hausnummer']/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_person.v1.1.1/personendaten/person/straßenanschrift/hausnummer",
+                "rmVersion": "v0",
+                "templateId": "vg_Person.v1.1.1",
+                "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+                "templateAlias": "vg_person.v1.1.1",
+                "archetypeNodeId": "at0001",
+                "templateVersion": "1.1.1"
+              },
+              "required": false
+            },
+            {
+              "id": "postleitzahl",
+              "name": "vg_person.v1.1.1_postleitzahl",
+              "type": "input-text",
+              "label": "Postleitzahl",
+              "binding": {
+                "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.address.v1 and name/value='Straßenanschrift']/items[at0005]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_person.v1.1.1/personendaten/person/straßenanschrift/postleitzahl",
+                "rmVersion": "v0",
+                "templateId": "vg_Person.v1.1.1",
+                "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+                "templateAlias": "vg_person.v1.1.1",
+                "archetypeNodeId": "at0005",
+                "templateVersion": "1.1.1"
+              },
+              "required": false
+            },
+            {
+              "id": "stadt_gemeinde",
+              "name": "vg_person.v1.1.1_stadt_gemeinde",
+              "type": "input-text",
+              "label": "Stadt / Gemeinde",
+              "binding": {
+                "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.address.v1 and name/value='Straßenanschrift']/items[at0002 and name/value='Stadt / Gemeinde']/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_person.v1.1.1/personendaten/person/straßenanschrift/stadt_gemeinde",
+                "rmVersion": "v0",
+                "templateId": "vg_Person.v1.1.1",
+                "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+                "templateAlias": "vg_person.v1.1.1",
+                "archetypeNodeId": "at0001",
+                "templateVersion": "1.1.1"
+              },
+              "required": false
+            },
+            {
+              "id": "land",
+              "name": "vg_person.v1.1.1_land",
+              "type": "input-select",
+              "label": "Land",
+              "binding": {
+                "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.address.v1 and name/value='Straßenanschrift']/items[at0006]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_person.v1.1.1/personendaten/person/straßenanschrift/land",
+                "rmVersion": "v0",
+                "templateId": "vg_Person.v1.1.1",
+                "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+                "templateAlias": "vg_person.v1.1.1",
+                "archetypeNodeId": "at0006",
+                "templateVersion": "1.1.1"
+              },
+              "required": false,
+              "uiElement": "CodedWithOther",
+              "allowFreeText": true
+            }
+          ]
+        }
+      ]
+    },
+    "status": "published",
+    "locales": {
+      "en": {
+        "[name='vg_person.v1.1.1_land']": {
+          "label": "Land"
+        },
+        "[name='vg_person.v1.1.1_straße']": {
+          "label": "Straße"
+        },
+        "[name='vg_person.v1.1.1_vorname']": {
+          "label": "Vorname"
+        },
+        "[name='vg_person.v1.1.1_hausnummer']": {
+          "label": "Hausnummer"
+        },
+        "[name='vg_person.v1.1.1_vitalstatus']": {
+          "label": "Vitalstatus"
+        },
+        "[name='vg_person.v1.1.1_familienname']": {
+          "label": "Familienname"
+        },
+        "[name='vg_person.v1.1.1_geburtsdatum']": {
+          "label": "Geburtsdatum"
+        },
+        "[name='vg_person.v1.1.1_postleitzahl']": {
+          "label": "Postleitzahl"
+        },
+        "[name='vg_person.v1.1.1_stadt_gemeinde']": {
+          "label": "Stadt / Gemeinde"
+        },
+        "[name='vg_person.v1.1.1_administratives_geschlecht']": {
+          "label": "Administratives Geschlecht"
+        }
+      }
+    },
+    "version": "1.0.0",
+    "bindings": {
+      "vg_person.v1.1.1_land": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.address.v1 and name/value='Straßenanschrift']/items[at0006]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_person.v1.1.1/personendaten/person/straßenanschrift/land",
+          "rmVersion": "v0",
+          "templateId": "vg_Person.v1.1.1",
+          "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+          "templateAlias": "vg_person.v1.1.1",
+          "archetypeNodeId": "at0006",
+          "templateVersion": "1.1.1"
+        }
+      },
+      "vg_person.v1.1.1_straße": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.address.v1 and name/value='Straßenanschrift']/items[at0001 and name/value='Straße']/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_person.v1.1.1/personendaten/person/straßenanschrift/straße",
+          "rmVersion": "v0",
+          "templateId": "vg_Person.v1.1.1",
+          "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+          "templateAlias": "vg_person.v1.1.1",
+          "archetypeNodeId": "at0001",
+          "templateVersion": "1.1.1"
+        }
+      },
+      "vg_person.v1.1.1_vorname": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.structured_name.v1 and name/value='Name']/items[at0002]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_person.v1.1.1/personendaten/person/name/vorname",
+          "rmVersion": "v0",
+          "templateId": "vg_Person.v1.1.1",
+          "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+          "templateAlias": "vg_person.v1.1.1",
+          "archetypeNodeId": "at0002",
+          "templateVersion": "1.1.1"
+        }
+      },
+      "vg_person.v1.1.1_hausnummer": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.address.v1 and name/value='Straßenanschrift']/items[at0001 and name/value='Hausnummer']/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_person.v1.1.1/personendaten/person/straßenanschrift/hausnummer",
+          "rmVersion": "v0",
+          "templateId": "vg_Person.v1.1.1",
+          "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+          "templateAlias": "vg_person.v1.1.1",
+          "archetypeNodeId": "at0001",
+          "templateVersion": "1.1.1"
+        }
+      },
+      "vg_person.v1.1.1_vitalstatus": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.vital_status.v1]/data[at0001]/items[at0006]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_person.v1.1.1/vitalstatus/vitalstatus",
+          "rmVersion": "v1",
+          "templateId": "vg_Person.v1.1.1",
+          "archetypeId": "openEHR-EHR-EVALUATION.vital_status.v1",
+          "templateAlias": "vg_person.v1.1.1",
+          "archetypeNodeId": "at0006",
+          "templateVersion": "1.1.1"
+        }
+      },
+      "vg_person.v1.1.1_familienname": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.structured_name.v1 and name/value='Name']/items[at0005 and name/value='Familienname']/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_person.v1.1.1/personendaten/person/name/familienname",
+          "rmVersion": "v0",
+          "templateId": "vg_Person.v1.1.1",
+          "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+          "templateAlias": "vg_person.v1.1.1",
+          "archetypeNodeId": "at0001",
+          "templateVersion": "1.1.1"
+        }
+      },
+      "vg_person.v1.1.1_geburtsdatum": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person_birth_data_iso.v0]/items[at0001]/value",
+          "rmType": "DV_DATE",
+          "flatPath": "vg_person.v1.1.1/personendaten/daten_zur_geburt/geburtsdatum",
+          "rmVersion": "v0",
+          "templateId": "vg_Person.v1.1.1",
+          "archetypeId": "openEHR-EHR-CLUSTER.person_birth_data_iso.v0",
+          "templateAlias": "vg_person.v1.1.1",
+          "archetypeNodeId": "at0001",
+          "templateVersion": "1.1.1"
+        }
+      },
+      "vg_person.v1.1.1_postleitzahl": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.address.v1 and name/value='Straßenanschrift']/items[at0005]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_person.v1.1.1/personendaten/person/straßenanschrift/postleitzahl",
+          "rmVersion": "v0",
+          "templateId": "vg_Person.v1.1.1",
+          "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+          "templateAlias": "vg_person.v1.1.1",
+          "archetypeNodeId": "at0005",
+          "templateVersion": "1.1.1"
+        }
+      },
+      "vg_person.v1.1.1_stadt_gemeinde": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ADMIN_ENTRY.person_data.v0]/data[at0001]/items[openEHR-EHR-CLUSTER.person.v1 and name/value='Person']/items[openEHR-EHR-CLUSTER.address.v1 and name/value='Straßenanschrift']/items[at0002 and name/value='Stadt / Gemeinde']/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_person.v1.1.1/personendaten/person/straßenanschrift/stadt_gemeinde",
+          "rmVersion": "v0",
+          "templateId": "vg_Person.v1.1.1",
+          "archetypeId": "openEHR-EHR-ADMIN_ENTRY.person_data.v0",
+          "templateAlias": "vg_person.v1.1.1",
+          "archetypeNodeId": "at0001",
+          "templateVersion": "1.1.1"
+        }
+      },
+      "vg_person.v1.1.1_administratives_geschlecht": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.gender.v1]/data[at0002]/items[at0022]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_person.v1.1.1/geschlecht/administratives_geschlecht",
+          "rmVersion": "v1",
+          "templateId": "vg_Person.v1.1.1",
+          "archetypeId": "openEHR-EHR-EVALUATION.gender.v1",
+          "templateAlias": "vg_person.v1.1.1",
+          "archetypeNodeId": "at0022",
+          "templateVersion": "1.1.1"
+        }
+      }
+    },
+    "revision": 2,
+    "extensions": {
+      "formbuilder.scripting": {
+        "operations": [],
+        "allowedOperations": []
+      }
+    },
+    "formScript": {
+      "language": "typescript",
+      "source": "import { defineFormScript } from \"@formbuilder/runtime\";\n\nexport default defineFormScript(({ form, ui, events, logger }) => {\n  // Formularspezifische Logik\n});\n",
+      "compiled": "\nexport default defineFormScript(({ form, ui, events, logger }) => {\n    // Formularspezifische Logik\n});\n//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZm9ybS1zY3JpcHQuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyJmb3JtLXNjcmlwdC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQSxPQUFPLEVBQUUsZ0JBQWdCLEVBQUUsTUFBTSxzQkFBc0IsQ0FBQztBQUV4RCxlQUFlLGdCQUFnQixDQUFDLENBQUMsRUFBRSxJQUFJLEVBQUUsRUFBRSxFQUFFLE1BQU0sRUFBRSxNQUFNLEVBQUUsRUFBRSxFQUFFO0lBQy9ELDRCQUE0QjtBQUM5QixDQUFDLENBQUMsQ0FBQyIsInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IGRlZmluZUZvcm1TY3JpcHQgfSBmcm9tIFwiQGZvcm1idWlsZGVyL3J1bnRpbWVcIjtcblxuZXhwb3J0IGRlZmF1bHQgZGVmaW5lRm9ybVNjcmlwdCgoeyBmb3JtLCB1aSwgZXZlbnRzLCBsb2dnZXIgfSkgPT4ge1xuICAvLyBGb3JtdWxhcnNwZXppZmlzY2hlIExvZ2lrXG59KTtcbiJdfQ==",
+      "generatedTypes": "declare module \"@formbuilder/runtime\" {\n  export type MaybePromise<T> = T | Promise<T>;\n  export type ChangeSource = \"user\" | \"script\" | \"load\" | \"api\" | \"computed\";\n  export type FieldId = \"vg_person.v1.1.1_administratives_geschlecht\" | \"vg_person.v1.1.1_familienname\" | \"vg_person.v1.1.1_geburtsdatum\" | \"vg_person.v1.1.1_hausnummer\" | \"vg_person.v1.1.1_land\" | \"vg_person.v1.1.1_postleitzahl\" | \"vg_person.v1.1.1_stadt_gemeinde\" | \"vg_person.v1.1.1_straße\" | \"vg_person.v1.1.1_vitalstatus\" | \"vg_person.v1.1.1_vorname\";\n  export type GroupId = \"anschrift\" | \"name\" | \"stammdaten\";\n  export type RepeatableGroupId = never;\n  export type SectionId = never;\n  export type TabId = never;\n  export type ButtonId = never;\n  export type TextId = never;\n  export type AlertId = never;\n  export type ConnectorOperation = never;\n\n  export interface GroupItems {\n    [groupId: string]: never;\n  }\n\n  export interface FormValues {\n    \"vg_person.v1.1.1_vorname\": string | null;\n    \"vg_person.v1.1.1_familienname\": string | null;\n    \"vg_person.v1.1.1_administratives_geschlecht\": string | null;\n    \"vg_person.v1.1.1_geburtsdatum\": string | null;\n    \"vg_person.v1.1.1_vitalstatus\": \"L\" | \"T\" | \"A\" | \"N\" | \"B\" | \"V\" | \"X\" | null;\n    \"vg_person.v1.1.1_straße\": string | null;\n    \"vg_person.v1.1.1_hausnummer\": string | null;\n    \"vg_person.v1.1.1_postleitzahl\": string | null;\n    \"vg_person.v1.1.1_stadt_gemeinde\": string | null;\n    \"vg_person.v1.1.1_land\": string | null;\n\n  }\n\n  export interface ConnectorInputs {\n    [operation: string]: never;\n  }\n\n  export interface ConnectorOutputs {\n    [operation: string]: never;\n  }\n\n  export interface ConnectorCatalog {\n    [connector: string]: never;\n  }\n\n  export interface ChangeEvent<T> {\n    value: T;\n    previousValue: T;\n    source: ChangeSource;\n    initialLoad: boolean;\n    signal: AbortSignal;\n  }\n\n  export interface SetValueOptions { emitChange?: boolean; }\n  export interface ChangeHandlerOptions { debounce?: number; cancelPrevious?: boolean; }\n  export interface FieldApi<T> {\n    readonly value: T | undefined;\n    setValue(value: T, options?: SetValueOptions): void;\n    clear(options?: SetValueOptions): void;\n    onChange(handler: (event: ChangeEvent<T>) => MaybePromise<void>, options?: ChangeHandlerOptions): void;\n    validate(handler: (value: T | undefined, context: ValidationContext) => MaybePromise<string | null | undefined>): void;\n  }\n\n  export interface GroupChangeEvent<T> {\n    index: number;\n    field: keyof T & FieldId;\n    fieldId: keyof T & FieldId;\n    value: T[keyof T];\n    previousValue: T[keyof T];\n    source: ChangeSource;\n  }\n\n  export interface GroupApi<T extends Record<string, unknown>> {\n    readonly items: readonly Readonly<T>[];\n    addItem(initial?: Partial<T>): number;\n    removeItem(index: number): void;\n    replaceItems(items: readonly T[]): void;\n    onAddItem(handler: (event: { index: number; item: Readonly<T> }) => MaybePromise<void>): void;\n    onRemoveItem(handler: (event: { index: number; item: Readonly<T> }) => MaybePromise<void>): void;\n    onItemChange(handler: (event: GroupChangeEvent<T>) => MaybePromise<void>): void;\n  }\n\n  export interface ComputedConfig<K extends FieldId, D extends readonly FieldId[]> {\n    dependsOn: D;\n    persist?: boolean;\n    calculate(values: Pick<FormValues, D[number]>): MaybePromise<FormValues[K]>;\n  }\n\n  export interface ValidationContext {\n    readonly form: FormApi;\n  }\n\n  export interface FormApi {\n    readonly values: Partial<FormValues>;\n    readonly errors: Partial<Record<FieldId, string>>;\n    field<K extends FieldId>(id: K): FieldApi<FormValues[K]>;\n    group<K extends RepeatableGroupId>(id: K): GroupApi<GroupItems[K]>;\n    updateValues(values: Partial<FormValues>): void;\n    computed<K extends FieldId, D extends readonly FieldId[]>(id: K, config: ComputedConfig<K, D>): void;\n    setErrors(errors: Partial<Record<FieldId, string | null | undefined>>): void;\n    isValid(): boolean;\n  }\n\n  export interface UiState {\n    visible?: boolean;\n    enabled?: boolean;\n    readonly?: boolean;\n    required?: boolean;\n  }\n\n  export interface UiComponentApi {\n    show(): void;\n    hide(): void;\n    enable(): void;\n    disable(): void;\n    setVisible(value: boolean): void;\n    setEnabled(value: boolean): void;\n    setReadonly(value: boolean): void;\n    setRequired(value: boolean): void;\n    setState(state: UiState): void;\n  }\n\n  export interface UiFieldApi extends UiComponentApi {\n    setLabel(value: string): void;\n    setPlaceholder(value: string): void;\n    setHelpText(value: string): void;\n    setOptions(options: readonly { value: string; label: string }[]): void;\n    onFocus(handler: () => MaybePromise<void>): void;\n    onBlur(handler: () => MaybePromise<void>): void;\n  }\n\n  export interface UiButtonApi extends UiComponentApi {\n    onClick(handler: () => MaybePromise<void>): void;\n    setLoading(value: boolean): void;\n  }\n\n  export interface UiApi {\n    field<K extends FieldId>(id: K): UiFieldApi;\n    group(id: GroupId): UiComponentApi;\n    section(id: SectionId): UiComponentApi;\n    tab(id: TabId): UiComponentApi;\n    button(id: ButtonId): UiButtonApi;\n    toast: {\n      success(message: string): void;\n      error(message: string): void;\n      info(message: string): void;\n      warning(message: string): void;\n    };\n  }\n\n  export interface LifecycleEvent {\n    cancel(message?: string): void;\n  }\n\n  export interface EventApi {\n    beforeLoad(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterLoad(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    beforeSave(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterSave(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    beforeSubmit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterSubmit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onInit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onReset(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onValidation(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onDestroy(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n  }\n\n  export interface FormScriptContext {\n    formId: string;\n    formVersion: string;\n    templateId?: string;\n    patientId?: string;\n    ehrId?: string;\n    encounterId?: string;\n    sessionId?: string;\n    locale: string;\n    mode: \"create\" | \"edit\" | \"view\" | \"preview\";\n    user: { id?: string; displayName?: string; roles: string[] };\n    /** Latest Flat Composition for the form template. It is read-only context, never field values. */\n    composition?: {\n      ehrId: string;\n      templateId: string;\n      reference?: string;\n      flat: Record<string, unknown>;\n      loadedAt: string;\n    };\n    /** Results of enabled, autoloaded AQL functions, keyed as \"package.name\". */\n    aql: Record<string, unknown>;\n  }\n\n  export interface StateApi {\n    get<T = unknown>(key: string): T | undefined;\n    set<T = unknown>(key: string, value: T): void;\n    delete(key: string): void;\n  }\n\n  export interface LoggerApi {\n    debug(message: string, details?: unknown): void;\n    info(message: string, details?: unknown): void;\n    warn(message: string, details?: unknown): void;\n    error(message: string | unknown, error?: unknown): void;\n  }\n\n  export interface ApiCallOptions {\n    signal?: AbortSignal;\n    timeoutMs?: number;\n  }\n\n  export interface Api {\n    call<K extends ConnectorOperation>(\n      operation: K,\n      input: ConnectorInputs[K],\n      options?: ApiCallOptions,\n    ): Promise<ConnectorOutputs[K]>;\n    request<C extends keyof ConnectorCatalog & string, O extends keyof ConnectorCatalog[C] & string>(\n      request: {\n        connector: C;\n        operation: O;\n        input: ConnectorCatalog[C][O] extends { input: infer I } ? I : never;\n      },\n      options?: ApiCallOptions,\n    ): Promise<ConnectorCatalog[C][O] extends { output: infer R } ? R : never>;\n  }\n\n  export interface FormScriptSdk {\n    form: FormApi;\n    ui: UiApi;\n    api: Api;\n    context: FormScriptContext;\n    /** Synchronous, browser-safe functions contributed by installed function packages. */\n    functions: Record<string, Record<string, (...args: unknown[]) => unknown>>;\n    state: StateApi;\n    events: EventApi;\n    logger: LoggerApi;\n  }\n\n  export function defineFormScript(\n    setup: (sdk: FormScriptSdk) => MaybePromise<void>,\n  ): (sdk: FormScriptSdk) => MaybePromise<void>;\n}\n",
+      "diagnostics": [],
+      "compiledAt": "2026-08-31T19:18:50.665Z"
+    },
+    "schemaVersion": "1.0",
+    "sourceTemplates": [
+      {
+        "id": "vg_Person.v1.1.1",
+        "type": "openEhrWebTemplate",
+        "alias": "vg_person.v1.1.1",
+        "version": "1.1.1"
+      }
+    ]
+  }
+}

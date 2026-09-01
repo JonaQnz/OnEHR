@@ -1,0 +1,697 @@
+{
+  "exportVersion": "1.0",
+  "form": {
+    "id": "2e06e44e-1b9a-40c4-bc5b-d7efc139abe1",
+    "name": "Diagnose (Basis)",
+    "layout": {
+      "type": "form",
+      "children": [
+        {
+          "id": "hauptdiagnose",
+          "name": "hauptdiagnose",
+          "type": "container",
+          "label": "Hauptdiagnose",
+          "children": [
+            {
+              "id": "diagnose_name",
+              "name": "diagnose_name",
+              "type": "input-text",
+              "label": "Diagnose",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0002]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/problem_diagnosis_name",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0002"
+              },
+              "helpText": "ICD-10-GM-Code ist Pflicht – ohne echten Code ist der Diagnoseexport nach FHIR unvollständig.",
+              "readOnly": false,
+              "required": true,
+              "validation": {},
+              "description": "",
+              "placeholder": "",
+              "codeMappings": {
+                "enabled": true,
+                "allowMultiple": true,
+                "terminologies": [
+                  {
+                    "id": "http://fhir.de/CodeSystem/dimdi/icd-10-gm",
+                    "label": "ICD-10-GM"
+                  }
+                ],
+                "requireMapping": true
+              }
+            },
+            {
+              "id": "diagnose_kategorie",
+              "name": "diagnose_kategorie",
+              "type": "input-text",
+              "label": "Diagnosekategorie",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.problem_qualifier.v2]/items[at0063]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/problem_diagnosis_qualifier/diagnostic_category",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "archetypeId": "openEHR-EHR-CLUSTER.problem_qualifier.v2",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0063"
+              },
+              "helpText": "z.B. Principal diagnosis / Secondary diagnosis / Complication – Kategorie-Code ist Pflicht, da er entscheidend für die FHIR-Kategorisierung ist.",
+              "readOnly": false,
+              "required": true,
+              "validation": {},
+              "description": "",
+              "placeholder": "",
+              "codeMappings": {
+                "enabled": true,
+                "allowMultiple": false,
+                "terminologies": [
+                  {
+                    "id": "https://hip.vitagroup.ag/sid/condition-category-code",
+                    "label": "Kategorie-Code (HIP)"
+                  }
+                ],
+                "requireMapping": true
+              }
+            },
+            {
+              "id": "diagnose_status",
+              "name": "diagnose_status",
+              "type": "input-select",
+              "label": "Status",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.problem_qualifier.v2]/items[at0003]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/problem_diagnosis_qualifier/active_inactive",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "archetypeId": "openEHR-EHR-CLUSTER.problem_qualifier.v2",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0003"
+              },
+              "options": [
+                {
+                  "text": "Aktiv",
+                  "value": "at0026",
+                  "rmValue": "Active"
+                },
+                {
+                  "text": "Inaktiv",
+                  "value": "at0027",
+                  "rmValue": "Inactive"
+                }
+              ],
+              "helpText": "Ist die Diagnose aktuell aktiv oder inaktiv?",
+              "readOnly": false,
+              "required": true,
+              "uiElement": "Dropdown",
+              "validation": {},
+              "description": "",
+              "placeholder": "",
+              "defaultValue": "at0026"
+            },
+            {
+              "id": "diagnose_diagnosestatus",
+              "name": "diagnose_diagnosestatus",
+              "type": "input-select",
+              "label": "Diagnosestatus",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.problem_qualifier.v2]/items[at0004]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/problem_diagnosis_qualifier/diagnostic_status",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "archetypeId": "openEHR-EHR-CLUSTER.problem_qualifier.v2",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0004"
+              },
+              "options": [
+                {
+                  "text": "Vorläufig",
+                  "value": "at0016",
+                  "rmValue": "Preliminary"
+                },
+                {
+                  "text": "In Bearbeitung",
+                  "value": "at0017",
+                  "rmValue": "Working"
+                },
+                {
+                  "text": "Gesichert",
+                  "value": "at0018",
+                  "rmValue": "Established"
+                },
+                {
+                  "text": "Verworfen",
+                  "value": "at0088",
+                  "rmValue": "Refuted"
+                }
+              ],
+              "helpText": "Wie gesichert ist die Diagnosestellung selbst (unabhängig von der klinischen Diagnosesicherheit unten)?",
+              "readOnly": false,
+              "required": true,
+              "uiElement": "Dropdown",
+              "validation": {},
+              "description": "",
+              "placeholder": "",
+              "defaultValue": "at0017"
+            },
+            {
+              "id": "diagnose_sicherheit",
+              "name": "diagnose_sicherheit",
+              "type": "input-select",
+              "label": "Diagnosesicherheit",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0073]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/diagnostic_certainty",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0073"
+              },
+              "options": [
+                {
+                  "text": "Vermutet",
+                  "value": "at0074",
+                  "rmValue": "Suspected"
+                },
+                {
+                  "text": "Wahrscheinlich",
+                  "value": "at0075",
+                  "rmValue": "Probable"
+                },
+                {
+                  "text": "Bestätigt",
+                  "value": "at0076",
+                  "rmValue": "Confirmed"
+                }
+              ],
+              "helpText": "Startet vorsichtig bei „Vermutet“ – bitte aktiv auf „Bestätigt“ setzen, sobald die Diagnose gesichert ist.",
+              "readOnly": false,
+              "required": true,
+              "uiElement": "Dropdown",
+              "validation": {},
+              "description": "",
+              "placeholder": "",
+              "defaultValue": "at0074"
+            },
+            {
+              "id": "diagnose_schweregrad",
+              "name": "diagnose_schweregrad",
+              "type": "input-select",
+              "label": "Schweregrad",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0005]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/severity",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0005"
+              },
+              "options": [
+                {
+                  "text": "Leicht",
+                  "value": "at0047",
+                  "rmValue": "Mild"
+                },
+                {
+                  "text": "Mäßig",
+                  "value": "at0048",
+                  "rmValue": "Moderate"
+                },
+                {
+                  "text": "Schwer",
+                  "value": "at0049",
+                  "rmValue": "Severe"
+                }
+              ],
+              "helpText": "Optional – nur ausfüllen, wenn ein Schweregrad klinisch beurteilt wurde.",
+              "readOnly": false,
+              "required": false,
+              "uiElement": "Dropdown",
+              "validation": {},
+              "description": "",
+              "placeholder": ""
+            },
+            {
+              "id": "diagnose_beginn",
+              "name": "diagnose_beginn",
+              "type": "input-date-time",
+              "label": "Beginn",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0077]/value",
+                "rmType": "DV_DATE_TIME",
+                "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/date_time_of_onset",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0077"
+              },
+              "helpText": "",
+              "readOnly": false,
+              "required": false,
+              "validation": {},
+              "description": "",
+              "placeholder": "",
+              "showTimeSelect": true,
+              "showTimeSelectOnly": false
+            },
+            {
+              "id": "diagnose_erkannt_am",
+              "name": "diagnose_erkannt_am",
+              "type": "input-date-time",
+              "label": "Klinisch erkannt am",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0003]/value",
+                "rmType": "DV_DATE_TIME",
+                "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/date_time_clinically_recognised",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0003"
+              },
+              "helpText": "",
+              "readOnly": false,
+              "required": false,
+              "validation": {},
+              "description": "",
+              "placeholder": "",
+              "showTimeSelect": true,
+              "showTimeSelectOnly": false
+            },
+            {
+              "id": "diagnose_beschreibung",
+              "name": "diagnose_beschreibung",
+              "type": "input-text",
+              "label": "Klinische Beschreibung",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0009]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/clinical_description",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0009"
+              },
+              "helpText": "",
+              "readOnly": false,
+              "required": false,
+              "validation": {},
+              "description": "",
+              "placeholder": ""
+            },
+            {
+              "id": "diagnose_lokalisation",
+              "name": "diagnose_lokalisation",
+              "type": "input-text",
+              "label": "Lokalisation",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0012]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/body_site",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0012"
+              },
+              "helpText": "",
+              "readOnly": false,
+              "required": false,
+              "validation": {},
+              "description": "",
+              "placeholder": ""
+            },
+            {
+              "id": "diagnose_ursache",
+              "name": "diagnose_ursache",
+              "type": "input-text",
+              "label": "Ursache",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0078]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/cause",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0078"
+              },
+              "helpText": "",
+              "readOnly": false,
+              "required": false,
+              "validation": {},
+              "description": "",
+              "placeholder": ""
+            },
+            {
+              "id": "diagnose_icd_mehrfachcodierung",
+              "name": "diagnose_icd_mehrfachcodierung",
+              "type": "input-select",
+              "label": "ICD-10-GM Mehrfachcodierung (Ätiologie † / Manifestation *)",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.multiple_coding_icd10gm.v1]/items[at0001]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/multiple_coding_icd-10-gm/multiple_coding_identifier",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "archetypeId": "openEHR-EHR-CLUSTER.multiple_coding_icd10gm.v1",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0001"
+              },
+              "options": [
+                {
+                  "text": "† Ätiologie",
+                  "value": "at0002"
+                },
+                {
+                  "text": "* Manifestation",
+                  "value": "at0003"
+                },
+                {
+                  "text": "! Zusatzinformation",
+                  "value": "at0004"
+                }
+              ],
+              "helpText": "Nur ausfüllen, wenn diese Diagnose Teil einer ICD-10-GM-Kreuz-Stern-Mehrfachcodierung ist – betrifft die wenigsten Diagnosen.",
+              "readOnly": false,
+              "required": false,
+              "uiElement": "Dropdown",
+              "validation": {},
+              "description": "",
+              "placeholder": ""
+            },
+            {
+              "id": "diagnose_kommentar",
+              "name": "diagnose_kommentar",
+              "type": "input-text",
+              "label": "Kommentar",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0069]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/comment",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0069"
+              },
+              "helpText": "",
+              "readOnly": false,
+              "required": false,
+              "validation": {},
+              "description": "",
+              "placeholder": ""
+            }
+          ]
+        },
+        {
+          "id": "nebendiagnosen",
+          "name": "nebendiagnosen",
+          "type": "container",
+          "label": "Nebendiagnosen",
+          "children": [
+            {
+              "id": "nebendiagnose_name",
+              "name": "nebendiagnose_name",
+              "type": "input-text",
+              "label": "Diagnose",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='secondary diagnosis']/data[at0001]/items[at0002]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/secondary_diagnosis/problem_diagnosis_name",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0002"
+              },
+              "helpText": "ICD-10-GM-Code ist Pflicht – ohne echten Code ist der Diagnoseexport nach FHIR unvollständig.",
+              "readOnly": false,
+              "required": true,
+              "validation": {},
+              "description": "",
+              "placeholder": "",
+              "codeMappings": {
+                "enabled": true,
+                "allowMultiple": true,
+                "terminologies": [
+                  {
+                    "id": "http://fhir.de/CodeSystem/dimdi/icd-10-gm",
+                    "label": "ICD-10-GM"
+                  }
+                ],
+                "requireMapping": true
+              }
+            },
+            {
+              "id": "nebendiagnose_sicherheit",
+              "name": "nebendiagnose_sicherheit",
+              "type": "input-select",
+              "label": "Diagnosesicherheit",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='secondary diagnosis']/data[at0001]/items[at0073]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/secondary_diagnosis/diagnostic_certainty",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0073"
+              },
+              "options": [
+                {
+                  "text": "Vermutet",
+                  "value": "at0074",
+                  "rmValue": "Suspected"
+                },
+                {
+                  "text": "Wahrscheinlich",
+                  "value": "at0075",
+                  "rmValue": "Probable"
+                },
+                {
+                  "text": "Bestätigt",
+                  "value": "at0076",
+                  "rmValue": "Confirmed"
+                }
+              ],
+              "helpText": "Startet vorsichtig bei „Vermutet“ – bitte aktiv auf „Bestätigt“ setzen, sobald die Diagnose gesichert ist.",
+              "readOnly": false,
+              "required": true,
+              "uiElement": "Dropdown",
+              "validation": {},
+              "description": "",
+              "placeholder": "",
+              "defaultValue": "at0074"
+            },
+            {
+              "id": "nebendiagnose_kommentar",
+              "name": "nebendiagnose_kommentar",
+              "type": "input-text",
+              "label": "Kommentar",
+              "binding": {
+                "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='secondary diagnosis']/data[at0001]/items[at0069]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_diagnosis.v1.1.1/secondary_diagnosis/comment",
+                "templateId": "vg_Diagnosis.v1.1.1",
+                "templateAlias": "vg_diagnosis.v1.1.1",
+                "archetypeNodeId": "at0069"
+              },
+              "helpText": "",
+              "readOnly": false,
+              "required": false,
+              "validation": {},
+              "description": "",
+              "placeholder": ""
+            }
+          ],
+          "repeatMax": -1,
+          "repeatMin": 0,
+          "repeatable": true,
+          "description": "Optional - beliebig viele weitere Diagnosen hinzufügen."
+        }
+      ]
+    },
+    "status": "published",
+    "locales": {
+      "en": {}
+    },
+    "version": "1.10.0",
+    "bindings": {
+      "diagnose_name": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0002]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/problem_diagnosis_name",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0002"
+        }
+      },
+      "diagnose_beginn": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0077]/value",
+          "rmType": "DV_DATE_TIME",
+          "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/date_time_of_onset",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0077"
+        }
+      },
+      "diagnose_status": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.problem_qualifier.v2]/items[at0003]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/problem_diagnosis_qualifier/active_inactive",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "archetypeId": "openEHR-EHR-CLUSTER.problem_qualifier.v2",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0003"
+        }
+      },
+      "diagnose_ursache": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0078]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/cause",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0078"
+        }
+      },
+      "diagnose_kategorie": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.problem_qualifier.v2]/items[at0063]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/problem_diagnosis_qualifier/diagnostic_category",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "archetypeId": "openEHR-EHR-CLUSTER.problem_qualifier.v2",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0063"
+        }
+      },
+      "diagnose_kommentar": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0069]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/comment",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0069"
+        }
+      },
+      "nebendiagnose_name": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='secondary diagnosis']/data[at0001]/items[at0002]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/secondary_diagnosis/problem_diagnosis_name",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0002"
+        }
+      },
+      "diagnose_erkannt_am": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0003]/value",
+          "rmType": "DV_DATE_TIME",
+          "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/date_time_clinically_recognised",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0003"
+        }
+      },
+      "diagnose_sicherheit": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0073]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/diagnostic_certainty",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0073"
+        }
+      },
+      "diagnose_schweregrad": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0005]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/severity",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0005"
+        }
+      },
+      "diagnose_beschreibung": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0009]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/clinical_description",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0009"
+        }
+      },
+      "diagnose_lokalisation": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0012]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/body_site",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0012"
+        }
+      },
+      "diagnose_diagnosestatus": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.problem_qualifier.v2]/items[at0004]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/problem_diagnosis_qualifier/diagnostic_status",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "archetypeId": "openEHR-EHR-CLUSTER.problem_qualifier.v2",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0004"
+        }
+      },
+      "nebendiagnose_kommentar": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='secondary diagnosis']/data[at0001]/items[at0069]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/secondary_diagnosis/comment",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0069"
+        }
+      },
+      "nebendiagnose_sicherheit": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='secondary diagnosis']/data[at0001]/items[at0073]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/secondary_diagnosis/diagnostic_certainty",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0073"
+        }
+      },
+      "diagnose_icd_mehrfachcodierung": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.multiple_coding_icd10gm.v1]/items[at0001]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_diagnosis.v1.1.1/primary_diagnosis/multiple_coding_icd-10-gm/multiple_coding_identifier",
+          "templateId": "vg_Diagnosis.v1.1.1",
+          "archetypeId": "openEHR-EHR-CLUSTER.multiple_coding_icd10gm.v1",
+          "templateAlias": "vg_diagnosis.v1.1.1",
+          "archetypeNodeId": "at0001"
+        }
+      }
+    },
+    "revision": 2,
+    "extensions": {
+      "formbuilder.scripting": {
+        "operations": [],
+        "allowedOperations": []
+      }
+    },
+    "formScript": {
+      "language": "typescript",
+      "source": "import { defineFormScript } from \"@formbuilder/runtime\";\n\nexport default defineFormScript(({ form, ui, events, logger }) => {\n  // Formularspezifische Logik\n});\n",
+      "compiled": "\nexport default defineFormScript(({ form, ui, events, logger }) => {\n    // Formularspezifische Logik\n});\n//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZm9ybS1zY3JpcHQuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyJmb3JtLXNjcmlwdC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQSxPQUFPLEVBQUUsZ0JBQWdCLEVBQUUsTUFBTSxzQkFBc0IsQ0FBQztBQUV4RCxlQUFlLGdCQUFnQixDQUFDLENBQUMsRUFBRSxJQUFJLEVBQUUsRUFBRSxFQUFFLE1BQU0sRUFBRSxNQUFNLEVBQUUsRUFBRSxFQUFFO0lBQy9ELDRCQUE0QjtBQUM5QixDQUFDLENBQUMsQ0FBQyIsInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IGRlZmluZUZvcm1TY3JpcHQgfSBmcm9tIFwiQGZvcm1idWlsZGVyL3J1bnRpbWVcIjtcblxuZXhwb3J0IGRlZmF1bHQgZGVmaW5lRm9ybVNjcmlwdCgoeyBmb3JtLCB1aSwgZXZlbnRzLCBsb2dnZXIgfSkgPT4ge1xuICAvLyBGb3JtdWxhcnNwZXppZmlzY2hlIExvZ2lrXG59KTtcbiJdfQ==",
+      "generatedTypes": "declare module \"@formbuilder/runtime\" {\n  export type MaybePromise<T> = T | Promise<T>;\n  export type ChangeSource = \"user\" | \"script\" | \"load\" | \"api\" | \"computed\";\n  export type FieldId = \"diagnose_beginn\" | \"diagnose_beschreibung\" | \"diagnose_diagnosestatus\" | \"diagnose_erkannt_am\" | \"diagnose_icd_mehrfachcodierung\" | \"diagnose_kategorie\" | \"diagnose_kommentar\" | \"diagnose_lokalisation\" | \"diagnose_name\" | \"diagnose_schweregrad\" | \"diagnose_sicherheit\" | \"diagnose_status\" | \"diagnose_ursache\" | \"nebendiagnose_kommentar\" | \"nebendiagnose_name\" | \"nebendiagnose_sicherheit\";\n  export type GroupId = \"hauptdiagnose\" | \"nebendiagnosen\";\n  export type RepeatableGroupId = \"nebendiagnosen\";\n  export type SectionId = never;\n  export type TabId = never;\n  export type ButtonId = never;\n  export type TextId = never;\n  export type AlertId = never;\n  export type ConnectorOperation = never;\n\n  export interface GroupItems {\n    \"nebendiagnosen\": {\n      \"nebendiagnose_name\": string | null;\n      \"nebendiagnose_sicherheit\": \"at0074\" | \"at0075\" | \"at0076\" | null;\n      \"nebendiagnose_kommentar\": string | null;\n    };\n  }\n\n  export interface FormValues {\n    \"diagnose_name\": string | null;\n    \"diagnose_kategorie\": string | null;\n    \"diagnose_status\": \"at0026\" | \"at0027\" | null;\n    \"diagnose_diagnosestatus\": \"at0016\" | \"at0017\" | \"at0018\" | \"at0088\" | null;\n    \"diagnose_sicherheit\": \"at0074\" | \"at0075\" | \"at0076\" | null;\n    \"diagnose_schweregrad\": \"at0047\" | \"at0048\" | \"at0049\" | null;\n    \"diagnose_beginn\": string | null;\n    \"diagnose_erkannt_am\": string | null;\n    \"diagnose_beschreibung\": string | null;\n    \"diagnose_lokalisation\": string | null;\n    \"diagnose_ursache\": string | null;\n    \"diagnose_icd_mehrfachcodierung\": \"at0002\" | \"at0003\" | \"at0004\" | null;\n    \"diagnose_kommentar\": string | null;\n    \"nebendiagnose_name\": string | null;\n    \"nebendiagnose_sicherheit\": \"at0074\" | \"at0075\" | \"at0076\" | null;\n    \"nebendiagnose_kommentar\": string | null;\n\n    \"nebendiagnosen\": GroupItems[\"nebendiagnosen\"][];\n  }\n\n  export interface ConnectorInputs {\n    [operation: string]: never;\n  }\n\n  export interface ConnectorOutputs {\n    [operation: string]: never;\n  }\n\n  export interface ConnectorCatalog {\n    [connector: string]: never;\n  }\n\n  export interface ChangeEvent<T> {\n    value: T;\n    previousValue: T;\n    source: ChangeSource;\n    initialLoad: boolean;\n    signal: AbortSignal;\n  }\n\n  export interface SetValueOptions { emitChange?: boolean; }\n  export interface ChangeHandlerOptions { debounce?: number; cancelPrevious?: boolean; }\n  export interface FieldApi<T> {\n    readonly value: T | undefined;\n    setValue(value: T, options?: SetValueOptions): void;\n    clear(options?: SetValueOptions): void;\n    onChange(handler: (event: ChangeEvent<T>) => MaybePromise<void>, options?: ChangeHandlerOptions): void;\n    validate(handler: (value: T | undefined, context: ValidationContext) => MaybePromise<string | null | undefined>): void;\n  }\n\n  export interface GroupChangeEvent<T> {\n    index: number;\n    field: keyof T & FieldId;\n    fieldId: keyof T & FieldId;\n    value: T[keyof T];\n    previousValue: T[keyof T];\n    source: ChangeSource;\n  }\n\n  export interface GroupApi<T extends Record<string, unknown>> {\n    readonly items: readonly Readonly<T>[];\n    addItem(initial?: Partial<T>): number;\n    removeItem(index: number): void;\n    replaceItems(items: readonly T[]): void;\n    onAddItem(handler: (event: { index: number; item: Readonly<T> }) => MaybePromise<void>): void;\n    onRemoveItem(handler: (event: { index: number; item: Readonly<T> }) => MaybePromise<void>): void;\n    onItemChange(handler: (event: GroupChangeEvent<T>) => MaybePromise<void>): void;\n  }\n\n  export interface ComputedConfig<K extends FieldId, D extends readonly FieldId[]> {\n    dependsOn: D;\n    persist?: boolean;\n    calculate(values: Pick<FormValues, D[number]>): MaybePromise<FormValues[K]>;\n  }\n\n  export interface ValidationContext {\n    readonly form: FormApi;\n  }\n\n  export interface FormApi {\n    readonly values: Partial<FormValues>;\n    readonly errors: Partial<Record<FieldId, string>>;\n    field<K extends FieldId>(id: K): FieldApi<FormValues[K]>;\n    group<K extends RepeatableGroupId>(id: K): GroupApi<GroupItems[K]>;\n    updateValues(values: Partial<FormValues>): void;\n    computed<K extends FieldId, D extends readonly FieldId[]>(id: K, config: ComputedConfig<K, D>): void;\n    setErrors(errors: Partial<Record<FieldId, string | null | undefined>>): void;\n    isValid(): boolean;\n  }\n\n  export interface UiState {\n    visible?: boolean;\n    enabled?: boolean;\n    readonly?: boolean;\n    required?: boolean;\n  }\n\n  export interface UiComponentApi {\n    show(): void;\n    hide(): void;\n    enable(): void;\n    disable(): void;\n    setVisible(value: boolean): void;\n    setEnabled(value: boolean): void;\n    setReadonly(value: boolean): void;\n    setRequired(value: boolean): void;\n    setState(state: UiState): void;\n  }\n\n  export interface UiFieldApi extends UiComponentApi {\n    setLabel(value: string): void;\n    setPlaceholder(value: string): void;\n    setHelpText(value: string): void;\n    setOptions(options: readonly { value: string; label: string }[]): void;\n    onFocus(handler: () => MaybePromise<void>): void;\n    onBlur(handler: () => MaybePromise<void>): void;\n  }\n\n  export interface UiButtonApi extends UiComponentApi {\n    onClick(handler: () => MaybePromise<void>): void;\n    setLoading(value: boolean): void;\n  }\n\n  export interface UiApi {\n    field<K extends FieldId>(id: K): UiFieldApi;\n    group(id: GroupId): UiComponentApi;\n    section(id: SectionId): UiComponentApi;\n    tab(id: TabId): UiComponentApi;\n    button(id: ButtonId): UiButtonApi;\n    toast: {\n      success(message: string): void;\n      error(message: string): void;\n      info(message: string): void;\n      warning(message: string): void;\n    };\n  }\n\n  export interface LifecycleEvent {\n    cancel(message?: string): void;\n  }\n\n  export interface EventApi {\n    beforeLoad(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterLoad(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    beforeSave(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterSave(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    beforeSubmit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterSubmit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onInit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onReset(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onValidation(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onDestroy(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n  }\n\n  export interface FormScriptContext {\n    formId: string;\n    formVersion: string;\n    templateId?: string;\n    patientId?: string;\n    ehrId?: string;\n    encounterId?: string;\n    sessionId?: string;\n    locale: string;\n    mode: \"create\" | \"edit\" | \"view\" | \"preview\";\n    user: { id?: string; displayName?: string; roles: string[] };\n    /** Latest Flat Composition for the form template. It is read-only context, never field values. */\n    composition?: {\n      ehrId: string;\n      templateId: string;\n      reference?: string;\n      flat: Record<string, unknown>;\n      loadedAt: string;\n    };\n    /** Results of enabled, autoloaded AQL functions, keyed as \"package.name\". */\n    aql: Record<string, unknown>;\n  }\n\n  export interface StateApi {\n    get<T = unknown>(key: string): T | undefined;\n    set<T = unknown>(key: string, value: T): void;\n    delete(key: string): void;\n  }\n\n  export interface LoggerApi {\n    debug(message: string, details?: unknown): void;\n    info(message: string, details?: unknown): void;\n    warn(message: string, details?: unknown): void;\n    error(message: string | unknown, error?: unknown): void;\n  }\n\n  export interface ApiCallOptions {\n    signal?: AbortSignal;\n    timeoutMs?: number;\n  }\n\n  export interface Api {\n    call<K extends ConnectorOperation>(\n      operation: K,\n      input: ConnectorInputs[K],\n      options?: ApiCallOptions,\n    ): Promise<ConnectorOutputs[K]>;\n    request<C extends keyof ConnectorCatalog & string, O extends keyof ConnectorCatalog[C] & string>(\n      request: {\n        connector: C;\n        operation: O;\n        input: ConnectorCatalog[C][O] extends { input: infer I } ? I : never;\n      },\n      options?: ApiCallOptions,\n    ): Promise<ConnectorCatalog[C][O] extends { output: infer R } ? R : never>;\n  }\n\n  export interface FormScriptSdk {\n    form: FormApi;\n    ui: UiApi;\n    api: Api;\n    context: FormScriptContext;\n    /** Synchronous, browser-safe functions contributed by installed function packages. */\n    functions: Record<string, Record<string, (...args: unknown[]) => unknown>>;\n    state: StateApi;\n    events: EventApi;\n    logger: LoggerApi;\n  }\n\n  export function defineFormScript(\n    setup: (sdk: FormScriptSdk) => MaybePromise<void>,\n  ): (sdk: FormScriptSdk) => MaybePromise<void>;\n}\n",
+      "diagnostics": [],
+      "compiledAt": "2026-09-01T07:58:55.967Z"
+    },
+    "schemaVersion": "1.0",
+    "sourceTemplates": [
+      {
+        "id": "vg_Diagnosis.v1.1.1",
+        "type": "openEhrWebTemplate",
+        "alias": "vg_diagnosis.v1.1.1",
+        "version": "1.1.1"
+      }
+    ]
+  }
+}
