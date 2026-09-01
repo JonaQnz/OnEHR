@@ -3,15 +3,15 @@ const test = require('node:test');
 const { toOpenEhrFlatComposition, fromOpenEhrFlatComposition } = require('../dist');
 
 // codeMappings.enabled DV_TEXT fields (core.CodeMappedTextValue) in the
-// FLAT-format read/write path - see index.ts's setFlatValue/readCodeMappings
-// for the `path/_mappings/N|...` convention. Unlike canonical-composition
-// .test.js's coverage of the same feature (confirmed against a real
-// production Composition), this file's exact flat-key convention is a
-// best-effort match to EHRbase's documented underscore-prefixed structural-
-// attribute pattern, not verified against a live EHRbase instance - the
-// tests below only guarantee this app's own write/read halves stay
-// consistent with each other (a round trip), not that EHRbase itself
-// accepts these exact keys.
+// FLAT-format read/write path - see index.ts's writeCodeMappingsFlat/
+// readCodeMappings for the `path/mappings/N|...` convention. Originally
+// written with a leading-underscore `_mappings` guess (mirroring `_uid`/
+// `_name`'s structural-meta-attribute convention) and marked unverified;
+// confirmed live against EHRbase 2026-09-01 that the underscore is wrong
+// and gets the whole composition rejected ("Could not consume Parts") -
+// `mappings` is DV_TEXT's own plain RM attribute name, not a meta-
+// attribute, so it takes no prefix. See coded-text-rmvalue.test.js's
+// sibling file for the DV_CODED_TEXT-bound case this same fix covers.
 //
 // No webTemplateTree/pathMap is supplied in any test here, so
 // resolveFlatPath() falls back to the binding's own `path` verbatim
@@ -33,15 +33,15 @@ function definitionFor(codeMappings) {
   };
 }
 
-test('writes a codeMappings.enabled field\'s text to the bare path, and each mapping under path/_mappings/N', () => {
+test('writes a codeMappings.enabled field\'s text to the bare path, and each mapping under path/mappings/N', () => {
   const definition = definitionFor({ enabled: true, terminologies: [{ id: 'http://fhir.de/CodeSystem/dimdi/icd-10-gm', label: 'ICD-10-GM' }] });
   const flat = toOpenEhrFlatComposition(definition, {
     diagnosis_name: { value: 'Diagnose Text', mappings: [{ terminologyId: 'http://fhir.de/CodeSystem/dimdi/icd-10-gm', code: 'F16.0' }] },
   });
   assert.equal(flat[PATH], 'Diagnose Text');
-  assert.equal(flat[`${PATH}/_mappings/0|match`], '=');
-  assert.equal(flat[`${PATH}/_mappings/0/target|code`], 'F16.0');
-  assert.equal(flat[`${PATH}/_mappings/0/target|terminology`], 'http://fhir.de/CodeSystem/dimdi/icd-10-gm');
+  assert.equal(flat[`${PATH}/mappings/0|match`], '=');
+  assert.equal(flat[`${PATH}/mappings/0/target|code`], 'F16.0');
+  assert.equal(flat[`${PATH}/mappings/0/target|terminology`], 'http://fhir.de/CodeSystem/dimdi/icd-10-gm');
 });
 
 test('preserves an explicit non-default match type', () => {
@@ -49,14 +49,14 @@ test('preserves an explicit non-default match type', () => {
   const flat = toOpenEhrFlatComposition(definition, {
     diagnosis_name: { value: '00010002218401', mappings: [{ terminologyId: 'condition.id', code: '00010002218401', match: '?' }] },
   });
-  assert.equal(flat[`${PATH}/_mappings/0|match`], '?');
+  assert.equal(flat[`${PATH}/mappings/0|match`], '?');
 });
 
-test('a field with no mapping entered yet writes only the bare text, no _mappings keys at all', () => {
+test('a field with no mapping entered yet writes only the bare text, no mappings keys at all', () => {
   const definition = definitionFor({ enabled: true, terminologies: [{ id: 'icd10gm', label: 'ICD-10-GM' }] });
   const flat = toOpenEhrFlatComposition(definition, { diagnosis_name: { value: 'Nur Text' } });
   assert.equal(flat[PATH], 'Nur Text');
-  assert.equal(Object.keys(flat).some((key) => key.includes('_mappings')), false);
+  assert.equal(Object.keys(flat).some((key) => key.includes('mappings')), false);
 });
 
 test('a codeMappings-disabled DV_TEXT field is completely unaffected - plain string in, plain string out', () => {
@@ -97,8 +97,8 @@ test('a malformed/partial mapping group (missing target|terminology) is dropped 
   const definition = definitionFor({ enabled: true, terminologies: [{ id: 'icd10gm', label: 'ICD-10-GM' }] });
   const flat = {
     [PATH]: 'Diagnose',
-    [`${PATH}/_mappings/0|match`]: '=',
-    [`${PATH}/_mappings/0/target|code`]: 'F16.0',
+    [`${PATH}/mappings/0|match`]: '=',
+    [`${PATH}/mappings/0/target|code`]: 'F16.0',
     // target|terminology deliberately missing
   };
   const values = fromOpenEhrFlatComposition(definition, flat);

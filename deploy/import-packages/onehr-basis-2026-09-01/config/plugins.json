@@ -1,0 +1,16 @@
+{
+  "enabledPackageNames": [
+    "formbuilder-example-n8n-plugin",
+    "formbuilder-plugin-aql-prefill",
+    "formbuilder-plugin-iframe",
+    "formbuilder-plugin-postal-lookup"
+  ],
+  "builtInSystemConnectionPlugins": [
+    "none",
+    "basic",
+    "hip-keycloak"
+  ],
+  "notes": {
+    "hip-keycloak": "Built into onEHR. No connection configuration, tenant URL, username, password, token, or plugin setting is exported."
+  }
+}

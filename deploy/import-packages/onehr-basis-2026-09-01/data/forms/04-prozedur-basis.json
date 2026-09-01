@@ -1,0 +1,458 @@
+{
+  "exportVersion": "1.0",
+  "form": {
+    "id": "1d7db2e8-f483-431f-94aa-d9d49115bfd8",
+    "name": "Prozedur (Basis)",
+    "layout": {
+      "type": "form",
+      "children": [
+        {
+          "id": "procedure",
+          "name": "procedure",
+          "type": "container",
+          "label": "Prozedur",
+          "children": [
+            {
+              "id": "procedure_name",
+              "name": "vg_procedure.v1.1.0_procedure_name",
+              "type": "input-text",
+              "label": "Bezeichnung der Prozedur (kodiert)",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0002]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_procedure.v1.1.0/procedure/procedure_name",
+                "rmVersion": "v1",
+                "templateId": "vg_Procedure.v1.1.0",
+                "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+                "templateAlias": "vg_procedure.v1.1.0",
+                "archetypeNodeId": "at0002",
+                "templateVersion": "1.1.0"
+              },
+              "helpText": "Kodierte Prozedur-Identität für den FHIR-Abgleich (Procedure.code).",
+              "required": true,
+              "codeMappings": {
+                "enabled": true,
+                "allowMultiple": false,
+                "terminologies": [
+                  {
+                    "id": "https://hip.vitagroup.ag/sid/procedure-code",
+                    "label": "Prozedur-Code"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "procedure_status",
+              "name": "vg_procedure.v1.1.0_procedure_status",
+              "type": "input-select",
+              "label": "Status",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.procedure.v1]/ism_transition/current_state",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_procedure.v1.1.0/procedure/status",
+                "templateId": "vg_Procedure.v1.1.0",
+                "templateAlias": "vg_procedure.v1.1.0",
+                "templateVersion": "1.1.0"
+              },
+              "options": [
+                {
+                  "text": "Vorgesehen",
+                  "value": "526",
+                  "rmValue": "planned"
+                },
+                {
+                  "text": "Aktiv",
+                  "value": "245",
+                  "rmValue": "active"
+                },
+                {
+                  "text": "Angehalten",
+                  "value": "530",
+                  "rmValue": "suspended"
+                },
+                {
+                  "text": "Abgebrochen",
+                  "value": "531",
+                  "rmValue": "aborted"
+                },
+                {
+                  "text": "Abgeschlossen",
+                  "value": "532",
+                  "rmValue": "completed"
+                },
+                {
+                  "text": "Storniert",
+                  "value": "528",
+                  "rmValue": "cancelled"
+                },
+                {
+                  "text": "Unbekannt",
+                  "value": "524",
+                  "rmValue": "initial"
+                }
+              ],
+              "helpText": "Bestimmt den FHIR-Status (preparation/in-progress/on-hold/stopped/completed/not-done/unknown) beim Abruf.",
+              "required": true,
+              "defaultValue": "532"
+            },
+            {
+              "id": "procedure_category",
+              "name": "vg_procedure.v1.1.0_procedure_category",
+              "type": "input-text",
+              "label": "Kategorie",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0067]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_procedure.v1.1.0/procedure/procedure_type",
+                "rmVersion": "v1",
+                "templateId": "vg_Procedure.v1.1.0",
+                "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+                "templateAlias": "vg_procedure.v1.1.0",
+                "archetypeNodeId": "at0067",
+                "templateVersion": "1.1.0"
+              },
+              "helpText": "Prozedur-Kategorie für den FHIR-Abgleich (Procedure.category) - optional.",
+              "required": false,
+              "codeMappings": {
+                "enabled": true,
+                "allowMultiple": false,
+                "terminologies": [
+                  {
+                    "id": "https://hip.vitagroup.ag/sid/procedure-category-code",
+                    "label": "Kategorie-Code"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "indication",
+              "name": "vg_procedure.v1.1.0_indication",
+              "type": "input-text",
+              "label": "Indikation",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0070]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_procedure.v1.1.0/procedure/indication",
+                "rmVersion": "v1",
+                "templateId": "vg_Procedure.v1.1.0",
+                "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+                "templateAlias": "vg_procedure.v1.1.0",
+                "archetypeNodeId": "at0070",
+                "templateVersion": "1.1.0"
+              },
+              "required": false
+            },
+            {
+              "id": "method",
+              "name": "vg_procedure.v1.1.0_method",
+              "type": "input-text",
+              "label": "Methode",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0065]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_procedure.v1.1.0/procedure/method",
+                "rmVersion": "v1",
+                "templateId": "vg_Procedure.v1.1.0",
+                "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+                "templateAlias": "vg_procedure.v1.1.0",
+                "archetypeNodeId": "at0065",
+                "templateVersion": "1.1.0"
+              },
+              "required": false
+            },
+            {
+              "id": "body_site",
+              "name": "vg_procedure.v1.1.0_body_site",
+              "type": "input-text",
+              "label": "Körperregion (kodiert)",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0063]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_procedure.v1.1.0/procedure/body_site",
+                "rmVersion": "v1",
+                "templateId": "vg_Procedure.v1.1.0",
+                "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+                "templateAlias": "vg_procedure.v1.1.0",
+                "archetypeNodeId": "at0063",
+                "templateVersion": "1.1.0"
+              },
+              "helpText": "Kodierte Körperregion für den FHIR-Abgleich (Procedure.bodySite) - optional.",
+              "required": false,
+              "codeMappings": {
+                "enabled": true,
+                "allowMultiple": false,
+                "terminologies": [
+                  {
+                    "id": "https://hip.vitagroup.ag/sid/body-site-code",
+                    "label": "Körperregion-Code"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "scheduled_date_time",
+              "name": "vg_procedure.v1.1.0_scheduled_date_time",
+              "type": "input-date-time",
+              "label": "Zeitpunkt",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0066]/value",
+                "rmType": "DV_DATE_TIME",
+                "flatPath": "vg_procedure.v1.1.0/procedure/scheduled_date_time",
+                "rmVersion": "v1",
+                "templateId": "vg_Procedure.v1.1.0",
+                "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+                "templateAlias": "vg_procedure.v1.1.0",
+                "archetypeNodeId": "at0066",
+                "templateVersion": "1.1.0"
+              },
+              "helpText": "Zeitpunkt der Durchführung (FHIR performedDateTime) - trotz Archetyp-Bezeichnung \"Scheduled\" auch für den tatsächlichen Zeitpunkt verwendet.",
+              "required": false
+            },
+            {
+              "id": "outcome",
+              "name": "vg_procedure.v1.1.0_outcome",
+              "type": "input-text",
+              "label": "Ergebnis",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0048]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_procedure.v1.1.0/procedure/outcome",
+                "rmVersion": "v1",
+                "templateId": "vg_Procedure.v1.1.0",
+                "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+                "templateAlias": "vg_procedure.v1.1.0",
+                "archetypeNodeId": "at0048",
+                "templateVersion": "1.1.0"
+              },
+              "required": false
+            },
+            {
+              "id": "complication",
+              "name": "vg_procedure.v1.1.0_complication",
+              "type": "input-text",
+              "label": "Komplikation",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0006]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_procedure.v1.1.0/procedure/complication",
+                "rmVersion": "v1",
+                "templateId": "vg_Procedure.v1.1.0",
+                "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+                "templateAlias": "vg_procedure.v1.1.0",
+                "archetypeNodeId": "at0006",
+                "templateVersion": "1.1.0"
+              },
+              "required": false
+            },
+            {
+              "id": "note_text",
+              "name": "vg_procedure.v1.1.0_note_text",
+              "type": "input-text",
+              "label": "Anmerkung",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0049]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_procedure.v1.1.0/procedure/description",
+                "rmVersion": "v1",
+                "templateId": "vg_Procedure.v1.1.0",
+                "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+                "templateAlias": "vg_procedure.v1.1.0",
+                "archetypeNodeId": "at0049",
+                "templateVersion": "1.1.0"
+              },
+              "helpText": "Freitext-Anmerkung (FHIR Procedure.note).",
+              "required": false
+            },
+            {
+              "id": "comment",
+              "name": "vg_procedure.v1.1.0_comment",
+              "type": "input-text",
+              "label": "Kommentar",
+              "binding": {
+                "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0005]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_procedure.v1.1.0/procedure/comment",
+                "rmVersion": "v1",
+                "templateId": "vg_Procedure.v1.1.0",
+                "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+                "templateAlias": "vg_procedure.v1.1.0",
+                "archetypeNodeId": "at0005",
+                "templateVersion": "1.1.0"
+              },
+              "required": false
+            }
+          ]
+        }
+      ]
+    },
+    "status": "published",
+    "locales": {
+      "en": {
+        "[name='vg_procedure.v1.1.0_method']": {
+          "label": "Method"
+        },
+        "[name='vg_procedure.v1.1.0_comment']": {
+          "label": "Comment"
+        },
+        "[name='vg_procedure.v1.1.0_outcome']": {
+          "label": "Outcome"
+        },
+        "[name='vg_procedure.v1.1.0_body_site']": {
+          "label": "Body site"
+        },
+        "[name='vg_procedure.v1.1.0_note_text']": {
+          "label": "Note"
+        },
+        "[name='vg_procedure.v1.1.0_indication']": {
+          "label": "Indication"
+        },
+        "[name='vg_procedure.v1.1.0_complication']": {
+          "label": "Complication"
+        },
+        "[name='vg_procedure.v1.1.0_procedure_name']": {
+          "label": "Procedure name"
+        },
+        "[name='vg_procedure.v1.1.0_procedure_status']": {
+          "label": "Status"
+        },
+        "[name='vg_procedure.v1.1.0_procedure_category']": {
+          "label": "Category"
+        },
+        "[name='vg_procedure.v1.1.0_scheduled_date_time']": {
+          "label": "Performed date/time"
+        }
+      }
+    },
+    "version": "1.1.0",
+    "bindings": {
+      "vg_procedure.v1.1.0_method": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0065]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_procedure.v1.1.0/procedure/method",
+          "rmVersion": "v1",
+          "templateId": "vg_Procedure.v1.1.0",
+          "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+          "templateAlias": "vg_procedure.v1.1.0",
+          "archetypeNodeId": "at0065",
+          "templateVersion": "1.1.0"
+        }
+      },
+      "vg_procedure.v1.1.0_comment": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0005]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_procedure.v1.1.0/procedure/comment",
+          "rmVersion": "v1",
+          "templateId": "vg_Procedure.v1.1.0",
+          "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+          "templateAlias": "vg_procedure.v1.1.0",
+          "archetypeNodeId": "at0005",
+          "templateVersion": "1.1.0"
+        }
+      },
+      "vg_procedure.v1.1.0_outcome": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0048]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_procedure.v1.1.0/procedure/outcome",
+          "rmVersion": "v1",
+          "templateId": "vg_Procedure.v1.1.0",
+          "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+          "templateAlias": "vg_procedure.v1.1.0",
+          "archetypeNodeId": "at0048",
+          "templateVersion": "1.1.0"
+        }
+      },
+      "vg_procedure.v1.1.0_body_site": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0063]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_procedure.v1.1.0/procedure/body_site",
+          "rmVersion": "v1",
+          "templateId": "vg_Procedure.v1.1.0",
+          "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+          "templateAlias": "vg_procedure.v1.1.0",
+          "archetypeNodeId": "at0063",
+          "templateVersion": "1.1.0"
+        }
+      },
+      "vg_procedure.v1.1.0_indication": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0070]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_procedure.v1.1.0/procedure/indication",
+          "rmVersion": "v1",
+          "templateId": "vg_Procedure.v1.1.0",
+          "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+          "templateAlias": "vg_procedure.v1.1.0",
+          "archetypeNodeId": "at0070",
+          "templateVersion": "1.1.0"
+        }
+      },
+      "vg_procedure.v1.1.0_complication": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0006]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_procedure.v1.1.0/procedure/complication",
+          "rmVersion": "v1",
+          "templateId": "vg_Procedure.v1.1.0",
+          "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+          "templateAlias": "vg_procedure.v1.1.0",
+          "archetypeNodeId": "at0006",
+          "templateVersion": "1.1.0"
+        }
+      },
+      "vg_procedure.v1.1.0_procedure_name": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0002]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_procedure.v1.1.0/procedure/procedure_name",
+          "rmVersion": "v1",
+          "templateId": "vg_Procedure.v1.1.0",
+          "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+          "templateAlias": "vg_procedure.v1.1.0",
+          "archetypeNodeId": "at0002",
+          "templateVersion": "1.1.0"
+        }
+      },
+      "vg_procedure.v1.1.0_scheduled_date_time": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-ACTION.procedure.v1]/description[at0001]/items[at0066]/value",
+          "rmType": "DV_DATE_TIME",
+          "flatPath": "vg_procedure.v1.1.0/procedure/scheduled_date_time",
+          "rmVersion": "v1",
+          "templateId": "vg_Procedure.v1.1.0",
+          "archetypeId": "openEHR-EHR-ACTION.procedure.v1",
+          "templateAlias": "vg_procedure.v1.1.0",
+          "archetypeNodeId": "at0066",
+          "templateVersion": "1.1.0"
+        }
+      }
+    },
+    "revision": 2,
+    "extensions": {
+      "formbuilder.scripting": {
+        "operations": [],
+        "allowedOperations": []
+      }
+    },
+    "formScript": {
+      "language": "typescript",
+      "source": "import { defineFormScript } from \"@formbuilder/runtime\";\n\nexport default defineFormScript(({ form, ui, events, logger }) => {\n  // Formularspezifische Logik\n});\n",
+      "compiled": "\nexport default defineFormScript(({ form, ui, events, logger }) => {\n    // Formularspezifische Logik\n});\n//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZm9ybS1zY3JpcHQuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyJmb3JtLXNjcmlwdC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQSxPQUFPLEVBQUUsZ0JBQWdCLEVBQUUsTUFBTSxzQkFBc0IsQ0FBQztBQUV4RCxlQUFlLGdCQUFnQixDQUFDLENBQUMsRUFBRSxJQUFJLEVBQUUsRUFBRSxFQUFFLE1BQU0sRUFBRSxNQUFNLEVBQUUsRUFBRSxFQUFFO0lBQy9ELDRCQUE0QjtBQUM5QixDQUFDLENBQUMsQ0FBQyIsInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IGRlZmluZUZvcm1TY3JpcHQgfSBmcm9tIFwiQGZvcm1idWlsZGVyL3J1bnRpbWVcIjtcblxuZXhwb3J0IGRlZmF1bHQgZGVmaW5lRm9ybVNjcmlwdCgoeyBmb3JtLCB1aSwgZXZlbnRzLCBsb2dnZXIgfSkgPT4ge1xuICAvLyBGb3JtdWxhcnNwZXppZmlzY2hlIExvZ2lrXG59KTtcbiJdfQ==",
+      "generatedTypes": "declare module \"@formbuilder/runtime\" {\n  export type MaybePromise<T> = T | Promise<T>;\n  export type ChangeSource = \"user\" | \"script\" | \"load\" | \"api\" | \"computed\";\n  export type FieldId = \"vg_procedure.v1.1.0_body_site\" | \"vg_procedure.v1.1.0_comment\" | \"vg_procedure.v1.1.0_complication\" | \"vg_procedure.v1.1.0_indication\" | \"vg_procedure.v1.1.0_method\" | \"vg_procedure.v1.1.0_note_text\" | \"vg_procedure.v1.1.0_outcome\" | \"vg_procedure.v1.1.0_procedure_category\" | \"vg_procedure.v1.1.0_procedure_name\" | \"vg_procedure.v1.1.0_procedure_status\" | \"vg_procedure.v1.1.0_scheduled_date_time\";\n  export type GroupId = \"procedure\";\n  export type RepeatableGroupId = never;\n  export type SectionId = never;\n  export type TabId = never;\n  export type ButtonId = never;\n  export type TextId = never;\n  export type AlertId = never;\n  export type ConnectorOperation = never;\n\n  export interface GroupItems {\n    [groupId: string]: never;\n  }\n\n  export interface FormValues {\n    \"vg_procedure.v1.1.0_procedure_name\": string | null;\n    \"vg_procedure.v1.1.0_procedure_status\": \"526\" | \"245\" | \"530\" | \"531\" | \"532\" | \"528\" | \"524\" | null;\n    \"vg_procedure.v1.1.0_procedure_category\": string | null;\n    \"vg_procedure.v1.1.0_indication\": string | null;\n    \"vg_procedure.v1.1.0_method\": string | null;\n    \"vg_procedure.v1.1.0_body_site\": string | null;\n    \"vg_procedure.v1.1.0_scheduled_date_time\": string | null;\n    \"vg_procedure.v1.1.0_outcome\": string | null;\n    \"vg_procedure.v1.1.0_complication\": string | null;\n    \"vg_procedure.v1.1.0_note_text\": string | null;\n    \"vg_procedure.v1.1.0_comment\": string | null;\n\n  }\n\n  export interface ConnectorInputs {\n    [operation: string]: never;\n  }\n\n  export interface ConnectorOutputs {\n    [operation: string]: never;\n  }\n\n  export interface ConnectorCatalog {\n    [connector: string]: never;\n  }\n\n  export interface ChangeEvent<T> {\n    value: T;\n    previousValue: T;\n    source: ChangeSource;\n    initialLoad: boolean;\n    signal: AbortSignal;\n  }\n\n  export interface SetValueOptions { emitChange?: boolean; }\n  export interface ChangeHandlerOptions { debounce?: number; cancelPrevious?: boolean; }\n  export interface FieldApi<T> {\n    readonly value: T | undefined;\n    setValue(value: T, options?: SetValueOptions): void;\n    clear(options?: SetValueOptions): void;\n    onChange(handler: (event: ChangeEvent<T>) => MaybePromise<void>, options?: ChangeHandlerOptions): void;\n    validate(handler: (value: T | undefined, context: ValidationContext) => MaybePromise<string | null | undefined>): void;\n  }\n\n  export interface GroupChangeEvent<T> {\n    index: number;\n    field: keyof T & FieldId;\n    fieldId: keyof T & FieldId;\n    value: T[keyof T];\n    previousValue: T[keyof T];\n    source: ChangeSource;\n  }\n\n  export interface GroupApi<T extends Record<string, unknown>> {\n    readonly items: readonly Readonly<T>[];\n    addItem(initial?: Partial<T>): number;\n    removeItem(index: number): void;\n    replaceItems(items: readonly T[]): void;\n    onAddItem(handler: (event: { index: number; item: Readonly<T> }) => MaybePromise<void>): void;\n    onRemoveItem(handler: (event: { index: number; item: Readonly<T> }) => MaybePromise<void>): void;\n    onItemChange(handler: (event: GroupChangeEvent<T>) => MaybePromise<void>): void;\n  }\n\n  export interface ComputedConfig<K extends FieldId, D extends readonly FieldId[]> {\n    dependsOn: D;\n    persist?: boolean;\n    calculate(values: Pick<FormValues, D[number]>): MaybePromise<FormValues[K]>;\n  }\n\n  export interface ValidationContext {\n    readonly form: FormApi;\n  }\n\n  export interface FormApi {\n    readonly values: Partial<FormValues>;\n    readonly errors: Partial<Record<FieldId, string>>;\n    field<K extends FieldId>(id: K): FieldApi<FormValues[K]>;\n    group<K extends RepeatableGroupId>(id: K): GroupApi<GroupItems[K]>;\n    updateValues(values: Partial<FormValues>): void;\n    computed<K extends FieldId, D extends readonly FieldId[]>(id: K, config: ComputedConfig<K, D>): void;\n    setErrors(errors: Partial<Record<FieldId, string | null | undefined>>): void;\n    isValid(): boolean;\n  }\n\n  export interface UiState {\n    visible?: boolean;\n    enabled?: boolean;\n    readonly?: boolean;\n    required?: boolean;\n  }\n\n  export interface UiComponentApi {\n    show(): void;\n    hide(): void;\n    enable(): void;\n    disable(): void;\n    setVisible(value: boolean): void;\n    setEnabled(value: boolean): void;\n    setReadonly(value: boolean): void;\n    setRequired(value: boolean): void;\n    setState(state: UiState): void;\n  }\n\n  export interface UiFieldApi extends UiComponentApi {\n    setLabel(value: string): void;\n    setPlaceholder(value: string): void;\n    setHelpText(value: string): void;\n    setOptions(options: readonly { value: string; label: string }[]): void;\n    onFocus(handler: () => MaybePromise<void>): void;\n    onBlur(handler: () => MaybePromise<void>): void;\n  }\n\n  export interface UiButtonApi extends UiComponentApi {\n    onClick(handler: () => MaybePromise<void>): void;\n    setLoading(value: boolean): void;\n  }\n\n  export interface UiApi {\n    field<K extends FieldId>(id: K): UiFieldApi;\n    group(id: GroupId): UiComponentApi;\n    section(id: SectionId): UiComponentApi;\n    tab(id: TabId): UiComponentApi;\n    button(id: ButtonId): UiButtonApi;\n    toast: {\n      success(message: string): void;\n      error(message: string): void;\n      info(message: string): void;\n      warning(message: string): void;\n    };\n  }\n\n  export interface LifecycleEvent {\n    cancel(message?: string): void;\n  }\n\n  export interface EventApi {\n    beforeLoad(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterLoad(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    beforeSave(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterSave(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    beforeSubmit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterSubmit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onInit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onReset(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onValidation(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onDestroy(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n  }\n\n  export interface FormScriptContext {\n    formId: string;\n    formVersion: string;\n    templateId?: string;\n    patientId?: string;\n    ehrId?: string;\n    encounterId?: string;\n    sessionId?: string;\n    locale: string;\n    mode: \"create\" | \"edit\" | \"view\" | \"preview\";\n    user: { id?: string; displayName?: string; roles: string[] };\n    /** Latest Flat Composition for the form template. It is read-only context, never field values. */\n    composition?: {\n      ehrId: string;\n      templateId: string;\n      reference?: string;\n      flat: Record<string, unknown>;\n      loadedAt: string;\n    };\n    /** Results of enabled, autoloaded AQL functions, keyed as \"package.name\". */\n    aql: Record<string, unknown>;\n  }\n\n  export interface StateApi {\n    get<T = unknown>(key: string): T | undefined;\n    set<T = unknown>(key: string, value: T): void;\n    delete(key: string): void;\n  }\n\n  export interface LoggerApi {\n    debug(message: string, details?: unknown): void;\n    info(message: string, details?: unknown): void;\n    warn(message: string, details?: unknown): void;\n    error(message: string | unknown, error?: unknown): void;\n  }\n\n  export interface ApiCallOptions {\n    signal?: AbortSignal;\n    timeoutMs?: number;\n  }\n\n  export interface Api {\n    call<K extends ConnectorOperation>(\n      operation: K,\n      input: ConnectorInputs[K],\n      options?: ApiCallOptions,\n    ): Promise<ConnectorOutputs[K]>;\n    request<C extends keyof ConnectorCatalog & string, O extends keyof ConnectorCatalog[C] & string>(\n      request: {\n        connector: C;\n        operation: O;\n        input: ConnectorCatalog[C][O] extends { input: infer I } ? I : never;\n      },\n      options?: ApiCallOptions,\n    ): Promise<ConnectorCatalog[C][O] extends { output: infer R } ? R : never>;\n  }\n\n  export interface FormScriptSdk {\n    form: FormApi;\n    ui: UiApi;\n    api: Api;\n    context: FormScriptContext;\n    /** Synchronous, browser-safe functions contributed by installed function packages. */\n    functions: Record<string, Record<string, (...args: unknown[]) => unknown>>;\n    state: StateApi;\n    events: EventApi;\n    logger: LoggerApi;\n  }\n\n  export function defineFormScript(\n    setup: (sdk: FormScriptSdk) => MaybePromise<void>,\n  ): (sdk: FormScriptSdk) => MaybePromise<void>;\n}\n",
+      "diagnostics": [],
+      "compiledAt": "2026-09-01T13:23:22.127Z"
+    },
+    "schemaVersion": "1.0",
+    "sourceTemplates": [
+      {
+        "id": "vg_Procedure.v1.1.0",
+        "type": "openEhrWebTemplate",
+        "alias": "vg_procedure.v1.1.0",
+        "version": "1.1.0"
+      }
+    ]
+  }
+}

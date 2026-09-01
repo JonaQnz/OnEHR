@@ -4,17 +4,21 @@ import { API_BASE_URL } from '../../integration/apiBaseUrl';
 import {
   Activity,
   ArrowLeft,
+  Bug,
   CheckCircle2,
   Clock3,
   Database,
+  Download,
   ExternalLink,
   FileText,
+  FolderArchive,
   History,
   Plus,
 } from 'lucide-react';
 import { formEmbedUrl, isFormEmbedEvent, launchEmbeddedForm } from '../../integration/formLaunch';
 import type { FormLaunchLoadPolicy, FormRuntimeMode } from 'core';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { useDebugMode } from '../../hooks/useDebugMode';
 import { useAuth } from '../../App';
 
 // Code-split like every other routed page (see App.tsx's own React.lazy
@@ -93,12 +97,76 @@ interface FormSessionRecord {
   updatedAt: string;
 }
 
+// Mirrors IntegrationCallLog (apps/api/prisma/schema.prisma) - raw capture
+// of every outbound FHIR/openEHR write, kept for later download/curation
+// into a Bruno collection. Only shown here in the "Debug" tab (see
+// useDebugMode) since a real request/response body is not something a
+// clinician needs to see day to day.
+interface IntegrationCallLogRow {
+  id: string;
+  protocol: 'fhir' | 'openehr';
+  resourceType: string;
+  operation: string;
+  method: string;
+  url: string;
+  statusCode: number | null;
+  success: boolean;
+  errorMessage: string | null;
+  ehrId: string | null;
+  patientId: string | null;
+  fhirPatientId: string | null;
+  createdAt: string;
+}
+
+interface IntegrationCallLogFull extends IntegrationCallLogRow {
+  requestBody: unknown;
+  responseBody: unknown;
+}
+
+function downloadJson(data: unknown, filename: string) {
+  if (data === null || data === undefined) return;
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = href;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(href);
+}
+
+// Downloads whatever binary the API sends back (used for the Bruno .zip
+// export - JSON.stringify isn't applicable there) and saves it under the
+// filename the server proposed via Content-Disposition, falling back to a
+// generic name if that header is missing.
+async function downloadFile(url: string, fallbackFilename: string): Promise<void> {
+  const response = await fetch(url, { credentials: 'include' });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || body.message || `Download fehlgeschlagen (${response.status})`);
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="([^"]+)"/);
+  const filename = match ? match[1] : fallbackFilename;
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = href;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(href);
+}
+
 interface FieldDescriptor {
   label: string;
   options: Map<string, string>;
 }
 
-type PatientTab = 'cockpit' | 'documents' | 'overview' | 'data' | 'versions' | 'kis' | 'clinicalCompositions';
+type PatientTab = 'cockpit' | 'documents' | 'overview' | 'data' | 'versions' | 'kis' | 'clinicalCompositions' | 'debug';
 
 // 'cockpit' is prepended separately in the render (only when a "Klinisches
 // Cockpit" Form is actually published for this instance) rather than listed
@@ -275,6 +343,12 @@ export default function PatientDetail() {
   // simply never sees the Cockpit tab, instead of the tab rendering and
   // <Protected>'s <Navigate> then yanking the whole app to "/".
   const canExecuteForms = useAuth().permissions.includes('form.execute');
+  // Same permission that gates the underlying /admin/ehrbase/call-logs
+  // endpoints server-side - a user without it would just get a 403, so the
+  // tab is hidden rather than shown-and-failing.
+  const canConfigureSystem = useAuth().permissions.includes('system.configure');
+  const [debugMode] = useDebugMode();
+  const showDebugTab = canConfigureSystem && debugMode;
   const [patient, setPatient] = useState<PatientRecord | null>(null);
   useDocumentTitle(patient ? [patient.lastName, patient.firstName].filter(Boolean).join(', ') || patient.patientId : 'Patient');
   const [forms, setForms] = useState<StoredForm[]>([]);
@@ -289,6 +363,14 @@ export default function PatientDetail() {
   const [selectedDataSessionId, setSelectedDataSessionId] = useState('');
   const [embeddedLaunch, setEmbeddedLaunch] = useState<{ url: string; title: string } | null>(null);
   const [launchingWorkflow, setLaunchingWorkflow] = useState<string | null>(null);
+  const [callLogs, setCallLogs] = useState<IntegrationCallLogRow[]>([]);
+  const [callLogsLoading, setCallLogsLoading] = useState(false);
+  const [callLogsError, setCallLogsError] = useState('');
+  const [expandedCallLogId, setExpandedCallLogId] = useState<string | null>(null);
+  const [expandedCallLogDetail, setExpandedCallLogDetail] = useState<IntegrationCallLogFull | null>(null);
+  const [expandedCallLogLoading, setExpandedCallLogLoading] = useState(false);
+  const [exportingBruno, setExportingBruno] = useState<'patient' | 'all' | null>(null);
+  const [exportError, setExportError] = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -336,6 +418,71 @@ export default function PatientDetail() {
     void load();
     return () => controller.abort();
   }, [id]);
+
+  // Loaded lazily (only once the Debug tab is actually opened, not on every
+  // patient page visit) - these are raw request/response bodies, not
+  // something worth fetching unless a debugger asked to see them.
+  useEffect(() => {
+    if (activeTab !== 'debug' || !showDebugTab || !patient) return undefined;
+    const controller = new AbortController();
+    setCallLogsLoading(true);
+    setCallLogsError('');
+    const params = new URLSearchParams({ limit: '100' });
+    if (patient.ehrId) params.set('ehrId', patient.ehrId);
+    params.set('patientId', patient.patientId);
+    request<{ logs: IntegrationCallLogRow[] }>(`/admin/ehrbase/call-logs?${params.toString()}`, controller.signal)
+      .then((data) => setCallLogs(data.logs))
+      .catch((reason) => {
+        if ((reason as Error).name !== 'AbortError') {
+          setCallLogsError(reason instanceof Error ? reason.message : 'Aufrufprotokolle konnten nicht geladen werden.');
+        }
+      })
+      .finally(() => { if (!controller.signal.aborted) setCallLogsLoading(false); });
+    return () => controller.abort();
+  }, [activeTab, showDebugTab, patient]);
+
+  // Debug mode can be switched off (from the sidebar) while its tab is
+  // still active - snap back to the default tab rather than leaving an
+  // active-but-now-hidden tab showing a blank panel.
+  useEffect(() => {
+    if (activeTab === 'debug' && !showDebugTab) setActiveTab('documents');
+  }, [activeTab, showDebugTab]);
+
+  const exportBrunoFolder = async (scope: 'patient' | 'all') => {
+    if (!patient) return;
+    setExportingBruno(scope);
+    setExportError('');
+    try {
+      const params = new URLSearchParams();
+      if (scope === 'patient') {
+        if (patient.ehrId) params.set('ehrId', patient.ehrId);
+        params.set('patientId', patient.patientId);
+        params.set('folderName', `${patient.firstName} ${patient.lastName}`.trim() || patient.patientId);
+      } else {
+        params.set('folderName', 'Alle FHIR-openEHR-Aufrufe');
+      }
+      await downloadFile(`${API}/admin/ehrbase/call-logs/export/bruno?${params.toString()}`, 'bruno-export.zip');
+    } catch (reason) {
+      setExportError(reason instanceof Error ? reason.message : 'Bruno-Export fehlgeschlagen.');
+    } finally {
+      setExportingBruno(null);
+    }
+  };
+
+  const toggleCallLog = (logId: string) => {
+    if (expandedCallLogId === logId) {
+      setExpandedCallLogId(null);
+      setExpandedCallLogDetail(null);
+      return;
+    }
+    setExpandedCallLogId(logId);
+    setExpandedCallLogDetail(null);
+    setExpandedCallLogLoading(true);
+    request<IntegrationCallLogFull>(`/admin/ehrbase/call-logs/${encodeURIComponent(logId)}`)
+      .then(setExpandedCallLogDetail)
+      .catch((reason) => setCallLogsError(reason instanceof Error ? reason.message : 'Details konnten nicht geladen werden.'))
+      .finally(() => setExpandedCallLogLoading(false));
+  };
 
   const formsById = useMemo(
     () => new Map(forms.map((form) => [form.id, form])),
@@ -862,6 +1009,146 @@ export default function PatientDetail() {
     </div>
   );
 
+  const renderDebug = () => (
+    <div style={{ display: 'grid', gap: '1rem' }}>
+      <div className="card" style={{ background: 'linear-gradient(135deg, #fefce8, #fff)', borderColor: '#fde68a' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', marginBottom: '.9rem' }}>
+          <Bug size={20} color="#a16207" style={{ flexShrink: 0 }} />
+          <span style={{ color: '#854d0e', fontSize: '.85rem' }}>
+            Rohe FHIR/openEHR-Aufrufprotokolle (Request/Response) - nur ab dem Zeitpunkt der Einführung dieser Protokollierung erfasst, nicht rückwirkend.
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={exportingBruno !== null || callLogs.length === 0}
+            onClick={() => void exportBrunoFolder('patient')}
+          >
+            <FolderArchive size={14} /> {exportingBruno === 'patient' ? 'Exportiere…' : 'Diesen Patienten als Bruno-Ordner'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={exportingBruno !== null}
+            onClick={() => void exportBrunoFolder('all')}
+          >
+            <FolderArchive size={14} /> {exportingBruno === 'all' ? 'Exportiere…' : 'Alle Aufrufe als Bruno-Ordner'}
+          </button>
+        </div>
+      </div>
+      {(callLogsError || exportError) && <div className="card" style={{ color: '#b91c1c' }}>{callLogsError || exportError}</div>}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {callLogsLoading ? (
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Lade Aufrufprotokolle…</div>
+        ) : callLogs.length === 0 ? (
+          <EmptyState
+            icon={<Bug size={48} style={{ margin: '0 auto' }} />}
+            title="Keine erfassten Aufrufe für diesen Patienten."
+            detail="Erst ab jetzt gemachte FHIR/openEHR-Schreibvorgänge erscheinen hier."
+          />
+        ) : (
+          <div>
+            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              {callLogs.length} {callLogs.length === 1 ? 'Aufruf' : 'Aufrufe'}
+            </div>
+            {callLogs.map((log) => {
+              const expanded = expandedCallLogId === log.id;
+              return (
+                <article key={log.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <button
+                    type="button"
+                    onClick={() => toggleCallLog(log.id)}
+                    aria-expanded={expanded}
+                    style={{
+                      width: '100%', border: 0, background: expanded ? 'rgba(37, 99, 235, 0.04)' : 'transparent', color: 'inherit',
+                      padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', textAlign: 'left', cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
+                      <Bug size={19} color={log.protocol === 'fhir' ? '#2563eb' : '#7c3aed'} style={{ flexShrink: 0 }} />
+                      <div style={{ minWidth: 0 }}>
+                        <strong style={{ display: 'block' }}>{log.protocol.toUpperCase()} · {log.resourceType} · {log.operation}</strong>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                          {log.method} · {formatDateTime(log.createdAt)}{log.statusCode ? ` · HTTP ${log.statusCode}` : ''}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', padding: '0.2rem 0.55rem', borderRadius: '999px',
+                          border: `1px solid ${log.success ? '#bbf7d0' : '#fecaca'}`, background: log.success ? '#f0fdf4' : '#fef2f2',
+                          color: log.success ? '#15803d' : '#b91c1c', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {log.success ? 'Erfolgreich' : 'Fehlgeschlagen'}
+                      </span>
+                      <span style={{ color: 'var(--text-muted)', transform: expanded ? 'rotate(90deg)' : undefined }}>›</span>
+                    </div>
+                  </button>
+                  {expanded && (
+                    <div style={{ padding: '0 1.25rem 1.25rem 3.35rem' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem 1.5rem', color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '1rem' }}>
+                        <span>URL: <code style={{ overflowWrap: 'anywhere' }}>{log.url}</code></span>
+                        {log.errorMessage && <span style={{ color: '#b91c1c' }}>Fehler: {log.errorMessage}</span>}
+                      </div>
+                      {expandedCallLogLoading ? (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Lade Details…</span>
+                      ) : expandedCallLogDetail ? (
+                        <>
+                          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              disabled={expandedCallLogDetail.requestBody === null || expandedCallLogDetail.requestBody === undefined}
+                              onClick={() => downloadJson(expandedCallLogDetail.requestBody, `${log.protocol}-${log.resourceType}-${log.operation}-request.json`)}
+                            >
+                              <Download size={14} /> Request herunterladen
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              disabled={expandedCallLogDetail.responseBody === null || expandedCallLogDetail.responseBody === undefined}
+                              onClick={() => downloadJson(expandedCallLogDetail.responseBody, `${log.protocol}-${log.resourceType}-${log.operation}-response.json`)}
+                            >
+                              <Download size={14} /> Response herunterladen
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => downloadJson(expandedCallLogDetail, `${log.protocol}-${log.resourceType}-${log.operation}-full.json`)}
+                            >
+                              <Download size={14} /> Alles herunterladen
+                            </button>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                            <div>
+                              <strong style={{ display: 'block', fontSize: '.8rem', marginBottom: '.35rem', color: 'var(--text-muted)' }}>Request Body</strong>
+                              <pre style={{ margin: 0, padding: '0.75rem', background: '#0f172a', color: '#e2e8f0', borderRadius: '6px', fontSize: '.78rem', overflow: 'auto', maxHeight: '360px' }}>
+                                {expandedCallLogDetail.requestBody ? JSON.stringify(expandedCallLogDetail.requestBody, null, 2) : '–'}
+                              </pre>
+                            </div>
+                            <div>
+                              <strong style={{ display: 'block', fontSize: '.8rem', marginBottom: '.35rem', color: 'var(--text-muted)' }}>Response Body</strong>
+                              <pre style={{ margin: 0, padding: '0.75rem', background: '#0f172a', color: '#e2e8f0', borderRadius: '6px', fontSize: '.78rem', overflow: 'auto', maxHeight: '360px' }}>
+                                {expandedCallLogDetail.responseBody ? JSON.stringify(expandedCallLogDetail.responseBody, null, 2) : '–'}
+                              </pre>
+                            </div>
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ padding: '2rem', maxWidth: '1100px', margin: '0 auto' }}>
       <Link
@@ -905,7 +1192,9 @@ export default function PatientDetail() {
         aria-label="Bereiche der Patientenakte"
         style={{ display: 'flex', gap: '1.75rem', borderBottom: '1px solid var(--border)', marginBottom: '2rem', overflowX: 'auto' }}
       >
-        {(cockpitForm ? [{ id: 'cockpit' as const, label: 'Klinisches Cockpit' }, ...TABS] : TABS).map((tab) => {
+        {(cockpitForm ? [{ id: 'cockpit' as const, label: 'Klinisches Cockpit' }, ...TABS] : TABS)
+          .concat(showDebugTab ? [{ id: 'debug' as const, label: 'Debug' }] : [])
+          .map((tab) => {
           const active = activeTab === tab.id;
           return (
             <button
@@ -939,6 +1228,7 @@ export default function PatientDetail() {
         {activeTab === 'versions' && renderVersions()}
         {activeTab === 'clinicalCompositions' && renderClinicalCompositions()}
         {activeTab === 'kis' && renderKis()}
+        {activeTab === 'debug' && showDebugTab && renderDebug()}
       </div>
 
       {showFormModal && (

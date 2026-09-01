@@ -1,0 +1,151 @@
+{
+  "packageId": "onehr-basis-2026-09-01",
+  "packageVersion": "2.0.0",
+  "createdAt": "2026-09-01T18:54:00.192Z",
+  "transport": "onEHR REST API full exports/imports",
+  "contents": {
+    "forms": 16,
+    "formSections": 9,
+    "singleFormCompositions": 7,
+    "aqlFunctions": 20,
+    "codeFunctions": 13,
+    "dataWidgets": 13,
+    "templates": 0
+  },
+  "forms": [
+    {
+      "sourceId": "66f056d4-de67-4650-8732-0b131a5152b1",
+      "name": "Person (Basis)",
+      "sourceVersion": "1.0.0",
+      "role": "section",
+      "file": "data/forms/01-person-basis.json"
+    },
+    {
+      "sourceId": "2e06e44e-1b9a-40c4-bc5b-d7efc139abe1",
+      "name": "Diagnose (Basis)",
+      "sourceVersion": "1.10.0",
+      "role": "section",
+      "file": "data/forms/02-diagnose-basis.json"
+    },
+    {
+      "sourceId": "226ee58f-0d8e-4309-b744-4098580f469f",
+      "name": "Medikation (Basis)",
+      "sourceVersion": "1.1.0",
+      "role": "section",
+      "file": "data/forms/03-medikation-basis.json"
+    },
+    {
+      "sourceId": "1d7db2e8-f483-431f-94aa-d9d49115bfd8",
+      "name": "Prozedur (Basis)",
+      "sourceVersion": "1.1.0",
+      "role": "section",
+      "file": "data/forms/04-prozedur-basis.json"
+    },
+    {
+      "sourceId": "7505912b-72ec-4181-9288-e77bb2670ca9",
+      "name": "Anordnung (Basis)",
+      "sourceVersion": "1.2.0",
+      "role": "section",
+      "file": "data/forms/05-anordnung-basis.json"
+    },
+    {
+      "sourceId": "7c1210b2-39a4-4b4a-a479-62c1925fe38f",
+      "name": "Laborwert (Basis)",
+      "sourceVersion": "1.3.0",
+      "role": "section",
+      "file": "data/forms/06-laborwert-basis.json"
+    },
+    {
+      "sourceId": "3de1ad0c-41d5-4c9e-a788-f60287f8b999",
+      "name": "Arzneimittelgabe (Basis)",
+      "sourceVersion": "1.1.0",
+      "role": "section",
+      "file": "data/forms/07-arzneimittelgabe-basis.json"
+    },
+    {
+      "sourceId": "2c2724c9-59a4-4b44-908a-556f4a771de4",
+      "name": "Medikamentengabe (eMAR-Eintrag)",
+      "sourceVersion": "1.4.0",
+      "role": "section",
+      "file": "data/forms/08-medikamentengabe-emar.json"
+    },
+    {
+      "sourceId": "8acb2b68-6be5-4217-ab28-9b00bc094f96",
+      "name": "Laborbericht mit Probe (Panel)",
+      "sourceVersion": "1.3.0",
+      "role": "section",
+      "file": "data/forms/09-laborbericht-panel.json"
+    },
+    {
+      "sourceId": "a78f1088-44cb-4d98-87b8-8fd4c18974fd",
+      "name": "Anordnung (Basis) – Einzelformular",
+      "sourceVersion": "1.0.0",
+      "role": "composition",
+      "file": "data/forms/10-anordnung-einzelformular.json"
+    },
+    {
+      "sourceId": "eda16486-e4c3-4d84-859e-87e7f6c505cf",
+      "name": "Diagnose (Basis) – Einzelformular",
+      "sourceVersion": "1.0.0",
+      "role": "composition",
+      "file": "data/forms/11-diagnose-einzelformular.json"
+    },
+    {
+      "sourceId": "a1a92b8f-e5ef-4f35-9f64-c18ef4e8fc13",
+      "name": "Laborbericht mit Probe (Panel) – Einzelformular",
+      "sourceVersion": "1.0.0",
+      "role": "composition",
+      "file": "data/forms/12-laborbericht-panel-einzelformular.json"
+    },
+    {
+      "sourceId": "8338ddde-26d9-49fd-8edf-095d12415edc",
+      "name": "Laborwert (Basis) – Einzelformular",
+      "sourceVersion": "1.0.0",
+      "role": "composition",
+      "file": "data/forms/13-laborwert-einzelformular.json"
+    },
+    {
+      "sourceId": "5bc67710-d0e3-4301-ba43-cc93a8f29bec",
+      "name": "Medikamentengabe (eMAR-Eintrag) – Einzelformular",
+      "sourceVersion": "1.0.0",
+      "role": "composition",
+      "file": "data/forms/14-medikamentengabe-einzelformular.json"
+    },
+    {
+      "sourceId": "6e2c3a61-df64-4771-8507-0ee30cddd055",
+      "name": "Medikation (Basis) – Einzelformular",
+      "sourceVersion": "1.0.0",
+      "role": "composition",
+      "file": "data/forms/15-medikation-einzelformular.json"
+    },
+    {
+      "sourceId": "573656a0-e52d-4564-a559-47ec8d3cbbf3",
+      "name": "Prozedur (Basis) – Einzelformular",
+      "sourceVersion": "1.0.0",
+      "role": "composition",
+      "file": "data/forms/16-prozedur-einzelformular.json"
+    }
+  ],
+  "requiredRemoteTemplateIds": [
+    "vg_Diagnosis.v1.1.1",
+    "vg_DiagnosticReportLab.v1.1.2",
+    "vg_MedicationAdministration.v1.0.2",
+    "vg_MedicationStatement.v1.1.0",
+    "vg_ObservationLab.v1.2.0",
+    "vg_Person.v1.1.1",
+    "vg_Procedure.v1.1.0",
+    "vg_ServiceRequest.v1.1.1"
+  ],
+  "dependencyAliases": {
+    "ee3e789e-5863-4008-9260-aa0b8f39a8d4": "7505912b-72ec-4181-9288-e77bb2670ca9"
+  },
+  "excludes": [
+    "WebTemplates and OPT files",
+    "database dumps or SQL",
+    "patients and clinical patient data",
+    "users, roles, and sessions",
+    "EHRbase/HIP connection configuration and credentials",
+    "plugin settings and secrets",
+    "integration call logs"
+  ]
+}

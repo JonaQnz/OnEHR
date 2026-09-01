@@ -32,8 +32,33 @@ export interface FormElementLayout {
   }>;
   options?: Array<{
     value: string;
+    /** Display text, in the UI's preferred language (German-first - see
+     * webTemplateParser's preferredOptionText). Never sent to openEHR as a
+     * DV_CODED_TEXT's `value` - use `rmValue` for that. */
     text: string;
+    /** The archetype's original/default-language term text for this code -
+     * what EHRbase's FLAT-composition validator actually checks a submitted
+     * DV_CODED_TEXT.value against, regardless of UI display language.
+     * Absent when it's identical to `text` (e.g. an English-default
+     * template with no separate translation). Read by openehr-engine's
+     * setFlatValue/buildLeafDvValue in preference to `text` - see the
+     * comment there for the live bug this fixes (a German `text` like
+     * "Vermutet"/"Aktiv" being rejected by EHRbase, which expects
+     * "Suspected"/"Active"). */
+    rmValue?: string;
   }>;
+  /** True when this field's underlying openEHR constraint is a
+   * DV_CODED_TEXT|DV_TEXT union (a coded value set with a genuine free-text
+   * alternative, per the OPT constraint engine's ValueConstraint union -
+   * see docs/features/opt-constraint-engine-analysis.md) - set at import
+   * time from the constraint model. Absent/false preserves every existing
+   * form's current behavior exactly (a value must match one of `options`).
+   * When true, a value that doesn't match any option is accepted as free
+   * text rather than rejected, AND (openehr-engine's setFlatValue) written
+   * to EHRbase as a plain DV_TEXT rather than a bogus DV_CODED_TEXT whose
+   * code_string would be that free text - the two must always change
+   * together, never just the validation side alone. */
+  allowFreeText?: boolean;
   content?: string;
   required?: boolean;
   readOnly?: boolean;
@@ -120,6 +145,16 @@ export interface CodeMappingConfig {
    * erweiterbar... sodass wir mehr eingeben können". Set false to cap a
    * field at exactly one mapping. */
   allowMultiple?: boolean;
+  /** Forces at least one real code mapping whenever the field itself has a
+   * non-empty text value - free text alone no longer satisfies validation.
+   * Off by default (every existing codeMappings field keeps its current,
+   * text-is-enough behavior). Use this on a field where the attached code
+   * is the whole point of collecting it (e.g. a diagnosis name that must
+   * carry a real ICD-10-GM code for FHIR export to be meaningful), not
+   * merely a nice-to-have annotation. Never applies before the field has a
+   * value at all - an empty optional field is still governed by `required`
+   * alone. */
+  requireMapping?: boolean;
 }
 
 /** One DV_TEXT.mappings entry as the runtime actually stores/submits it -

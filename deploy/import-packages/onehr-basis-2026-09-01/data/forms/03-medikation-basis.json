@@ -1,0 +1,431 @@
+{
+  "exportVersion": "1.0",
+  "form": {
+    "id": "226ee58f-0d8e-4309-b744-4098580f469f",
+    "name": "Medikation (Basis)",
+    "layout": {
+      "type": "form",
+      "children": [
+        {
+          "id": "medikation",
+          "name": "medikation",
+          "type": "container",
+          "label": "Medikation",
+          "children": [
+            {
+              "id": "medication_item_name",
+              "name": "vg_medicationstatement.v1.1.0_medication_item_name",
+              "type": "input-text",
+              "label": "Arzneimittel-Name (kodiert)",
+              "binding": {
+                "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0006]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/medication_item_name",
+                "rmVersion": "v0",
+                "templateId": "vg_MedicationStatement.v1.1.0",
+                "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+                "templateAlias": "vg_medicationstatement.v1.1.0",
+                "archetypeNodeId": "at0006",
+                "templateVersion": "1.1.0"
+              },
+              "helpText": "Kodierte Arzneimittel-Identität für den FHIR-Abgleich (medicationCodeableConcept). Freitextbeschreibung separat unten.",
+              "required": true,
+              "codeMappings": {
+                "enabled": true,
+                "allowMultiple": false,
+                "terminologies": [
+                  {
+                    "id": "https://hip.vitagroup.ag/sid/medication-code",
+                    "label": "Arzneimittel-Code"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "medication_description",
+              "name": "vg_medicationstatement.v1.1.0_medication_description",
+              "type": "input-text",
+              "label": "Freitextbeschreibung (Medikament)",
+              "binding": {
+                "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0032]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/description",
+                "rmVersion": "v0",
+                "templateId": "vg_MedicationStatement.v1.1.0",
+                "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+                "templateAlias": "vg_medicationstatement.v1.1.0",
+                "archetypeNodeId": "at0032",
+                "templateVersion": "1.1.0"
+              },
+              "helpText": "Freitext-Beschreibung des Medikaments, unabhängig vom kodierten Namen.",
+              "required": false
+            },
+            {
+              "id": "status",
+              "name": "vg_medicationstatement.v1.1.0_status",
+              "type": "input-select",
+              "label": "Status",
+              "binding": {
+                "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0008]/value",
+                "rmType": "DV_CODED_TEXT",
+                "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/status",
+                "rmVersion": "v0",
+                "templateId": "vg_MedicationStatement.v1.1.0",
+                "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+                "templateAlias": "vg_medicationstatement.v1.1.0",
+                "archetypeNodeId": "at0008",
+                "templateVersion": "1.1.0"
+              },
+              "options": [
+                {
+                  "text": "Vorgesehen",
+                  "value": "at0009",
+                  "rmValue": "Planned"
+                },
+                {
+                  "text": "Geplant",
+                  "value": "at0010",
+                  "rmValue": "Scheduled"
+                },
+                {
+                  "text": "Aktiv",
+                  "value": "at0011",
+                  "rmValue": "Active"
+                },
+                {
+                  "text": "Abgeschlossen",
+                  "value": "at0012",
+                  "rmValue": "Completed"
+                },
+                {
+                  "text": "Verschoben",
+                  "value": "at0013",
+                  "rmValue": "Postponed"
+                },
+                {
+                  "text": "Widerrufen",
+                  "value": "at0014",
+                  "rmValue": "Cancelled"
+                },
+                {
+                  "text": "Unterbrochen",
+                  "value": "at0015",
+                  "rmValue": "Suspended"
+                },
+                {
+                  "text": "Abgebrochen",
+                  "value": "at0016",
+                  "rmValue": "Discontinued"
+                },
+                {
+                  "text": "Unbekannt",
+                  "value": "at0017",
+                  "rmValue": "Unknown"
+                },
+                {
+                  "text": "Nicht eingenommen",
+                  "value": "at0035",
+                  "rmValue": "Not Taken"
+                }
+              ],
+              "helpText": "Die archetyp-eigene Rubrik verwendet englische Begriffe (rmValue) - deutsche Labels bleiben in der UI, EHRbase validiert gegen die englischen.",
+              "required": true,
+              "defaultValue": "at0011"
+            },
+            {
+              "id": "status_start_time",
+              "name": "vg_medicationstatement.v1.1.0_status_start_time",
+              "type": "input-date-time",
+              "label": "Beginn",
+              "binding": {
+                "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0019]/value",
+                "rmType": "DV_DATE_TIME",
+                "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/status_start_time",
+                "rmVersion": "v0",
+                "templateId": "vg_MedicationStatement.v1.1.0",
+                "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+                "templateAlias": "vg_medicationstatement.v1.1.0",
+                "archetypeNodeId": "at0019",
+                "templateVersion": "1.1.0"
+              },
+              "helpText": "Beginn des Zeitraums, in dem das Medikament eingenommen wird (FHIR effectivePeriod.start).",
+              "required": false
+            },
+            {
+              "id": "status_end_time",
+              "name": "vg_medicationstatement.v1.1.0_status_end_time",
+              "type": "input-date-time",
+              "label": "Ende",
+              "binding": {
+                "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0021]/value",
+                "rmType": "DV_DATE_TIME",
+                "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/status_end_time",
+                "rmVersion": "v0",
+                "templateId": "vg_MedicationStatement.v1.1.0",
+                "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+                "templateAlias": "vg_medicationstatement.v1.1.0",
+                "archetypeNodeId": "at0021",
+                "templateVersion": "1.1.0"
+              },
+              "helpText": "Ende des Zeitraums, in dem das Medikament eingenommen wird (FHIR effectivePeriod.end) - optional.",
+              "required": false
+            },
+            {
+              "id": "dose_and_timing",
+              "name": "vg_medicationstatement.v1.1.0_dose_and_timing",
+              "type": "input-text",
+              "label": "Dosierung",
+              "binding": {
+                "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0033]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/dose_and_timing",
+                "rmVersion": "v0",
+                "templateId": "vg_MedicationStatement.v1.1.0",
+                "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+                "templateAlias": "vg_medicationstatement.v1.1.0",
+                "archetypeNodeId": "at0033",
+                "templateVersion": "1.1.0"
+              },
+              "required": false
+            },
+            {
+              "id": "dose_quantity",
+              "name": "vg_medicationstatement.v1.1.0_dose_quantity",
+              "type": "input-quantity",
+              "label": "Dosis (strukturiert)",
+              "binding": {
+                "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[openEHR-EHR-CLUSTER.dosage.v2]/items[at0144]/value",
+                "rmType": "DV_QUANTITY",
+                "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/dosage/dose/quantity_value",
+                "rmVersion": "v2",
+                "templateId": "vg_MedicationStatement.v1.1.0",
+                "archetypeId": "openEHR-EHR-CLUSTER.dosage.v2",
+                "templateAlias": "vg_medicationstatement.v1.1.0",
+                "archetypeNodeId": "at0144",
+                "templateVersion": "1.1.0"
+              },
+              "helpText": "Numerische Dosis mit Einheit für den strukturierten FHIR-Abgleich (dosage.doseAndRate.doseQuantity) - ergänzt die Freitext-Dosierung.",
+              "required": false
+            },
+            {
+              "id": "route",
+              "name": "vg_medicationstatement.v1.1.0_route",
+              "type": "input-text",
+              "label": "Verabreichungsweg",
+              "binding": {
+                "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0030]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/route",
+                "rmVersion": "v0",
+                "templateId": "vg_MedicationStatement.v1.1.0",
+                "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+                "templateAlias": "vg_medicationstatement.v1.1.0",
+                "archetypeNodeId": "at0030",
+                "templateVersion": "1.1.0"
+              },
+              "required": false
+            },
+            {
+              "id": "clinical_indication",
+              "name": "vg_medicationstatement.v1.1.0_clinical_indication",
+              "type": "input-text",
+              "label": "Klinische Indikation",
+              "binding": {
+                "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0023]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/clinical_indication",
+                "rmVersion": "v0",
+                "templateId": "vg_MedicationStatement.v1.1.0",
+                "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+                "templateAlias": "vg_medicationstatement.v1.1.0",
+                "archetypeNodeId": "at0023",
+                "templateVersion": "1.1.0"
+              },
+              "required": false
+            },
+            {
+              "id": "date_asserted",
+              "name": "vg_medicationstatement.v1.1.0_date_asserted",
+              "type": "input-date-time",
+              "label": "Erfasst am",
+              "binding": {
+                "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0038]/value",
+                "rmType": "DV_DATE_TIME",
+                "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/date_asserted",
+                "rmVersion": "v0",
+                "templateId": "vg_MedicationStatement.v1.1.0",
+                "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+                "templateAlias": "vg_medicationstatement.v1.1.0",
+                "archetypeNodeId": "at0038",
+                "templateVersion": "1.1.0"
+              },
+              "helpText": "Zeitpunkt, zu dem diese Angabe erfasst/bestätigt wurde (FHIR dateAsserted).",
+              "required": false
+            },
+            {
+              "id": "comment",
+              "name": "vg_medicationstatement.v1.1.0_comment",
+              "type": "input-text",
+              "label": "Kommentar",
+              "binding": {
+                "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0029]/value",
+                "rmType": "DV_TEXT",
+                "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/comment",
+                "rmVersion": "v0",
+                "templateId": "vg_MedicationStatement.v1.1.0",
+                "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+                "templateAlias": "vg_medicationstatement.v1.1.0",
+                "archetypeNodeId": "at0029",
+                "templateVersion": "1.1.0"
+              },
+              "required": false
+            }
+          ]
+        }
+      ]
+    },
+    "status": "published",
+    "locales": {
+      "en": {
+        "[name='vg_medicationstatement.v1.1.0_route']": {
+          "label": "Route"
+        },
+        "[name='vg_medicationstatement.v1.1.0_status']": {
+          "label": "Status"
+        },
+        "[name='vg_medicationstatement.v1.1.0_comment']": {
+          "label": "Comment"
+        },
+        "[name='vg_medicationstatement.v1.1.0_date_asserted']": {
+          "label": "Date asserted"
+        },
+        "[name='vg_medicationstatement.v1.1.0_dose_quantity']": {
+          "label": "Dose quantity"
+        },
+        "[name='vg_medicationstatement.v1.1.0_dose_and_timing']": {
+          "label": "Dose"
+        },
+        "[name='vg_medicationstatement.v1.1.0_status_end_time']": {
+          "label": "Status end time"
+        },
+        "[name='vg_medicationstatement.v1.1.0_status_start_time']": {
+          "label": "Status start time"
+        },
+        "[name='vg_medicationstatement.v1.1.0_clinical_indication']": {
+          "label": "Clinical indication"
+        },
+        "[name='vg_medicationstatement.v1.1.0_medication_item_name']": {
+          "label": "Medication name"
+        },
+        "[name='vg_medicationstatement.v1.1.0_medication_description']": {
+          "label": "Medication description"
+        }
+      }
+    },
+    "version": "1.1.0",
+    "bindings": {
+      "vg_medicationstatement.v1.1.0_route": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0030]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/route",
+          "rmVersion": "v0",
+          "templateId": "vg_MedicationStatement.v1.1.0",
+          "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+          "templateAlias": "vg_medicationstatement.v1.1.0",
+          "archetypeNodeId": "at0030",
+          "templateVersion": "1.1.0"
+        }
+      },
+      "vg_medicationstatement.v1.1.0_status": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0008]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/status",
+          "rmVersion": "v0",
+          "templateId": "vg_MedicationStatement.v1.1.0",
+          "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+          "templateAlias": "vg_medicationstatement.v1.1.0",
+          "archetypeNodeId": "at0008",
+          "templateVersion": "1.1.0"
+        }
+      },
+      "vg_medicationstatement.v1.1.0_comment": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0029]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/comment",
+          "rmVersion": "v0",
+          "templateId": "vg_MedicationStatement.v1.1.0",
+          "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+          "templateAlias": "vg_medicationstatement.v1.1.0",
+          "archetypeNodeId": "at0029",
+          "templateVersion": "1.1.0"
+        }
+      },
+      "vg_medicationstatement.v1.1.0_dose_and_timing": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0033]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/dose_and_timing",
+          "rmVersion": "v0",
+          "templateId": "vg_MedicationStatement.v1.1.0",
+          "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+          "templateAlias": "vg_medicationstatement.v1.1.0",
+          "archetypeNodeId": "at0033",
+          "templateVersion": "1.1.0"
+        }
+      },
+      "vg_medicationstatement.v1.1.0_clinical_indication": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0023]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/clinical_indication",
+          "rmVersion": "v0",
+          "templateId": "vg_MedicationStatement.v1.1.0",
+          "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+          "templateAlias": "vg_medicationstatement.v1.1.0",
+          "archetypeNodeId": "at0023",
+          "templateVersion": "1.1.0"
+        }
+      },
+      "vg_medicationstatement.v1.1.0_medication_item_name": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.medication_statement.v0]/data[at0001]/events[at0002]/data[at0003]/items[at0006]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_medicationstatement.v1.1.0/medication_statement/any_event/medication_item_name",
+          "rmVersion": "v0",
+          "templateId": "vg_MedicationStatement.v1.1.0",
+          "archetypeId": "openEHR-EHR-OBSERVATION.medication_statement.v0",
+          "templateAlias": "vg_medicationstatement.v1.1.0",
+          "archetypeNodeId": "at0006",
+          "templateVersion": "1.1.0"
+        }
+      }
+    },
+    "revision": 2,
+    "extensions": {
+      "formbuilder.scripting": {
+        "operations": [],
+        "allowedOperations": []
+      }
+    },
+    "formScript": {
+      "language": "typescript",
+      "source": "import { defineFormScript } from \"@formbuilder/runtime\";\n\nexport default defineFormScript(({ form, ui, events, logger }) => {\n  // Formularspezifische Logik\n});\n",
+      "compiled": "\nexport default defineFormScript(({ form, ui, events, logger }) => {\n    // Formularspezifische Logik\n});\n//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZm9ybS1zY3JpcHQuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyJmb3JtLXNjcmlwdC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQSxPQUFPLEVBQUUsZ0JBQWdCLEVBQUUsTUFBTSxzQkFBc0IsQ0FBQztBQUV4RCxlQUFlLGdCQUFnQixDQUFDLENBQUMsRUFBRSxJQUFJLEVBQUUsRUFBRSxFQUFFLE1BQU0sRUFBRSxNQUFNLEVBQUUsRUFBRSxFQUFFO0lBQy9ELDRCQUE0QjtBQUM5QixDQUFDLENBQUMsQ0FBQyIsInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IGRlZmluZUZvcm1TY3JpcHQgfSBmcm9tIFwiQGZvcm1idWlsZGVyL3J1bnRpbWVcIjtcblxuZXhwb3J0IGRlZmF1bHQgZGVmaW5lRm9ybVNjcmlwdCgoeyBmb3JtLCB1aSwgZXZlbnRzLCBsb2dnZXIgfSkgPT4ge1xuICAvLyBGb3JtdWxhcnNwZXppZmlzY2hlIExvZ2lrXG59KTtcbiJdfQ==",
+      "generatedTypes": "declare module \"@formbuilder/runtime\" {\n  export type MaybePromise<T> = T | Promise<T>;\n  export type ChangeSource = \"user\" | \"script\" | \"load\" | \"api\" | \"computed\";\n  export type FieldId = \"vg_medicationstatement.v1.1.0_clinical_indication\" | \"vg_medicationstatement.v1.1.0_comment\" | \"vg_medicationstatement.v1.1.0_date_asserted\" | \"vg_medicationstatement.v1.1.0_dose_and_timing\" | \"vg_medicationstatement.v1.1.0_dose_quantity\" | \"vg_medicationstatement.v1.1.0_medication_description\" | \"vg_medicationstatement.v1.1.0_medication_item_name\" | \"vg_medicationstatement.v1.1.0_route\" | \"vg_medicationstatement.v1.1.0_status\" | \"vg_medicationstatement.v1.1.0_status_end_time\" | \"vg_medicationstatement.v1.1.0_status_start_time\";\n  export type GroupId = \"medikation\";\n  export type RepeatableGroupId = never;\n  export type SectionId = never;\n  export type TabId = never;\n  export type ButtonId = never;\n  export type TextId = never;\n  export type AlertId = never;\n  export type ConnectorOperation = never;\n\n  export interface GroupItems {\n    [groupId: string]: never;\n  }\n\n  export interface FormValues {\n    \"vg_medicationstatement.v1.1.0_medication_item_name\": string | null;\n    \"vg_medicationstatement.v1.1.0_medication_description\": string | null;\n    \"vg_medicationstatement.v1.1.0_status\": \"at0009\" | \"at0010\" | \"at0011\" | \"at0012\" | \"at0013\" | \"at0014\" | \"at0015\" | \"at0016\" | \"at0017\" | \"at0035\" | null;\n    \"vg_medicationstatement.v1.1.0_status_start_time\": string | null;\n    \"vg_medicationstatement.v1.1.0_status_end_time\": string | null;\n    \"vg_medicationstatement.v1.1.0_dose_and_timing\": string | null;\n    \"vg_medicationstatement.v1.1.0_dose_quantity\": { magnitude: number; unit: string } | null;\n    \"vg_medicationstatement.v1.1.0_route\": string | null;\n    \"vg_medicationstatement.v1.1.0_clinical_indication\": string | null;\n    \"vg_medicationstatement.v1.1.0_date_asserted\": string | null;\n    \"vg_medicationstatement.v1.1.0_comment\": string | null;\n\n  }\n\n  export interface ConnectorInputs {\n    [operation: string]: never;\n  }\n\n  export interface ConnectorOutputs {\n    [operation: string]: never;\n  }\n\n  export interface ConnectorCatalog {\n    [connector: string]: never;\n  }\n\n  export interface ChangeEvent<T> {\n    value: T;\n    previousValue: T;\n    source: ChangeSource;\n    initialLoad: boolean;\n    signal: AbortSignal;\n  }\n\n  export interface SetValueOptions { emitChange?: boolean; }\n  export interface ChangeHandlerOptions { debounce?: number; cancelPrevious?: boolean; }\n  export interface FieldApi<T> {\n    readonly value: T | undefined;\n    setValue(value: T, options?: SetValueOptions): void;\n    clear(options?: SetValueOptions): void;\n    onChange(handler: (event: ChangeEvent<T>) => MaybePromise<void>, options?: ChangeHandlerOptions): void;\n    validate(handler: (value: T | undefined, context: ValidationContext) => MaybePromise<string | null | undefined>): void;\n  }\n\n  export interface GroupChangeEvent<T> {\n    index: number;\n    field: keyof T & FieldId;\n    fieldId: keyof T & FieldId;\n    value: T[keyof T];\n    previousValue: T[keyof T];\n    source: ChangeSource;\n  }\n\n  export interface GroupApi<T extends Record<string, unknown>> {\n    readonly items: readonly Readonly<T>[];\n    addItem(initial?: Partial<T>): number;\n    removeItem(index: number): void;\n    replaceItems(items: readonly T[]): void;\n    onAddItem(handler: (event: { index: number; item: Readonly<T> }) => MaybePromise<void>): void;\n    onRemoveItem(handler: (event: { index: number; item: Readonly<T> }) => MaybePromise<void>): void;\n    onItemChange(handler: (event: GroupChangeEvent<T>) => MaybePromise<void>): void;\n  }\n\n  export interface ComputedConfig<K extends FieldId, D extends readonly FieldId[]> {\n    dependsOn: D;\n    persist?: boolean;\n    calculate(values: Pick<FormValues, D[number]>): MaybePromise<FormValues[K]>;\n  }\n\n  export interface ValidationContext {\n    readonly form: FormApi;\n  }\n\n  export interface FormApi {\n    readonly values: Partial<FormValues>;\n    readonly errors: Partial<Record<FieldId, string>>;\n    field<K extends FieldId>(id: K): FieldApi<FormValues[K]>;\n    group<K extends RepeatableGroupId>(id: K): GroupApi<GroupItems[K]>;\n    updateValues(values: Partial<FormValues>): void;\n    computed<K extends FieldId, D extends readonly FieldId[]>(id: K, config: ComputedConfig<K, D>): void;\n    setErrors(errors: Partial<Record<FieldId, string | null | undefined>>): void;\n    isValid(): boolean;\n  }\n\n  export interface UiState {\n    visible?: boolean;\n    enabled?: boolean;\n    readonly?: boolean;\n    required?: boolean;\n  }\n\n  export interface UiComponentApi {\n    show(): void;\n    hide(): void;\n    enable(): void;\n    disable(): void;\n    setVisible(value: boolean): void;\n    setEnabled(value: boolean): void;\n    setReadonly(value: boolean): void;\n    setRequired(value: boolean): void;\n    setState(state: UiState): void;\n  }\n\n  export interface UiFieldApi extends UiComponentApi {\n    setLabel(value: string): void;\n    setPlaceholder(value: string): void;\n    setHelpText(value: string): void;\n    setOptions(options: readonly { value: string; label: string }[]): void;\n    onFocus(handler: () => MaybePromise<void>): void;\n    onBlur(handler: () => MaybePromise<void>): void;\n  }\n\n  export interface UiButtonApi extends UiComponentApi {\n    onClick(handler: () => MaybePromise<void>): void;\n    setLoading(value: boolean): void;\n  }\n\n  export interface UiApi {\n    field<K extends FieldId>(id: K): UiFieldApi;\n    group(id: GroupId): UiComponentApi;\n    section(id: SectionId): UiComponentApi;\n    tab(id: TabId): UiComponentApi;\n    button(id: ButtonId): UiButtonApi;\n    toast: {\n      success(message: string): void;\n      error(message: string): void;\n      info(message: string): void;\n      warning(message: string): void;\n    };\n  }\n\n  export interface LifecycleEvent {\n    cancel(message?: string): void;\n  }\n\n  export interface EventApi {\n    beforeLoad(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterLoad(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    beforeSave(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterSave(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    beforeSubmit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterSubmit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onInit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onReset(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onValidation(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onDestroy(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n  }\n\n  export interface FormScriptContext {\n    formId: string;\n    formVersion: string;\n    templateId?: string;\n    patientId?: string;\n    ehrId?: string;\n    encounterId?: string;\n    sessionId?: string;\n    locale: string;\n    mode: \"create\" | \"edit\" | \"view\" | \"preview\";\n    user: { id?: string; displayName?: string; roles: string[] };\n    /** Latest Flat Composition for the form template. It is read-only context, never field values. */\n    composition?: {\n      ehrId: string;\n      templateId: string;\n      reference?: string;\n      flat: Record<string, unknown>;\n      loadedAt: string;\n    };\n    /** Results of enabled, autoloaded AQL functions, keyed as \"package.name\". */\n    aql: Record<string, unknown>;\n  }\n\n  export interface StateApi {\n    get<T = unknown>(key: string): T | undefined;\n    set<T = unknown>(key: string, value: T): void;\n    delete(key: string): void;\n  }\n\n  export interface LoggerApi {\n    debug(message: string, details?: unknown): void;\n    info(message: string, details?: unknown): void;\n    warn(message: string, details?: unknown): void;\n    error(message: string | unknown, error?: unknown): void;\n  }\n\n  export interface ApiCallOptions {\n    signal?: AbortSignal;\n    timeoutMs?: number;\n  }\n\n  export interface Api {\n    call<K extends ConnectorOperation>(\n      operation: K,\n      input: ConnectorInputs[K],\n      options?: ApiCallOptions,\n    ): Promise<ConnectorOutputs[K]>;\n    request<C extends keyof ConnectorCatalog & string, O extends keyof ConnectorCatalog[C] & string>(\n      request: {\n        connector: C;\n        operation: O;\n        input: ConnectorCatalog[C][O] extends { input: infer I } ? I : never;\n      },\n      options?: ApiCallOptions,\n    ): Promise<ConnectorCatalog[C][O] extends { output: infer R } ? R : never>;\n  }\n\n  export interface FormScriptSdk {\n    form: FormApi;\n    ui: UiApi;\n    api: Api;\n    context: FormScriptContext;\n    /** Synchronous, browser-safe functions contributed by installed function packages. */\n    functions: Record<string, Record<string, (...args: unknown[]) => unknown>>;\n    state: StateApi;\n    events: EventApi;\n    logger: LoggerApi;\n  }\n\n  export function defineFormScript(\n    setup: (sdk: FormScriptSdk) => MaybePromise<void>,\n  ): (sdk: FormScriptSdk) => MaybePromise<void>;\n}\n",
+      "diagnostics": [],
+      "compiledAt": "2026-09-01T13:18:18.368Z"
+    },
+    "schemaVersion": "1.0",
+    "sourceTemplates": [
+      {
+        "id": "vg_MedicationStatement.v1.1.0",
+        "type": "openEhrWebTemplate",
+        "alias": "vg_medicationstatement.v1.1.0",
+        "version": "1.1.0"
+      }
+    ]
+  }
+}

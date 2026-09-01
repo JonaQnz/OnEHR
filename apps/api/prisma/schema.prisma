@@ -368,6 +368,48 @@ enum PatientOrigin {
   imported
 }
 
+enum IntegrationProtocol {
+  fhir
+  openehr
+}
+
+// A raw capture of every outbound write Forms sends to an external clinical
+// data store (the FHIR CDR or EHRbase) - the exact request body, the raw
+// response, and enough context to tell what it was for. Purely a debug/
+// export aid (see integrationCallLogService.ts) so a real payload can later
+// be downloaded and turned into a Bruno request by hand - nothing here
+// drives application behavior, and logging a call never blocks or fails the
+// real call it's describing (every call site wraps this in its own
+// try/catch and swallows logging errors). Deliberately never stores request
+// headers/auth - only the body that was actually sent/received, plus
+// non-secret routing context (ehrId/patientId/fhirPatientId).
+model IntegrationCallLog {
+  id            String              @id @default(uuid())
+  protocol      IntegrationProtocol
+  // "Patient"/"Encounter"/... for fhir; the openEHR templateId (e.g.
+  // "vg_Diagnosis.v1.1.1") or "contribution" for openehr.
+  resourceType  String              @map("resource_type")
+  // Short label for what kind of call this was, e.g. "create",
+  // "commit-flat", "commit-canonical", "create-ehr".
+  operation     String
+  method        String
+  url           String
+  requestBody   Json?               @map("request_body")
+  responseBody  Json?               @map("response_body")
+  statusCode    Int?                @map("status_code")
+  success       Boolean
+  errorMessage  String?             @map("error_message")
+  ehrId         String?             @map("ehr_id")
+  patientId     String?             @map("patient_id")
+  fhirPatientId String?             @map("fhir_patient_id")
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  @@index([protocol, resourceType])
+  @@index([ehrId])
+  @@index([createdAt])
+  @@map("integration_call_logs")
+}
+
 enum UserStatus {
   active
   inactive

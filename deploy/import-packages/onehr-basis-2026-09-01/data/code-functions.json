@@ -1,0 +1,132 @@
+[
+  {
+    "id": "946108b0-c7e7-4efd-86af-b47144c5ad6b",
+    "packageName": "labSafety",
+    "name": "flagLaborValue",
+    "description": "Klassifiziert Laborwerte anhand von Referenz- und kritischen Grenzen einschließlich Einheit und verständlicher Kennzeichnung.",
+    "source": "export function flagLaborValue(params) {\n  const value = Number(params?.value);\n  const refMin = Number(params?.referenceMin);\n  const refMax = Number(params?.referenceMax);\n  const criticalLow = Number(params?.criticalLow);\n  const criticalHigh = Number(params?.criticalHigh);\n  const has = (n) => Number.isFinite(n);\n  if (!has(value)) return { flag: \"unknown\", tone: \"neutral\", critical: false, label: \"Wert fehlt\", display: \"—\" };\n  let flag = \"normal\";\n  let critical = false;\n  if (has(criticalLow) && value <= criticalLow) { flag = \"critical-low\"; critical = true; }\n  else if (has(criticalHigh) && value >= criticalHigh) { flag = \"critical-high\"; critical = true; }\n  else if (has(refMin) && value < refMin) flag = \"low\";\n  else if (has(refMax) && value > refMax) flag = \"high\";\n  const labels = { normal: \"im Referenzbereich\", low: \"erniedrigt\", high: \"erhöht\", \"critical-low\": \"kritisch niedrig\", \"critical-high\": \"kritisch hoch\" };\n  return {\n    flag,\n    tone: critical ? \"danger\" : flag === \"normal\" ? \"success\" : \"warning\",\n    critical,\n    label: labels[flag],\n    display: String(value) + (params?.unit ? \" \" + params.unit : \"\"),\n    reference: has(refMin) || has(refMax) ? String(has(refMin) ? refMin : \"—\") + \"–\" + String(has(refMax) ? refMax : \"—\") + (params?.unit ? \" \" + params.unit : \"\") : null\n  };\n}",
+    "enabled": true,
+    "createdAt": "2026-08-25T15:13:32.062Z",
+    "updatedAt": "2026-08-25T15:13:32.062Z"
+  },
+  {
+    "id": "9bd0455e-1805-4e60-9480-8a643474c8fc",
+    "packageName": "labTools",
+    "name": "formatQuantity",
+    "description": "Formats magnitude and unit consistently.",
+    "source": "export function formatQuantity(params) { return params.magnitude == null ? \"\" : `${params.magnitude}${params.unit ? ` ${params.unit}` : \"\"}`; }",
+    "enabled": true,
+    "createdAt": "2026-08-24T07:41:30.943Z",
+    "updatedAt": "2026-08-24T07:41:30.943Z"
+  },
+  {
+    "id": "9a559043-599f-4a6e-bee5-374ec1a63807",
+    "packageName": "labTools",
+    "name": "isOutOfRange",
+    "description": "Checks a numeric value against optional reference bounds.",
+    "source": "export function isOutOfRange(params) { return (params.low != null && params.value < params.low) || (params.high != null && params.value > params.high); }",
+    "enabled": true,
+    "createdAt": "2026-08-24T07:41:30.943Z",
+    "updatedAt": "2026-08-24T07:41:30.943Z"
+  },
+  {
+    "id": "2b944ea7-63ed-42a2-967e-4ad02290473c",
+    "packageName": "labTools",
+    "name": "latestByCode",
+    "description": "Finds the most recent AQL row for a LOINC code.",
+    "source": "export function latestByCode(params) { return (params.rows || []).filter((row) => row.loincCode === params.code).sort((a, b) => String(b.recordedAt || \"\").localeCompare(String(a.recordedAt || \"\")))[0] || null; }",
+    "enabled": true,
+    "createdAt": "2026-08-24T07:41:30.943Z",
+    "updatedAt": "2026-08-24T07:41:30.943Z"
+  },
+  {
+    "id": "65918ae7-b132-43b8-9880-98d9c234daef",
+    "packageName": "medicationSafety",
+    "name": "assessAdministration",
+    "description": "Bewertet eine geplante Medikamentengabe zeitlich und berücksichtigt eine erforderliche Doppelkontrolle.",
+    "source": "export function assessAdministration(params) {\n  const scheduled = params?.scheduledAt ? new Date(params.scheduledAt).getTime() : null;\n  const administered = params?.administeredAt ? new Date(params.administeredAt).getTime() : null;\n  const reference = params?.now ? new Date(params.now).getTime() : Date.now();\n  if (params?.requiresDoubleCheck && !params?.doubleChecked) {\n    return { status: \"blocked\", tone: \"danger\", minutesDelta: null, message: \"Doppelkontrolle ausstehend\" };\n  }\n  if (!scheduled || Number.isNaN(scheduled)) {\n    return { status: \"unscheduled\", tone: \"neutral\", minutesDelta: null, message: \"Keine geplante Gabezeit\" };\n  }\n  const effective = administered && !Number.isNaN(administered) ? administered : reference;\n  const minutesDelta = Math.round((effective - scheduled) / 60000);\n  if (administered) {\n    const onTime = Math.abs(minutesDelta) <= 30;\n    return { status: onTime ? \"administered-on-time\" : \"administered-deviating\", tone: onTime ? \"success\" : \"warning\", minutesDelta, message: onTime ? \"Zeitgerecht verabreicht\" : \"Zeitabweichung dokumentieren\" };\n  }\n  if (minutesDelta > 60) return { status: \"overdue\", tone: \"danger\", minutesDelta, message: \"Gabe überfällig\" };\n  if (minutesDelta >= -30) return { status: \"due\", tone: \"warning\", minutesDelta, message: \"Gabe jetzt fällig\" };\n  return { status: \"planned\", tone: \"info\", minutesDelta, message: \"Gabe geplant\" };\n}",
+    "enabled": true,
+    "createdAt": "2026-08-25T14:58:43.086Z",
+    "updatedAt": "2026-08-25T14:58:43.086Z"
+  },
+  {
+    "id": "a44a32f5-ddce-443b-ba54-eff41b90b50b",
+    "packageName": "medicationTools",
+    "name": "activeNames",
+    "description": "Extracts medication names from result rows.",
+    "source": "export function activeNames(params) { return [...new Set((params.rows || []).filter((row) => row.status !== \"stopped\").map((row) => row.medicationName).filter(Boolean))]; }",
+    "enabled": true,
+    "createdAt": "2026-08-24T07:41:30.943Z",
+    "updatedAt": "2026-08-24T07:41:30.943Z"
+  },
+  {
+    "id": "93573b50-7233-4469-b232-70b6b2e75bb4",
+    "packageName": "medicationTools",
+    "name": "hasIngredient",
+    "description": "Checks medication rows for an ingredient substring.",
+    "source": "export function hasIngredient(params) { const needle = String(params.ingredient || \"\").toLowerCase(); return (params.rows || []).some((row) => String(row.medicationName || row.ingredient || \"\").toLowerCase().includes(needle)); }",
+    "enabled": true,
+    "createdAt": "2026-08-24T07:41:30.943Z",
+    "updatedAt": "2026-08-24T07:41:30.943Z"
+  },
+  {
+    "id": "b261286b-e702-4bf0-b772-4c3f9504b0d2",
+    "packageName": "medicationTools",
+    "name": "summary",
+    "description": "Builds a human-readable medication summary.",
+    "source": "export function summary(params) { return [params.medicationName, params.dose, params.route, params.frequency].filter(Boolean).join(\" · \"); }",
+    "enabled": true,
+    "createdAt": "2026-08-24T07:41:30.943Z",
+    "updatedAt": "2026-08-24T07:41:30.943Z"
+  },
+  {
+    "id": "68fdc30e-1e42-4e3d-896d-f2e4b4a815fe",
+    "packageName": "patientSafety",
+    "name": "validateIdentityConsistency",
+    "description": "Vergleicht Patientenidentitäten aus Aktenkopf und Vorbelegung und liefert einen blockierenden Sicherheitsstatus bei Widerspruch.",
+    "source": "export function validateIdentityConsistency(params) {\n  const normalize = (value) => String(value ?? \"\").trim().toLocaleLowerCase(\"de-DE\");\n  const header = params?.header ?? {};\n  const prefill = params?.prefill ?? {};\n  const compared = [\"name\", \"dateOfBirth\", \"patientId\"];\n  const mismatches = compared.filter((key) => {\n    const left = normalize(header[key]);\n    const right = normalize(prefill[key]);\n    return left && right && left !== right;\n  });\n  const missing = compared.filter((key) => !normalize(header[key]) && !normalize(prefill[key]));\n  const unknownIdentity = !normalize(header.patientId) || normalize(header.name).includes(\"unbekannt\");\n  const blocked = unknownIdentity || mismatches.length > 0;\n  return {\n    blocked,\n    status: blocked ? \"identity-conflict\" : missing.length ? \"incomplete\" : \"consistent\",\n    mismatches,\n    missing,\n    message: blocked ? \"Patientenidentität widersprüchlich oder unbekannt – Vorgang stoppen.\" : missing.length ? \"Identität unvollständig – vor Fortsetzung ergänzen.\" : \"Identität konsistent.\"\n  };\n}",
+    "enabled": true,
+    "createdAt": "2026-08-25T15:13:00.802Z",
+    "updatedAt": "2026-08-25T15:13:00.802Z"
+  },
+  {
+    "id": "be4f10b4-77a9-4ffd-9144-f2b961641480",
+    "packageName": "patientTools",
+    "name": "ageAt",
+    "description": "Calculates age in full years at an ISO date.",
+    "source": "export function ageAt(params) { const birth = new Date(params.birthDate); const at = new Date(params.at || Date.now()); let age = at.getUTCFullYear() - birth.getUTCFullYear(); const beforeBirthday = at.getUTCMonth() < birth.getUTCMonth() || (at.getUTCMonth() === birth.getUTCMonth() && at.getUTCDate() < birth.getUTCDate()); return Number.isFinite(age) ? age - (beforeBirthday ? 1 : 0) : null; }",
+    "enabled": true,
+    "createdAt": "2026-08-24T07:41:30.943Z",
+    "updatedAt": "2026-08-24T07:41:30.943Z"
+  },
+  {
+    "id": "cdf948f1-65b5-4539-8ead-83bcd8089f42",
+    "packageName": "patientTools",
+    "name": "contactSummary",
+    "description": "Formats available address and contact fields.",
+    "source": "export function contactSummary(params) { return [params.street, [params.postalCode, params.city].filter(Boolean).join(\" \"), params.phone].filter(Boolean).join(\" · \"); }",
+    "enabled": true,
+    "createdAt": "2026-08-24T07:41:30.943Z",
+    "updatedAt": "2026-08-24T07:41:30.943Z"
+  },
+  {
+    "id": "89939da4-85c2-4373-a7d5-a26c2d3059bc",
+    "packageName": "patientTools",
+    "name": "displayName",
+    "description": "Creates a display name from a patient record.",
+    "source": "export function displayName(params) { return [params.title, params.givenName, params.familyName].filter(Boolean).join(\" \"); }",
+    "enabled": true,
+    "createdAt": "2026-08-24T07:41:30.942Z",
+    "updatedAt": "2026-08-24T07:41:30.942Z"
+  },
+  {
+    "id": "efc62eb6-8a37-47dd-8d2d-7c4841f21cd5",
+    "packageName": "workflowSafety",
+    "name": "assessDirtyState",
+    "description": "Ermittelt, ob ein Formular gegenüber dem geladenen Ausgangszustand verändert wurde und ob Verwerfen bestätigt werden muss.",
+    "source": "export function assessDirtyState(params) {\n  const stable = (value) => {\n    if (Array.isArray(value)) return value.map(stable);\n    if (value && typeof value === \"object\") {\n      return Object.keys(value).sort().reduce((out, key) => {\n        if (![\"updatedAt\", \"lastViewedAt\", \"_runtime\"].includes(key)) out[key] = stable(value[key]);\n        return out;\n      }, {});\n    }\n    return value ?? null;\n  };\n  const baseline = JSON.stringify(stable(params?.baseline ?? {}));\n  const current = JSON.stringify(stable(params?.current ?? {}));\n  const dirty = baseline !== current;\n  return {\n    dirty,\n    requiresDiscardConfirmation: dirty,\n    canCloseSilently: !dirty,\n    message: dirty ? \"Ungespeicherte Änderungen vorhanden.\" : \"Keine Änderungen.\"\n  };\n}",
+    "enabled": true,
+    "createdAt": "2026-08-25T15:13:12.118Z",
+    "updatedAt": "2026-08-25T15:13:12.118Z"
+  }
+]

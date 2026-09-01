@@ -37,6 +37,31 @@ export async function getRemoteWebTemplate(templateId: string): Promise<any> {
   }
 }
 
+/**
+ * Fetches the raw OPT (Operational Template, ADL2 XML) for a template - the
+ * actual C_ARCHETYPE_ROOT/C_COMPLEX_OBJECT/C_CODE_PHRASE/term_definitions/
+ * component_ontologies/term_bindings source, as opposed to getRemoteWebTemplate's
+ * already-flattened, single-language WebTemplate JSON. Needed by the OPT
+ * constraint engine (packages/openehr-engine/src/opt) for anything the
+ * WebTemplate export doesn't carry: multi-language term definitions, term
+ * bindings, and the fixed name/value constraint that disambiguates two
+ * C_ARCHETYPE_ROOTs using the same archetype (e.g. vg_Diagnosis.v1.1.1's
+ * "primary diagnosis"/"secondary diagnosis" EVALUATION.problem_diagnosis.v1).
+ */
+export async function getRemoteTemplateOpt(templateId: string): Promise<string> {
+  const { ehrbaseUrl, headers, auth } = await getEhrbaseRequestConfig();
+  headers['Accept'] = 'application/xml';
+  const url = `${ehrbaseUrl}/definition/template/adl1.4/${encodeURIComponent(templateId)}`;
+
+  try {
+    const response = await axios.get(url, { headers, auth, responseType: 'text', transformResponse: (data) => data });
+    return response.data as string;
+  } catch (error: any) {
+    console.error(`[ehrbaseService] Failed to get OPT XML for ${templateId}:`, error.message);
+    throw new Error(`Failed to fetch OPT XML ${templateId} from EHRbase: ` + (error.response?.data?.message || error.message));
+  }
+}
+
 export interface EhrbaseStoredQueryDefinition {
   /** The fully qualified name EHRbase stores it under, e.g. "custom::aktive-diagnosen-anzahl". */
   name: string;

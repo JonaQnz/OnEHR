@@ -27,15 +27,22 @@ export function registerPatientTools(server: McpServer, api: FormbuilderApiClien
     inputSchema: { id: z.string() },
   }, ({ id }) => toResult(() => api.get(`/api/patients/${encodeURIComponent(id)}`)));
 
+  server.registerTool('get_patient_creation_configuration', {
+    title: 'Check how patient creation is routed',
+    description: 'Call this before create_patient. Returns { mode: "ehrbase" | "fhir", configured, formId?, error? } - "ehrbase" (every non-HIP connection) creates the EHR directly and needs no personFormValues; "fhir" (a HIP/Keycloak connection) routes through the FHIR CDR connector instead (Patient -> linked openEHR EHR id lives there), and create_patient then requires personFormValues shaped like formId\'s Person Form Section. configured:false means the HIP connection is missing FHIR setup (fhirBaseUrl/fhirPatientFormId/field mapping) - fails closed rather than silently using EHRbase.',
+    inputSchema: {},
+  }, () => toResult(() => api.get('/api/patients/creation-configuration')));
+
   server.registerTool('create_patient', {
     title: 'Create a patient',
-    description: 'Registers a new patient in Forms\' local registry with origin "native" and creates its EHR on EHRbase right away (unlike an imported patient, a native one does not need sync_patients to get an ehrId).',
+    description: 'Registers a new patient in Forms\' local registry with origin "native" and creates its EHR right away (unlike an imported patient, a native one does not need sync_patients to get an ehrId) - either directly on EHRbase, or via the FHIR CDR connector, per get_patient_creation_configuration. In "fhir" mode, personFormValues is required: the full submitted-value shape of that mode\'s Person Form Section (fieldName -> value, e.g. {"vg_person.v1.1.1_vorname": "Anna", ...}) - the connection\'s own field mapping picks out firstName/lastName/gender/birthDate/address/insurance from it.',
     inputSchema: {
       patientId: z.string().describe('A stable external patient identifier (e.g. an MRN), not a database id.'),
       firstName: z.string(),
       lastName: z.string(),
       birthDate: z.string().optional().describe('ISO date, e.g. "1990-05-14".'),
       gender: z.string().optional(),
+      personFormValues: z.record(z.string(), z.unknown()).optional().describe('Required when get_patient_creation_configuration reports mode "fhir" - the Person Form Section\'s full submitted values.'),
     },
   }, (input) => toResult(() => api.post('/api/patients', input)));
 

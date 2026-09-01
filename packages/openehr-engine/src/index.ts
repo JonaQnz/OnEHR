@@ -20,6 +20,12 @@ export { compareRuntimeValues } from './diff';
 
 export { buildCanonicalComposition, type CanonicalCompositionContext, type WebTemplateTreeNode } from './canonicalComposition';
 
+export { buildConstraintModelFromWebTemplate, mergeSemanticBindings, type WebTemplateJson, type WtNode, type WtInput, type WtOption } from './opt/buildConstraintModel';
+
+export { parseTermBindingsFromOpt, type SemanticBindingIndex } from './opt/parseOptXml';
+
+export { buildRuntimeValue, serializeRuntimeValue, deserializeRuntimeValue, RuntimeValueError } from './opt/runtimeValue';
+
 export const OPEN_EHR_FORM_EXTENSION = 'org.openehr.form' as const;
 
 export interface OpenEhrFormOptions {
@@ -84,6 +90,32 @@ const STRUCTURAL_RM_TYPES = new Set([
   'PARTY_PROXY', 'PARTY_IDENTIFIED', 'PARTY_RELATED', 'PARTY_SELF',
 ]);
 
+/** Shared by both codeMappings.enabled branches below (a DV_TEXT-bound field,
+ * and - see the DV_CODED_TEXT branch's own comment - the "HIP converter is
+ * king" DV_CODED_TEXT-bound one) so the `mappings/N` FLAT convention can't
+ * drift between them. Mirrors canonicalComposition.ts's buildTermMappings
+ * for the same reason that file gives: real example compositions for this
+ * use only ever carry {match, target: {terminology_id, code_string}}.
+ *
+ * No leading underscore: confirmed live against EHRbase (2026-09-01) -
+ * `_mappings` was rejected wholesale ("Could not consume Parts"). The
+ * underscore convention is for LOCATABLE meta-attributes (`_uid`, `_name`,
+ * `_feeder_audit`); `mappings` is DV_TEXT's own genuine, value-bearing RM
+ * attribute (data_types.text 5.2.4: DV_TEXT.mappings: List<TERM_MAPPING>),
+ * not a meta-attribute, so it takes its plain RM name like any other. */
+function writeCodeMappingsFlat(output: Record<string, unknown>, key: string, text: unknown, mappings: unknown): boolean {
+  if (isEmpty(text)) return false;
+  output[key] = text;
+  (Array.isArray(mappings) ? mappings : []).forEach((entry, mappingIndex) => {
+    if (!isRecord(entry) || isEmpty(entry.terminologyId) || isEmpty(entry.code)) return;
+    const prefix = `${key}/mappings/${mappingIndex}`;
+    output[`${prefix}|match`] = typeof entry.match === 'string' && entry.match ? entry.match : '=';
+    output[`${prefix}/target|code`] = entry.code;
+    output[`${prefix}/target|terminology`] = entry.terminologyId;
+  });
+  return true;
+}
+
 function setFlatValue(output: Record<string, unknown>, path: string, binding: FieldBinding, value: unknown, index?: number): void {
   const { rmType } = binding;
   if (isEmpty(value) || (rmType && STRUCTURAL_RM_TYPES.has(rmType))) return;
@@ -96,12 +128,41 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     return;
   }
   if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE') {
+    // codeMappings.enabled on a DV_CODED_TEXT-bound field must be checked
+    // BEFORE the generic CODE_PHRASE handling below, not after - this
+    // branch used to live further down as a separate `if`, which a
+    // DV_CODED_TEXT-typed field's `return` above always skipped entirely
+    // (confirmed live: "Diagnose"/diagnose_name - DV_CODED_TEXT + codeMappings
+    // - never took this path at all, so its free-text diagnosis name was
+    // instead written into `|code`, an RM-invalid "local" code_string that's
+    // actually a sentence, which EHRbase rejected wholesale). Matches
+    // buildLeafDvValue's already-correct precedence in canonicalComposition.ts
+    // (see its own comment for why this dual-encoding exists at all).
+    if (binding.codeMappings?.enabled && source) {
+      writeCodeMappingsFlat(output, key, source.value, source.mappings);
+      return;
+    }
     const code = source?.code ?? source?.value ?? value;
     const option = binding.options?.find((candidate) => candidate.value === String(code));
+    // A DV_CODED_TEXT|DV_TEXT union field (binding.allowFreeText, from the
+    // OPT constraint model) whose value doesn't match any known option is
+    // the free-text alternative being used, not a coded selection that
+    // happens to be missing metadata - writing it into `code_string` would
+    // be RM-invalid (a "local" terminology code that's actually a
+    // sentence). Fall through to the plain DV_TEXT convention instead.
+    if (!option && binding.allowFreeText) {
+      if (!isEmpty(code)) output[key] = code;
+      return;
+    }
     // EHRbase requires the full CODE_PHRASE for a DV_CODED_TEXT. Old form
     // sessions keep only the selected option value, so enrich it from the
     // form's option metadata and use the openEHR local terminology by default.
-    const displayValue = source?.value ?? source?.text ?? source?.label ?? option?.text ?? code;
+    // option?.rmValue (the archetype's original/default-language term text)
+    // must win over option?.text (the UI's preferred-language display text,
+    // German-first) - EHRbase's FLAT-composition validator checks
+    // DV_CODED_TEXT.value against the former regardless of UI language. See
+    // CodedTextOption's rmValue doc comment for the live bug this fixes.
+    const displayValue = source?.value ?? source?.text ?? source?.label ?? option?.rmValue ?? option?.text ?? code;
     const terminology = source?.terminology ?? source?.terminologyId ?? option?.terminology ?? 'local';
     if (!isEmpty(code)) {
       output[`${key}|code`] = code;
@@ -111,10 +172,6 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     return;
   }
   if (binding.codeMappings?.enabled && source) {
-    const text = source.value;
-    if (isEmpty(text)) return;
-    output[key] = text;
-    const mappings = Array.isArray(source.mappings) ? source.mappings : [];
     // EHRbase FLAT format's convention for a LOCATABLE's non-value
     // structural attributes (TERM_MAPPING among them) is an underscore-
     // prefixed segment - `_mappings` here, mirroring the same convention
@@ -125,13 +182,7 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     // Contribution/atomic-commit flow) is the one built directly against
     // the user's own confirmed-real example composition and is the
     // higher-confidence path of the two.
-    mappings.forEach((entry, mappingIndex) => {
-      if (!isRecord(entry) || isEmpty(entry.terminologyId) || isEmpty(entry.code)) return;
-      const prefix = `${key}/_mappings/${mappingIndex}`;
-      output[`${prefix}|match`] = typeof entry.match === 'string' && entry.match ? entry.match : '=';
-      output[`${prefix}/target|code`] = entry.code;
-      output[`${prefix}/target|terminology`] = entry.terminologyId;
-    });
+    writeCodeMappingsFlat(output, key, source.value, source.mappings);
     return;
   }
   output[key] = value;
@@ -154,7 +205,15 @@ export function buildOpenEhrPathMap(tree: unknown): Map<string, OpenEhrPathMappi
 
 interface CodedTextOption {
   value: string;
+  /** Display text (UI's preferred language) - never write this into
+   * DV_CODED_TEXT.value, see rmValue. */
   text?: string;
+  /** The archetype's original/default-language term text - what EHRbase's
+   * FLAT-composition validator checks DV_CODED_TEXT.value against. Falls
+   * back to `text` when absent (an English-default template with no
+   * separate translation, or an older Form Section saved before this field
+   * existed - see setFlatValue's DV_CODED_TEXT branch). */
+  rmValue?: string;
   terminology?: string;
 }
 
@@ -164,6 +223,24 @@ interface FieldBinding {
   flatPath?: string;
   options?: CodedTextOption[];
   codeMappings?: CodeMappingConfig;
+  /** See FormElementLayout.allowFreeText (core/canonical) - must be read
+   * together with `options` wherever a DV_CODED_TEXT value is written, or a
+   * free-text value would silently get forced into a bogus `code_string`
+   * instead of falling back to DV_TEXT (see setFlatValue's DV_CODED_TEXT
+   * branch). */
+  allowFreeText?: boolean;
+  /** The id of the nearest enclosing `repeatable: true` container, if any -
+   * mirrors core/form-runtime's own `repeatableGroupId` derivation exactly
+   * (a repeatable container's own id, inherited by every descendant until
+   * another repeatable container is entered). A repeatable *group* container
+   * itself has no `.binding` (confirmed live: a Laborpanel's
+   * `laboratory_analyte_result` container carries `repeatMin`/`repeatMax`/
+   * `repeatable` but no binding at all) - only this per-member marker lets
+   * toOpenEhrFlatComposition recognise `values[groupId]` as a group's row
+   * array instead of silently dropping it as an unbound field (see the
+   * comment above the group-handling loop there for what that dropping
+   * looked like in practice). */
+  repeatableGroupId?: string;
 }
 
 function layoutFieldBinding(binding: unknown): FieldBinding | undefined {
@@ -184,7 +261,16 @@ function layoutFieldBinding(binding: unknown): FieldBinding | undefined {
 
 function collectFieldBindings(layout: CanonicalForm['layout']): Map<string, FieldBinding> {
   const map = new Map<string, FieldBinding>();
-  function walk(node: CanonicalForm['layout']): void {
+  // repeatableGroupId threading mirrors core/form-runtime/index.ts's own
+  // `walk()` exactly: a `container` node with `repeatable: true` and an id
+  // becomes the group id for itself and every descendant, until another
+  // repeatable container is entered - not just direct children, since a
+  // group's members here sit two levels deeper (container > row > column >
+  // field), matching every real repeatable-group form in this app.
+  function walk(node: CanonicalForm['layout'], repeatableGroupId?: string): void {
+    const nodeType = (node as unknown as Record<string, unknown>).type;
+    const isRepeatableContainer = nodeType === 'container' && (node as unknown as Record<string, unknown>).repeatable === true && Boolean(node.id);
+    const childGroupId = isRepeatableContainer ? node.id : repeatableGroupId;
     const binding = layoutFieldBinding(node.binding);
     const rawOptions = (node as unknown as Record<string, unknown>).options;
     const options = Array.isArray(rawOptions)
@@ -192,19 +278,30 @@ function collectFieldBindings(layout: CanonicalForm['layout']): Map<string, Fiel
         if (!isRecord(option) || !text(option.value)) return [];
         const value = text(option.value)!;
         const optionText = text(option.text) || text(option.label);
+        const rmValue = text(option.rmValue);
         const terminology = text(option.terminology) || text(option.terminologyId);
         return [{
           value,
           ...(optionText ? { text: optionText } : {}),
+          ...(rmValue ? { rmValue } : {}),
           ...(terminology ? { terminology } : {}),
         }];
       })
       : undefined;
     const codeMappings = node.codeMappings?.enabled ? node.codeMappings : undefined;
+    const allowFreeText = (node as unknown as Record<string, unknown>).allowFreeText === true;
     if (node.id && binding) {
-      map.set(node.id, { ...binding, ...(options?.length ? { options } : {}), ...(codeMappings ? { codeMappings } : {}) });
+      map.set(node.id, {
+        ...binding,
+        ...(options?.length ? { options } : {}),
+        ...(codeMappings ? { codeMappings } : {}),
+        ...(allowFreeText ? { allowFreeText } : {}),
+        // The group container's own id never applies to itself as a member -
+        // only to its descendants (repeatableGroupId, not childGroupId).
+        ...(repeatableGroupId ? { repeatableGroupId } : {}),
+      });
     }
-    node.children?.forEach(walk);
+    node.children?.forEach((child) => walk(child, childGroupId));
   }
   walk(layout);
   return map;
@@ -212,6 +309,55 @@ function collectFieldBindings(layout: CanonicalForm['layout']): Map<string, Fiel
 
 function resolveFlatPath(binding: FieldBinding, pathMap?: Map<string, OpenEhrPathMapping>): string | undefined {
   return text(binding.flatPath) || (binding.path ? pathMap?.get(binding.path)?.flatPath : undefined) || text(binding.path);
+}
+
+/** Inserts `:index` right after a repeating group's own path segment (its
+ * literal id, e.g. "laboratory_analyte_result") - the openEHR FLAT
+ * convention for a repeating structural node's occurrence index, confirmed
+ * against readFlatValue's own reader (its regex already accepts `:\d+`
+ * after ANY segment, generically, to support exactly this). Writing the
+ * index at the END of the path instead (indexedPath's plain convention,
+ * correct for a simple repeating LEAF field) would misplace it past the
+ * leaf - `.../laboratory_analyte_result/analyte_name:0` isn't a group
+ * repetition EHRbase's FLAT parser recognises, it's nonsense.
+ *
+ * The group's own structural path segment is NOT derivable from the
+ * groupId string itself - groupId is the form's UI-level field id (e.g.
+ * "laboratory_analyte_result"), while flatPath is built from the openEHR
+ * archetype's own node ids (e.g. ".../items[CLUSTER.laboratory_test_analyte]
+ * /items[at0024]") and has no reason to contain the UI id as a literal
+ * substring (an earlier version of this function assumed it did, via
+ * `flatPath.indexOf('/${groupId}/')`, and silently never matched on any
+ * real form - confirmed live, this is why the first fix attempt still
+ * produced `undefined` for every indexed lookup). Instead the insertion
+ * point is derived structurally: the longest common path prefix shared by
+ * every member field's flatPath is exactly the group's own repeating
+ * segment, since sibling members diverge only in their leaf-level archetype
+ * code (`items[at0024]` vs `items[at0001]` etc.) after that point. */
+function commonPathPrefix(paths: string[]): string {
+  const segmentsList = paths.filter((path) => path.length > 0).map((path) => path.split('/'));
+  const first = segmentsList[0];
+  if (!first) return '';
+  let end = first.length;
+  for (let i = 1; i < segmentsList.length; i++) {
+    const segs = segmentsList[i] ?? [];
+    let j = 0;
+    while (j < end && j < segs.length && segs[j] === first[j]) j++;
+    end = j;
+  }
+  // A single-member group (or, degenerately, members that share an
+  // identical path) makes the "common prefix" the whole path, which would
+  // place the index inside the leaf's own segment rather than the group's.
+  // Back off one segment so it lands on the group's structural node instead.
+  if (end === first.length && segmentsList.every((segs) => segs.length === first.length && segs.every((seg, i) => seg === first[i]))) {
+    end = Math.max(0, end - 1);
+  }
+  return first.slice(0, end).join('/');
+}
+
+function insertIndexAtPrefix(flatPath: string, groupPrefix: string, index: number): string {
+  if (!groupPrefix || !flatPath.startsWith(`${groupPrefix}/`)) return flatPath;
+  return `${groupPrefix}:${index}${flatPath.slice(groupPrefix.length)}`;
 }
 
 export function toOpenEhrFlatComposition(definition: CanonicalForm, values: FormSessionValues, context: OpenEhrCompositionContext = {}, webTemplateTree?: unknown): Record<string, unknown> {
@@ -226,6 +372,38 @@ export function toOpenEhrFlatComposition(definition: CanonicalForm, values: Form
   const pathMap = webTemplateTree === undefined ? undefined : buildOpenEhrPathMap(webTemplateTree);
   const layoutBindings = collectFieldBindings(definition.layout);
   const processed = new Set<string>();
+  // Repeatable *groups* first (values[groupId] = one row object per
+  // occurrence, keyed by field id exactly like FormRuntime's own
+  // `row[field.id]` reads - see core/form-runtime's repeatableGroupId doc).
+  // Must run before the plain per-field loop below: a group id is never
+  // itself a bound leaf field (its container has no `.binding` at all - see
+  // FieldBinding.repeatableGroupId's own comment), so without this pass
+  // `values[groupId]` would just silently fail the `!binding` check in that
+  // loop and the entire group would be dropped - confirmed live, this is
+  // exactly how a Laborpanel's 9 analyte rows never reached EHRbase at all
+  // (only the panel's own top-level "Test name" field, a real leaf, made it
+  // through). Every other CanonicalForm-consuming form (no repeatable
+  // groups) sees zero behavioural change from this loop, since the `some(...)`
+  // guard only fires for a key that's genuinely a group id.
+  for (const [groupId, rows] of Object.entries(values)) {
+    if (!Array.isArray(rows) || layoutBindings.has(groupId)) continue;
+    const memberEntries = Array.from(layoutBindings.entries()).filter(([, binding]) => binding.repeatableGroupId === groupId);
+    if (memberEntries.length === 0) continue;
+    const memberPaths = memberEntries
+      .map(([, binding]) => resolveFlatPath(binding, pathMap))
+      .filter((path): path is string => Boolean(path));
+    const groupPrefix = commonPathPrefix(memberPaths);
+    rows.forEach((row, index) => {
+      if (!isRecord(row)) return;
+      for (const [subFieldId, subBinding] of memberEntries) {
+        const subValue = row[subFieldId];
+        if (isEmpty(subValue)) continue;
+        const flatPath = resolveFlatPath(subBinding, pathMap);
+        if (!flatPath) continue;
+        setFlatValue(flat, insertIndexAtPrefix(flatPath, groupPrefix, index), subBinding, subValue);
+      }
+    });
+  }
   for (const [fieldId, value] of Object.entries(values)) {
     const binding = layoutBindings.get(fieldId);
     const flatPath = binding && resolveFlatPath(binding, pathMap);
@@ -285,15 +463,15 @@ function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: str
   return values.length > 0 ? values : undefined;
 }
 
-/** Reconstructs a codeMappings.enabled field's `_mappings/N` group of flat
- * keys (see setFlatValue) back into CodeMappingValue[] - the counterpart
- * read half of that write convention. Silently returns [] rather than
- * throwing on a malformed/partial group (a `target|code` with no matching
- * `target|terminology`, say) - this is enrichment on top of the field's
- * own already-valid text value, never something that should fail the
- * whole read. */
+/** Reconstructs a codeMappings.enabled field's `mappings/N` group of flat
+ * keys (see writeCodeMappingsFlat) back into CodeMappingValue[] - the
+ * counterpart read half of that write convention. Silently returns []
+ * rather than throwing on a malformed/partial group (a `target|code` with
+ * no matching `target|terminology`, say) - this is enrichment on top of
+ * the field's own already-valid text value, never something that should
+ * fail the whole read. */
 function readCodeMappings(flat: Record<string, unknown>, path: string): Array<{ terminologyId: string; code: string; match?: string }> {
-  const prefix = `${path}/_mappings/`;
+  const prefix = `${path}/mappings/`;
   const indices = new Set<number>();
   for (const key of Object.keys(flat)) {
     if (!key.startsWith(prefix)) continue;

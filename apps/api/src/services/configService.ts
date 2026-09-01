@@ -20,6 +20,23 @@ export interface EhrbaseConnection {
     keycloakGrantType?: string;
     subjectNamespace?: string;
     defaultEhrId?: string;
+    // FHIR CDR sibling connector (same tenant/token as EHRbase above, a
+    // separate base URL) - openEHR has no Composition-level "Encounter"
+    // concept for administrative visit data, and this connection's own
+    // Patient-creation identity (Patient -> EHR id) also lives here rather
+    // than EHRbase's plain /ehr endpoint when a HIP connection is active.
+    // See ehrbaseConnectionPlugins.ts's createFhirPatient/buildIsikPatientResource.
+    fhirBaseUrl?: string;
+    /** e.g. "https://gematik.de/fhir/isik/StructureDefinition/ISiKPatient" - written into Patient.meta.profile. */
+    fhirPatientProfile?: string;
+    /** Maps this FHIR Patient builder's own field keys (firstName, lastName,
+     * gender, birthDate, street, houseNumber, city, postalCode, country,
+     * insuranceNumber, insuranceType) to the *Person Form's* own field
+     * names (fhirPatientFormId) - so patient creation is driven by
+     * whatever that Form Section actually asks for, not a hardcoded shape. */
+    fhirPatientMapping?: Record<string, string>;
+    /** parent_id of the Person Form Section whose submitted values feed buildIsikPatientResource. */
+    fhirPatientFormId?: string;
 }
 
 export interface AppConfig {
@@ -165,6 +182,12 @@ function normalizeConnection(value: unknown): EhrbaseConnection | undefined {
     ...(stringValue(raw.keycloakGrantType) ? { keycloakGrantType: stringValue(raw.keycloakGrantType) } : {}),
     ...(stringValue(raw.subjectNamespace) ? { subjectNamespace: stringValue(raw.subjectNamespace) } : {}),
     ...(stringValue(raw.defaultEhrId) ? { defaultEhrId: stringValue(raw.defaultEhrId) } : {}),
+    ...(stringValue(raw.fhirBaseUrl) ? { fhirBaseUrl: stringValue(raw.fhirBaseUrl) } : {}),
+    ...(stringValue(raw.fhirPatientProfile) ? { fhirPatientProfile: stringValue(raw.fhirPatientProfile) } : {}),
+    ...(raw.fhirPatientMapping && typeof raw.fhirPatientMapping === 'object' && !Array.isArray(raw.fhirPatientMapping)
+      ? { fhirPatientMapping: Object.fromEntries(Object.entries(raw.fhirPatientMapping as Record<string, unknown>).flatMap(([k, v]) => (stringValue(v) ? [[k, stringValue(v)!]] : []))) }
+      : {}),
+    ...(stringValue(raw.fhirPatientFormId) ? { fhirPatientFormId: stringValue(raw.fhirPatientFormId) } : {}),
   };
 }
 

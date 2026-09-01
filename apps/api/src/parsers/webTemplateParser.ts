@@ -1,6 +1,43 @@
-import { FieldRegistryItem, FieldConstraint, FormElementLayout, OpenEhrBinding } from 'core';
-import { parseOpenEhrAqlPath } from 'openehr-engine';
+import { FieldRegistryItem, FieldConstraint, FormElementLayout, OpenEhrBinding, type ArchetypeInstanceDefinition, deriveDefaultWidget } from 'core';
+import { parseOpenEhrAqlPath, buildConstraintModelFromWebTemplate } from 'openehr-engine';
 import { v4 as uuidv4 } from 'uuid';
+
+// This product's clinical UI is German-first. A WebTemplate export already
+// carries every configured language's own term text in one response (see
+// docs/features/opt-constraint-engine-analysis.md) - `node.name`/
+// `option.label` alone just happen to reflect the template's own
+// defaultLanguage (frequently English for these archetypes, confirmed
+// against vg_Diagnosis.v1.1.1's real export), which is why every field
+// imported before this needed hand-translating afterwards. Preferring
+// localizedNames/localizedLabels[de] here, with a graceful fallback to
+// whatever default-language text is present, fixes that at the one place
+// labels/option text are actually read out of a WebTemplate node - no
+// change to how or in what language the template is fetched.
+const PREFERRED_LABEL_LANGUAGE = 'de';
+
+function preferredLabel(node: any, fallback: string): string {
+  return node?.localizedNames?.[PREFERRED_LABEL_LANGUAGE] || node?.name || fallback;
+}
+
+function preferredOptionText(option: any): string {
+  return option?.localizedLabels?.[PREFERRED_LABEL_LANGUAGE] || option?.label || option?.value;
+}
+
+// EHRbase's FLAT-composition validator checks a submitted DV_CODED_TEXT's
+// `value` against the archetype's ORIGINAL (defaultLanguage, effectively
+// always English for these archetypes) term text - independent of which
+// language the UI is currently displaying. Confirmed live: a "Vermutet"/
+// "Aktiv"/"In Bearbeitung" value (German, correct for the UI) gets rejected
+// with "expected: Suspected/Active/Working; found: <German text>". `label`
+// on a WebTemplate option node is that original/default-language text
+// (verified against vg_Diagnosis.v1.1.1: defaultLanguage "en", label
+// "Suspected" for at0074 vs. localizedLabels.de "Vermutet") - so this must
+// be kept and carried through to the runtime serializer as its own field,
+// never overwritten by preferredOptionText's German preference the way
+// `text` deliberately is for display.
+function originalLanguageOptionText(option: any): string | undefined {
+  return option?.label || option?.value;
+}
 
 export function isContextOrIgnoredNode(node: any): boolean {
   if (!node) return false;
@@ -213,7 +250,7 @@ export function parseWebTemplate(webTemplate: any): {
 
         const field: FieldRegistryItem = {
           fieldName: `${alias}_${uniqueId}`,
-          label: node.name || node.id,
+          label: preferredLabel(node, node.id),
           templateAlias: alias,
           templateId: templateId,
           rmType: node.rmType,
@@ -264,10 +301,18 @@ export function parseWebTemplate(webTemplate: any): {
           const codeInput = node.inputs.find((i: any) => i.suffix === 'code' || i.type === 'CODED_TEXT');
           const listInput = codeInput || node.inputs[0];
           if (listInput && listInput.list) {
-            field.options = listInput.list.map((l: any) => ({
-              value: l.value,
-              text: l.label || l.value
-            }));
+            field.options = listInput.list.map((l: any) => {
+              const rmValue = originalLanguageOptionText(l);
+              const text = preferredOptionText(l);
+              return {
+                value: l.value,
+                text,
+                // Only carried when it actually differs from the display
+                // text, so English-default templates (rmValue === text)
+                // don't bloat every option with a redundant duplicate field.
+                ...(rmValue && rmValue !== text ? { rmValue } : {}),
+              };
+            });
           }
         }
 
@@ -334,7 +379,7 @@ export function parseWebTemplate(webTemplate: any): {
         return {
           type: 'container',
           id: node.id ? getUniqueContainerId(node.id) : uuidv4(),
-          label: node.name || node.id || 'Group',
+          label: preferredLabel(node, node.id || 'Group'),
           children: children,
           repeatMin: repeat.repeatMin,
           repeatMax: repeat.repeatMax,
@@ -372,7 +417,7 @@ export function parseWebTemplate(webTemplate: any): {
       const result: FormElementLayout = {
         type: 'container',
         id: node.id ? getUniqueContainerId(node.id) : uuidv4(),
-        label: node.name || node.id || 'Section',
+        label: preferredLabel(node, node.id || 'Section'),
         children: children,
         binding: containerBinding(node, alias, templateId)
       };
@@ -397,7 +442,7 @@ export function parseWebTemplate(webTemplate: any): {
       const result: FormElementLayout = {
         type: 'container',
         id: node.id ? getUniqueContainerId(node.id) : uuidv4(),
-        label: node.name || node.id || 'Group',
+        label: preferredLabel(node, node.id || 'Group'),
         children: children,
         binding: containerBinding(node, alias, templateId)
       };
@@ -436,7 +481,7 @@ export function parseWebTemplate(webTemplate: any): {
         type: inputType,
         id: uniqueId || node.id || uuidv4(),
         name: matchedField.fieldName,
-        label: node.name || node.id || '',
+        label: preferredLabel(node, node.id || ''),
         required: node.min >= 1,
         // The leaf's binding, straight from its own FieldRegistryItem -
         // previously never set here at all, only in the separate top-level
@@ -478,7 +523,7 @@ export function parseWebTemplate(webTemplate: any): {
     const result: FormElementLayout = {
       type: 'container',
       id: node.id ? getUniqueContainerId(node.id) : uuidv4(),
-      label: node.name || node.id || '',
+      label: preferredLabel(node, node.id || ''),
       children: children,
       binding: containerBinding(node, alias, templateId)
     };
@@ -515,6 +560,70 @@ export function parseWebTemplate(webTemplate: any): {
   }
 
   const layoutChildren = rootLayout?.children || [];
+
+  // OPT constraint engine enrichment - additive, best-effort, and isolated:
+  // attaches the neutral constraint model's own view (occurrences/value-type
+  // union/parsing warnings) onto each already-built FieldRegistryItem, for
+  // the Developer Inspector to display. Never allowed to break an import -
+  // this is purely extra data on top of everything the rest of this
+  // function already computed independently, so any failure here is
+  // swallowed (logged) rather than propagated.
+  try {
+    const constraintModel = buildConstraintModelFromWebTemplate(webTemplate);
+    const constraintFieldsByPath = new Map<string, NonNullable<FieldRegistryItem['constraintModel']>>();
+    function collect(instance: ArchetypeInstanceDefinition): void {
+      for (const field of instance.fields) {
+        constraintFieldsByPath.set(field.path, {
+          archetypeInstanceKey: field.archetypeInstanceKey,
+          occurrences: field.occurrences,
+          valueConstraints: field.valueConstraints,
+          parsingStatus: field.parsingStatus,
+          ...(field.warnings ? { warnings: field.warnings } : {}),
+        });
+      }
+      instance.children.forEach(collect);
+    }
+    constraintModel.archetypeInstances.forEach(collect);
+    for (const field of fields) {
+      const match = constraintFieldsByPath.get(field.openehrPath);
+      if (match) field.constraintModel = match;
+    }
+    // Also flag allowFreeText directly on the LAYOUT tree's own leaf nodes
+    // (not just the flat field registry) - this is what
+    // toOpenEhrFlatComposition/validateRuntimeValues actually read at
+    // runtime once a form is generated from this layout, so it's the one
+    // piece of constraint-model enrichment with real behavioral effect
+    // (closing the "a DV_CODED_TEXT|DV_TEXT union field rejects/mis-
+    // serializes free text" gap - see FormElementLayout.allowFreeText).
+    // Everything else attached above (occurrences, full value-constraint
+    // union, semantic bindings) is inspector-only.
+    function flagFreeText(node: FormElementLayout): void {
+      const path = node.binding?.path;
+      const constraintField = path ? constraintFieldsByPath.get(path) : undefined;
+      if (constraintField) {
+        const hasCodedText = constraintField.valueConstraints.some((c) => c.rmType === 'DV_CODED_TEXT');
+        const hasFreeText = constraintField.valueConstraints.some((c) => c.rmType === 'DV_TEXT');
+        if (hasCodedText && hasFreeText) node.allowFreeText = true;
+        // Default widget (architecture doc section 19): only ever a
+        // PRESENTATION choice on top of the exact same `type: 'input-
+        // select'`/`options` this node already had - never changes what RM
+        // type/value the field actually binds to or writes. Skipped once a
+        // designer has explicitly chosen a uiElement (never true at fresh-
+        // parse time, but this function is also called by
+        // apply_template_to_form's regeneration - defensive all the same).
+        if (node.type === 'input-select' && !node.uiElement) {
+          const suggestion = deriveDefaultWidget({ valueConstraints: constraintField.valueConstraints, occurrences: constraintField.occurrences });
+          if (suggestion.widget === 'radio') node.uiElement = 'RadioButtons';
+          else if (suggestion.widget === 'coded-choice-with-other') node.uiElement = 'CodedWithOther';
+          else if (suggestion.widget === 'autocomplete') node.uiElement = 'Autocomplete';
+        }
+      }
+      node.children?.forEach(flagFreeText);
+    }
+    layoutChildren.forEach(flagFreeText);
+  } catch (error) {
+    console.warn('[webTemplateParser] OPT constraint model enrichment failed (non-fatal, import continues without it):', error instanceof Error ? error.message : error);
+  }
 
   return {
     templateId,

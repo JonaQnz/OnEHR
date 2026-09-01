@@ -1,0 +1,470 @@
+{
+  "exportVersion": "1.0",
+  "form": {
+    "id": "8acb2b68-6be5-4217-ab28-9b00bc094f96",
+    "name": "Laborbericht mit Probe (Panel)",
+    "layout": {
+      "type": "form",
+      "children": [
+        {
+          "type": "container",
+          "children": [
+            {
+              "type": "container",
+              "label": "Probe",
+              "children": [
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_specimen_type",
+                  "type": "input-text",
+                  "label": "Probenart",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[openEHR-EHR-CLUSTER.specimen.v1]/items[at0029]/value",
+                    "rmType": "DV_TEXT",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/specimen/specimen_type",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+                  },
+                  "placeholder": "z. B. Vollblut, Urin, Gewebeprobe, Abstrich"
+                },
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_source_site",
+                  "type": "input-text",
+                  "label": "Entnahmestelle",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[openEHR-EHR-CLUSTER.specimen.v1]/items[at0087]/value",
+                    "rmType": "DV_TEXT",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/specimen/source_site",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+                  }
+                },
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_collection_method",
+                  "type": "input-text",
+                  "label": "Entnahmemethode",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[openEHR-EHR-CLUSTER.specimen.v1]/items[at0007]/value",
+                    "rmType": "DV_TEXT",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/specimen/collection_method",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+                  }
+                },
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_date_time_value",
+                  "type": "input-date-time",
+                  "label": "Entnahmezeitpunkt",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[openEHR-EHR-CLUSTER.specimen.v1]/items[at0015]/value",
+                    "rmType": "DV_DATE_TIME",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/specimen/collection_date_time/date_time_value",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+                  },
+                  "required": true
+                },
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_specimen_label",
+                  "type": "input-text",
+                  "label": "Probenbezeichnung",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[openEHR-EHR-CLUSTER.specimen.v1]/items[at0098]/value",
+                    "rmType": "DV_TEXT",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/specimen/specimen_label",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "container",
+              "label": "Befund",
+              "children": [
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_test_name",
+                  "type": "input-text",
+                  "label": "Untersuchung",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0005]/value",
+                    "rmType": "DV_TEXT",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/test_name",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+                  },
+                  "required": true,
+                  "placeholder": "z. B. Mikrobiologie-Panel, Histopathologie-Panel"
+                },
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_report_code",
+                  "type": "input-text",
+                  "label": "Berichts-Code",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/protocol[at0004]/items[at0068]/value",
+                    "rmType": "DV_TEXT",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/report_code",
+                    "templateId": "vg_DiagnosticReportLab.v1.1.2",
+                    "archetypeId": "openEHR-EHR-OBSERVATION.laboratory_test_result.v1",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2",
+                    "archetypeNodeId": "at0068"
+                  },
+                  "helpText": "LOINC- oder lokaler Code, der dieses Laborbericht-Panel eindeutig identifiziert (z. B. LOINC 58410-2 „CBC panel“). Entscheidend für den FHIR-Abruf. (Archetyp erlaubt hier nur DV_IDENTIFIER/DV_TEXT, kein DV_CODED_TEXT.)",
+                  "required": true,
+                  "codeMappings": {
+                    "enabled": true,
+                    "allowMultiple": false,
+                    "terminologies": [
+                      {
+                        "id": "https://hip.vitagroup.ag/sid/diagnostic-report-code",
+                        "label": "Berichts-Code (HIP)"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_overall_test_status",
+                  "type": "input-select",
+                  "label": "Gesamtstatus",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0073]/value",
+                    "rmType": "DV_CODED_TEXT",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/overall_test_status",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+                  },
+                  "options": [
+                    {
+                      "text": "Registered",
+                      "value": "at0107"
+                    },
+                    {
+                      "text": "Partial",
+                      "value": "at0037"
+                    },
+                    {
+                      "text": "Preliminary",
+                      "value": "at0120"
+                    },
+                    {
+                      "text": "Final",
+                      "value": "at0038"
+                    },
+                    {
+                      "text": "Amended",
+                      "value": "at0040"
+                    },
+                    {
+                      "text": "Corrected",
+                      "value": "at0115"
+                    },
+                    {
+                      "text": "Appended",
+                      "value": "at0119"
+                    },
+                    {
+                      "text": "Cancelled",
+                      "value": "at0074"
+                    },
+                    {
+                      "text": "Entered in error",
+                      "value": "at0116"
+                    }
+                  ]
+                },
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_result_status_time",
+                  "type": "input-date-time",
+                  "label": "Ergebnis-Zeitstempel",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[openEHR-EHR-CLUSTER.laboratory_test_analyte.v1]/items[at0006]/value",
+                    "rmType": "DV_DATE_TIME",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/laboratory_analyte_result/result_status_time",
+                    "templateId": "vg_DiagnosticReportLab.v1.1.2",
+                    "archetypeId": "openEHR-EHR-CLUSTER.laboratory_test_analyte.v1",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2",
+                    "archetypeNodeId": "at0006"
+                  },
+                  "helpText": "Zeitpunkt, zu dem der Bericht ausgestellt/bestätigt wurde (FHIR issued).",
+                  "required": false
+                },
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_diagnostic_service_category",
+                  "type": "input-text",
+                  "label": "Fachbereich",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0077]/value",
+                    "rmType": "DV_CODED_TEXT",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/diagnostic_service_category",
+                    "templateId": "vg_DiagnosticReportLab.v1.1.2",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2",
+                    "archetypeNodeId": "at0077"
+                  },
+                  "helpText": "Code muss laut FHIR-Mapping genau einer von 26436-6 (LOINC „Laboratory studies“), LAB oder laboratory sein, sonst wird der Bericht beim FHIR-Abruf nicht als Treffer erkannt.",
+                  "codeMappings": {
+                    "enabled": true,
+                    "allowMultiple": false,
+                    "terminologies": [
+                      {
+                        "id": "http://loinc.org",
+                        "label": "Kategorie-Code"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_conclusion",
+                  "type": "input-text",
+                  "label": "Beurteilung",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0057]/value",
+                    "rmType": "DV_TEXT",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/conclusion",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+                  },
+                  "uiElement": "TextArea"
+                },
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_test_diagnosis",
+                  "type": "input-text",
+                  "label": "Test-Diagnose",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0098]/value",
+                    "rmType": "DV_TEXT",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/test_diagnosis",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+                  }
+                },
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_comment_3",
+                  "type": "input-text",
+                  "label": "Kommentar",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0101]/value",
+                    "rmType": "DV_TEXT",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/comment",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+                  },
+                  "uiElement": "TextArea"
+                },
+                {
+                  "name": "vg_diagnosticreportlab.v1.1.2_requester_order_identifier",
+                  "type": "input-text",
+                  "label": "Auftragsnummer (Anordnung)",
+                  "binding": {
+                    "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/protocol[at0004]/items[at0094]/items[at0062]/value",
+                    "rmType": "DV_TEXT",
+                    "flatPath": "vg_diagnosticreportlab.v1.1.2/requester_order_identifier",
+                    "templateId": "vg_DiagnosticReportLab.v1.1.2",
+                    "archetypeId": "openEHR-EHR-OBSERVATION.laboratory_test_result.v1",
+                    "templateAlias": "vg_diagnosticreportlab.v1.1.2",
+                    "archetypeNodeId": "at0062"
+                  },
+                  "helpText": "Verknüpft diesen Bericht mit der ursprünglichen Anordnung (FHIR basedOn) - optional. (Archetyp erlaubt hier nur DV_IDENTIFIER/DV_TEXT, kein DV_CODED_TEXT.)",
+                  "required": false,
+                  "codeMappings": {
+                    "enabled": true,
+                    "allowMultiple": false,
+                    "terminologies": [
+                      {
+                        "id": "https://hip.vitagroup.ag/sid/order-identifier",
+                        "label": "Auftrags-System"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "status": "published",
+    "locales": {
+      "en": {
+        "[name='vg_diagnosticreportlab.v1.1.2_comment_3']": {
+          "label": "Kommentar"
+        },
+        "[name='vg_diagnosticreportlab.v1.1.2_test_name']": {
+          "label": "Untersuchung"
+        },
+        "[name='vg_diagnosticreportlab.v1.1.2_conclusion']": {
+          "label": "Beurteilung"
+        },
+        "[name='vg_diagnosticreportlab.v1.1.2_report_code']": {
+          "label": "Berichts-Code"
+        },
+        "[name='vg_diagnosticreportlab.v1.1.2_source_site']": {
+          "label": "Entnahmestelle"
+        },
+        "[name='vg_diagnosticreportlab.v1.1.2_specimen_type']": {
+          "label": "Probenart"
+        },
+        "[name='vg_diagnosticreportlab.v1.1.2_specimen_label']": {
+          "label": "Probenbezeichnung"
+        },
+        "[name='vg_diagnosticreportlab.v1.1.2_test_diagnosis']": {
+          "label": "Test-Diagnose"
+        },
+        "[name='vg_diagnosticreportlab.v1.1.2_date_time_value']": {
+          "label": "Entnahmezeitpunkt"
+        },
+        "[name='vg_diagnosticreportlab.v1.1.2_collection_method']": {
+          "label": "Entnahmemethode"
+        },
+        "[name='vg_diagnosticreportlab.v1.1.2_result_status_time']": {
+          "label": "Result status time"
+        },
+        "[name='vg_diagnosticreportlab.v1.1.2_overall_test_status']": {
+          "label": "Gesamtstatus"
+        },
+        "[name='vg_diagnosticreportlab.v1.1.2_requester_order_identifier']": {
+          "label": "Auftragsnummer (Anordnung)"
+        },
+        "[name='vg_diagnosticreportlab.v1.1.2_diagnostic_service_category']": {
+          "label": "Fachbereich"
+        }
+      }
+    },
+    "version": "1.3.0",
+    "bindings": {
+      "vg_diagnosticreportlab.v1.1.2_comment_3": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0101]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/comment",
+          "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+        }
+      },
+      "vg_diagnosticreportlab.v1.1.2_test_name": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0005]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/test_name",
+          "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+        }
+      },
+      "vg_diagnosticreportlab.v1.1.2_conclusion": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0057]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/conclusion",
+          "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+        }
+      },
+      "vg_diagnosticreportlab.v1.1.2_report_code": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/protocol[at0004]/items[at0068]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_diagnosticreportlab.v1.1.2/report_code",
+          "templateId": "vg_DiagnosticReportLab.v1.1.2",
+          "archetypeId": "openEHR-EHR-OBSERVATION.laboratory_test_result.v1",
+          "templateAlias": "vg_diagnosticreportlab.v1.1.2",
+          "archetypeNodeId": "at0068"
+        }
+      },
+      "vg_diagnosticreportlab.v1.1.2_source_site": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[openEHR-EHR-CLUSTER.specimen.v1]/items[at0087]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/specimen/source_site",
+          "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+        }
+      },
+      "vg_diagnosticreportlab.v1.1.2_specimen_type": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[openEHR-EHR-CLUSTER.specimen.v1]/items[at0029]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/specimen/specimen_type",
+          "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+        }
+      },
+      "vg_diagnosticreportlab.v1.1.2_specimen_label": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[openEHR-EHR-CLUSTER.specimen.v1]/items[at0098]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/specimen/specimen_label",
+          "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+        }
+      },
+      "vg_diagnosticreportlab.v1.1.2_test_diagnosis": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0098]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/test_diagnosis",
+          "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+        }
+      },
+      "vg_diagnosticreportlab.v1.1.2_date_time_value": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[openEHR-EHR-CLUSTER.specimen.v1]/items[at0015]/value",
+          "rmType": "DV_DATE_TIME",
+          "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/specimen/collection_date_time/date_time_value",
+          "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+        }
+      },
+      "vg_diagnosticreportlab.v1.1.2_collection_method": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[openEHR-EHR-CLUSTER.specimen.v1]/items[at0007]/value",
+          "rmType": "DV_TEXT",
+          "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/specimen/collection_method",
+          "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+        }
+      },
+      "vg_diagnosticreportlab.v1.1.2_overall_test_status": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0073]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_diagnosticreportlab.v1.1.2/laboratory_test_result/any_event/overall_test_status",
+          "templateAlias": "vg_diagnosticreportlab.v1.1.2"
+        }
+      },
+      "vg_diagnosticreportlab.v1.1.2_requester_order_identifier": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/protocol[at0004]/items[at0094]/items[at0062]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_diagnosticreportlab.v1.1.2/requester_order_identifier",
+          "templateId": "vg_DiagnosticReportLab.v1.1.2",
+          "archetypeId": "openEHR-EHR-OBSERVATION.laboratory_test_result.v1",
+          "templateAlias": "vg_diagnosticreportlab.v1.1.2",
+          "archetypeNodeId": "at0062"
+        }
+      },
+      "vg_diagnosticreportlab.v1.1.2_diagnostic_service_category": {
+        "openehr": {
+          "path": "/content[openEHR-EHR-OBSERVATION.laboratory_test_result.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0077]/value",
+          "rmType": "DV_CODED_TEXT",
+          "flatPath": "vg_diagnosticreportlab.v1.1.2/diagnostic_service_category",
+          "templateId": "vg_DiagnosticReportLab.v1.1.2",
+          "templateAlias": "vg_diagnosticreportlab.v1.1.2",
+          "archetypeNodeId": "at0077"
+        }
+      }
+    },
+    "revision": 2,
+    "settings": {
+      "reuse": {
+        "enabled": true,
+        "summaryFieldIds": [
+          "vg_diagnosticreportlab.v1.1.2_test_name",
+          "vg_diagnosticreportlab.v1.1.2_overall_test_status"
+        ]
+      }
+    },
+    "extensions": {
+      "formbuilder.scripting": {
+        "operations": [],
+        "allowedOperations": []
+      }
+    },
+    "formScript": {
+      "language": "typescript",
+      "source": "import { defineFormScript } from \"@formbuilder/runtime\";\n\nexport default defineFormScript(({ form, ui, events, logger }) => {\n  // Formularspezifische Logik\n});\n",
+      "compiled": "\nexport default defineFormScript(({ form, ui, events, logger }) => {\n    // Formularspezifische Logik\n});\n//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZm9ybS1zY3JpcHQuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyJmb3JtLXNjcmlwdC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQSxPQUFPLEVBQUUsZ0JBQWdCLEVBQUUsTUFBTSxzQkFBc0IsQ0FBQztBQUV4RCxlQUFlLGdCQUFnQixDQUFDLENBQUMsRUFBRSxJQUFJLEVBQUUsRUFBRSxFQUFFLE1BQU0sRUFBRSxNQUFNLEVBQUUsRUFBRSxFQUFFO0lBQy9ELDRCQUE0QjtBQUM5QixDQUFDLENBQUMsQ0FBQyIsInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IGRlZmluZUZvcm1TY3JpcHQgfSBmcm9tIFwiQGZvcm1idWlsZGVyL3J1bnRpbWVcIjtcblxuZXhwb3J0IGRlZmF1bHQgZGVmaW5lRm9ybVNjcmlwdCgoeyBmb3JtLCB1aSwgZXZlbnRzLCBsb2dnZXIgfSkgPT4ge1xuICAvLyBGb3JtdWxhcnNwZXppZmlzY2hlIExvZ2lrXG59KTtcbiJdfQ==",
+      "generatedTypes": "declare module \"@formbuilder/runtime\" {\n  export type MaybePromise<T> = T | Promise<T>;\n  export type ChangeSource = \"user\" | \"script\" | \"load\" | \"api\" | \"computed\";\n  export type FieldId = \"vg_diagnosticreportlab.v1.1.2_collection_method\" | \"vg_diagnosticreportlab.v1.1.2_comment_3\" | \"vg_diagnosticreportlab.v1.1.2_conclusion\" | \"vg_diagnosticreportlab.v1.1.2_date_time_value\" | \"vg_diagnosticreportlab.v1.1.2_diagnostic_service_category\" | \"vg_diagnosticreportlab.v1.1.2_overall_test_status\" | \"vg_diagnosticreportlab.v1.1.2_report_code\" | \"vg_diagnosticreportlab.v1.1.2_requester_order_identifier\" | \"vg_diagnosticreportlab.v1.1.2_result_status_time\" | \"vg_diagnosticreportlab.v1.1.2_source_site\" | \"vg_diagnosticreportlab.v1.1.2_specimen_label\" | \"vg_diagnosticreportlab.v1.1.2_specimen_type\" | \"vg_diagnosticreportlab.v1.1.2_test_diagnosis\" | \"vg_diagnosticreportlab.v1.1.2_test_name\";\n  export type GroupId = never;\n  export type RepeatableGroupId = never;\n  export type SectionId = never;\n  export type TabId = never;\n  export type ButtonId = never;\n  export type TextId = never;\n  export type AlertId = never;\n  export type ConnectorOperation = never;\n\n  export interface GroupItems {\n    [groupId: string]: never;\n  }\n\n  export interface FormValues {\n    \"vg_diagnosticreportlab.v1.1.2_specimen_type\": string | null;\n    \"vg_diagnosticreportlab.v1.1.2_source_site\": string | null;\n    \"vg_diagnosticreportlab.v1.1.2_collection_method\": string | null;\n    \"vg_diagnosticreportlab.v1.1.2_date_time_value\": string | null;\n    \"vg_diagnosticreportlab.v1.1.2_specimen_label\": string | null;\n    \"vg_diagnosticreportlab.v1.1.2_test_name\": string | null;\n    \"vg_diagnosticreportlab.v1.1.2_report_code\": string | null;\n    \"vg_diagnosticreportlab.v1.1.2_overall_test_status\": \"at0107\" | \"at0037\" | \"at0120\" | \"at0038\" | \"at0040\" | \"at0115\" | \"at0119\" | \"at0074\" | \"at0116\" | null;\n    \"vg_diagnosticreportlab.v1.1.2_result_status_time\": string | null;\n    \"vg_diagnosticreportlab.v1.1.2_diagnostic_service_category\": string | null;\n    \"vg_diagnosticreportlab.v1.1.2_conclusion\": string | null;\n    \"vg_diagnosticreportlab.v1.1.2_test_diagnosis\": string | null;\n    \"vg_diagnosticreportlab.v1.1.2_comment_3\": string | null;\n    \"vg_diagnosticreportlab.v1.1.2_requester_order_identifier\": string | null;\n\n  }\n\n  export interface ConnectorInputs {\n    [operation: string]: never;\n  }\n\n  export interface ConnectorOutputs {\n    [operation: string]: never;\n  }\n\n  export interface ConnectorCatalog {\n    [connector: string]: never;\n  }\n\n  export interface ChangeEvent<T> {\n    value: T;\n    previousValue: T;\n    source: ChangeSource;\n    initialLoad: boolean;\n    signal: AbortSignal;\n  }\n\n  export interface SetValueOptions { emitChange?: boolean; }\n  export interface ChangeHandlerOptions { debounce?: number; cancelPrevious?: boolean; }\n  export interface FieldApi<T> {\n    readonly value: T | undefined;\n    setValue(value: T, options?: SetValueOptions): void;\n    clear(options?: SetValueOptions): void;\n    onChange(handler: (event: ChangeEvent<T>) => MaybePromise<void>, options?: ChangeHandlerOptions): void;\n    validate(handler: (value: T | undefined, context: ValidationContext) => MaybePromise<string | null | undefined>): void;\n  }\n\n  export interface GroupChangeEvent<T> {\n    index: number;\n    field: keyof T & FieldId;\n    fieldId: keyof T & FieldId;\n    value: T[keyof T];\n    previousValue: T[keyof T];\n    source: ChangeSource;\n  }\n\n  export interface GroupApi<T extends Record<string, unknown>> {\n    readonly items: readonly Readonly<T>[];\n    addItem(initial?: Partial<T>): number;\n    removeItem(index: number): void;\n    replaceItems(items: readonly T[]): void;\n    onAddItem(handler: (event: { index: number; item: Readonly<T> }) => MaybePromise<void>): void;\n    onRemoveItem(handler: (event: { index: number; item: Readonly<T> }) => MaybePromise<void>): void;\n    onItemChange(handler: (event: GroupChangeEvent<T>) => MaybePromise<void>): void;\n  }\n\n  export interface ComputedConfig<K extends FieldId, D extends readonly FieldId[]> {\n    dependsOn: D;\n    persist?: boolean;\n    calculate(values: Pick<FormValues, D[number]>): MaybePromise<FormValues[K]>;\n  }\n\n  export interface ValidationContext {\n    readonly form: FormApi;\n  }\n\n  export interface FormApi {\n    readonly values: Partial<FormValues>;\n    readonly errors: Partial<Record<FieldId, string>>;\n    field<K extends FieldId>(id: K): FieldApi<FormValues[K]>;\n    group<K extends RepeatableGroupId>(id: K): GroupApi<GroupItems[K]>;\n    updateValues(values: Partial<FormValues>): void;\n    computed<K extends FieldId, D extends readonly FieldId[]>(id: K, config: ComputedConfig<K, D>): void;\n    setErrors(errors: Partial<Record<FieldId, string | null | undefined>>): void;\n    isValid(): boolean;\n  }\n\n  export interface UiState {\n    visible?: boolean;\n    enabled?: boolean;\n    readonly?: boolean;\n    required?: boolean;\n  }\n\n  export interface UiComponentApi {\n    show(): void;\n    hide(): void;\n    enable(): void;\n    disable(): void;\n    setVisible(value: boolean): void;\n    setEnabled(value: boolean): void;\n    setReadonly(value: boolean): void;\n    setRequired(value: boolean): void;\n    setState(state: UiState): void;\n  }\n\n  export interface UiFieldApi extends UiComponentApi {\n    setLabel(value: string): void;\n    setPlaceholder(value: string): void;\n    setHelpText(value: string): void;\n    setOptions(options: readonly { value: string; label: string }[]): void;\n    onFocus(handler: () => MaybePromise<void>): void;\n    onBlur(handler: () => MaybePromise<void>): void;\n  }\n\n  export interface UiButtonApi extends UiComponentApi {\n    onClick(handler: () => MaybePromise<void>): void;\n    setLoading(value: boolean): void;\n  }\n\n  export interface UiApi {\n    field<K extends FieldId>(id: K): UiFieldApi;\n    group(id: GroupId): UiComponentApi;\n    section(id: SectionId): UiComponentApi;\n    tab(id: TabId): UiComponentApi;\n    button(id: ButtonId): UiButtonApi;\n    toast: {\n      success(message: string): void;\n      error(message: string): void;\n      info(message: string): void;\n      warning(message: string): void;\n    };\n  }\n\n  export interface LifecycleEvent {\n    cancel(message?: string): void;\n  }\n\n  export interface EventApi {\n    beforeLoad(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterLoad(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    beforeSave(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterSave(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    beforeSubmit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    afterSubmit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onInit(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onReset(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onValidation(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n    onDestroy(handler: (event: LifecycleEvent) => MaybePromise<void>): void;\n  }\n\n  export interface FormScriptContext {\n    formId: string;\n    formVersion: string;\n    templateId?: string;\n    patientId?: string;\n    ehrId?: string;\n    encounterId?: string;\n    sessionId?: string;\n    locale: string;\n    mode: \"create\" | \"edit\" | \"view\" | \"preview\";\n    user: { id?: string; displayName?: string; roles: string[] };\n    /** Latest Flat Composition for the form template. It is read-only context, never field values. */\n    composition?: {\n      ehrId: string;\n      templateId: string;\n      reference?: string;\n      flat: Record<string, unknown>;\n      loadedAt: string;\n    };\n    /** Results of enabled, autoloaded AQL functions, keyed as \"package.name\". */\n    aql: Record<string, unknown>;\n  }\n\n  export interface StateApi {\n    get<T = unknown>(key: string): T | undefined;\n    set<T = unknown>(key: string, value: T): void;\n    delete(key: string): void;\n  }\n\n  export interface LoggerApi {\n    debug(message: string, details?: unknown): void;\n    info(message: string, details?: unknown): void;\n    warn(message: string, details?: unknown): void;\n    error(message: string | unknown, error?: unknown): void;\n  }\n\n  export interface ApiCallOptions {\n    signal?: AbortSignal;\n    timeoutMs?: number;\n  }\n\n  export interface Api {\n    call<K extends ConnectorOperation>(\n      operation: K,\n      input: ConnectorInputs[K],\n      options?: ApiCallOptions,\n    ): Promise<ConnectorOutputs[K]>;\n    request<C extends keyof ConnectorCatalog & string, O extends keyof ConnectorCatalog[C] & string>(\n      request: {\n        connector: C;\n        operation: O;\n        input: ConnectorCatalog[C][O] extends { input: infer I } ? I : never;\n      },\n      options?: ApiCallOptions,\n    ): Promise<ConnectorCatalog[C][O] extends { output: infer R } ? R : never>;\n  }\n\n  export interface FormScriptSdk {\n    form: FormApi;\n    ui: UiApi;\n    api: Api;\n    context: FormScriptContext;\n    /** Synchronous, browser-safe functions contributed by installed function packages. */\n    functions: Record<string, Record<string, (...args: unknown[]) => unknown>>;\n    state: StateApi;\n    events: EventApi;\n    logger: LoggerApi;\n  }\n\n  export function defineFormScript(\n    setup: (sdk: FormScriptSdk) => MaybePromise<void>,\n  ): (sdk: FormScriptSdk) => MaybePromise<void>;\n}\n",
+      "diagnostics": [],
+      "compiledAt": "2026-09-01T13:32:16.211Z"
+    },
+    "schemaVersion": "1.0",
+    "sourceTemplates": [
+      {
+        "id": "vg_DiagnosticReportLab.v1.1.2",
+        "type": "openEhrWebTemplate",
+        "alias": "vg_diagnosticreportlab.v1.1.2",
+        "version": "1.1.2"
+      }
+    ]
+  }
+}

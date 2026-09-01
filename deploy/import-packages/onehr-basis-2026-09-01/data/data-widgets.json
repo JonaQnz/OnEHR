@@ -1,0 +1,217 @@
+[
+  {
+    "id": "8c5b09e8-ca0c-4ef3-bf36-7bb7d642a3f8",
+    "name": "Aktive Diagnosen",
+    "description": "Anzahl aktuell aktiver Diagnosen.",
+    "aqlFunctionId": "f08ce95a-73a2-4d57-993b-93817aa28fad",
+    "configuration": {
+      "display": "metric",
+      "valueColumn": "anzahl",
+      "packageName": "Klinische Übersicht",
+      "limit": 1
+    },
+    "enabled": true,
+    "createdAt": "2026-08-25T08:03:41.218Z",
+    "updatedAt": "2026-08-25T08:03:41.218Z"
+  },
+  {
+    "id": "4c3207c8-9037-47bc-954d-a48e3a883253",
+    "name": "Aktuelle Medikation",
+    "description": "Übersicht aller dokumentierten Medikationseinträge.",
+    "aqlFunctionId": "f57dc594-6992-489f-8332-394e80f59008",
+    "configuration": {
+      "display": "table",
+      "valueColumn": "Medikament",
+      "packageName": "Klinische Übersicht",
+      "limit": 50
+    },
+    "enabled": true,
+    "createdAt": "2026-08-25T08:03:37.460Z",
+    "updatedAt": "2026-08-25T08:05:26.138Z"
+  },
+  {
+    "id": "dca11afe-0674-4a16-83cd-cdf3ed897177",
+    "name": "Anordnungen",
+    "description": "Übersicht aller Anordnungen/Aufträge (Labor, Bildgebung, Überweisung, ...).",
+    "aqlFunctionId": "78687573-6a7d-4927-84f5-6a81fed20e90",
+    "configuration": {
+      "display": "table",
+      "valueColumn": "Bezeichnung",
+      "packageName": "Klinische Übersicht",
+      "limit": 50
+    },
+    "enabled": true,
+    "createdAt": "2026-08-25T08:03:39.424Z",
+    "updatedAt": "2026-08-25T08:05:27.824Z"
+  },
+  {
+    "id": "5274800c-dc0a-481e-b646-ce225023a1f9",
+    "name": "Diagnosen",
+    "description": "Übersicht aller Diagnosen des Patienten.",
+    "aqlFunctionId": "ef68e864-4895-4baf-93ed-e107c1e95968",
+    "configuration": {
+      "display": "table",
+      "valueColumn": "Diagnose",
+      "packageName": "Klinische Übersicht",
+      "limit": 50
+    },
+    "enabled": true,
+    "createdAt": "2026-08-25T08:03:35.206Z",
+    "updatedAt": "2026-08-25T08:05:24.518Z"
+  },
+  {
+    "id": "0e7a29e0-a489-4df9-9cd1-f4f9e6abc3d4",
+    "name": "Entlassung – Eingriff als Verlauf übernehmen",
+    "description": "Ausgewählten Eingriff als strukturierten Ausgangstext für den Entlassverlauf übernehmen.",
+    "aqlFunctionId": "2026d4c8-a38f-4546-a389-d03d8779f8f2",
+    "configuration": {
+      "display": "table",
+      "valueColumn": "Eingriff",
+      "timeColumn": "OP_Datum",
+      "packageName": "Entlassung",
+      "limit": 30
+    },
+    "enabled": true,
+    "createdAt": "2026-08-30T20:45:53.793Z",
+    "updatedAt": "2026-08-30T20:45:53.793Z"
+  },
+  {
+    "id": "9e510cca-eca4-4535-8a30-f4743033a146",
+    "name": "Hämoglobin (Fläche)",
+    "description": "Hämoglobin-Verlauf als Flächenchart.",
+    "aqlFunctionId": "6cbdbe57-940d-4f55-8c60-b4f9f580520d",
+    "configuration": {
+      "display": "area",
+      "valueColumn": "wert",
+      "timeColumn": "zeitpunkt",
+      "packageName": "Klinische Übersicht",
+      "limit": 50,
+      "referenceRange": {
+        "max": 16,
+        "min": 12
+      }
+    },
+    "enabled": true,
+    "createdAt": "2026-08-25T14:02:20.019Z",
+    "updatedAt": "2026-08-25T14:02:20.019Z"
+  },
+  {
+    "id": "d43f5810-ea18-474a-9b76-9d644ebc1556",
+    "name": "Hämoglobin (Verlauf)",
+    "description": "Hämoglobin-Verlauf als Linienchart.",
+    "aqlFunctionId": "6cbdbe57-940d-4f55-8c60-b4f9f580520d",
+    "configuration": {
+      "display": "line",
+      "valueColumn": "wert",
+      "timeColumn": "zeitpunkt",
+      "packageName": "Klinische Übersicht",
+      "limit": 50,
+      "referenceRange": {
+        "max": 16,
+        "min": 12
+      }
+    },
+    "enabled": true,
+    "createdAt": "2026-08-25T14:02:18.343Z",
+    "updatedAt": "2026-08-25T14:02:18.343Z"
+  },
+  {
+    "id": "73bfbf3f-19ee-4b99-945b-09205cd6bbea",
+    "name": "Labor – aktuelle Werte",
+    "description": "Aktuelle Laborergebnisse als kompakte Tabelle mit Analyt, Wert, Einheit und Zeitpunkt; Grundlage für sichtbare Referenz- und Kritikalitätskennzeichnung.",
+    "aqlFunctionId": "17e7a5d0-ce0d-48fd-ba05-b93f91cd12b7",
+    "configuration": {
+      "display": "matrix",
+      "valueColumn": "wert",
+      "labelColumn": "analyt",
+      "timeColumn": "zeitpunkt",
+      "packageName": "Patientensicherheit",
+      "limit": 14
+    },
+    "enabled": true,
+    "createdAt": "2026-08-25T15:14:17.326Z",
+    "updatedAt": "2026-08-30T21:37:12.432Z"
+  },
+  {
+    "id": "724dfaf8-6281-45e1-9079-605f758998e8",
+    "name": "Laborwerte (Balken)",
+    "description": "Aktuelle Laborergebnisse als Balkenchart.",
+    "aqlFunctionId": "17e7a5d0-ce0d-48fd-ba05-b93f91cd12b7",
+    "configuration": {
+      "display": "bar",
+      "valueColumn": "wert",
+      "labelColumn": "analyt",
+      "packageName": "Klinische Übersicht",
+      "limit": 20
+    },
+    "enabled": true,
+    "createdAt": "2026-08-25T14:02:21.946Z",
+    "updatedAt": "2026-08-25T14:02:21.946Z"
+  },
+  {
+    "id": "886c3fd0-1510-4bfd-9633-2e670c7c3d73",
+    "name": "Laborwerte (Text)",
+    "description": "Aktuelle Laborergebnisse als Textliste.",
+    "aqlFunctionId": "17e7a5d0-ce0d-48fd-ba05-b93f91cd12b7",
+    "configuration": {
+      "display": "text",
+      "valueColumn": "wert",
+      "labelColumn": "analyt",
+      "packageName": "Klinische Übersicht",
+      "limit": 20
+    },
+    "enabled": true,
+    "createdAt": "2026-08-25T14:02:23.661Z",
+    "updatedAt": "2026-08-25T14:02:23.661Z"
+  },
+  {
+    "id": "5880e7dc-ef97-4133-bad3-466e0af52feb",
+    "name": "Letzte Medikamentengaben",
+    "description": "Chronologische eMAR-Übersicht der letzten verabreichten Medikamente mit Zeitpunkt und dokumentierender Person.",
+    "aqlFunctionId": "1ef7d287-250f-4399-89f1-1f7b7ab29087",
+    "configuration": {
+      "display": "table",
+      "valueColumn": "composer",
+      "labelColumn": "entryName",
+      "timeColumn": "recordedAt",
+      "limit": 25
+    },
+    "enabled": true,
+    "createdAt": "2026-08-25T14:59:22.651Z",
+    "updatedAt": "2026-08-25T14:59:22.651Z"
+  },
+  {
+    "id": "88f525e0-c7a4-4bd2-858d-f7ef8079092a",
+    "name": "Polytrauma – Laborverlauf (alle Parameter)",
+    "description": "Alle strukturierten Laborwerte über Schockraum, Intensivstation, Normalstation und Reha; Panelname enthält den klinischen Messzeitpunkt.",
+    "aqlFunctionId": "9eb05ce6-9371-4278-82b7-8a739c4a9934",
+    "configuration": {
+      "display": "table",
+      "valueColumn": "wert",
+      "labelColumn": "analyt",
+      "timeColumn": "recordedAt",
+      "packageName": "Polytrauma",
+      "limit": 500
+    },
+    "enabled": true,
+    "createdAt": "2026-08-30T17:19:06.628Z",
+    "updatedAt": "2026-08-30T18:33:20.472Z"
+  },
+  {
+    "id": "284047c1-477c-49d2-ad98-b4ca5067f204",
+    "name": "Versorgungsverlauf",
+    "description": "Zeitliche Übersicht klinischer Dokumente mit verständlichem Namen, Datenstand und dokumentierender Person – ohne technische IDs im Vordergrund.",
+    "aqlFunctionId": "57a3d780-0c91-47fe-a8de-0d4b264a9dcd",
+    "configuration": {
+      "display": "timeline",
+      "valueColumn": "composer",
+      "labelColumn": "compositionName",
+      "timeColumn": "recordedAt",
+      "packageName": "Patientensicherheit",
+      "limit": 30
+    },
+    "enabled": true,
+    "createdAt": "2026-08-25T15:14:36.525Z",
+    "updatedAt": "2026-08-30T21:00:37.587Z"
+  }
+]

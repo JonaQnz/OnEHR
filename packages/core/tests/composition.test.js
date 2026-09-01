@@ -27,6 +27,21 @@ test('normalizes a multi-page composition with forms and EHRbase data blocks', (
   assert.deepEqual(composition.pages[0].blocks[0].fieldLabelOverrides, { first_name: 'Vorname des Kindes' });
 });
 
+test('data block limit accepts up to 1000 and rejects 1001 or 0', () => {
+  const buildComposition = (limit) => ({
+    schemaVersion: COMPOSITION_SCHEMA_VERSION,
+    pages: [{ id: 'overview', title: 'Übersicht', blocks: [
+      { id: 'labs', type: 'data', title: 'Laborwerte', aqlFunctionId: 'lab-query', display: 'trend', valueColumn: 'value', timeColumn: 'time', limit },
+    ] }],
+  });
+
+  const atMax = normalizeCompositionDefinition(buildComposition(1000));
+  assert.equal(atMax.pages[0].blocks[0].limit, 1000);
+
+  assert.throws(() => normalizeCompositionDefinition(buildComposition(1001)), /limit must be between 1 and 1000/);
+  assert.throws(() => normalizeCompositionDefinition(buildComposition(0)), /limit must be between 1 and 1000/);
+});
+
 test('fieldLabelOverrides is optional, trims blank entries, and rejects non-string values', () => {
   const withoutOverrides = normalizeCompositionDefinition({
     schemaVersion: COMPOSITION_SCHEMA_VERSION,

@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { ChangeEvent, FormEvent, ReactNode } from 'react';
+import type { ChangeEvent, CSSProperties, FormEvent, ReactNode } from 'react';
 import type {
   CanonicalForm,
   FormDefinitionV1,
@@ -120,6 +120,205 @@ function rowsOf(value: unknown): GroupRow[] {
 function fieldIdFromIssuePath(path: string): string {
   const finalSegment = path.includes('.') ? path.slice(path.lastIndexOf('.') + 1) : path;
   return finalSegment.replace(/\[\d+\].*$/, '');
+}
+
+function inputStyle(invalid: boolean, disabled: boolean): CSSProperties {
+  return {
+    width: '100%',
+    padding: '0.55rem 0.7rem',
+    border: `1px solid ${invalid ? '#dc2626' : '#cbd5e1'}`,
+    borderRadius: '6px',
+    background: disabled ? '#f8fafc' : 'white',
+  };
+}
+
+// Above this many options, "CodedWithOther" switches its coded half from
+// radio buttons to a <select> (matching deriveDefaultWidget's own 4-option
+// radio/select threshold for a plain coded field) - a handful of real
+// vg_Diagnosis.v1.1.1 fields (severity, diagnostic_certainty, ...) all stay
+// well under this, but the component still needs to hold up for a larger
+// coded-or-free-text field elsewhere.
+const CODED_WITH_OTHER_RADIO_THRESHOLD = 6;
+const OTHER_SENTINEL = '__allow_free_text_other__';
+
+/**
+ * "DV_CODED_TEXT + DV_TEXT → Coded Choice + 'Other / free text'"
+ * (OPT constraint engine architecture, section 19) - the live widget for
+ * `node.uiElement === 'CodedWithOther'`. Only ever offered on a field with
+ * `field.allowFreeText` (set at import time from the constraint model, see
+ * webTemplateParser.ts) - a value outside `field.options` is a deliberate,
+ * valid free-text entry, both to validateRuntimeValues and to the
+ * serializer (setFlatValue/buildLeafDvValue fall back to plain DV_TEXT for
+ * exactly this case), not a bug in this widget.
+ *
+ * A hooks-owning function component (not a plain helper called inline from
+ * `fieldInput`) is required here - React's rules of hooks forbid calling
+ * useState/useEffect from a conditionally-invoked plain function.
+ */
+function CodedWithOtherInput({
+  field, value, disabled, invalid, inputName, onChange,
+}: {
+  field: RuntimeFieldDescriptor;
+  value: unknown;
+  disabled: boolean;
+  invalid: boolean;
+  inputName: string;
+  onChange: (next: unknown) => void;
+}) {
+  const matchesOption = typeof value === 'string' && field.options.some((option) => option.value === value);
+  const hasFreeTextValue = typeof value === 'string' && value !== '' && !matchesOption;
+  const [otherMode, setOtherMode] = useState(hasFreeTextValue);
+  // A value change from outside this widget (form reset, edit-mode load,
+  // FormScript setValue) that turns out to be free text must still flip the
+  // widget into "Anderer Wert" mode - otherwise a real stored free-text
+  // value would render as nothing selected at all.
+  useEffect(() => {
+    if (hasFreeTextValue) setOtherMode(true);
+  }, [hasFreeTextValue]);
+
+  const selectOther = () => { setOtherMode(true); onChange(''); };
+  const selectOption = (optionValue: string) => { setOtherMode(false); onChange(optionValue); };
+  const style = inputStyle(invalid, disabled);
+
+  const codedControl = field.options.length > CODED_WITH_OTHER_RADIO_THRESHOLD ? (
+    <select
+      style={style}
+      disabled={disabled}
+      value={otherMode ? OTHER_SENTINEL : (typeof value === 'string' ? value : '')}
+      onChange={(event) => (event.target.value === OTHER_SENTINEL ? selectOther() : selectOption(event.target.value))}
+    >
+      <option value="">Bitte auswählen</option>
+      {field.options.map((option) => <option key={option.value} value={option.value}>{option.text}</option>)}
+      <option value={OTHER_SENTINEL}>Anderer Wert …</option>
+    </select>
+  ) : (
+    <div style={{ display: 'grid', gap: '0.4rem' }}>
+      {field.options.map((option) => (
+        <label key={option.value} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <input type="radio" name={inputName} disabled={disabled} checked={!otherMode && value === option.value} onChange={() => selectOption(option.value)} />
+          {option.text}
+        </label>
+      ))}
+      <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <input type="radio" name={inputName} disabled={disabled} checked={otherMode} onChange={selectOther} />
+        Anderer Wert …
+      </label>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      {codedControl}
+      {otherMode && (
+        <input
+          style={style}
+          type="text"
+          disabled={disabled}
+          value={typeof value === 'string' && !matchesOption ? value : ''}
+          placeholder="Freitext eingeben …"
+          onChange={(event) => onChange(event.target.value)}
+          autoFocus
+        />
+      )}
+    </div>
+  );
+}
+
+// Above this many options, an "autocomplete"-suggested field (see
+// deriveDefaultWidget) with no enumerable option list at all can't actually
+// search against anything - it degrades to a plain text input rather than a
+// permanently-empty, broken search box. This is the one case the section 19
+// rule table calls "large/external terminology" without this app having any
+// live terminology-search backend for a *native* DV_CODED_TEXT field wired
+// up yet (unlike the separate, designer-configured codeMappings feature) -
+// see docs/features/opt-constraint-engine-analysis.md.
+function AutocompleteInput({
+  field, value, disabled, invalid, onChange,
+}: {
+  field: RuntimeFieldDescriptor;
+  value: unknown;
+  disabled: boolean;
+  invalid: boolean;
+  onChange: (next: unknown) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const style = inputStyle(invalid, disabled);
+
+  useEffect(() => {
+    function onOutsideClick(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onOutsideClick);
+    return () => document.removeEventListener('mousedown', onOutsideClick);
+  }, []);
+
+  if (field.options.length === 0) {
+    return <input style={style} type="text" disabled={disabled} value={String(value ?? '')} placeholder="Freitext eingeben …" onChange={(event) => onChange(event.target.value)} />;
+  }
+
+  const selectedOption = field.options.find((option) => option.value === value);
+  const normalizedQuery = query.trim().toLowerCase();
+  const filtered = normalizedQuery
+    ? field.options.filter((option) => option.text.toLowerCase().includes(normalizedQuery) || option.value.toLowerCase().includes(normalizedQuery)).slice(0, 50)
+    : field.options.slice(0, 50);
+
+  const commit = (optionValue: string) => { onChange(optionValue); setOpen(false); setQuery(''); };
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <input
+        style={style}
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
+        disabled={disabled}
+        value={open ? query : (selectedOption?.text ?? '')}
+        placeholder="Suchen …"
+        onFocus={() => { setOpen(true); setQuery(''); setHighlighted(0); }}
+        onChange={(event) => { setQuery(event.target.value); setOpen(true); setHighlighted(0); }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown') { event.preventDefault(); setHighlighted((current) => Math.min(current + 1, filtered.length - 1)); }
+          else if (event.key === 'ArrowUp') { event.preventDefault(); setHighlighted((current) => Math.max(current - 1, 0)); }
+          else if (event.key === 'Enter') { event.preventDefault(); const match = filtered[highlighted]; if (match) commit(match.value); }
+          else if (event.key === 'Escape') setOpen(false);
+        }}
+      />
+      {!open && selectedOption && !disabled && (
+        <button
+          type="button"
+          aria-label="Auswahl löschen"
+          onClick={() => onChange(undefined)}
+          style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer' }}
+        >
+          ×
+        </button>
+      )}
+      {open && (
+        <ul
+          role="listbox"
+          style={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, right: 0, margin: '0.25rem 0 0', padding: '0.25rem', listStyle: 'none', background: 'white', border: '1px solid #cbd5e1', borderRadius: '6px', maxHeight: '14rem', overflowY: 'auto', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.12)' }}
+        >
+          {filtered.length === 0 && <li style={{ padding: '0.4rem 0.6rem', color: '#64748b', fontSize: '0.85rem' }}>Keine Treffer</li>}
+          {filtered.map((option, index) => (
+            <li
+              key={option.value}
+              role="option"
+              aria-selected={index === highlighted}
+              onMouseDown={(event) => { event.preventDefault(); commit(option.value); }}
+              onMouseEnter={() => setHighlighted(index)}
+              style={{ padding: '0.4rem 0.6rem', borderRadius: '4px', cursor: 'pointer', background: index === highlighted ? '#eef2ff' : 'transparent' }}
+            >
+              {option.text}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function FormRuntime({
@@ -467,6 +666,20 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     }
     if (node.uiElement === 'RadioButtons' && field.options.length > 0) {
       return <div style={{ display: 'grid', gap: '0.4rem' }}>{field.options.map((option) => <label key={option.value} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><input type="radio" name={inputName} disabled={disabled} checked={value === option.value} onChange={() => onChange(option.value)} />{option.text}</label>)}</div>;
+    }
+    // "DV_CODED_TEXT + DV_TEXT -> Coded Choice + 'Other / free text'"
+    // (architecture doc section 19) - only meaningful, and only ever set as
+    // a default, on a field the constraint model flagged allowFreeText, but
+    // rendered here regardless of that flag (a designer can pick this
+    // uiElement by hand too) since the widget itself degrades gracefully -
+    // see CodedWithOtherInput.
+    if (node.uiElement === 'CodedWithOther') {
+      return <CodedWithOtherInput field={field} value={value} disabled={disabled} invalid={invalid} inputName={inputName} onChange={onChange} />;
+    }
+    // "DV_CODED_TEXT + große/externe Terminologie -> Search / Autocomplete"
+    // - see AutocompleteInput for the no-enumerable-options degradation.
+    if (node.uiElement === 'Autocomplete') {
+      return <AutocompleteInput field={field} value={value} disabled={disabled} invalid={invalid} onChange={onChange} />;
     }
     if (node.uiElement === 'TextArea') return <textarea style={{ ...style, minHeight: '7rem', resize: 'vertical' }} disabled={disabled} value={String(value ?? '')} placeholder={node.placeholder || ''} onChange={eventValue} />;
     if (node.uiElement === 'Dropdown' || node.type === 'input-select' || node.type === 'input-ordinal') {

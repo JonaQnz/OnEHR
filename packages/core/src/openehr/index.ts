@@ -1,3 +1,5 @@
+import type { Occurrences, ValueConstraint } from '../openehr-constraint';
+
 export interface QuantityUnitOption {
   unit: string;
   min?: number;
@@ -54,6 +56,21 @@ export interface FieldRegistryItem {
   parentRepeatable?: boolean;
   parentRepeatMin?: number;
   parentRepeatMax?: number;
+  /** The neutral OPT constraint engine's own view of this same field -
+   * additive and optional (absent on templates parsed before this existed).
+   * Attached at parse time by webTemplateParser.ts, from openehr-engine's
+   * buildConstraintModelFromWebTemplate. Powers the Developer Inspector's
+   * occurrences/value-constraint-union/semantic-binding display - never
+   * used to decide runtime rendering/serialization on its own (see
+   * docs/features/opt-constraint-engine-analysis.md for why that wiring is
+   * a separate, not-yet-taken step). */
+  constraintModel?: {
+    archetypeInstanceKey: string;
+    occurrences: Occurrences;
+    valueConstraints: ValueConstraint[];
+    parsingStatus: 'complete' | 'partial';
+    warnings?: string[];
+  };
 }
 
 export interface TemplateImportResult {

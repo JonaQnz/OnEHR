@@ -5,7 +5,13 @@ export type RuntimeJsonValue = JsonValue;
 export type RuntimeValue = JsonValue | undefined;
 export type RuntimeValues = Record<string, RuntimeValue>;
 
-export interface RuntimeOption { value: string; text: string; }
+/** rmValue: the archetype's original/default-language term text for this
+ * code - what openehr-engine's serializers must write into a submitted
+ * DV_CODED_TEXT.value (EHRbase validates against it regardless of `text`'s
+ * display language). Absent when identical to `text`. See
+ * FormElementLayout.options[].rmValue (packages/core/canonical) for the
+ * live bug this exists to fix. */
+export interface RuntimeOption { value: string; text: string; rmValue?: string; }
 export interface RuntimeUnitOption { unit: string; min?: number; max?: number; precision?: number; }
 export interface RuntimeFieldDescriptor {
   id: string; name: string; type: string; label: string; description?: string | undefined;
@@ -18,6 +24,9 @@ export interface RuntimeFieldDescriptor {
   alwaysHidden: boolean;
   /** See FormElementLayout.codeMappings - opt-in DV_TEXT.mappings support. */
   codeMappings?: CodeMappingConfig | undefined;
+  /** See FormElementLayout.allowFreeText - a DV_CODED_TEXT|DV_TEXT union;
+   * a value not matching any `options` entry is free text, not an error. */
+  allowFreeText: boolean;
 }
 export interface RuntimeGroupDescriptor {
   id: string;
@@ -27,7 +36,7 @@ export interface RuntimeGroupDescriptor {
 }
 export interface RuntimeValidationIssue extends ValidationIssue {
   path: string;
-  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max';
+  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required';
 }
 export interface RuntimeValidationResult { valid: boolean; issues: RuntimeValidationIssue[]; }
 
@@ -76,7 +85,12 @@ function toDescriptor(node: FormElementLayout, locales: RuntimeLocales, repeatab
   return {
     id, name: node.name || id, type: node.type, label: resolveLabel(node, id, locales),
     description: node.description || node.helpText, required: node.required === true, readOnly: node.readOnly === true,
-    options: (node.options || []).map((option) => ({ value: String(option.value), text: String(option.text) })),
+    options: (node.options || []).map((option) => ({
+      value: String(option.value),
+      text: String(option.text),
+      ...(option.rmValue ? { rmValue: String(option.rmValue) } : {}),
+    })),
+    allowFreeText: node.allowFreeText === true,
     unitOptions: (node.unitOptions || []).map((option) => typeof option === 'string' ? { unit: option } : { ...option }),
     validation: node.validation, visibility: node.visibility ?? node.enableWhen,
     repeatable: node.repeatable === true, repeatMin: node.repeatMin ?? 0, repeatMax: node.repeatMax ?? -1,
@@ -265,9 +279,22 @@ function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path
   if (['input-number', 'input-proportion', 'input-range'].includes(field.type) && !Number.isFinite(numericValue(field, value))) { issue(issues, path, 'type', `${field.label} requires a number.`); return; }
   if (field.type === 'input-boolean' && typeof value !== 'boolean') issue(issues, path, 'type', `${field.label} requires a boolean.`);
   if (['input-select', 'input-ordinal'].includes(field.type) && typeof value !== 'string' && !Array.isArray(value)) issue(issues, path, 'type', `${field.label} requires a selected option.`);
-  if (field.options.length > 0) {
+  // A DV_CODED_TEXT|DV_TEXT union field (field.allowFreeText, from the OPT
+  // constraint model) legitimately has values that don't match any
+  // `options` entry - that's the free-text alternative, not an invalid
+  // selection. Every other coded field keeps the exact strict check it
+  // always had.
+  if (field.options.length > 0 && !field.allowFreeText) {
     const selected = Array.isArray(value) ? value : [value];
     if (selected.some((item) => typeof item !== 'string' || !field.options.some((option) => option.value === item))) issue(issues, path, 'option', `${field.label} contains an unsupported option.`);
+  }
+  // codeMappings.requireMapping - only reached once the field has a
+  // non-empty text value (the empty() early-return above already handles
+  // required/blank), so this is purely "you typed text but attached no
+  // code", never a substitute for the field's own `required`.
+  if (field.codeMappings?.enabled && field.codeMappings.requireMapping) {
+    const mappings = isRecord(rawValue) ? (rawValue as Record<string, unknown>).mappings : undefined;
+    if (!Array.isArray(mappings) || mappings.length === 0) issue(issues, path, 'mapping-required', `${field.label} requires a code.`);
   }
   const number = numericValue(field, value);
   if (number !== undefined && field.validation?.min !== undefined && number < field.validation.min) issue(issues, path, 'min', `${field.label} must be at least ${field.validation.min}.`);

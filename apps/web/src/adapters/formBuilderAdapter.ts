@@ -123,6 +123,20 @@ export function canonicalToFormBuilder(form: CanonicalForm): any[] {
         element = 'TextInput';
       }
     }
+    // The OPT constraint engine's CodedWithOther/Autocomplete runtime
+    // widgets (FormRuntime.tsx) have no native palette entry in
+    // react-form-builder2 (the vendored canvas library, packages/
+    // react-form-builder2) - it only knows a fixed built-in element
+    // vocabulary. Preview these as a plain Dropdown in the design canvas
+    // (functionally close - still options-driven, still needsOptions
+    // below), but keep the TRUE uiElement in custom_metadata so a save
+    // from the canvas doesn't clobber it back to literally 'Dropdown' -
+    // formBuilderToCanonical (below) reads custom_metadata.uiElement back
+    // out in preference to item.element for exactly this reason. The
+    // deployed clinical form always renders from uiElement, never from
+    // this canvas-only `element` string.
+    const realUiElement = element;
+    if (element === 'CodedWithOther' || element === 'Autocomplete') element = 'Dropdown';
 
     const needsOptions = ['Dropdown', 'Checkboxes', 'RadioButtons', 'Tags'].includes(element);
     const isNumberOrRange = ['NumberInput', 'Range', 'Rating'].includes(element);
@@ -162,6 +176,11 @@ export function canonicalToFormBuilder(form: CanonicalForm): any[] {
         repeatMax: node.repeatMax,
         repeatable: node.repeatable || false,
         ...(node.codeMappings ? { codeMappings: node.codeMappings } : {}),
+        ...(node.allowFreeText ? { allowFreeText: true } : {}),
+        // Only set when it differs from the canvas-visible `element` above
+        // (i.e. exactly the CodedWithOther/Autocomplete case) - see the
+        // comment where `realUiElement` is computed.
+        ...(realUiElement !== element ? { uiElement: realUiElement } : {}),
       }
     };
 
@@ -448,7 +467,13 @@ export function formBuilderToCanonical(items: any[], originalForm: CanonicalForm
     const layoutNode: FormElementLayout = {
       type: type,
       name: fieldName,
-      uiElement: item.element,
+      // custom_metadata.uiElement wins when present: the canvas-visible
+      // `item.element` is a downgraded stand-in (currently only for
+      // CodedWithOther/Autocomplete - react-form-builder2 has no native
+      // palette entry for either) rather than the real widget the deployed
+      // clinical form should render - see canonicalToFormBuilder's
+      // `realUiElement`, the mirror of this read.
+      uiElement: meta.uiElement || item.element,
       required: item.required ?? false,
       readOnly: item.readOnly || false,
       id: item.id,
@@ -461,6 +486,7 @@ export function formBuilderToCanonical(items: any[], originalForm: CanonicalForm
       timeFormat: item.element === 'DatePicker' ? (item.timeFormat || 'HH:mm') : undefined,
       defaultValue: item.defaultValue ?? item.default_value,
       unit: (meta.unitOptions && meta.unitOptions[0]) ? (typeof meta.unitOptions[0] === 'string' ? meta.unitOptions[0] : meta.unitOptions[0].unit) : '',
+      ...(meta.allowFreeText ? { allowFreeText: true } : {}),
       // rmType/archetypeNodeId live on `binding` now, not as separate
       // top-level fields (see OpenEhrBinding) - binding is the single
       // source of truth for a field's whole openEHR identity.
