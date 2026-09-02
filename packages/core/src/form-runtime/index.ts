@@ -56,7 +56,7 @@ export interface RuntimeGroupDescriptor {
 }
 export interface RuntimeValidationIssue extends ValidationIssue {
   path: string;
-  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required' | 'quantity-range' | 'quantity-precision' | 'proportion-denominator' | 'proportion-type';
+  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required' | 'quantity-range' | 'quantity-precision' | 'proportion-denominator' | 'proportion-type' | 'duration-format';
 }
 export interface RuntimeValidationResult { valid: boolean; issues: RuntimeValidationIssue[]; }
 
@@ -334,6 +334,22 @@ function unwrapCodeMappedValue(field: RuntimeFieldDescriptor, value: RuntimeValu
   return (value as Record<string, unknown>).value as RuntimeValue;
 }
 
+/** DV_DURATION.value is "ISO8601 duration" (RM Data Types IM §6.3), but
+ * with an explicit, spec-documented deviation from strict ISO 8601: *"the
+ * 'W' designator [may be] mixed with other designators"* - strict ISO 8601
+ * only allows `P<n>W` on its own (never `P1Y2W3D`), so a regex copied
+ * verbatim from a generic ISO-8601 library would reject values this RM type
+ * explicitly permits. Built from the RM's own designator set, not an
+ * archetype constraint (see docs/features/rm-type-spec-conformance.md #3) -
+ * unlike DV_QUANTITY's per-unit range, there is no legacy-data risk to a
+ * hard block here: no valid DV_DURATION string was ever excluded by this
+ * pattern, so a non-match is a genuine wire-format defect, not archetype
+ * drift. `P`/`PT` alone (no designators at all) are rejected via the
+ * lookaheads - ISO 8601 requires at least one component. No leading sign is
+ * included - the RM Data Types IM text for DV_DURATION never mentions a
+ * signed form, so that's not asserted here without a spec citation. */
+const DV_DURATION_PATTERN = /^P(?!$)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+(\.\d+)?S)?)?$/;
+
 function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path: string, issues: RuntimeValidationIssue[]): void {
   const value = unwrapCodeMappedValue(field, rawValue);
   if (empty(value)) { if (field.required) issue(issues, path, 'required', `${field.label} is required.`); return; }
@@ -419,6 +435,17 @@ function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path
     } else if ((field.proportionType === 'fraction' || field.proportionType === 'integer_fraction') && (!Number.isInteger(numerator) || !Number.isInteger(denominator))) {
       issue(issues, path, 'proportion-type', `${field.label}: type '${field.proportionType}' requires both numerator and denominator to be whole numbers.`, 'warning');
     }
+  }
+  // input-duration has no dedicated widget (it renders as a plain text
+  // input, see FormRuntime.tsx's inputType() default case) and, until now,
+  // no validation at all - a clinician typing "3 days" or "72h" reached
+  // EHRbase unvalidated (docs/features/rm-type-spec-conformance.md #3). A
+  // hard error, not a warning: unlike DV_QUANTITY's archetype-specific
+  // range, ISO 8601 duration shape is the RM type's own universal wire
+  // contract, so a non-match is never legitimate pre-existing data.
+  if (field.type === 'input-duration' && typeof value === 'string' && !DV_DURATION_PATTERN.test(value)) {
+    issue(issues, path, 'duration-format', `${field.label} must be a valid ISO 8601 duration (e.g. P3D, PT4H30M).`);
+    return;
   }
   if (['input-number', 'input-range'].includes(field.type) && !Number.isFinite(numericValue(field, value))) { issue(issues, path, 'type', `${field.label} requires a number.`); return; }
   if (field.type === 'input-boolean' && typeof value !== 'boolean') issue(issues, path, 'type', `${field.label} requires a boolean.`);
