@@ -768,7 +768,16 @@ export default function PatientDetail() {
     </div>
   );
 
-  const renderClinicalCompositions = () => (
+  const renderClinicalCompositions = () => {
+    // Columns come from every row's keys, not just clinicalCompositions[0]'s
+    // - a later composition with a key the first one lacks used to lose
+    // that column's data entirely (header never rendered it), and cells
+    // were rendered via Object.values(comp) in that row's OWN key order,
+    // so a row with different keys/order than the first would misalign
+    // its values under the wrong headers instead of just missing a
+    // column. Looking each cell up by column key fixes both at once.
+    const columns = Array.from(new Set(clinicalCompositions.flatMap((comp) => Object.keys(comp || {}))));
+    return (
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Klinische Compositions (aus EHRbase)</h3>
       {clinicalCompositions.length === 0 ? (
@@ -778,7 +787,7 @@ export default function PatientDetail() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
               <tr>
-                {Object.keys(clinicalCompositions[0] || {}).map((key) => (
+                {columns.map((key) => (
                   <th key={key} style={{ textAlign: 'left', padding: '0.5rem', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>{key}</th>
                 ))}
               </tr>
@@ -786,8 +795,8 @@ export default function PatientDetail() {
             <tbody>
               {clinicalCompositions.map((comp, idx) => (
                 <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
-                  {Object.values(comp).map((val, colIdx) => (
-                    <td key={colIdx} style={{ padding: '0.5rem' }}>{String(val ?? '—')}</td>
+                  {columns.map((key) => (
+                    <td key={key} style={{ padding: '0.5rem' }}>{String(comp?.[key] ?? '—')}</td>
                   ))}
                 </tr>
               ))}
@@ -796,7 +805,8 @@ export default function PatientDetail() {
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   const renderOverview = () => (
     <div style={{ display: 'grid', gap: '1.25rem' }}>

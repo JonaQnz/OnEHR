@@ -30,6 +30,16 @@ function timelineBlock(overrides: Partial<CompositionDataBlock> = {}): Compositi
   };
 }
 
+function listBlock(overrides: Partial<CompositionDataBlock> = {}): CompositionDataBlock {
+  return {
+    id: 'block-list',
+    type: 'data',
+    title: 'Ergebnisse',
+    display: 'list',
+    ...overrides,
+  };
+}
+
 describe('WidgetDataCard - matrix display', () => {
   it('pivots rows into a parameter x day grid', () => {
     render(
@@ -135,5 +145,33 @@ describe('WidgetDataCard - timeline display', () => {
     );
     await user.click(screen.getByText('Aufnahme'));
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ compositionName: 'Aufnahme' }));
+  });
+});
+
+describe('WidgetDataCard - list display', () => {
+  it('renders a column for every key across all rows, not just the first row', () => {
+    render(
+      <WidgetDataCard
+        block={listBlock()}
+        state={{
+          rows: [
+            { analyt: 'Hb', wert: 14 },
+            // This row has an extra key ("kommentar") the first row lacks -
+            // before the fix, filtered[0]'s keys alone drove both the
+            // header and every row's cells, so this column (and its data)
+            // was silently dropped entirely, for every row.
+            { analyt: 'Leukozyten', wert: 7.2, kommentar: 'leicht erhöht' },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByRole('columnheader', { name: 'analyt' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'wert' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'kommentar' })).toBeInTheDocument();
+    expect(screen.getByText('leicht erhöht')).toBeInTheDocument();
+    // The first row has no "kommentar" value - its cell renders the same
+    // missing-value placeholder used everywhere else in this component,
+    // not a silently absent column.
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   });
 });
