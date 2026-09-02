@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collectRuntimeFields, type CanonicalForm } from 'core';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 
 export interface HipFhirPatientMappingDraft {
   insuranceNumber?: string;
@@ -28,7 +29,6 @@ interface FormSummary { id: string; parent_id?: string | null; name: string; ver
 interface StoredForm { canonical_json: CanonicalForm; }
 interface FieldOption { path: string; label: string; }
 
-const API = 'http://localhost:3001/api';
 const TARGETS: readonly { key: keyof HipFhirPatientMappingDraft; label: string; required?: boolean }[] = [
   { key: 'firstName', label: 'Patient.name.given', required: true },
   { key: 'lastName', label: 'Patient.name.family', required: true },
@@ -54,7 +54,7 @@ export default function HipFhirPatientSettings({ connection, onChange }: {
 
   useEffect(() => {
     let active = true;
-    fetch(`${API}/forms?status=published&summary=true`, { credentials: 'include' })
+    fetch(`${API_BASE_URL}/forms?status=published&summary=true`, { credentials: 'include' })
       .then(async (response) => {
         const body = await response.json();
         if (!response.ok) throw new Error(body.error || 'Formulare konnten nicht geladen werden.');
@@ -70,7 +70,7 @@ export default function HipFhirPatientSettings({ connection, onChange }: {
     const formId = connection.fhirPatientFormId?.trim();
     if (!formId) { setFields([]); return () => { active = false; }; }
     setFieldError('');
-    fetch(`${API}/forms/parent/${encodeURIComponent(formId)}/latest-published`, { credentials: 'include' })
+    fetch(`${API_BASE_URL}/forms/parent/${encodeURIComponent(formId)}/latest-published`, { credentials: 'include' })
       .then(async (response) => {
         const body = await response.json();
         if (!response.ok) throw new Error(body.error || 'Formularfelder konnten nicht geladen werden.');
