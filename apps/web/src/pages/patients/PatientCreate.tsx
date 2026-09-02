@@ -4,8 +4,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { CanonicalForm, RuntimeValues } from 'core';
 import FormRuntime from '../../components/FormRuntime';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { API_BASE_URL } from '../../integration/apiBaseUrl';
 
-const API = 'http://localhost:3001/api';
 type CreationConfiguration = { mode: 'ehrbase' | 'fhir'; configured: boolean; formId?: string; error?: string };
 type StoredForm = { id: string; name: string; version: string; canonical_json: CanonicalForm };
 
@@ -22,14 +22,14 @@ export default function PatientCreate() {
     let active = true;
     async function load() {
       try {
-        const configResponse = await fetch(`${API}/patients/creation/config`, { credentials: 'include' });
+        const configResponse = await fetch(`${API_BASE_URL}/patients/creation/config`, { credentials: 'include' });
         const config = await configResponse.json() as CreationConfiguration & { error?: string };
         if (!configResponse.ok) throw new Error(config.error || 'Patientenanlage konnte nicht initialisiert werden.');
         if (!active) return;
         setConfiguration(config);
         if (config.mode !== 'fhir') { navigate('/patients', { replace: true }); return; }
         if (!config.configured || !config.formId) throw new Error(config.error || 'HIP FHIR-Patientenanlage ist nicht vollständig konfiguriert.');
-        const formResponse = await fetch(`${API}/forms/parent/${encodeURIComponent(config.formId)}/latest-published`, { credentials: 'include' });
+        const formResponse = await fetch(`${API_BASE_URL}/forms/parent/${encodeURIComponent(config.formId)}/latest-published`, { credentials: 'include' });
         const stored = await formResponse.json() as StoredForm & { error?: string };
         if (!formResponse.ok) throw new Error(stored.error || 'Das konfigurierte Person-Formular konnte nicht geladen werden.');
         if (active) setForm(stored);
@@ -47,7 +47,7 @@ export default function PatientCreate() {
     if (!configuration?.formId || busy) return;
     setBusy(true); setError('');
     try {
-      const response = await fetch(`${API}/patients`, {
+      const response = await fetch(`${API_BASE_URL}/patients`, {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ formId: configuration.formId, values }),
       });
