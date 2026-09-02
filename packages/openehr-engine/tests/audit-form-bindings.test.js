@@ -104,6 +104,69 @@ test('a repeatable container carrying its own binding (the generator shape) is a
   assert.equal(findings[0].issue, 'unresolved-path');
 });
 
+// DV_QUANTITY: 2026-09-02 addition, complementing the sibling fix to
+// formGenerator.ts/webTemplateParser.ts (which used to silently drop
+// per-unit min/max/precision when generating a field) and to validateOne
+// (which now enforces them as warnings). This audit surfaces the same
+// drift for a field that predates either fix - or whose template gained
+// range/precision after the field was built.
+function quantityTemplateTree(unitList) {
+  return {
+    id: 'obs', rmType: 'COMPOSITION', aqlPath: '',
+    children: [{ id: 'frequenz', rmType: 'DV_QUANTITY', aqlPath: '/content/data/items[at0003]', inputs: [{ suffix: 'unit', list: unitList }] }],
+  };
+}
+
+function quantityFormDefinition(unitOptions) {
+  return { layout: { type: 'form', children: [{ id: 'frequenz', type: 'input-quantity', binding: { path: '/content/data/items[at0003]', rmType: 'DV_QUANTITY' }, unitOptions }] } };
+}
+
+test('a DV_QUANTITY field whose stored unit still matches the template and already carries its min/precision produces zero findings', () => {
+  const template = quantityTemplateTree([{ value: '1/d', validation: { range: { min: 1 }, precision: { max: 0 } } }]);
+  const def = quantityFormDefinition([{ unit: '1/d', min: 1, precision: 0 }]);
+  assert.deepEqual(auditFormBindings(def, template), []);
+});
+
+test('a DV_QUANTITY field whose stored unit is no longer offered by the template is flagged stale-unit', () => {
+  const template = quantityTemplateTree([{ value: '1/h' }]); // '1/d' retired
+  const def = quantityFormDefinition([{ unit: '1/d' }]);
+  const findings = auditFormBindings(def, template);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].issue, 'stale-unit');
+  assert.match(findings[0].detail, /1\/d/);
+});
+
+test('a DV_QUANTITY field missing a min/precision the template now specifies for its unit is flagged missing-quantity-constraint', () => {
+  const template = quantityTemplateTree([{ value: '1/d', validation: { range: { min: 1 }, precision: { max: 0 } } }]);
+  const def = quantityFormDefinition([{ unit: '1/d' }]); // predates the extraction fix - no min/precision at all
+  const findings = auditFormBindings(def, template);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].issue, 'missing-quantity-constraint');
+  assert.match(findings[0].detail, /min 1/);
+  assert.match(findings[0].detail, /precision 0/);
+});
+
+test('a DV_QUANTITY field that already has SOME but not all of the template\'s current limits is only flagged for what it\'s actually missing', () => {
+  const template = quantityTemplateTree([{ value: 'mg', validation: { range: { min: 0, max: 1000 } } }]);
+  const def = quantityFormDefinition([{ unit: 'mg', min: 0 }]); // has min, missing max
+  const findings = auditFormBindings(def, template);
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].detail, /max 1000/);
+  assert.doesNotMatch(findings[0].detail, /min /);
+});
+
+test('a DV_QUANTITY field intentionally narrower than the template (a numeric value present on both sides, just different) is never flagged - only an outright missing limit is', () => {
+  const template = quantityTemplateTree([{ value: 'mg', validation: { range: { min: 0, max: 1000 } } }]);
+  const def = quantityFormDefinition([{ unit: 'mg', min: 0, max: 500 }]); // deliberately narrower max - a design choice, not drift
+  assert.deepEqual(auditFormBindings(def, template), []);
+});
+
+test('a DV_QUANTITY field is unaffected when the template specifies no range/precision at all for its unit', () => {
+  const template = quantityTemplateTree([{ value: 'mg' }]);
+  const def = quantityFormDefinition([{ unit: 'mg' }]);
+  assert.deepEqual(auditFormBindings(def, template), []);
+});
+
 test('a field with no binding at all (e.g. a plain layout row/column) is silently skipped, not flagged', () => {
   const def = {
     layout: {

@@ -528,7 +528,16 @@ export function parseWebTemplate(webTemplate: any): {
       }
 
       if (inputType === 'input-quantity' && matchedField.constraints?.units) {
-        layoutNode.unitOptions = matchedField.constraints.units.map(u => ({ unit: u }));
+        // constraints.unitOptions (built above, per-unit min/max/precision
+        // straight from the archetype's own range/precision validation) is
+        // always a superset of constraints.units (bare unit strings) when
+        // present - prefer it so a generated field keeps the archetype's
+        // magnitude/precision limits instead of silently dropping them.
+        // Confirmed live (2026-09-02): "Frequenz" (vg_MedicationAdministration)
+        // constrains "1/d" to min 1, precision 0 - falling back to units-only
+        // discarded both, leaving the field free to accept e.g. 0.5 or -3.
+        layoutNode.unitOptions = matchedField.constraints.unitOptions
+          ?? matchedField.constraints.units.map(u => ({ unit: u }));
       }
 
       if (matchedField.options) {

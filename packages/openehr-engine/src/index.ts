@@ -50,6 +50,12 @@ export interface OpenEhrPathMapping {
    * value set can change between imports independently of any Form Section
    * built against an earlier version of it. */
   codes?: string[];
+  /** The current, valid per-unit magnitude range/precision at this node -
+   * only present for a DV_QUANTITY node whose WebTemplate carries range/
+   * precision validation on at least one unit. Used by auditFormBindings to
+   * flag a Form Section field whose stored unitOptions don't reflect these
+   * limits. */
+  unitOptions?: Array<{ unit: string; min?: number; max?: number; minexclusive?: boolean; maxexclusive?: boolean; precision?: number }>;
 }
 
 type JsonObject = Record<string, JsonValue>;
@@ -227,6 +233,43 @@ function currentCodesOf(node: UnknownRecord): string[] | undefined {
   return codes.length > 0 ? codes : undefined;
 }
 
+/** A DV_QUANTITY WebTemplate node's own current per-unit magnitude range/
+ * precision, from the same `unit`/`units` `inputs[]` entry webTemplateParser
+ * reads when generating a fresh Form Section field. Mirrors that logic
+ * exactly (see webTemplateParser.ts's DV_QUANTITY branch) so this reports
+ * the same constraints a re-generated field would get - used by
+ * auditFormBindings to flag a Form Section whose stored unitOptions
+ * predate this extraction (or predate the template gaining a range/
+ * precision constraint it didn't have before) and so are missing limits
+ * the archetype now specifies. */
+function currentUnitOptionsOf(node: UnknownRecord): Array<{ unit: string; min?: number; max?: number; minexclusive?: boolean; maxexclusive?: boolean; precision?: number }> | undefined {
+  if (text(node.rmType) !== 'DV_QUANTITY') return undefined;
+  const inputs = Array.isArray(node.inputs) ? node.inputs.filter(isRecord) : [];
+  const unitInput = inputs.find((input) => { const suffix = text(input.suffix); return suffix === 'units' || suffix === 'unit' || suffix === 'unit_code'; });
+  const list = unitInput && Array.isArray(unitInput.list) ? unitInput.list.filter(isRecord) : undefined;
+  if (!list || list.length === 0) return undefined;
+  const options = list.map((entry) => {
+    const unit = text(entry.value);
+    if (!unit) return undefined;
+    const opt: { unit: string; min?: number; max?: number; minexclusive?: boolean; maxexclusive?: boolean; precision?: number } = { unit };
+    const validation = isRecord(entry.validation) ? entry.validation : undefined;
+    const range = validation && isRecord(validation.range) ? validation.range : undefined;
+    if (range) {
+      if (typeof range.min === 'number') opt.min = range.min;
+      if (typeof range.max === 'number') opt.max = range.max;
+      if (range.minOp === '>') opt.minexclusive = true;
+      if (range.maxOp === '<') opt.maxexclusive = true;
+    }
+    const precision = validation && isRecord(validation.precision) ? validation.precision : undefined;
+    if (precision) {
+      if (typeof precision.max === 'number') opt.precision = precision.max;
+      else if (typeof precision.min === 'number') opt.precision = precision.min;
+    }
+    return opt;
+  }).filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
+  return options.length > 0 ? options : undefined;
+}
+
 export function buildOpenEhrPathMap(tree: unknown): Map<string, OpenEhrPathMapping> {
   const map = new Map<string, OpenEhrPathMapping>();
   function walk(node: unknown, prefix: string): void {
@@ -236,14 +279,15 @@ export function buildOpenEhrPathMap(tree: unknown): Map<string, OpenEhrPathMappi
     const aqlPath = text(node.aqlPath);
     const rmType = text(node.rmType);
     const codes = currentCodesOf(node);
-    if (aqlPath && current) map.set(aqlPath, { flatPath: current, ...(rmType ? { rmType } : {}), ...(codes ? { codes } : {}) });
+    const unitOptions = currentUnitOptionsOf(node);
+    if (aqlPath && current) map.set(aqlPath, { flatPath: current, ...(rmType ? { rmType } : {}), ...(codes ? { codes } : {}), ...(unitOptions ? { unitOptions } : {}) });
     if (Array.isArray(node.children)) node.children.forEach((child) => walk(child, current));
   }
   walk(tree, '');
   return map;
 }
 
-export type BindingAuditIssue = 'unresolved-path' | 'rmtype-mismatch' | 'stale-option';
+export type BindingAuditIssue = 'unresolved-path' | 'rmtype-mismatch' | 'stale-option' | 'stale-unit' | 'missing-quantity-constraint';
 
 export interface BindingAuditFinding {
   /** The Form Section field/container's own id (from its layout node). */
@@ -270,9 +314,14 @@ export interface BindingAuditFinding {
  * regeneration would use.
  *
  * Deliberately narrow in scope for what it flags: whether each binding's
- * path still resolves, whether its rmType still matches, and whether a
- * coded field's stored options are still valid codes. It does NOT attempt
- * to detect "this field should now be part of a repeatable group" -
+ * path still resolves, whether its rmType still matches, whether a coded
+ * field's stored options are still valid codes, and - added 2026-09-02,
+ * see quantity-range-precision.test.js's sibling fix to validateOne, which
+ * this complements - whether a DV_QUANTITY field's stored unit is still
+ * offered at all (stale-unit) and whether it's missing a magnitude range/
+ * precision limit the current template specifies for that unit
+ * (missing-quantity-constraint). It does NOT attempt to detect "this field
+ * should now be part of a repeatable group" -
  * webTemplateParser's own generator (generate_form_from_template/
  * apply_template_to_form) is the authoritative source for repeat structure
  * and already reflects a re-imported template correctly; re-deriving that
@@ -300,6 +349,37 @@ export function auditFormBindings(definition: Pick<CanonicalForm, 'layout'>, web
             .filter((value): value is string => Boolean(value) && !mapping.codes!.includes(value!));
           if (staleValues.length > 0) {
             findings.push({ fieldId, path: binding.path, issue: 'stale-option', detail: `Option(s) ${staleValues.join(', ')} are no longer valid codes in the current template - EHRbase would reject a submission that picks one of them.` });
+          }
+        }
+        const rawUnitOptions = (node as unknown as UnknownRecord).unitOptions;
+        if (mapping.unitOptions && Array.isArray(rawUnitOptions)) {
+          const currentByUnit = new Map(mapping.unitOptions.map((option) => [option.unit, option]));
+          for (const stored of rawUnitOptions.filter(isRecord)) {
+            const unit = text(stored.unit);
+            if (!unit) continue;
+            const current = currentByUnit.get(unit);
+            if (!current) {
+              findings.push({ fieldId, path: binding.path, issue: 'stale-unit', detail: `Unit '${unit}' is no longer offered for this quantity in the current template.` });
+              continue;
+            }
+            // Only flags the archetype specifying a limit this field's
+            // stored option doesn't have at all - never a numeric
+            // mismatch between two present values, which could just as
+            // easily be an intentional narrower limit the form designer
+            // chose on purpose. This deliberately stays a soft nudge
+            // ("re-apply the template to pick this up"), matching
+            // validateOne's own range/precision checks being warnings,
+            // not hard failures, for the exact same reason: a lot of
+            // already-built fields predate this extraction existing at
+            // all (see formGenerator.ts/webTemplateParser.ts's sibling
+            // fix) and were never wrong, just incomplete.
+            const missing: string[] = [];
+            if (current.min !== undefined && stored.min === undefined) missing.push(`min ${current.min}`);
+            if (current.max !== undefined && stored.max === undefined) missing.push(`max ${current.max}`);
+            if (current.precision !== undefined && stored.precision === undefined) missing.push(`precision ${current.precision}`);
+            if (missing.length > 0) {
+              findings.push({ fieldId, path: binding.path, issue: 'missing-quantity-constraint', detail: `Unit '${unit}' has ${missing.join(', ')} in the current template that this field's stored unitOptions doesn't carry yet - re-apply the template (apply_template_to_form) to pick it up.` });
+            }
           }
         }
       }

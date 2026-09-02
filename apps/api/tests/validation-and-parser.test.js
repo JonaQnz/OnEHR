@@ -377,3 +377,55 @@ test('generateCanonicalForm groups a field from a repeatable EVALUATION ancestor
   assert.ok(group, 'a repeatable container was generated for the picked field');
   assert.equal(group.repeatMax, -1);
 });
+
+// Live gap (2026-09-02): the archetype's own DV_QUANTITY range/precision
+// validation (parsed correctly into field.constraints.unitOptions since
+// forever - see the parser's DV_QUANTITY branch) was silently dropped when
+// generating a Form Section field, both here and in the flat/hand-curated
+// apply_template_to_form path (webTemplateParser.ts's own buildLayoutNode)
+// - both rebuilt a bare {unit} from constraints.units instead of using
+// constraints.unitOptions, which was sitting right there with the real
+// min/max/precision already parsed onto it. Confirmed live:
+// vg_MedicationAdministration's "Frequenz" (1/d, min 1, precision 0) had
+// no range/precision enforcement on any generated field at all.
+function frequencyTemplate() {
+  return {
+    templateId: 'medication_administration.v1',
+    tree: {
+      id: 'med', rmType: 'COMPOSITION', aqlPath: '',
+      children: [{
+        id: 'frequenz', name: 'Frequenz', rmType: 'DV_QUANTITY',
+        aqlPath: '/content[openEHR-EHR-ACTION.medication.v1]/description[at0017]/items[at0003]',
+        inputs: [{
+          suffix: 'unit',
+          list: [
+            { value: '1/d', validation: { range: { min: 1 }, precision: { max: 0 } } },
+            { value: '1/h', validation: { range: { min: 1, max: 24 }, precision: { max: 0 } } },
+          ],
+        }],
+      }],
+    },
+  };
+}
+
+test('generateCanonicalForm carries the archetype\'s per-unit min/max/precision through, not just the bare unit list', () => {
+  const parsed = parseWebTemplate(frequencyTemplate());
+  const frequenz = parsed.fields.find((field) => field.technicalName === 'frequenz');
+  // The parser itself already got this right - the gap was purely in the
+  // generator throwing it away one step later (asserted below).
+  assert.deepEqual(frequenz.constraints.unitOptions, [
+    { unit: '1/d', min: 1, precision: 0 },
+    { unit: '1/h', min: 1, max: 24, precision: 0 },
+  ]);
+
+  const generated = generateCanonicalForm({
+    name: 'Medikamentengabe', templateId: parsed.templateId, alias: parsed.alias,
+    fields: [frequenz], id: 'form-quantity-1',
+  });
+  const leaf = findNode(generated.layout, (node) => node.type === 'input-quantity');
+  assert.ok(leaf, 'the generated quantity field exists');
+  assert.deepEqual(leaf.unitOptions, [
+    { unit: '1/d', min: 1, precision: 0 },
+    { unit: '1/h', min: 1, max: 24, precision: 0 },
+  ]);
+});
