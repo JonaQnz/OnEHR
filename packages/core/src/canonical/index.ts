@@ -28,6 +28,12 @@ export interface FormElementLayout {
     unit: string;
     min?: number;
     max?: number;
+    /** True when `min` is an exclusive lower bound (archetype range operator
+     * '>' rather than '>='). Absent/false means inclusive, openEHR's own
+     * default when a range has no explicit operator. */
+    minexclusive?: boolean;
+    /** Same as `minexclusive`, for `max` (archetype operator '<' vs '<='). */
+    maxexclusive?: boolean;
     precision?: number;
   }>;
   options?: Array<{

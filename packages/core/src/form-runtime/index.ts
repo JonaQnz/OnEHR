@@ -17,7 +17,7 @@ export type RuntimeValues = Record<string, RuntimeValue>;
  * archetype requires a hosted terminology rather than openEHR's default
  * "local". */
 export interface RuntimeOption { value: string; text: string; rmValue?: string; terminology?: string; }
-export interface RuntimeUnitOption { unit: string; min?: number; max?: number; precision?: number; }
+export interface RuntimeUnitOption { unit: string; min?: number; max?: number; minexclusive?: boolean; maxexclusive?: boolean; precision?: number; }
 export interface RuntimeFieldDescriptor {
   id: string; name: string; type: string; label: string; description?: string | undefined;
   required: boolean; readOnly: boolean; options: RuntimeOption[]; unitOptions: RuntimeUnitOption[];
@@ -41,7 +41,7 @@ export interface RuntimeGroupDescriptor {
 }
 export interface RuntimeValidationIssue extends ValidationIssue {
   path: string;
-  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required';
+  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required' | 'quantity-range' | 'quantity-precision';
 }
 export interface RuntimeValidationResult { valid: boolean; issues: RuntimeValidationIssue[]; }
 
@@ -259,7 +259,25 @@ function numericValue(field: RuntimeFieldDescriptor, value: RuntimeValue): numbe
   return undefined;
 }
 
-function issue(issues: RuntimeValidationIssue[], path: string, code: RuntimeValidationIssue['code'], message: string): void { issues.push({ path, code, message }); }
+function issue(issues: RuntimeValidationIssue[], path: string, code: RuntimeValidationIssue['code'], message: string, severity?: RuntimeValidationIssue['severity']): void {
+  issues.push({ path, code, message, ...(severity ? { severity } : {}) });
+}
+
+/** Number of fractional digits `n` was actually written with - used to
+ * check a DV_QUANTITY magnitude against its unit's `precision` (archetype
+ * DV_QUANTITY.precision: max decimal places allowed for that unit, e.g.
+ * "1/d" is precision 0 - a whole number of doses per day, never "2.5"). A
+ * plain string-based digit count rather than epsilon/rounding math -
+ * good enough for a warning-level check on a value that came from a form
+ * input, not a computed float with representation noise. Scientific
+ * notation (astronomically small/large magnitudes) falls back to a fixed
+ * expansion so it isn't miscounted as precision 0. */
+function fractionalDigits(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  const text = Math.abs(n) < 1e-6 || Math.abs(n) >= 1e21 ? n.toFixed(20).replace(/0+$/, '') : n.toString();
+  const fraction = text.split('.')[1];
+  return fraction ? fraction.length : 0;
+}
 
 /** A codeMappings.enabled field's runtime value is `{value, mappings?}`
  * (CodeMappedTextValue) instead of a plain string - the mappings are
@@ -277,10 +295,35 @@ function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path
   const value = unwrapCodeMappedValue(field, rawValue);
   if (empty(value)) { if (field.required) issue(issues, path, 'required', `${field.label} is required.`); return; }
   if (field.type === 'input-quantity') {
-    if (!isRecord(value) || numericValue(field, value) === undefined) { issue(issues, path, 'type', `${field.label} requires a numeric quantity.`); return; }
+    const magnitude = numericValue(field, value);
+    if (!isRecord(value) || magnitude === undefined) { issue(issues, path, 'type', `${field.label} requires a numeric quantity.`); return; }
     const unit = value.unit;
     if (field.unitOptions.length > 0 && (typeof unit !== 'string' || !unit)) issue(issues, path, 'unit', `${field.label} requires a unit.`);
     else if (field.unitOptions.length > 0 && typeof unit === 'string' && !field.unitOptions.some((option) => option.unit === unit)) issue(issues, path, 'unit', `${field.label} has an unsupported unit.`);
+    // Per-unit magnitude range/precision, straight from the archetype's own
+    // DV_QUANTITY constraint (see webTemplateParser's unitOptions
+    // extraction) - a warning, not a hard block: these limits weren't
+    // enforced at all before this was wired up (see formGenerator.ts's
+    // sibling fix), so a lot of already-submitted clinical data predates
+    // them and must never be retroactively treated as invalid. Only
+    // checked once the unit itself is a recognized option - an
+    // already-flagged unrecognized unit has no matching range to check.
+    else if (typeof unit === 'string') {
+      const option = field.unitOptions.find((candidate) => candidate.unit === unit);
+      if (option) {
+        if (option.min !== undefined) {
+          const belowMin = option.minexclusive ? magnitude <= option.min : magnitude < option.min;
+          if (belowMin) issue(issues, path, 'quantity-range', `${field.label}: ${magnitude} ${unit} is below the archetype's allowed minimum (${option.minexclusive ? '>' : '>='} ${option.min}).`, 'warning');
+        }
+        if (option.max !== undefined) {
+          const aboveMax = option.maxexclusive ? magnitude >= option.max : magnitude > option.max;
+          if (aboveMax) issue(issues, path, 'quantity-range', `${field.label}: ${magnitude} ${unit} is above the archetype's allowed maximum (${option.maxexclusive ? '<' : '<='} ${option.max}).`, 'warning');
+        }
+        if (option.precision !== undefined && fractionalDigits(magnitude) > option.precision) {
+          issue(issues, path, 'quantity-precision', `${field.label}: ${unit} allows at most ${option.precision} decimal place(s), got ${magnitude}.`, 'warning');
+        }
+      }
+    }
   }
   if (['input-number', 'input-proportion', 'input-range'].includes(field.type) && !Number.isFinite(numericValue(field, value))) { issue(issues, path, 'type', `${field.label} requires a number.`); return; }
   if (field.type === 'input-boolean' && typeof value !== 'boolean') issue(issues, path, 'type', `${field.label} requires a boolean.`);
@@ -378,5 +421,12 @@ export function validateRuntimeValues(form: Pick<CanonicalForm, 'layout' | 'loca
     repeated.forEach((item, index) => validateOne(field, item, `${field.id}[${index}]`, issues));
   });
   const filtered = options?.mode === 'draft' ? issues.filter((entry) => !DRAFT_EXEMPT_ISSUE_CODES.has(entry.code)) : issues;
-  return { valid: filtered.length === 0, issues: filtered };
+  // A 'warning'-severity issue (currently: quantity-range/quantity-precision
+  // drift against the archetype - see validateOne) is surfaced for review
+  // but never blocks `valid`, unlike every other issue here (severity
+  // omitted, the pre-existing default meaning "blocking"). Existing
+  // clinical data submitted before these checks existed must never be
+  // retroactively treated as invalid just because a range/precision limit
+  // is now known.
+  return { valid: filtered.every((entry) => entry.severity === 'warning'), issues: filtered };
 }

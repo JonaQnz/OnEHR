@@ -28,7 +28,15 @@ export function generateCanonicalForm(
     };
 
     if (inputType === 'input-quantity' && field.constraints?.units) {
-      inputComponent.unitOptions = field.constraints.units.map(u => ({ unit: u }));
+      // Prefer constraints.unitOptions (per-unit min/max/precision, parsed
+      // straight from the archetype's own range/precision validation in
+      // webTemplateParser) over rebuilding a bare {unit} from
+      // constraints.units - the latter silently drops every magnitude/
+      // precision limit the archetype actually specifies. See the sibling
+      // fix in webTemplateParser.ts's apply_template_to_form path for the
+      // live example (vg_MedicationAdministration "Frequenz").
+      inputComponent.unitOptions = field.constraints.unitOptions
+        ?? field.constraints.units.map(u => ({ unit: u }));
     }
 
     return {
