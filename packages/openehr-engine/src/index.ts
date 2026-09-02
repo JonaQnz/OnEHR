@@ -153,6 +153,26 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     if (!isEmpty(source?.unit)) output[`${key}|unit`] = source?.unit;
     return;
   }
+  if (rmType === 'DV_IDENTIFIER') {
+    // DV_IDENTIFIER (RM: id 1..1, issuer/assigner/type each 0..1, invariant
+    // "not id.is_empty") was falling through to the generic `output[key] =
+    // value` branch at the bottom of this function, writing a bare string
+    // to the plain path with no `|id` suffix at all - not a valid FLAT
+    // representation of any DV_IDENTIFIER attribute, since `id` (like
+    // DV_QUANTITY's `magnitude`/`unit` above) is always a suffixed sibling
+    // key, never the bare path itself. No form binds this rmType to
+    // anything richer than a single free-text "id" field today (see
+    // "Verordnungs-ID" on "Medikamentengabe (eMAR-Eintrag)"), so `value` is
+    // normally just that string - but source?.issuer/assigner/type are
+    // still honored if a future field ever supplies them, rather than
+    // silently dropping them like the old fallback did for everything.
+    const id = source?.id ?? value;
+    if (!isEmpty(id)) output[`${key}|id`] = id;
+    if (!isEmpty(source?.issuer)) output[`${key}|issuer`] = source?.issuer;
+    if (!isEmpty(source?.assigner)) output[`${key}|assigner`] = source?.assigner;
+    if (!isEmpty(source?.type)) output[`${key}|type`] = source?.type;
+    return;
+  }
   if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE') {
     // codeMappings.enabled on a DV_CODED_TEXT-bound field must be checked
     // BEFORE the generic CODE_PHRASE handling below, not after - this
@@ -676,6 +696,16 @@ function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: str
     if (rmType === 'DV_QUANTITY') {
       if (!key.endsWith('|magnitude')) continue;
       value = { magnitude: flat[key], unit: flat[key.replace('|magnitude', '|unit')] };
+    } else if (rmType === 'DV_IDENTIFIER') {
+      // Counterpart read for setFlatValue's DV_IDENTIFIER branch - `id` is
+      // the only attribute any field currently exposes (a plain input-text
+      // widget, see the write-side comment), so this returns the bare id
+      // string, not a compound {id, issuer, ...} object - matching exactly
+      // what that widget reads/writes today. |issuer/|assigner/|type are
+      // read back into runtime values only if a future field ever
+      // round-trips them structurally; skipped here deliberately.
+      if (!key.endsWith('|id')) continue;
+      value = flat[key];
     } else if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE') {
       // A fixed-options DV_CODED_TEXT select's runtime value IS the code
       // (matched against field.options[].value), so |code correctly wins
