@@ -349,17 +349,33 @@ export async function commitClinicalTransaction(id: string, actor: ClinicalTrans
     const sessions = await prisma.formSession.findMany({ where: { id: { in: operations.map((op) => op.formSessionId) } } });
     const sessionById = new Map(sessions.map((row) => [row.id, row]));
 
-    // Concurrency re-check: every operation's base must still match reality,
-    // and a 'create' operation's target must still not exist - a composition
-    // session left open across two saves must never silently overwrite (or
-    // duplicate) something a concurrent save already changed.
+    // Concurrency re-check: every operation's base must still match reality.
+    // A 'create' operation's baseVersionUid IS allowed to be non-null here -
+    // prepareClinicalTransaction captures currentReference(session)
+    // unconditionally (line ~196), and a 'create'-typed child (lifecycleState
+    // not yet 'complete') routinely already has an autosaved EHRbase draft by
+    // the time the user clicks "save all". Comparing against `Boolean(current)`
+    // instead of the captured baseVersionUid (as a prior version of this check
+    // did) treated that completely normal case - draft unchanged since prepare
+    // - as a conflict, permanently failing every multi-block save whose child
+    // sessions had ever autosaved. Comparing current to op.baseVersionUid
+    // (both normalized to null) still catches the case the original comment
+    // describes - "a 'create' operation's target must still not exist" reads
+    // as "must still match what was true at prepare time", which for a
+    // genuinely-new target means null on both sides - while also catching a
+    // concurrent save that changed or newly created it since. Confirmed live
+    // (2026-09-02): saving a freshly-filled "Anamnese" composition for a new
+    // test patient failed 0/4 with "expected base X, found X" - identical
+    // strings reported as a mismatch, because only Boolean(current) was ever
+    // consulted for these 'create' ops.
     const conflicts: string[] = [];
     for (const op of operations) {
       const session = sessionById.get(op.formSessionId);
       if (!session) { conflicts.push(`${op.formSessionId}: no longer exists`); continue; }
-      const current = currentReference(session);
-      if (op.type === 'create' ? Boolean(current) : current !== op.baseVersionUid) {
-        conflicts.push(`${op.formSessionId}: expected base ${op.baseVersionUid || '(none)'}, found ${current || '(none)'}`);
+      const current = currentReference(session) ?? null;
+      const expected = op.baseVersionUid ?? null;
+      if (current !== expected) {
+        conflicts.push(`${op.formSessionId}: expected base ${expected || '(none)'}, found ${current || '(none)'}`);
       }
     }
     if (conflicts.length > 0) {
@@ -409,11 +425,26 @@ export async function commitClinicalTransaction(id: string, actor: ClinicalTrans
         if (webTemplateTree) webTemplateCache.set(templateId, webTemplateTree);
       }
       const data = buildCanonicalComposition(definition, session.values as any, webTemplateTree, { composerName: actor.userId });
+      // EHRbase rejects change type CREATION whenever preceding_version_uid
+      // is also set (a "creation" is definitionally the first version - see
+      // the concurrency re-check above for why op.baseVersionUid can very
+      // well be non-null even for a 'create'-typed operation: an autosaved
+      // EHRbase draft already exists for a child that hasn't reached
+      // lifecycleState 'complete' yet). Once a preceding version exists,
+      // this commit is really writing the next version of that draft - a
+      // modification - regardless of the app's own not-yet-'complete'
+      // lifecycle label. Confirmed live (2026-09-02) as the very next
+      // EHRbase-side rejection surfaced once the concurrency false-positive
+      // above was fixed: "Invalid version. Change type CREATION, but also
+      // set 'preceding_version_uid' attribute".
+      const desiredChangeType: 'creation' | 'modification' | 'amendment' = op.baseVersionUid
+        ? (op.type === 'create' ? 'modification' : toDesiredChangeType(op.type as OperationType))
+        : toDesiredChangeType(op.type as OperationType);
       return {
         operationIndex,
         data,
         ...(op.baseVersionUid ? { precedingVersionUid: op.baseVersionUid } : {}),
-        desiredChangeType: toDesiredChangeType(op.type as OperationType),
+        desiredChangeType,
         ...(op.changeDescription ? { changeDescription: op.changeDescription } : {}),
       };
     }));

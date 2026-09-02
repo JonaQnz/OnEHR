@@ -54,7 +54,7 @@ function compositionForm(requireAtomicCommit) {
 /**
  * @param results per-childFormId: 'ok' commits successfully, 'fail' throws.
  */
-function installStore({ requireAtomicCommit, requireAtomicCommitByDefault, results = {} } = {}) {
+function installStore({ requireAtomicCommit, requireAtomicCommitByDefault, results = {}, baseVersionUids = {}, sessionReferences = {} } = {}) {
   const forms = new Map([['composition-form', compositionForm(requireAtomicCommit)], ['form-a', childForm('form-a')], ['form-b', childForm('form-b')]]);
   const now = () => new Date('2026-08-27T10:00:00.000Z');
   let transaction = {
@@ -63,12 +63,12 @@ function installStore({ requireAtomicCommit, requireAtomicCommitByDefault, resul
     revision: 0, createdAt: now(), updatedAt: now(),
   };
   let operations = [
-    { id: 'op-a', transactionId: 'txn-1', formSessionId: 'session-a', blockId: 'block-a', type: 'create', baseVersionUid: null, resultVersionUid: null, status: 'ready', changeDescription: null, errorCode: null, errorMessage: null, createdAt: now(), updatedAt: now() },
-    { id: 'op-b', transactionId: 'txn-1', formSessionId: 'session-b', blockId: 'block-b', type: 'create', baseVersionUid: null, resultVersionUid: null, status: 'ready', changeDescription: null, errorCode: null, errorMessage: null, createdAt: now(), updatedAt: now() },
+    { id: 'op-a', transactionId: 'txn-1', formSessionId: 'session-a', blockId: 'block-a', type: 'create', baseVersionUid: baseVersionUids.a ?? null, resultVersionUid: null, status: 'ready', changeDescription: null, errorCode: null, errorMessage: null, createdAt: now(), updatedAt: now() },
+    { id: 'op-b', transactionId: 'txn-1', formSessionId: 'session-b', blockId: 'block-b', type: 'create', baseVersionUid: baseVersionUids.b ?? null, resultVersionUid: null, status: 'ready', changeDescription: null, errorCode: null, errorMessage: null, createdAt: now(), updatedAt: now() },
   ];
   const sessionRows = new Map([
-    ['session-a', { id: 'session-a', formId: 'form-a', values: { field: 'a' }, draftReference: null, providerReference: null }],
-    ['session-b', { id: 'session-b', formId: 'form-b', values: { field: 'b' }, draftReference: null, providerReference: null }],
+    ['session-a', { id: 'session-a', formId: 'form-a', values: { field: 'a' }, draftReference: null, providerReference: null, ...sessionReferences.a }],
+    ['session-b', { id: 'session-b', formId: 'form-b', values: { field: 'b' }, draftReference: null, providerReference: null, ...sessionReferences.b }],
   ]);
   const committedSessions = [];
 
@@ -190,6 +190,67 @@ test('a Composition-level requireAtomicCommit: true overrides a permissive globa
     await assert.rejects(
       clinicalTransactions.commitClinicalTransaction('txn-1', actor),
       (error) => { assert.equal(error.details?.code, 'CONTRIBUTION_UNSUPPORTED'); return true; },
+    );
+  } finally { store.restore(); }
+});
+
+// Live bug (2026-09-02): saving a freshly-filled multi-block Form for a new
+// test patient failed 0/4 with "expected base X, found X" - the prior
+// version of the commit-time concurrency re-check compared `Boolean(current)`
+// for every 'create'-typed operation instead of `current !== baseVersionUid`,
+// so a 'create' op (lifecycleState not yet 'complete') whose session had
+// already autosaved an EHRbase draft - the ordinary case for any form the
+// user actually typed into before saving - was always flagged as "changed
+// since prepared", even though nothing had changed at all.
+test('a "create" op whose session already had an autosaved draft at prepare time is not a false conflict when nothing changed since', async () => {
+  const store = installStore({
+    requireAtomicCommit: false,
+    results: { 'form-a': 'ok', 'form-b': 'ok' },
+    baseVersionUids: { a: 'draft-a::ehrbase::1', b: 'draft-b::ehrbase::1' },
+    sessionReferences: { a: { draftReference: 'draft-a::ehrbase::1' }, b: { draftReference: 'draft-b::ehrbase::1' } },
+  });
+  try {
+    const result = await clinicalTransactions.commitClinicalTransaction('txn-1', actor);
+    assert.equal(result.status, 'committed');
+    assert.deepEqual(store.committedSessions.sort(), ['session-a', 'session-b']);
+  } finally { store.restore(); }
+});
+
+test('a "create" op whose draft genuinely changed since prepare time is still a real conflict', async () => {
+  const store = installStore({
+    requireAtomicCommit: false,
+    results: { 'form-a': 'ok', 'form-b': 'ok' },
+    baseVersionUids: { a: 'draft-a::ehrbase::1', b: null },
+    sessionReferences: { a: { draftReference: 'draft-a::ehrbase::2' } }, // moved on since prepare
+  });
+  try {
+    await assert.rejects(
+      clinicalTransactions.commitClinicalTransaction('txn-1', actor),
+      (error) => {
+        assert.equal(error.details?.code, 'CLINICAL_TRANSACTION_CONFLICT');
+        assert.match(error.message, /expected base draft-a::ehrbase::1, found draft-a::ehrbase::2/);
+        return true;
+      },
+    );
+    assert.equal(store.committedSessions.length, 0);
+  } finally { store.restore(); }
+});
+
+test('a "create" op whose target was concurrently created since prepare (nothing expected, something now exists) is still a real conflict', async () => {
+  const store = installStore({
+    requireAtomicCommit: false,
+    results: { 'form-a': 'ok', 'form-b': 'ok' },
+    baseVersionUids: { a: null, b: null },
+    sessionReferences: { a: { draftReference: 'draft-a::ehrbase::1' } }, // created by someone else after prepare
+  });
+  try {
+    await assert.rejects(
+      clinicalTransactions.commitClinicalTransaction('txn-1', actor),
+      (error) => {
+        assert.equal(error.details?.code, 'CLINICAL_TRANSACTION_CONFLICT');
+        assert.match(error.message, /expected base \(none\), found draft-a::ehrbase::1/);
+        return true;
+      },
     );
   } finally { store.restore(); }
 });
