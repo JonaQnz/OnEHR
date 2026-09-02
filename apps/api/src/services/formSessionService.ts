@@ -406,25 +406,56 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
   // behavior for every form that sets nothing.
   const alwaysNew = resolveSessionAlwaysNew(getOpenEhrFormOptions(form.canonical_json as any).storageStrategy, getConfig().sessionReuseDefault);
   if ((mode === 'edit' || mode === 'prefill') && !input.forceNew && !alwaysNew) {
-    const targetCompositionUid = compositionUidFromReference(input.providerReference);
-    const candidates = await prisma.formSession.findMany({
-      where: {
-        formId,
-        patientId: patient.patientId,
-        patientNamespace: patient.patientNamespace || null,
-        userId: actor.userId,
-        mode,
-        status: { notIn: ['submitted', 'cancelled'] },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
-    const reusable = targetCompositionUid
-      ? candidates.find((candidate) => {
-        const candidateUid = compositionUidFromReference(candidate.providerReference) || compositionUidFromReference(candidate.draftReference);
-        return candidateUid === targetCompositionUid;
-      })
-      : candidates[0];
-    if (reusable) return publicSession(reusable, undefined, patient);
+    if (input.compositionContext?.compositionSessionId && input.compositionContext?.blockId) {
+      // A Form-Section-as-block launch (compositionContext present) must
+      // scope reuse to THIS block's own already-attached session, never the
+      // broader patient+formId+mode search below - a Composition can wire
+      // the very same Form Section into two different blocks (e.g.
+      // Anamnese's "Diagnose 1"/"Diagnose 2" both on "Kodierte Diagnose",
+      // one instance per diagnosis), and those are separate clinical
+      // entries that must never collapse into one shared session. Confirmed
+      // live: without this, block-diagnosis-2's prefill launch reused
+      // block-diagnosis-1's freshly-created session (broad search matched
+      // on formId+patientId+userId+mode alone, with no block awareness),
+      // silently overwriting Diagnose 1's value with Diagnose 2's, and the
+      // resulting duplicate operation against one FormSession then failed
+      // save-time as a real EHRbase version conflict (both "blocks"
+      // committing the same composition with the same stale
+      // preceding_version_uid).
+      const parent = await prisma.compositionSession.findUnique({ where: { id: input.compositionContext.compositionSessionId } });
+      const childSessions = parent?.childSessions as Record<string, unknown> | null | undefined;
+      const attachedId = childSessions && typeof childSessions === 'object' ? childSessions[input.compositionContext.blockId] : undefined;
+      if (typeof attachedId === 'string') {
+        const attached = await prisma.formSession.findUnique({ where: { id: attachedId } });
+        if (attached && attached.formId === formId && attached.status !== 'submitted' && attached.status !== 'cancelled') {
+          return publicSession(attached, undefined, patient);
+        }
+      }
+      // No (valid) session attached to this exact block yet - fall through
+      // to create a brand-new one below. Never fall back to the broad
+      // search: that would risk grabbing a different block's or a
+      // different composition's session for the same Form Section.
+    } else {
+      const targetCompositionUid = compositionUidFromReference(input.providerReference);
+      const candidates = await prisma.formSession.findMany({
+        where: {
+          formId,
+          patientId: patient.patientId,
+          patientNamespace: patient.patientNamespace || null,
+          userId: actor.userId,
+          mode,
+          status: { notIn: ['submitted', 'cancelled'] },
+        },
+        orderBy: { updatedAt: 'desc' },
+      });
+      const reusable = targetCompositionUid
+        ? candidates.find((candidate) => {
+          const candidateUid = compositionUidFromReference(candidate.providerReference) || compositionUidFromReference(candidate.draftReference);
+          return candidateUid === targetCompositionUid;
+        })
+        : candidates[0];
+      if (reusable) return publicSession(reusable, undefined, patient);
+    }
   }
 
   const record = await prisma.formSession.create({ data: {
