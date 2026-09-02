@@ -1021,5 +1021,10 @@ test('DV_PROPORTION serializes as a genuine {numerator, denominator, type} struc
   // never asked for one, but the committed RM value still needs a real,
   // valid DV_PROPORTION.
   assert.equal(fio2El.value.denominator, 1);
-  assert.equal(fio2El.value.type, 'unitary');
+  // PROPORTION_KIND ordinal (java.lang.Long in EHRbase's Archie RM model),
+  // not the kind's string name - confirmed live 2026-09-02: EHRbase
+  // rejected the string with "Cannot deserialize value of type
+  // `java.lang.Long` from String \"percent\"". 1 = unitary, per
+  // BaseTypes.xsd's PROPORTION_KIND enumeration.
+  assert.equal(fio2El.value.type, 1);
 });
