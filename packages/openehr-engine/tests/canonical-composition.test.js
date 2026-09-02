@@ -1116,3 +1116,53 @@ test('DV_ORDINAL with no matching option (or an option missing its ordinal integ
   const composition = buildCanonicalComposition(ordinalDefinition, { pain: 'at0001' }, ordinalTree, { time: '2026-08-26T10:00:00.000Z' });
   assert.deepEqual(composition.content, []);
 });
+
+// Confirmed live 2026-09-02: vg_Person.v1.1.1's "Versicherungsnummer"
+// (at0006) is a wrapper ELEMENT whose 5 concrete-type children
+// (DV_IDENTIFIER/DV_COUNT/DV_ORDINAL/DV_TEXT/DV_CODED_TEXT) ALL share the
+// identical aqlPath ".../items[at0006]/value" - so index.resolveField
+// returns the SAME bound field for every child, and the wrapper-ELEMENT
+// branch used to just return on whichever child came first (DV_IDENTIFIER),
+// ignoring which concrete type the field's own binding actually declared.
+// A real "Mild" pain-score selection (bound as DV_ORDINAL, 3rd child in the
+// WebTemplate's own order) round-tripped through EHRbase as
+// {_type:'DV_IDENTIFIER', id:'at0012'} - confirmed via direct AQL readback
+// against a live composition, not just inferred from the code.
+test('a wrapper ELEMENT whose concrete-type children ALL share one aqlPath picks the child matching the bound field\'s own semanticType, not whichever comes first', () => {
+  const unionTree = {
+    id: 'person', name: 'Person', rmType: 'COMPOSITION', nodeId: 'openEHR-EHR-COMPOSITION.report.v1',
+    children: [{
+      id: 'entry', name: 'Entry', rmType: 'ADMIN_ENTRY', min: 0, max: 1,
+      nodeId: 'openEHR-EHR-ADMIN_ENTRY.versicherungsinformationen.v0', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.versicherungsinformationen.v0]',
+      children: [{
+        id: 'versicherungsnummer', name: 'Versicherungsnummer', rmType: 'ELEMENT', min: 0, max: 1, nodeId: 'at0006',
+        aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.versicherungsinformationen.v0]/data[at0001]/items[at0006]',
+        children: [
+          { id: 'identifier_value', name: 'Versicherungsnummer', rmType: 'DV_IDENTIFIER', min: 1, max: 1, nodeId: 'at0006', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.versicherungsinformationen.v0]/data[at0001]/items[at0006]/value' },
+          { id: 'count_value', name: 'Versicherungsnummer', rmType: 'DV_COUNT', min: 1, max: 1, nodeId: 'at0006', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.versicherungsinformationen.v0]/data[at0001]/items[at0006]/value' },
+          { id: 'ordinal_value', name: 'Versicherungsnummer', rmType: 'DV_ORDINAL', min: 1, max: 1, nodeId: 'at0006', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.versicherungsinformationen.v0]/data[at0001]/items[at0006]/value' },
+          { id: 'text_value', name: 'Versicherungsnummer', rmType: 'DV_TEXT', min: 1, max: 1, nodeId: 'at0006', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.versicherungsinformationen.v0]/data[at0001]/items[at0006]/value' },
+          { id: 'coded_text_value', name: 'Versicherungsnummer', rmType: 'DV_CODED_TEXT', min: 1, max: 1, nodeId: 'at0006', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.versicherungsinformationen.v0]/data[at0001]/items[at0006]/value' },
+        ],
+      }],
+    }],
+  };
+  const unionDefinition = {
+    id: 'union-form', name: 'Union', version: '1.0.0',
+    sourceTemplates: [{ alias: 'person', id: 'vg_Person.v1.1.1', version: '1.1.1', type: 'openEhrWebTemplate' }],
+    locales: { en: {} },
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'pain_score', type: 'input-ordinal',
+        binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.versicherungsinformationen.v0]/data[at0001]/items[at0006]/value', rmType: 'DV_ORDINAL' },
+        options: [{ text: 'No pain', value: 'at0011', ordinal: 0 }, { text: 'Mild', value: 'at0012', ordinal: 1 }, { text: 'Severe', value: 'at0013', ordinal: 2 }],
+      }],
+    },
+  };
+  const composition = buildCanonicalComposition(unionDefinition, { pain_score: 'at0012' }, unionTree, { time: '2026-09-02T10:00:00.000Z' });
+  const el = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0006');
+  assert.equal(el.value._type, 'DV_ORDINAL');
+  assert.equal(el.value.value, 1);
+  assert.equal(el.value.symbol.defining_code.code_string, 'at0012');
+});
