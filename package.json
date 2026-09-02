@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build:packages": "npm run build --workspace=core && npm run build --workspace=openehr-engine && npm run build --workspace=plugin-api && npm run build --workspace=formbuilder-example-vitals-plugin --workspace=formbuilder-example-n8n-plugin --workspace=formbuilder-plugin-aql-prefill --workspace=formbuilder-plugin-iframe --workspace=formbuilder-plugin-postal-lookup --if-present",
+    "build:packages": "npm run build --workspace=core && npm run build --workspace=openehr-engine && npm run build --workspace=plugin-api && npm run build --workspace=formbuilder-example-vitals-plugin --workspace=formbuilder-example-n8n-plugin --workspace=formbuilder-plugin-aql-prefill --workspace=formbuilder-plugin-iframe --workspace=formbuilder-plugin-postal-lookup --workspace=formbuilder-plugin-clinical-scores --if-present",
     "test": "npm run test --workspace=core && npm run test --workspace=openehr-engine && npm run test --workspace=plugin-api && npm run test --workspace=formbuilder-mcp-server && npm run test --workspace=openehr-architect-mcp && npm run test --workspace=api && npm run test --workspace=web"
   },
   "keywords": [],
