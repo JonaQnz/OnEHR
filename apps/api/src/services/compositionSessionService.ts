@@ -2,7 +2,7 @@ import prisma from '../db/prisma';
 import { getCompositionDefinition, isFormRuntimeMode, summarizeCompositionSession, type FormRuntimeMode } from 'core';
 import { getOpenEhrFormOptions } from 'openehr-engine';
 import { HttpError } from '../middleware/errorHandler';
-import { getFormSession, validateFormSession, type SessionActor } from './formSessionService';
+import { formsShareLineage, getFormSession, validateFormSession, type SessionActor } from './formSessionService';
 import { resolvePatientReference } from './patientService';
 import { getConfig, resolveSessionAlwaysNew } from './configService';
 
@@ -165,7 +165,15 @@ export async function attachCompositionChild(id: string, blockId: string, childS
   const child = await getFormSession(text(childSessionId, 'childSessionId'), actor);
   const parentPatient = await resolvePatientReference(record.patientId, record.patientNamespace || undefined);
   const canonicalParentId = parentPatient?.patientId || record.patientId;
-  if (child.formId !== expectedChild.formId || child.patientId !== canonicalParentId) throw new HttpError(422, 'Child form session does not match this composition context');
+  // expectedChild.formId is a snapshot from whenever this Composition's
+  // block was authored - a Form Section republish (create_form_draft/
+  // publish_form) archives that exact row and mints a new one under the
+  // same parent_id, so the child session (launched via launchForm's own
+  // latest-published resolution) legitimately carries a different, newer
+  // id for the very same Form Section. See formsShareLineage's doc comment.
+  if (!(await formsShareLineage(child.formId, expectedChild.formId)) || child.patientId !== canonicalParentId) {
+    throw new HttpError(422, 'Child form session does not match this composition context');
+  }
   const patientFields = { patientId: canonicalParentId, patientNamespace: parentPatient?.patientNamespace || record.patientNamespace, ehrId: parentPatient?.ehrId || record.ehrId };
   // Optimistic concurrency, same pattern as formSessionService.patchFormSession:
   // this is a read-modify-write on childSessions/childSessionGroups, so two

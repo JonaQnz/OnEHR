@@ -338,8 +338,32 @@ function assertOwner(record: any, actor: SessionActor): void {
  * itself reference this exact formId), so this can't be bypassed by simply
  * inventing plausible-looking ids.
  */
+/** True when two form ids refer to the same Form Section/Composition
+ * lineage - either literally the same row, or one/both are older/newer
+ * siblings sharing the same parent_id. create_form_draft + publish_form
+ * archives the currently-published row and mints a brand-new row id under
+ * the same parent_id on every republish - so anywhere a Composition's own
+ * stored block config (a formId snapshot from whenever the block was
+ * authored) needs checking against a form/session that's since been
+ * resolved to ITS current published sibling, a raw `===` comparison
+ * rejects every such launch the moment the Form Section republishes.
+ * Confirmed live (2026-09-02) against "Patientenstammdaten"/"Person
+ * (Basis)": launchForm's latest-published resolution alone wasn't enough -
+ * this same exact-id assumption also lived here and in
+ * compositionSessionService's attachCompositionChild. */
+export async function formsShareLineage(formIdA: string, formIdB: string): Promise<boolean> {
+  if (formIdA === formIdB) return true;
+  const [formA, formB] = await Promise.all([
+    prisma.form.findUnique({ where: { id: formIdA } }),
+    prisma.form.findUnique({ where: { id: formIdB } }),
+  ]);
+  const parentA = formA?.parent_id || formIdA;
+  const parentB = formB?.parent_id || formIdB;
+  return parentA === parentB;
+}
+
 async function assertFormSectionLaunchAllowed(
-  form: { id: string; canonical_json: unknown },
+  form: { id: string; parent_id: string | null; canonical_json: unknown },
   compositionContext: CreateSessionInput['compositionContext'],
   actor: SessionActor,
 ): Promise<void> {
@@ -362,7 +386,7 @@ async function assertFormSectionLaunchAllowed(
   if (!parentForm) throw new HttpError(404, 'Composition not found');
   const definition = getCompositionDefinition((parentForm.canonical_json as any).extensions || {});
   const block = definition?.pages.flatMap((page) => page.blocks).find((candidate) => candidate.id === compositionContext.blockId);
-  if (!block || block.type !== 'form' || block.formId !== form.id) {
+  if (!block || block.type !== 'form' || !(await formsShareLineage(block.formId, form.id))) {
     throw new HttpError(422, 'This Form Section is not a block of the referenced composition session');
   }
 }

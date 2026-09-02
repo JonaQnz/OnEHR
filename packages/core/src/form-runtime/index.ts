@@ -10,8 +10,13 @@ export type RuntimeValues = Record<string, RuntimeValue>;
  * DV_CODED_TEXT.value (EHRbase validates against it regardless of `text`'s
  * display language). Absent when identical to `text`. See
  * FormElementLayout.options[].rmValue (packages/core/canonical) for the
- * live bug this exists to fix. */
-export interface RuntimeOption { value: string; text: string; rmValue?: string; }
+ * live bug this exists to fix.
+ *
+ * terminology: see FormElementLayout.options[].terminology (packages/core/canonical) -
+ * this option's external terminology_id, for the uncommon case where the
+ * archetype requires a hosted terminology rather than openEHR's default
+ * "local". */
+export interface RuntimeOption { value: string; text: string; rmValue?: string; terminology?: string; }
 export interface RuntimeUnitOption { unit: string; min?: number; max?: number; precision?: number; }
 export interface RuntimeFieldDescriptor {
   id: string; name: string; type: string; label: string; description?: string | undefined;
@@ -89,6 +94,7 @@ function toDescriptor(node: FormElementLayout, locales: RuntimeLocales, repeatab
       value: String(option.value),
       text: String(option.text),
       ...(option.rmValue ? { rmValue: String(option.rmValue) } : {}),
+      ...(option.terminology ? { terminology: String(option.terminology) } : {}),
     })),
     allowFreeText: node.allowFreeText === true,
     unitOptions: (node.unitOptions || []).map((option) => typeof option === 'string' ? { unit: option } : { ...option }),

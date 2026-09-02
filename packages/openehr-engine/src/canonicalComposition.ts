@@ -213,7 +213,17 @@ function buildLeafDvValue(rmType: string | undefined, field: RuntimeFieldDescrip
     // rejects e.g. "Vermutet"/"Aktiv" expecting "Suspected"/"Active". See
     // FormElementLayout.options[].rmValue's doc comment (packages/core).
     const displayValue = source?.value ?? source?.text ?? source?.label ?? option?.rmValue ?? option?.text ?? code;
-    const terminology = source?.terminology ?? source?.terminologyId ?? 'local';
+    // option?.terminology - the field's static, per-option external
+    // terminology_id (see FormElementLayout.options[].terminology, packages/core)
+    // - must win over the 'local' default for the uncommon fields whose
+    // archetype binding requires a hosted terminology (e.g. vg_Person's
+    // Vitalstatus, bound to a FHIR-published ValueSet). This mirrors
+    // setFlatValue's already-correct fallback chain in this package's
+    // index.ts (the FLAT-format path) - this canonical/structured-RM path
+    // was missing the same option-level fallback, defaulting straight to
+    // 'local' and getting rejected by EHRbase with "terminology_id does not
+    // match" on every submission of such a field. Confirmed live (2026-09-02).
+    const terminology = source?.terminology ?? source?.terminologyId ?? option?.terminology ?? 'local';
     const definingCode = codePhrase(String(terminology), String(code));
     if (rmType === 'CODE_PHRASE') return definingCode;
     return { _type: 'DV_CODED_TEXT', value: String(displayValue), defining_code: definingCode };

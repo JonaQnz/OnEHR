@@ -193,6 +193,31 @@ test('a Composition never attaches a child session from another form or patient'
   } finally { store.restore(); }
 });
 
+// The block's own formId ('person-form') is a snapshot from whenever the
+// Composition was authored - a Form Section republish
+// (create_form_draft/publish_form) archives that exact row and mints a new
+// one under the same parent_id, so a freshly-launched child session
+// legitimately carries that NEW id, not the block's original one. Without
+// lineage-aware matching here, attaching such a child fails with "does not
+// match this composition context" on every Composition embedding a Form
+// Section that's ever been republished. Confirmed live (2026-09-02)
+// against "Patientenstammdaten"/"Person (Basis)".
+test('a child session bound to a republished sibling of the block\'s Form Section still attaches successfully', async () => {
+  const store = installStore();
+  const originalFormFindUnique = prisma.form.findUnique;
+  prisma.form.findUnique = async ({ where }) => {
+    if (where.id === 'person-form-v2') return { id: 'person-form-v2', parent_id: 'person-form', status: 'published' };
+    return originalFormFindUnique({ where });
+  };
+  try {
+    const parent = await compositions.startCompositionSession({ compositionFormId: 'composition-form', patientId: 'local-ada' }, actor);
+    store.childRows.set('child-1', { id: 'child-1', formId: 'person-form-v2', status: 'draft', validation: [] });
+    const attached = await compositions.attachCompositionChild(parent.id, 'person', 'child-1', actor);
+    assert.equal(attached.status, 'in_progress');
+    assert.equal(attached.childSessions.person, 'child-1');
+  } finally { prisma.form.findUnique = originalFormFindUnique; store.restore(); }
+});
+
 const manualAddBlocks = [{ id: 'diagnosis', type: 'form', formId: 'diagnosis-form', title: 'Diagnose', manualAdd: true }];
 const requiredManualAddBlocks = [{ id: 'diagnosis', type: 'form', formId: 'diagnosis-form', title: 'Diagnose', manualAdd: true, requireAtLeastOne: true }];
 

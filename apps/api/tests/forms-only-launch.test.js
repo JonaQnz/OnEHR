@@ -30,9 +30,9 @@ const original = {
   buildSessionRuntimeContext: aql.buildSessionRuntimeContext,
 };
 
-function formSectionForm(id) {
+function formSectionForm(id, { parentId = id, status = 'published' } = {}) {
   return {
-    id, version: '1.0.0', status: 'published',
+    id, parent_id: parentId, version: '1.0.0', status,
     canonical_json: { id, name: 'Vitals', version: '1.0.0', sourceTemplates: [], layout: { type: 'form', children: [] }, bindings: {}, locales: {} },
   };
 }
@@ -194,4 +194,55 @@ test('a genuinely matching compositionContext allows launching the Form Section 
     );
     assert.equal(child.formId, 'vitals-form-section');
   } finally { store.restore(); }
+});
+
+// The composition's own block config (extensions["watehr.composition"])
+// stores whatever formId was current when the block was authored - a Form
+// Section republish (create_form_draft/publish_form) archives that exact
+// row and mints a new one under the same parent_id. launchForm's own
+// latest-published resolution (form-launch-published-resolution.test.js)
+// already hands createFormSession the NEW row's id, not the block's
+// original one - this exact-match check must accept that as the same
+// block, not reject it as "not a block of the referenced composition
+// session". Confirmed live (2026-09-02) against "Person (Basis)".
+test('a Form Section republished under the same parent_id is still recognized as the block\'s Form Section', async () => {
+  const store = installStore();
+  const forms = {
+    'vitals-form-section': formSectionForm('vitals-form-section', { status: 'archived' }),
+    'vitals-form-section-v2': formSectionForm('vitals-form-section-v2', { parentId: 'vitals-form-section' }),
+    'unrelated-form-section': formSectionForm('unrelated-form-section'),
+    'discharge-composition': compositionForm(),
+  };
+  const originalFindUnique = prisma.form.findUnique;
+  prisma.form.findUnique = async ({ where }) => forms[where.id] || null;
+  try {
+    const parent = await compositions.startCompositionSession({ compositionFormId: 'discharge-composition', patientId: 'patient-1' }, actor);
+    const child = await formSessions.createFormSession(
+      { formId: 'vitals-form-section-v2', patientId: 'patient-1', compositionContext: { compositionSessionId: parent.id, blockId: 'vitals-block' } },
+      actor,
+    );
+    assert.equal(child.formId, 'vitals-form-section-v2');
+  } finally { prisma.form.findUnique = originalFindUnique; store.restore(); }
+});
+
+test('a Form Section from a genuinely different lineage is still rejected, even if its own parent_id happens to be unset', async () => {
+  const store = installStore();
+  const forms = {
+    'vitals-form-section': formSectionForm('vitals-form-section', { status: 'archived' }),
+    'unrelated-form-section-v2': formSectionForm('unrelated-form-section-v2', { parentId: 'unrelated-form-section' }),
+    'unrelated-form-section': formSectionForm('unrelated-form-section'),
+    'discharge-composition': compositionForm(),
+  };
+  const originalFindUnique = prisma.form.findUnique;
+  prisma.form.findUnique = async ({ where }) => forms[where.id] || null;
+  try {
+    const parent = await compositions.startCompositionSession({ compositionFormId: 'discharge-composition', patientId: 'patient-1' }, actor);
+    await assert.rejects(
+      formSessions.createFormSession(
+        { formId: 'unrelated-form-section-v2', patientId: 'patient-1', compositionContext: { compositionSessionId: parent.id, blockId: 'vitals-block' } },
+        actor,
+      ),
+      (err) => { assert.equal(err.status, 422); return true; },
+    );
+  } finally { prisma.form.findUnique = originalFindUnique; store.restore(); }
 });
