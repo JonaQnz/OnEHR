@@ -43,6 +43,46 @@ record):
   file - see `docs/testing/README.md`. The infrastructure and pattern are
   the actual fix here; extending it to the remaining routes is ordinary
   follow-up work, not a new gap.
+- apps/web #2 (`http://localhost:3001` hardcoded in ~27 files) - PR #23
+  introduced the shared `API_BASE_URL`/`API_ORIGIN` module
+  (`integration/apiBaseUrl.ts`) and migrated the bulk of the files; two
+  were missed (`HipFhirPatientSettings.tsx`, `PatientCreate.tsx`),
+  caught during this pass and fixed in PR #53. Verified with a
+  Python-based sweep of every `.ts`/`.tsx` file under `apps/web/src` -
+  the only remaining `localhost:3001` occurrences are inside
+  `apiBaseUrl.ts` itself (the documented fallback default) and its own
+  test file.
+- apps/web #3 (Dashboard action handlers ignore `res.ok`) - PR #51,
+  `fix/dashboard-action-error-handling`.
+- apps/web #5 (`LiveJsonEditor` autosaves on every keystroke, no
+  debounce/cancellation) - PR #52, `fix/live-json-editor-debounce`
+  (500ms debounce + `AbortController` cancelling any still-in-flight
+  save).
+- **Not from the original review, found live while wiring up CI**:
+  apps/web's production build (`tsc -b && vite build` - the exact
+  command `Dockerfile.web` runs) was actually broken on `main` - a
+  worker chunk's CJS/ESM interop for `formbuilder-plugin-clinical-
+  scores`'s default export failed under Rollup (Vite's dev server never
+  showed it, since it pre-bundles CJS via esbuild instead). Fixed in PR
+  #54.
+- **No CI pipeline existed at all** (`.github/workflows/` was absent)
+  despite 4 solid local test layers and a green `npm test` - this was
+  the single biggest structural gap toward a real "v1.0" (see the
+  now-superseded closing paragraph below). Added in PR #55. Getting it
+  to genuinely pass from a truly clean checkout (not a long-lived local
+  tree with leftover build artifacts) surfaced four more real, previously
+  invisible bugs, each fixed in its own PR: apps/web was missing an
+  explicit `@testing-library/dom` devDependency (PR #56); the root
+  `test` script built `formbuilder-mcp-server` before its own dependency
+  `openehr-architect-mcp`, and never built the example plugins
+  `apps/api`'s own tests load at runtime (PR #57); `apps/api`'s build
+  silently relied on `@prisma/client`'s postinstall script actually
+  running to generate its types (PR #58); and `apps/web`'s own
+  `vite@8`/`vitest@4` require Node ≥20, crashing outright on the Node 18
+  used to mirror the Dockerfiles (PR #59, test job now on Node 22,
+  `build-web` job stays on Node 18 to keep mirroring production). CI is
+  now verified green on a real clean-checkout GitHub Actions run, not
+  just locally.
 
 Everything else below is **not yet fixed**. Triage this list before
 picking the next thing to work on; it's roughly ordered by impact within
@@ -111,21 +151,21 @@ each area, not a strict global ranking.
    away from a Composition with unsaved child-form edits and lose them
    with no warning. High priority - this is a real, silent data-loss
    path, same class as the three already fixed.
-2. **`http://localhost:3001` hardcoded as an absolute URL in ~26 files**,
+2. ✅ **`http://localhost:3001` hardcoded as an absolute URL in ~26 files**,
    bypassing `vite.config.ts`'s own `/api` dev proxy entirely and
    hardwiring every environment to "browser and API on the same host" -
    breaks any real multi-machine deployment (the production Dockerfile
    serves static `dist/` with no reverse proxy). One env-driven `API`
    constant/module would fix all sites at once; natural to pair with the
    `request<T>()` duplication fix below.
-3. **Dashboard action handlers ignore `res.ok`**
+3. ✅ **Dashboard action handlers ignore `res.ok`**
    (`Dashboard.tsx` publish/archive/restore/delete) - a failed action
    just silently refreshes the list as if it succeeded.
 4. `CompositionRuntime.tsx` re-creates a Composition session
    (`POST /composition-sessions`) on every keystroke into the manual
    patient-ID/EHR-ID fields once both are non-empty, because each
    `onChange` calls `reset()` first.
-5. `FormBuilder.tsx`'s `LiveJsonEditor` autosaves the raw JSON textarea
+5. ✅ `FormBuilder.tsx`'s `LiveJsonEditor` autosaves the raw JSON textarea
    on every keystroke, no debounce, no in-flight-request cancellation -
    fast typing/pasting can let an older PUT overwrite a newer one.
 6. `request<T>()` fetch helper reimplemented ~11 times nearly verbatim
@@ -235,23 +275,54 @@ rather than a quick fix: `apps/web`'s hardcoded `http://localhost:3001`
 in ~26 files (deployment-breaking, but touches a lot of files at once)
 and `apps/api`'s complete absence of HTTP-layer tests (the single
 highest-leverage remaining gap - would have caught several of the bugs
-already fixed here).~~ The hardcoded-URL fix is PR #23 (open, not yet
-merged). The HTTP-layer test gap is done (#10 above,
-`fix/repeatable-composition-blocks` branch) - though only for
+already fixed here).~~ The hardcoded-URL fix is done - PR #23, plus the
+two files it missed (PR #53). The HTTP-layer test gap is done (#10
+above, `fix/repeatable-composition-blocks` branch) - though only for
 `compositionSessionRoutes` so far, extending it to the rest is ordinary
 follow-up.
 
-What's left after those: apps/api #8/#9/#11/#12 (all minor/test-coverage,
-no urgency), apps/web #3-#12 (Dashboard `res.ok`, session-recreate-on-
-keystroke, autosave debounce, `request<T>()` duplication, the two
-"first row determines table columns" bugs, status-badge color-map
-duplication, missing `AbortController`/mount-guards, missing
-`aria-label`s, hardcoded hex colors, oversized single-file components),
-and the shared-packages items (#1/#3-#7, plus the test-coverage gaps in
-finding #7: `form-definition`/`form-scripting` have no test file at all,
+~~Everything here can wait for a dedicated pass, ideally once a CI
+pipeline exists to keep fixes from regressing silently again.~~ Done -
+see the "Fixed so far" entry above (PRs #55-#59). CI now runs on every
+push/PR to `main` and is verified green from a genuinely clean checkout,
+not just a long-lived local tree.
+
+**Re-verified against current code during this pass** (2026-09,
+Python-based checks after grep gave unreliable false negatives on this
+OneDrive-synced path - see caveat below): apps/web #7 (`Object.keys`-
+of-first-row column derivation, confirmed still present in both
+`PatientDetail.tsx:781` and `WidgetDataCard.tsx`'s `list` display),
+#11 (`WidgetDataCard.tsx` still has zero `var(--...)` usage - raw hex
+literals throughout, including in the same `list` display block as
+#7), apps/api #8 (dead plugin-validation comment block in
+`formRoutes.ts`, unchanged), and shared-packages #5 (`quote`/`union`
+still independently duplicated between `form-scripting/index.ts` and
+`composition-scripting/index.ts`, not shared via import) are all
+confirmed genuinely still open, not incidentally fixed by later work.
+apps/web #9's `AbortController` gap is now half-closed: `PatientDetail
+.tsx` has it, `CompositionRuntime.tsx` still doesn't.
+
+What's left after those: apps/api #9/#11/#12 (all minor/test-coverage,
+no urgency), apps/web #4/#6-#13 (session-recreate-on-keystroke,
+`request<T>()` duplication, the two "first row determines table
+columns" bugs, status-badge color-map duplication, missing
+`AbortController`/mount-guards, missing `aria-label`s, hardcoded hex
+colors, oversized single-file components), and the shared-packages
+items (#1/#3-#7, plus the test-coverage gaps in finding #7:
+`form-definition`/`form-scripting` have no test file at all,
 `validateRuntimeValues` option/unit/min/max/pattern/`repeat-max`/
 visibility-evaluator coverage, 5 of 6 plugin packages with zero tests -
 `aql-prefill-plugin`'s hand-rolled AQL predicate parser is the single
-highest-risk untested piece of logic found in the entire review).
-Everything here can wait for a dedicated pass, ideally once a CI
-pipeline exists to keep fixes from regressing silently again.
+highest-risk untested piece of logic found in the entire review). None
+of this is urgent, but with CI now in place, a fix here won't silently
+regress the way earlier fixes in this document sometimes did.
+
+**Tooling caveat**: plain `grep`/Bash-`grep` has repeatedly returned
+false-negative (empty) results for content demonstrably present in
+files on this OneDrive-synced repo path, with no error - just silent
+"no match" as if the content were genuinely absent. Every "fixed"/
+"absent" conclusion in this document was cross-checked with a Python
+`open(...).read()` + `re.search`, not bare `grep`, after this was
+first caught mid-review (it had produced at least two wrong
+conclusions before being caught). Worth keeping in mind for any future
+pass on this repo.
