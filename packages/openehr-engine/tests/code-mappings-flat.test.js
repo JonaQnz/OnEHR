@@ -52,6 +52,19 @@ test('preserves an explicit non-default match type', () => {
   assert.equal(flat[`${PATH}/mappings/0|match`], '?');
 });
 
+// RM data_types.text 5.2.2: TERM_MAPPING.match is a char restricted to
+// '>'/'='/'<'/'?' - nothing in this app currently sets an out-of-set value,
+// but the write side didn't validate it either, so it must fall back to
+// '=' the same way an unset match already does, rather than ship an
+// RM-invalid TERM_MAPPING if a future caller ever does.
+test('an invalid/unrecognized match value falls back to "=" rather than being written verbatim', () => {
+  const definition = definitionFor({ enabled: true, terminologies: [{ id: 'condition.id', label: 'Case id' }] });
+  const flat = toOpenEhrFlatComposition(definition, {
+    diagnosis_name: { value: '00010002218401', mappings: [{ terminologyId: 'condition.id', code: '00010002218401', match: 'equivalent' }] },
+  });
+  assert.equal(flat[`${PATH}/mappings/0|match`], '=');
+});
+
 test('a field with no mapping entered yet writes only the bare text, no mappings keys at all', () => {
   const definition = definitionFor({ enabled: true, terminologies: [{ id: 'icd10gm', label: 'ICD-10-GM' }] });
   const flat = toOpenEhrFlatComposition(definition, { diagnosis_name: { value: 'Nur Text' } });

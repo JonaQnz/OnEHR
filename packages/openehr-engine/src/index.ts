@@ -90,6 +90,15 @@ const STRUCTURAL_RM_TYPES = new Set([
   'PARTY_PROXY', 'PARTY_IDENTIFIED', 'PARTY_RELATED', 'PARTY_SELF',
 ]);
 
+/** RM data_types.text 5.2.2 (TERM_MAPPING): `match` is a `char` constrained
+ * to exactly these four values ('>' broader, '=' equivalent, '<' narrower,
+ * '?' unknown) - confirmed against the current openEHR RM Data Types spec
+ * while validating this file against it (2026-09-02). Mirrored in
+ * canonicalComposition.ts's own normalizedTermMappingMatch, kept in sync by
+ * inspection since the two files deliberately don't share code (see
+ * setFlatValue's own top comment for why). */
+const VALID_TERM_MAPPING_MATCH = new Set(['>', '=', '<', '?']);
+
 /** Shared by both codeMappings.enabled branches below (a DV_TEXT-bound field,
  * and - see the DV_CODED_TEXT branch's own comment - the "HIP converter is
  * king" DV_CODED_TEXT-bound one) so the `mappings/N` FLAT convention can't
@@ -101,15 +110,18 @@ const STRUCTURAL_RM_TYPES = new Set([
  * `_mappings` was rejected wholesale ("Could not consume Parts"). The
  * underscore convention is for LOCATABLE meta-attributes (`_uid`, `_name`,
  * `_feeder_audit`); `mappings` is DV_TEXT's own genuine, value-bearing RM
- * attribute (data_types.text 5.2.4: DV_TEXT.mappings: List<TERM_MAPPING>),
- * not a meta-attribute, so it takes its plain RM name like any other. */
+ * attribute (data_types.text 5.2.1: DV_TEXT.mappings: List<TERM_MAPPING> -
+ * corrected 2026-09-02, this previously cited 5.2.4, which is actually
+ * DV_CODED_TEXT, the subclass that adds `defining_code`; `mappings` itself
+ * is inherited from DV_TEXT, not introduced there), not a meta-attribute,
+ * so it takes its plain RM name like any other. */
 function writeCodeMappingsFlat(output: Record<string, unknown>, key: string, text: unknown, mappings: unknown): boolean {
   if (isEmpty(text)) return false;
   output[key] = text;
   (Array.isArray(mappings) ? mappings : []).forEach((entry, mappingIndex) => {
     if (!isRecord(entry) || isEmpty(entry.terminologyId) || isEmpty(entry.code)) return;
     const prefix = `${key}/mappings/${mappingIndex}`;
-    output[`${prefix}|match`] = typeof entry.match === 'string' && entry.match ? entry.match : '=';
+    output[`${prefix}|match`] = typeof entry.match === 'string' && VALID_TERM_MAPPING_MATCH.has(entry.match) ? entry.match : '=';
     output[`${prefix}/target|code`] = entry.code;
     output[`${prefix}/target|terminology`] = entry.terminologyId;
   });

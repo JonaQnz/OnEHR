@@ -153,6 +153,49 @@ test('DV_QUANTITY serializes the RM-mandatory unit attribute as `units`, not `un
   assert.equal('unit' in weightEl.value, false);
 });
 
+// RM data_types.quantity: DV_COUNT.magnitude is Integer, not Real, unlike
+// DV_QUANTITY - but getInputType() gives a DV_COUNT-bound field the same
+// generic 'input-number' widget as DV_DECIMAL, with nothing upstream
+// enforcing integer-only input, so a fractional value can genuinely reach
+// this serializer.
+test('DV_COUNT rounds a fractional magnitude to an integer, since the RM type does not allow Real', () => {
+  // buildNode resolves the WebTemplate node's OWN declared rmType (not the
+  // form binding's), so this needs a dedicated tree with an at-code
+  // genuinely declared DV_COUNT - the shared fixture's at0002 is DV_QUANTITY.
+  const countTree = {
+    id: 'vitals', name: 'Vitals', rmType: 'COMPOSITION', nodeId: 'openEHR-EHR-COMPOSITION.encounter.v1',
+    children: [
+      { id: 'category', name: 'category', rmType: 'DV_CODED_TEXT', min: 1, max: 1, aqlPath: '/category', inputs: [{ suffix: 'code', type: 'CODED_TEXT', list: [{ value: '433', label: 'event' }] }] },
+      { id: 'context', name: 'context', rmType: 'EVENT_CONTEXT', min: 1, max: 1, children: [
+        { id: 'start_time', name: 'start_time', rmType: 'DV_DATE_TIME', min: 1, max: 1, aqlPath: '/context/start_time' },
+        { id: 'setting', name: 'setting', rmType: 'DV_CODED_TEXT', min: 1, max: 1, aqlPath: '/context/setting' },
+      ] },
+      {
+        id: 'vitals_entry', name: 'Vitals', rmType: 'ADMIN_ENTRY', min: 0, max: 1,
+        nodeId: 'openEHR-EHR-ADMIN_ENTRY.vitals.v1', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]',
+        children: [
+          { id: 'count', name: 'Count', rmType: 'DV_COUNT', min: 0, max: 1, nodeId: 'at0002', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0002]' },
+        ],
+      },
+    ],
+  };
+  const countDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [
+        { id: 'setting', type: 'select', binding: { path: '/context/setting', rmType: 'DV_CODED_TEXT' }, options: [{ value: '238', text: 'other care' }] },
+        { id: 'count', type: 'input-number', binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0002]', rmType: 'DV_COUNT' } },
+      ],
+    },
+  };
+  const composition = buildCanonicalComposition(countDefinition, { count: '3.7' }, countTree, { time: '2026-08-26T10:00:00.000Z' });
+  const countEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0002');
+  assert.equal(countEl.value._type, 'DV_COUNT');
+  assert.equal(countEl.value.magnitude, 4);
+  assert.equal(Number.isInteger(countEl.value.magnitude), true);
+});
+
 test('omits an entirely-empty optional ADMIN_ENTRY rather than emitting an empty shell', () => {
   const composition = buildCanonicalComposition(definition, { setting: '238' }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
   assert.deepEqual(composition.content, []);
@@ -568,6 +611,30 @@ test('codeMappings.enabled: an explicit match type is preserved (e.g. "?" for an
   }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
   const noteEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0003');
   assert.equal(noteEl.value.mappings[0].match, '?');
+});
+
+// RM data_types.text 5.2.2: TERM_MAPPING.match is a char restricted to
+// '>'/'='/'<'/'?' - a value outside that set (nothing in this app sets one
+// today, but a future form script or a UI that lets a clinician type
+// something freeform could) must fall back to '=' rather than ship an
+// RM-invalid TERM_MAPPING, the same way an unset match already does.
+test('codeMappings.enabled: an invalid/unrecognized match value falls back to "=" rather than shipping an RM-invalid TERM_MAPPING', () => {
+  const codedDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'notes', type: 'input-text',
+        binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0003]', rmType: 'DV_TEXT' },
+        codeMappings: { enabled: true, terminologies: [{ id: 'condition.id', label: 'Case identifier' }] },
+      }],
+    },
+  };
+  const composition = buildCanonicalComposition(codedDefinition, {
+    notes: { value: '00010002218401', mappings: [{ terminologyId: 'condition.id', code: '00010002218401', match: 'equivalent' }] },
+  }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
+  const noteEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0003');
+  assert.equal(noteEl.value.mappings[0].match, '=');
 });
 
 test('codeMappings.enabled: multiple mapping entries on the same field are all preserved, in order', () => {
