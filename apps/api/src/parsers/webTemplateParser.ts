@@ -201,14 +201,35 @@ export function parseWebTemplate(webTemplate: any): {
     parentName: string,
     currentFlatPath: string,
     parentTechnicalName: string,
-    // The nearest enclosing CLUSTER/EVENT/ACTIVITY's own repeat meta, if
-    // any is on the ancestor path - reset to undefined the moment we
-    // descend past that cluster's own boundary into a *different*,
-    // non-repeatable container, so a field only inherits the closest
-    // repeatable group, never a repeatable grandparent through a
-    // non-repeatable parent. Mirrors isClusterLikeNode/getRepeatMeta below
-    // exactly, so this flat registry always agrees with what the second
-    // pass (buildLayoutNode) would build for the same node.
+    // The nearest enclosing GENUINELY REPEATING anchor's own repeat meta,
+    // if any is on the ancestor path - established the moment we enter a
+    // node that is itself repeatable, and otherwise left untouched while
+    // descending, so a field inherits it straight through any number of
+    // non-repeating wrappers in between (a repeating ENTRY's `data` is
+    // essentially always an ITEM_TREE/HISTORY passthrough before its real
+    // children, and buildLayoutNode collapses exactly that passthrough
+    // away - see isTechnicalWrapper's non-repeatable branch - so its
+    // children end up direct descendants of the repeating ancestor in the
+    // actual layout tree; overwriting nextParentRepeat with that
+    // passthrough's own (non-repeating) meta would erase the inherited
+    // flag here even though the layout tree never loses it).
+    //
+    // Must mirror buildLayoutNode's own set of repeat-anchor node types
+    // EXACTLY, or this flat registry (and the parentRepeatable/
+    // parentRepeatMin/parentRepeatMax it stamps onto every FieldRegistryItem
+    // below - the only place the Developer Inspector and the legacy flat
+    // layout builder (formGenerator.ts) learn "is this field part of a
+    // repeating group?") silently disagrees with what the layout tree
+    // actually renders. Until this fix it checked isClusterLikeNode() only
+    // (CLUSTER/EVENT/ACTIVITY) - buildLayoutNode's isEntryNode() branch
+    // (OBSERVATION/EVALUATION/INSTRUCTION/ACTION/ADMIN_ENTRY, e.g. a
+    // repeatable secondary-diagnosis EVALUATION) and its repeatable-
+    // technical-wrapper branch (ITEM_TREE/ITEM_LIST/ITEM_TABLE/HISTORY/
+    // ITEM_SINGLE/ITEM_STRUCTURE with max>1) both also produce a visible
+    // `repeatable: true` container in the layout, but every field inside
+    // one of those still came out of this function with parentRepeatable
+    // unset - correct data for a hand-authored form, silently wrong
+    // metadata for anything reflecting on a generated one.
     parentRepeat?: { repeatable: boolean; repeatMin: number; repeatMax: number },
   ) {
     if (!node) return;
@@ -228,8 +249,9 @@ export function parseWebTemplate(webTemplate: any): {
     if (isContainer && node.id) {
       nextParentTechnicalName = node.id;
     }
-    if (isClusterLikeNode(node)) {
-      nextParentRepeat = getRepeatMeta(node);
+    if (isClusterLikeNode(node) || isEntryNode(node) || isTechnicalWrapper(node)) {
+      const repeatMeta = getRepeatMeta(node);
+      if (repeatMeta.repeatable) nextParentRepeat = repeatMeta;
     }
 
     let nextFlatPath = currentFlatPath;

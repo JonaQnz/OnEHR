@@ -317,3 +317,63 @@ test('generateCanonicalForm leaves non-repeatable fields as flat rows, unchanged
   assert.equal(findNode(generated.layout, (node) => node.repeatable === true), undefined);
   assert.ok(findNode(generated.layout, (node) => node.name === 'tmpl_note'));
 });
+
+// Regression: traverseFlat's parentRepeat tracking used to check
+// isClusterLikeNode() only (CLUSTER/EVENT/ACTIVITY) - buildLayoutNode's own
+// isEntryNode() branch (OBSERVATION/EVALUATION/INSTRUCTION/ACTION/
+// ADMIN_ENTRY) independently produces a `repeatable: true` layout container
+// for a repeating ENTRY too (e.g. vg_Diagnosis.v1.1.1's repeatable
+// secondary-diagnosis EVALUATION), so the two passes silently disagreed:
+// the layout tree correctly showed a repeatable group, but every field
+// inside it still carried parentRepeatable === undefined in the flat
+// registry - wrong metadata for the Developer Inspector and for
+// generateCanonicalForm's own repeatable-ancestor grouping (Test 8 above),
+// which reads exactly this flag.
+function repeatableEvaluationTemplate() {
+  return {
+    templateId: 'vg_Diagnosis.v1.1.1',
+    tree: {
+      id: 'diagnosis', rmType: 'COMPOSITION', aqlPath: '',
+      children: [{
+        id: 'secondary_diagnosis', name: 'Secondary diagnosis', rmType: 'EVALUATION', min: 0, max: -1,
+        aqlPath: "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='secondary diagnosis']",
+        children: [{
+          id: 'data', rmType: 'ITEM_TREE', aqlPath: "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='secondary diagnosis']/data[at0001]",
+          children: [{
+            id: 'problem_diagnosis_name', name: 'Problem/diagnosis name', rmType: 'DV_TEXT', min: 1,
+            aqlPath: "/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='secondary diagnosis']/data[at0001]/items[at0002]",
+          }],
+        }],
+      }],
+    },
+  };
+}
+
+test('parser marks a field under a repeatable ENTRY (EVALUATION/OBSERVATION/...) as parentRepeatable, not just under a repeatable CLUSTER/EVENT', () => {
+  const result = parseWebTemplate(repeatableEvaluationTemplate());
+  const name = result.fields.find((field) => field.technicalName === 'problem_diagnosis_name');
+  assert.ok(name, 'the leaf field is present in the flat registry');
+  assert.equal(name.parentRepeatable, true, 'the field must inherit its repeatable ENTRY ancestor');
+  assert.equal(name.parentRepeatMin, 0);
+  assert.equal(name.parentRepeatMax, -1);
+
+  // And the layout tree (built independently by buildLayoutNode) agrees -
+  // this is the invariant that broke before the fix.
+  const evaluation = findNode(result.layout, (node) => node.repeatable === true);
+  assert.ok(evaluation, 'the repeatable EVALUATION survives into the layout');
+  assert.equal(evaluation.binding?.rmType, 'EVALUATION');
+});
+
+test('generateCanonicalForm groups a field from a repeatable EVALUATION ancestor into one repeatable container, same as a repeatable EVENT', () => {
+  const parsed = parseWebTemplate(repeatableEvaluationTemplate());
+  const name = parsed.fields.find((field) => field.technicalName === 'problem_diagnosis_name');
+  assert.equal(name.parentRepeatable, true);
+
+  const generated = generateCanonicalForm({
+    name: 'Nebendiagnose', templateId: parsed.templateId, alias: parsed.alias,
+    fields: [name], id: 'form-flat-3',
+  });
+  const group = findNode(generated.layout, (node) => node.repeatable === true);
+  assert.ok(group, 'a repeatable container was generated for the picked field');
+  assert.equal(group.repeatMax, -1);
+});
