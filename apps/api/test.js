@@ -1,1 +1,0 @@
-const prisma = new (require("@prisma/client").PrismaClient)(); async function run() { const forms = await prisma.form.findMany(); console.log(JSON.stringify(forms.map(f => ({ id: f.id, status: f.status, version: f.version, submission: f.canonical_json.settings?.submission })), null, 2)); } run().finally(() => prisma.$disconnect());

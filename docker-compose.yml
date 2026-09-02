@@ -39,6 +39,16 @@ services:
       - N8N_API_KEY=${N8N_API_KEY:-}
       - N8N_PUBLIC_URL=${N8N_PUBLIC_URL:-http://localhost:5678}
       - N8N_EHRBASE_URL=${N8N_EHRBASE_URL:-http://ehrbase:8080/ehrbase/rest/openehr/v1}
+      # Loaded plugin packages, comma-separated npm package names (see
+      # pluginRegistry.ts's getConfiguredPluginPackages, which merges this
+      # with any packages persisted via AppConfig.pluginPackages). Left
+      # unset - formbuilder-plugin-clinical-scores was investigated
+      # (2026-09-02) as a candidate but turned out to export a
+      # FunctionPackageDefinition (packages/plugin-api), a type nothing in
+      # apps/api actually consumes; the plugin loader requires a real
+      # FormBuilderPlugin ({manifest, activate()}), so loading it here only
+      # produces a startup error ("Plugin manifest is required"), not a
+      # working feature. See packages/formbuilder-plugin-clinical-scores.
       # First-start admin bootstrap: creates one ADMIN account if (and only if)
       # no ADMIN role exists yet. Safe to leave set after that - it becomes a
       # no-op. Set FORMS_BOOTSTRAP_ADMIN_PASSWORD in a .env file next to this
