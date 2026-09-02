@@ -256,7 +256,7 @@ function AutocompleteInput({
   }, []);
 
   if (field.options.length === 0) {
-    return <input style={style} type="text" disabled={disabled} value={String(value ?? '')} placeholder="Freitext eingeben …" onChange={(event) => onChange(event.target.value)} />;
+    return <input style={style} type="text" autoComplete="off" disabled={disabled} value={String(value ?? '')} placeholder="Freitext eingeben …" onChange={(event) => onChange(event.target.value)} />;
   }
 
   const selectedOption = field.options.find((option) => option.value === value);
@@ -681,7 +681,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     if (node.uiElement === 'Autocomplete') {
       return <AutocompleteInput field={field} value={value} disabled={disabled} invalid={invalid} onChange={onChange} />;
     }
-    if (node.uiElement === 'TextArea') return <textarea style={{ ...style, minHeight: '7rem', resize: 'vertical' }} disabled={disabled} value={String(value ?? '')} placeholder={node.placeholder || ''} onChange={eventValue} />;
+    if (node.uiElement === 'TextArea') return <textarea style={{ ...style, minHeight: '7rem', resize: 'vertical' }} autoComplete="off" disabled={disabled} value={String(value ?? '')} placeholder={node.placeholder || ''} onChange={eventValue} />;
     if (node.uiElement === 'Dropdown' || node.type === 'input-select' || node.type === 'input-ordinal') {
       const selectedValue = Array.isArray(value) ? value.map(String) : String(value ?? '');
       return <select style={style} disabled={disabled} multiple={Array.isArray(value)} value={selectedValue} onChange={(event) => onChange(event.target.multiple ? Array.from(event.target.selectedOptions, (option) => option.value) : event.target.value)}><option value="">Bitte auswählen</option>{field.options.map((option) => <option key={option.value} value={option.value}>{option.text}</option>)}</select>;
@@ -707,7 +707,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
       const canAddMore = terminologies.length > 0 && (field.codeMappings.allowMultiple !== false || mappings.length === 0);
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <input style={style} type={inputType(node)} disabled={disabled} value={String(text ?? '')} placeholder={node.placeholder || ''} onChange={(event) => onChange({ value: event.target.value, ...(mappings.length > 0 ? { mappings } : {}) })} />
+          <input style={style} type={inputType(node)} autoComplete="off" disabled={disabled} value={String(text ?? '')} placeholder={node.placeholder || ''} onChange={(event) => onChange({ value: event.target.value, ...(mappings.length > 0 ? { mappings } : {}) })} />
           {mappings.map((mapping, index) => {
             const terminology = terminologies.find((candidate) => candidate.id === mapping.terminologyId);
             return (
@@ -719,7 +719,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
                 ) : (
                   <span style={{ fontSize: '0.78rem', color: '#64748b', flexShrink: 0, minWidth: '6rem' }}>{terminology?.label || mapping.terminologyId}</span>
                 )}
-                <input style={{ ...style, flex: 1, padding: '0.4rem 0.6rem' }} type="text" disabled={disabled} value={mapping.code} placeholder="Code" onChange={(event) => commitMappings(mappings.map((item, i) => i === index ? { ...item, code: event.target.value } : item))} />
+                <input style={{ ...style, flex: 1, padding: '0.4rem 0.6rem' }} type="text" autoComplete="off" disabled={disabled} value={mapping.code} placeholder="Code" onChange={(event) => commitMappings(mappings.map((item, i) => i === index ? { ...item, code: event.target.value } : item))} />
                 <button type="button" disabled={disabled} title="Zuordnung entfernen" onClick={() => commitMappings(mappings.filter((_item, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer', padding: '0.3rem' }}>×</button>
               </div>
             );
@@ -732,7 +732,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
         </div>
       );
     }
-    return <input style={style} type={inputType(node)} disabled={disabled} value={String(value ?? '')} placeholder={node.placeholder || ''} onChange={eventValue} />;
+    return <input style={style} type={inputType(node)} autoComplete="off" disabled={disabled} value={String(value ?? '')} placeholder={node.placeholder || ''} onChange={eventValue} />;
   };
 
   const renderField = (node: FormElementLayout, groupContext?: GroupContext): ReactNode => {
@@ -928,7 +928,17 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   };
 
   const formContent = (
-    <form onSubmit={(event) => void submit(event)} style={{ maxWidth: chromeless ? '100%' : '960px', margin: chromeless ? 0 : '0 auto' }}>
+    // autoComplete="off" (plus autoComplete="off" repeated on the individual
+    // free-text/textarea inputs below - browsers, Chrome especially, don't
+    // reliably honor the form-level opt-out alone for fields with no
+    // semantic autocomplete token) - confirmed live (2026-09-02): Chrome's
+    // own autofill silently pre-filled clinical fields (diagnosis text,
+    // medication name, dosing) with values typed into a same-shaped field
+    // earlier in the browser session, for a DIFFERENT patient. In a
+    // clinical documentation tool that's a real risk of a clinician
+    // unknowingly submitting stale/wrong data - never something to leave to
+    // browser heuristics.
+    <form autoComplete="off" onSubmit={(event) => void submit(event)} style={{ maxWidth: chromeless ? '100%' : '960px', margin: chromeless ? 0 : '0 auto' }}>
       <div style={chromeless ? { padding: 0 } : { background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.5rem' }}>
         {toast && <div role={toast.level === 'error' ? 'alert' : 'status'} style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '8px', background: toast.level === 'error' ? '#fef2f2' : toast.level === 'success' ? '#f0fdf4' : '#eff6ff', color: toast.level === 'error' ? '#b91c1c' : toast.level === 'success' ? '#15803d' : '#1d4ed8', display: 'flex', justifyContent: 'space-between', gap: '1rem' }}><span>{toast.message}</span><button type="button" aria-label="Meldung schließen" onClick={() => setToast(null)} style={{ border: 0, background: 'transparent', cursor: 'pointer' }}>×</button></div>}
         {showHeader && definition.name && <header style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}><div><h1 style={{ margin: 0 }}>{definition.name}</h1><div style={{ color: '#64748b', fontSize: '0.85rem' }}>Version {definition.version}</div></div><ExtensionSlot name="form:header:actions" context={{ readOnly }} /></header>}

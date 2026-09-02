@@ -22,11 +22,55 @@ export default function PatientList() {
   // template (parent id, so /live/ always resolves the latest version) -
   // used both for "Patient anlegen" and for "Stammdaten erfassen" on a
   // patient whose EHR has no Person composition yet.
-  const [defaultFormId, setDefaultFormId] = useState(() => localStorage.getItem('defaultPatientFormId') || '237bacbe-3583-444d-8bac-adc98c18c0a8');
+  //
+  // Confirmed live (2026-09-02): the old default here (237bacbe-...,
+  // "Patientenaufnahme") is a bare Form Section, not a Form/Composition -
+  // and archived on top of that. Navigating to it directly always hit
+  // "This is a Form Section, not a Form. Form Sections cannot be launched
+  // directly for a patient" - the "Stammdaten erfassen" quick-action (and
+  // the auto-navigate after "Patient anlegen") were both silently dead.
+  // Replaced with "Patientenstammdaten", a minimal published Composition
+  // that wraps the modern "Person (Basis)" Form Section as its one block -
+  // same pattern as every other Composition in the app (see Anamnese/
+  // Arztbrief/Entlassung), built specifically to be a working target here.
+  const [defaultFormId, setDefaultFormId] = useState(() => localStorage.getItem('defaultPatientFormId') || 'ec58ae10-a36b-463d-86d0-c02016505912');
 
   const saveSettings = (newFormId: string) => {
     setDefaultFormId(newFormId);
     localStorage.setItem('defaultPatientFormId', newFormId);
+  };
+
+  // A Composition (kind "composition" - what the rest of the app calls a
+  // "Form") only ever renders correctly under /compositions/:id
+  // (CompositionRuntime, which reads extensions["watehr.composition"]).
+  // /live/:id (LiveForm -> FormRuntime) only knows how to render a plain
+  // Form Section's own canonical_json.layout - for a Composition that
+  // layout is an intentionally-empty wrapper, so /live/ silently renders a
+  // blank page with no fields at all instead of erroring. Confirmed live
+  // (2026-09-02) against "Patientenstammdaten" after fixing the dead-link
+  // bug above: the page loaded, created a session, but showed zero fields.
+  // PatientDetail.tsx already has this exact same distinction (see its
+  // isCompositionForm/patientFormUrl) - mirrored here for defaultFormId,
+  // which is user-configurable via Settings and so can't be assumed to be
+  // either kind.
+  const [defaultFormIsComposition, setDefaultFormIsComposition] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API}/forms/${encodeURIComponent(defaultFormId)}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (!cancelled) setDefaultFormIsComposition(Boolean(data?.canonical_json?.extensions?.['watehr.composition']));
+      })
+      .catch(() => { if (!cancelled) setDefaultFormIsComposition(false); });
+    return () => { cancelled = true; };
+  }, [defaultFormId]);
+
+  const defaultFormUrl = (patientIdValue: string, returnUrl: string, extra?: { patientNamespace?: string; ehrId?: string }) => {
+    const params = new URLSearchParams({ patientId: patientIdValue, returnUrl });
+    if (extra?.patientNamespace) params.set('patientNamespace', extra.patientNamespace);
+    if (extra?.ehrId) params.set('ehrId', extra.ehrId);
+    const base = defaultFormIsComposition ? '/compositions' : '/live';
+    return `${base}/${defaultFormId}?${params.toString()}`;
   };
   const [patientId, setPatientId] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -86,8 +130,8 @@ export default function PatientList() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message || 'Fehler beim Erstellen');
       
-      // Auto-navigate to live form for vg_Person
-      navigate(`/live/${defaultFormId}?patientId=${encodeURIComponent(data.patient.patientId)}&returnUrl=/patients/${data.patient.id}`);
+      // Auto-navigate to the default Stammdaten form/Composition
+      navigate(defaultFormUrl(data.patient.patientId, `/patients/${data.patient.id}`));
     } catch (err: any) {
       setCreateError(err.message);
       setCreateBusy(false);
@@ -259,7 +303,7 @@ export default function PatientList() {
                   {needsAssignment.map(p => (
                     <PatientRow key={p.id} p={p}>
                       <Link
-                        to={`/live/${defaultFormId}?patientId=${encodeURIComponent(p.patientId)}${p.patientNamespace ? `&patientNamespace=${encodeURIComponent(p.patientNamespace)}` : ''}&ehrId=${encodeURIComponent(p.ehrId)}&returnUrl=${encodeURIComponent(`/patients/${p.id}`)}`}
+                        to={defaultFormUrl(p.patientId, `/patients/${p.id}`, { patientNamespace: p.patientNamespace, ehrId: p.ehrId })}
                         onClick={(e) => e.stopPropagation()}
                         className="btn btn-secondary"
                         style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem', whiteSpace: 'nowrap' }}
