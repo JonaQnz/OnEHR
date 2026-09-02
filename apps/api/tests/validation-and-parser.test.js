@@ -478,3 +478,51 @@ test('a DV_PROPORTION node with no recognizable type input leaves proportionType
   const field = parsed.fields.find((f) => f.technicalName === 'ratio_field');
   assert.equal(field.constraints?.proportionType, undefined);
 });
+
+// DV_ORDINAL options extraction - the parser previously only extracted
+// `field.options` for DV_CODED_TEXT/CODE_PHRASE (`needsOptions`), so a
+// DV_ORDINAL field got none at all, and `field.dataType`/inputType had no
+// 'ordinal' case in either generation path, so it silently fell to a bare
+// input-text. The `ordinal` field name on each list entry is best-effort
+// (by analogy with DV_SCALE's CONFIRMED `scale` field, ehrbase/ehrbase#706
+// - see docs/features/rm-type-spec-conformance.md) since no WebTemplate in
+// this system has a real DV_ORDINAL option list to check against.
+function painScoreTemplate() {
+  return {
+    templateId: 'vitals_icu.v1',
+    tree: {
+      id: 'vitals', rmType: 'COMPOSITION', aqlPath: '',
+      children: [{
+        id: 'pain', name: 'Pain score', rmType: 'DV_ORDINAL',
+        aqlPath: '/content[openEHR-EHR-OBSERVATION.pain.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0004]',
+        inputs: [{
+          suffix: 'code', type: 'CODED_TEXT',
+          list: [
+            { value: 'at0011', label: 'No pain', ordinal: 0 },
+            { value: 'at0012', label: 'Mild', ordinal: 1 },
+            { value: 'at0013', label: 'Severe', ordinal: 2 },
+          ],
+        }],
+      }],
+    },
+  };
+}
+
+test('generateCanonicalForm carries DV_ORDINAL options through with their archetype-fixed ordinal integers, and maps to input-ordinal not a bare text field', () => {
+  const parsed = parseWebTemplate(painScoreTemplate());
+  const pain = parsed.fields.find((field) => field.technicalName === 'pain');
+  assert.equal(pain.dataType, 'ordinal');
+  assert.deepEqual(pain.options, [
+    { value: 'at0011', text: 'No pain', ordinal: 0 },
+    { value: 'at0012', text: 'Mild', ordinal: 1 },
+    { value: 'at0013', text: 'Severe', ordinal: 2 },
+  ]);
+
+  const generated = generateCanonicalForm({
+    name: 'Vitals', templateId: parsed.templateId, alias: parsed.alias,
+    fields: [pain], id: 'form-ordinal-1',
+  });
+  const leaf = findNode(generated.layout, (node) => node.type === 'input-ordinal');
+  assert.ok(leaf, 'the generated field is input-ordinal, not a bare input-text');
+  assert.deepEqual(leaf.options.map((o) => o.ordinal), [0, 1, 2]);
+});

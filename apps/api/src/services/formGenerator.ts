@@ -21,6 +21,7 @@ export function generateCanonicalForm(
     if (field.dataType === 'quantity') inputType = 'input-quantity';
     if (field.dataType === 'select') inputType = 'input-select';
     if (field.dataType === 'proportion') inputType = 'input-proportion';
+    if (field.dataType === 'ordinal') inputType = 'input-ordinal';
 
     const inputComponent: FormElementLayout = {
       type: inputType,
@@ -40,6 +41,19 @@ export function generateCanonicalForm(
     }
     if (inputType === 'input-proportion' && field.constraints?.proportionType) {
       inputComponent.proportionType = field.constraints.proportionType;
+    }
+    // DV_ORDINAL's options (each carrying its archetype-fixed `ordinal`
+    // integer alongside the symbol's code/text - see webTemplateParser.ts's
+    // DV_ORDINAL extraction) were never copied onto the generated field at
+    // all before this - this whole function has no `field.options` copy
+    // for ANY select-like type (DV_CODED_TEXT's own 'select' dataType has
+    // the exact same gap, pre-existing and out of scope for this fix -
+    // apply_template_to_form's sibling generation path, unlike this one,
+    // already copies `matchedField.options` through unconditionally,
+    // which is presumably why the gap here was never noticed). Scoped
+    // narrowly to 'ordinal' since that's what's actually being fixed here.
+    if (inputType === 'input-ordinal' && field.options) {
+      inputComponent.options = field.options;
     }
 
     return {

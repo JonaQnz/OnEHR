@@ -228,6 +228,32 @@ function buildLeafDvValue(rmType: string | undefined, field: RuntimeFieldDescrip
     if (rmType === 'CODE_PHRASE') return definingCode;
     return { _type: 'DV_CODED_TEXT', value: String(displayValue), defining_code: definingCode };
   }
+  if (rmType === 'DV_ORDINAL') {
+    // RM data_types.quantity 6.2.4 (verified against the actual spec text,
+    // not recalled - see docs/features/rm-type-spec-conformance.md):
+    // {value: Integer (1..1), symbol: DV_CODED_TEXT (1..1)}. Had no branch
+    // here at all before this - fell through to the generic passthrough,
+    // `{_type: 'DV_ORDINAL', value: <raw runtime value>}`, missing both
+    // the required `symbol` and the archetype-fixed ordinal integer
+    // entirely (the raw runtime value is the SYMBOL's code, not the
+    // ordinal number - those are two different things this field's
+    // `options[].ordinal` now keeps track of separately, see
+    // webTemplateParser.ts's DV_ORDINAL extraction).
+    const code = source?.code ?? source?.value ?? value;
+    if (isEmpty(code)) return undefined;
+    const option = field?.options.find((candidate) => candidate.value === String(code));
+    // No archetype-fixed ordinal integer for this code: nothing valid to
+    // build (RM: value is 1..1) - same "can't fabricate a mandatory
+    // attribute" stance as DV_CODED_TEXT's own missing-code case above.
+    if (!option || option.ordinal === undefined) return undefined;
+    const displayValue = option.rmValue ?? option.text ?? code;
+    const terminology = option.terminology ?? 'local';
+    return {
+      _type: 'DV_ORDINAL',
+      value: option.ordinal,
+      symbol: { _type: 'DV_CODED_TEXT', value: String(displayValue), defining_code: codePhrase(String(terminology), String(code)) },
+    };
+  }
   if (rmType === 'DV_BOOLEAN') return { _type: 'DV_BOOLEAN', value: Boolean(value) };
   if (rmType === 'DV_COUNT') {
     // RM data_types.quantity: DV_COUNT.magnitude is Integer, not Real -

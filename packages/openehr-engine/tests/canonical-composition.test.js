@@ -1028,3 +1028,91 @@ test('DV_PROPORTION serializes as a genuine {numerator, denominator, type} struc
   // BaseTypes.xsd's PROPORTION_KIND enumeration.
   assert.equal(fio2El.value.type, 1);
 });
+
+// DV_ORDINAL had no branch in buildLeafDvValue at all before 2026-09-02 -
+// fell through to the generic passthrough ({_type: 'DV_ORDINAL', value:
+// <raw runtime code>}), missing the RM-mandatory `symbol` entirely and
+// conflating the symbol's CODE with the ordinal's own INTEGER value (two
+// different RM attributes - see docs/features/rm-type-spec-conformance.md's
+// #1, verified against the actual RM Data Types IM: value: Integer 1..1,
+// symbol: DV_CODED_TEXT 1..1).
+test('DV_ORDINAL serializes as a genuine {value, symbol} structure, not a generic passthrough', () => {
+  const ordinalTree = {
+    id: 'vitals', name: 'Vitals', rmType: 'COMPOSITION', nodeId: 'openEHR-EHR-COMPOSITION.encounter.v1',
+    children: [
+      { id: 'category', name: 'category', rmType: 'DV_CODED_TEXT', min: 1, max: 1, aqlPath: '/category', inputs: [{ suffix: 'code', type: 'CODED_TEXT', list: [{ value: '433', label: 'event' }] }] },
+      { id: 'context', name: 'context', rmType: 'EVENT_CONTEXT', min: 1, max: 1, children: [
+        { id: 'start_time', name: 'start_time', rmType: 'DV_DATE_TIME', min: 1, max: 1, aqlPath: '/context/start_time' },
+        { id: 'setting', name: 'setting', rmType: 'DV_CODED_TEXT', min: 1, max: 1, aqlPath: '/context/setting' },
+      ] },
+      {
+        id: 'vitals_entry', name: 'Vitals', rmType: 'ADMIN_ENTRY', min: 0, max: 1,
+        nodeId: 'openEHR-EHR-ADMIN_ENTRY.vitals.v1', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]',
+        children: [
+          { id: 'pain', name: 'Pain score', rmType: 'DV_ORDINAL', min: 0, max: 1, nodeId: 'at0002', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0002]' },
+        ],
+      },
+    ],
+  };
+  const ordinalDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [
+        { id: 'setting', type: 'select', binding: { path: '/context/setting', rmType: 'DV_CODED_TEXT' }, options: [{ value: '238', text: 'other care' }] },
+        {
+          id: 'pain', type: 'input-ordinal',
+          binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0002]', rmType: 'DV_ORDINAL' },
+          options: [
+            { value: 'at0001', text: 'No pain', ordinal: 0 },
+            { value: 'at0002', text: 'Mild', ordinal: 1 },
+            { value: 'at0003', text: 'Severe', ordinal: 2 },
+          ],
+        },
+      ],
+    },
+  };
+  const composition = buildCanonicalComposition(ordinalDefinition, { pain: 'at0002' }, ordinalTree, { time: '2026-08-26T10:00:00.000Z' });
+  const painEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0002');
+  assert.equal(painEl.value._type, 'DV_ORDINAL');
+  // The archetype-fixed integer, NOT the symbol's code - the two are
+  // different RM attributes this fix keeps distinct.
+  assert.equal(painEl.value.value, 1);
+  assert.equal(painEl.value.symbol._type, 'DV_CODED_TEXT');
+  assert.equal(painEl.value.symbol.value, 'Mild');
+  assert.equal(painEl.value.symbol.defining_code.code_string, 'at0002');
+});
+
+test('DV_ORDINAL with no matching option (or an option missing its ordinal integer) builds nothing rather than a garbage value', () => {
+  const ordinalTree = {
+    id: 'vitals', name: 'Vitals', rmType: 'COMPOSITION', nodeId: 'openEHR-EHR-COMPOSITION.encounter.v1',
+    children: [
+      { id: 'category', name: 'category', rmType: 'DV_CODED_TEXT', min: 1, max: 1, aqlPath: '/category', inputs: [{ suffix: 'code', type: 'CODED_TEXT', list: [{ value: '433', label: 'event' }] }] },
+      { id: 'context', name: 'context', rmType: 'EVENT_CONTEXT', min: 1, max: 1, children: [
+        { id: 'start_time', name: 'start_time', rmType: 'DV_DATE_TIME', min: 1, max: 1, aqlPath: '/context/start_time' },
+        { id: 'setting', name: 'setting', rmType: 'DV_CODED_TEXT', min: 1, max: 1, aqlPath: '/context/setting' },
+      ] },
+      {
+        id: 'vitals_entry', name: 'Vitals', rmType: 'ADMIN_ENTRY', min: 0, max: 1,
+        nodeId: 'openEHR-EHR-ADMIN_ENTRY.vitals.v1', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]',
+        children: [{ id: 'pain', name: 'Pain score', rmType: 'DV_ORDINAL', min: 0, max: 1, nodeId: 'at0002', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0002]' }],
+      },
+    ],
+  };
+  const ordinalDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [
+        { id: 'setting', type: 'select', binding: { path: '/context/setting', rmType: 'DV_CODED_TEXT' }, options: [{ value: '238', text: 'other care' }] },
+        {
+          id: 'pain', type: 'input-ordinal',
+          binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0002]', rmType: 'DV_ORDINAL' },
+          options: [{ value: 'at0001', text: 'No pain' }], // no `ordinal` - can't build a valid DV_ORDINAL.value
+        },
+      ],
+    },
+  };
+  const composition = buildCanonicalComposition(ordinalDefinition, { pain: 'at0001' }, ordinalTree, { time: '2026-08-26T10:00:00.000Z' });
+  assert.deepEqual(composition.content, []);
+});

@@ -17,7 +17,15 @@ export type RuntimeValues = Record<string, RuntimeValue>;
  * this option's external terminology_id, for the uncommon case where the
  * archetype requires a hosted terminology rather than openEHR's default
  * "local". */
-export interface RuntimeOption { value: string; text: string; rmValue?: string; terminology?: string; }
+export interface RuntimeOption {
+  value: string; text: string; rmValue?: string; terminology?: string;
+  /** DV_ORDINAL only: the archetype-fixed integer this option's `symbol`
+   * pairs with (RM: DV_ORDINAL.value, 1..1 - see
+   * FormElementLayout.options[].ordinal, packages/core/canonical). Absent
+   * for every other option kind (DV_CODED_TEXT/CODE_PHRASE selects never
+   * have one). */
+  ordinal?: number;
+}
 export interface RuntimeUnitOption { unit: string; min?: number; max?: number; minexclusive?: boolean; maxexclusive?: boolean; precision?: number; }
 // See ProportionKind's doc comment (packages/core/openehr) for what each
 // kind means - this is where that meaning is actually enforced, in
@@ -102,6 +110,7 @@ function toDescriptor(node: FormElementLayout, locales: RuntimeLocales, repeatab
       text: String(option.text),
       ...(option.rmValue ? { rmValue: String(option.rmValue) } : {}),
       ...(option.terminology ? { terminology: String(option.terminology) } : {}),
+      ...(typeof option.ordinal === 'number' ? { ordinal: option.ordinal } : {}),
     })),
     allowFreeText: node.allowFreeText === true,
     unitOptions: (node.unitOptions || []).map((option) => typeof option === 'string' ? { unit: option } : { ...option }),

@@ -72,6 +72,14 @@ export interface FormElementLayout {
      * not "local" - EHRbase rejected every submission with "terminology_id
      * does not match" until each option carried this. */
     terminology?: string;
+    /** DV_ORDINAL only (openEHR RM data_types.quantity 6.2.4): the
+     * archetype-fixed integer this option's `value`/`text`/`rmValue`
+     * (the ordinal's `symbol`, a full DV_CODED_TEXT) pairs with -
+     * DV_ORDINAL.value is RM-mandatory (1..1), so a DV_ORDINAL option
+     * with no `ordinal` here can never be submitted (see
+     * buildLeafDvValue's DV_ORDINAL branch, openehr-engine). Absent for
+     * every other option kind. */
+    ordinal?: number;
   }>;
   /** True when this field's underlying openEHR constraint is a
    * DV_CODED_TEXT|DV_TEXT union (a coded value set with a genuine free-text
