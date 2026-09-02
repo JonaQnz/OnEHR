@@ -2,8 +2,8 @@
 
 Started 2026-09-02 after auditing this codebase against the [openEHR RM
 Data Types specification](https://specifications.openehr.org/releases/RM/latest/data_types.html)
-and shipping fixes for DV_QUANTITY, DV_IDENTIFIER, and DV_PROPORTION
-(PRs #42-#45). This document is the concept for continuing that audit
+and shipping fixes for DV_QUANTITY, DV_IDENTIFIER, DV_PROPORTION, and
+DV_ORDINAL (PRs #42-#47). This document is the concept for continuing that audit
 across the remaining RM data types - it lays out the method, what's
 already done, and a grounded (not speculative) backlog of what's left,
 each item checked against this codebase's actual code before being
@@ -82,46 +82,64 @@ checked the same way.
 Ordered by how confident the evidence is that a real gap exists, most
 confident first.
 
-### 1. DV_ORDINAL - confirmed gap, no live example yet
+### 1. DV_ORDINAL - fixed and live-confirmed (PR #46, #47)
 
 **Spec** (verified 2026-09-02 against the actual [RM Data Types
 IM](https://specifications.openehr.org/releases/RM/latest/data_types.html),
-section 6.2.4 - not just recalled from memory, the first pass of this
-doc got the AOM-level details of another item wrong, see #2 below, so
-this round every claim was pulled from the spec text directly):
-`value: Integer` (1..1) and `symbol: DV_CODED_TEXT` (1..1), inheriting
-from `DV_ORDERED`. Quoted verbatim: *"value: Integer - Value in ordered
-enumeration of values. Any integer value can be used."* / *"symbol:
-DV_CODED_TEXT - Coded textual representation of this value in the
-enumeration ... Codes come from archetype."* Both attributes are
-mandatory (1..1) - an ordinal position *and* its display term as a real
-coded text, not just one or the other.
+section 6.2.4): `value: Integer` (1..1) and `symbol: DV_CODED_TEXT`
+(1..1), inheriting from `DV_ORDERED`. Quoted verbatim: *"value: Integer
+- Value in ordered enumeration of values. Any integer value can be
+used."* / *"symbol: DV_CODED_TEXT - Coded textual representation of
+this value in the enumeration ... Codes come from archetype."* Both
+attributes are mandatory (1..1) - an ordinal position *and* its display
+term as a real coded text, not just one or the other.
 
-**Confirmed in code**: `grep -rn "DV_ORDINAL"` across
-`openehr-engine/src/index.ts`, `canonicalComposition.ts`, and
-`form-runtime/index.ts` returns **zero matches** for the actual RM type
-anywhere in either serialization layer. `webTemplateParser.ts` only maps
-it to a widget type (`'ordinal'` → `input-ordinal`), and
-`form-runtime/index.ts`'s `validateOne` treats `input-ordinal` exactly
-like `input-select` (a plain string/array check, line ~416) - no
-`value`/`symbol` pairing anywhere. This means an `input-ordinal` field
-today almost certainly serializes as if it were a plain DV_CODED_TEXT
-(or falls into the fully generic passthrough), which is not a valid
-DV_ORDINAL RM structure - the same shape of bug as DV_IDENTIFIER before
-#43 and DV_PROPORTION before #44.
+**#46 built the missing serialization**: a `buildLeafDvValue` branch in
+`canonicalComposition.ts` producing the genuine `{value, symbol}`
+structure from a field's `options[].ordinal` (archetype-fixed integer,
+extracted by `webTemplateParser.ts` per option, best-effort since no
+real DV_ORDINAL-with-options example existed anywhere in this system at
+the time), plus the matching FLAT `setFlatValue`/`readFlatValue`
+branches in `openehr-engine/src/index.ts`.
 
-**Next step**: find a real WebTemplate with a bound DV_ORDINAL field
-(common clinical scores - pain scales, Apgar, NYHA class, reflex
-grading - are classically DV_ORDINAL; none of the `vg_*` templates use
-one, so check further afield the same way "Vital_Signs" turned up
-DV_PROPORTION). Confirm the WebTemplate's `inputs[]`/options shape for
-an ordinal node (does the numeric `value` per option live inside
-`inputs[].list[].ordinal` or similar - not yet checked), then build the
-FLAT/canonical write branches and a widget (likely: reuse the existing
-select/dropdown widget as-is, since the archetype-fixed
-`value`↔`symbol` pairing per option means the clinician still just
-picks one option from a list - the fix is in what gets *written* on
-submit, not necessarily a new UI).
+**Live test (2026-09-02) surfaced a second, unrelated bug, not in the
+DV_ORDINAL branch itself**: the only real DV_ORDINAL-accepting archetype
+path in this system, `vg_Person.v1.1.1`'s "Versicherungsnummer"
+(at0006), turned out to be a genuine RM union slot - a wrapper `ELEMENT`
+node whose 5 concrete-type children (`DV_IDENTIFIER`/`DV_COUNT`/
+`DV_ORDINAL`/`DV_TEXT`/`DV_CODED_TEXT`) **all share the identical
+aqlPath** `.../items[at0006]/value`. `buildNode`'s wrapper-ELEMENT branch
+resolved the same one bound field for every child (it keys purely by
+aqlPath) and returned on whichever child came first in the WebTemplate's
+own order - `DV_IDENTIFIER`, not `DV_ORDINAL`. A "Mild" pain-score
+selection, bound as `DV_ORDINAL` end to end in the form's own binding,
+round-tripped through a real submission and AQL readback as
+`{_type: 'DV_IDENTIFIER', id: 'at0012'}`. Confirmed via direct AQL
+against the live composition, not inferred from the code. This is the
+same class of bug as `[[readflatvalue-coded-text-union-bug]]`, but a
+different manifestation of it (concrete-typed sibling nodes, not one
+ambiguous `rmType: 'ELEMENT'` node) - the existing override for that
+first shape didn't cover this one.
+
+**Fix (PR #47)**: the wrapper-ELEMENT branch now prefers whichever
+child's own `rmType` matches the resolved field's declared
+`semanticType` (its own binding's `rmType`), falling back to the old
+first-match behaviour only when none does. Re-tested live after the
+fix: a "Severe" selection now round-trips as a genuine
+`{_type: 'DV_ORDINAL', value: 2, symbol: {_type: 'DV_CODED_TEXT',
+value: 'Severe', defining_code: {code_string: 'at0013',
+terminology_id: {value: 'local'}}}}` - exact spec shape, confirmed by
+direct AQL readback.
+
+**Caveat carried forward**: the per-option `ordinal` integer extraction
+in `webTemplateParser.ts` is still best-effort by analogy to
+DV_SCALE's confirmed WebTemplate shape (`inputs[].list[].scale`) - no
+real DV_ORDINAL WebTemplate node with a populated `list` of options has
+been found to confirm the field name is really `ordinal` rather than
+something else. The hand-configured test options used for this live
+test were synthetic (added directly to the form's `options[]`, not
+read from the archetype's own option list), so this one caveat is
+unverified still.
 
 ### 2. DV_TEXT archetype-constrained pattern - real gap, previous draft of this doc had the mechanism wrong
 

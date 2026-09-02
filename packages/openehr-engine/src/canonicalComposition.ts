@@ -681,6 +681,23 @@ function buildNode(node: WebTemplateTreeNode, scope: RuntimeValues, index: Field
   // valid ELEMENT using this wrapper's own identity (archetype_node_id/
   // name) instead of ever reaching that generic path.
   if (node.rmType === 'ELEMENT' && node.children?.length) {
+    // A union slot with multiple concrete-typed children ALL sharing the
+    // identical aqlPath - confirmed live, vg_Person.v1.1.1's
+    // "Versicherungsnummer" (at0006): DV_IDENTIFIER/DV_COUNT/DV_ORDINAL/
+    // DV_TEXT/DV_CODED_TEXT alternatives every one ending
+    // .../items[at0006]/value - makes index.resolveField return the SAME
+    // one bound field for every single child, since it keys purely by
+    // aqlPath. Without the semanticType check below, the loop always
+    // "succeeded" on the very FIRST child regardless of which concrete
+    // type its OWN binding actually declared, silently serializing e.g. a
+    // DV_ORDINAL-bound pain-score selection as DV_IDENTIFIER.id instead -
+    // confirmed live, a "Mild" selection submitted and read back from
+    // EHRbase as {_type:'DV_IDENTIFIER', id:'at0012'}. Prefer whichever
+    // child's own rmType matches the resolved field's declared
+    // semanticType; fall back to the old first-successful-child behaviour
+    // only when none does (structurally distinct children sharing a path
+    // for other reasons, or a field with no declared semanticType).
+    let fallback: Canonical | undefined;
     for (const child of node.children) {
       if (!child.aqlPath) continue;
       const childField = index.resolveField(child.aqlPath, scope);
@@ -689,9 +706,11 @@ function buildNode(node: WebTemplateTreeNode, scope: RuntimeValues, index: Field
       if (raw === undefined) continue;
       const effectiveChildRmType = childField.codeMappings?.enabled ? (childField.semanticType || child.rmType) : child.rmType;
       const built = buildElement(node, childField, buildLeafDvValue(effectiveChildRmType, childField, raw));
-      if (built !== undefined) return built;
+      if (built === undefined) continue;
+      if (childField.semanticType && childField.semanticType === child.rmType) return built;
+      if (fallback === undefined) fallback = built;
     }
-    return undefined;
+    return fallback;
   }
   switch (node.rmType) {
     case 'SECTION': {
