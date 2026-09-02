@@ -320,28 +320,21 @@ export function parseWebTemplate(webTemplate: any): {
 
         // DV_PROPORTION's archetype-constrained PROPORTION_KIND ('ratio' /
         // 'unitary' / 'percent' / 'fraction' / 'integer_fraction' - see
-        // ProportionKind's doc comment, packages/core/openehr). Best-effort,
-        // unlike the DV_QUANTITY unit extraction just above: no live
-        // WebTemplate example with a constrained proportion `type` was
-        // available to confirm the exact `inputs[]` suffix EHRbase emits
-        // for it (nothing in this system currently binds DV_PROPORTION -
-        // confirmed via a DB scan, 2026-09-02). Tries every suffix name
-        // that would be a reasonable guess by analogy with DV_QUANTITY's
-        // own 'unit'/'units' suffix pair, and only assigns proportionType
-        // when the list resolves to exactly one recognized kind - the
-        // common real case (a given clinical concept is normally always
-        // one fixed kind, not a user choice) - rather than guessing among
-        // several. Absent (not defaulted) otherwise, so a caller can tell
-        // "genuinely unconstrained" apart from "the archetype has a type
-        // constraint this parser didn't recognize". Verify and correct
-        // against a real EHRbase WebTemplate the first time a form is
-        // actually built against a DV_PROPORTION-bearing archetype.
-        if (node.rmType === 'DV_PROPORTION' && node.inputs) {
-          const typeInput = node.inputs.find((i: any) => i.suffix === 'type' || i.suffix === 'proportion_type' || i.suffix === 'kind');
-          const rawKinds: string[] = (typeInput?.list || []).map((l: any) => String(l.value ?? l.id ?? '').toLowerCase());
-          const recognized = new Set(['ratio', 'unitary', 'percent', 'fraction', 'integer_fraction', '0', '1', '2', '3', '4']);
-          const numericToKind: Record<string, string> = { '0': 'ratio', '1': 'unitary', '2': 'percent', '3': 'fraction', '4': 'integer_fraction' };
-          const resolvedKinds = [...new Set(rawKinds.filter((kind) => recognized.has(kind)).map((kind) => numericToKind[kind] || kind))];
+        // ProportionKind's doc comment, packages/core/openehr). CONFIRMED
+        // live 2026-09-02 against the real "Vital_Signs" WebTemplate
+        // (SpO₂/SpCO/SpMet, openEHR-EHR-OBSERVATION.pulse_oximetry.v1):
+        // unlike DV_CODED_TEXT's code list or DV_QUANTITY's unit list, the
+        // allowed kind(s) are NOT inside `inputs[]` at all - they're a
+        // top-level `proportionTypes: string[]` array directly on the node
+        // (sibling of `inputs`/`aqlPath`), e.g. `"proportionTypes":
+        // ["percent"]`. The original guess (hunting `inputs[]` for a
+        // 'type'/'proportion_type'/'kind' suffix) was wrong and never
+        // matched anything real - left as dead reasoning nowhere, replaced
+        // outright rather than kept as a fallback, since a real archetype
+        // apparently never puts it there.
+        if (node.rmType === 'DV_PROPORTION' && Array.isArray(node.proportionTypes)) {
+          const recognized = new Set(['ratio', 'unitary', 'percent', 'fraction', 'integer_fraction']);
+          const resolvedKinds = [...new Set(node.proportionTypes.map((k: any) => String(k).toLowerCase()).filter((k: string) => recognized.has(k)))];
           if (resolvedKinds.length === 1) {
             field.constraints = { ...(field.constraints || {}), proportionType: resolvedKinds[0] as FieldConstraint['proportionType'] };
           }

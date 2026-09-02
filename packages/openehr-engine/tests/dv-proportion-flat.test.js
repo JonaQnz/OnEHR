@@ -6,11 +6,13 @@ const { toOpenEhrFlatComposition, fromOpenEhrFlatComposition } = require('../dis
 // against the openEHR RM Data Types spec - previously had no branch at all
 // in setFlatValue/readFlatValue, fell through to a bare `output[key] =
 // value` write with no suffix. numerator/denominator are always suffixed
-// sibling keys, same convention as DV_QUANTITY's magnitude/unit. `|type`
-// is written best-effort (see webTemplateParser.ts's DV_PROPORTION
-// extraction comment) - no live WebTemplate example was available to
-// confirm the exact wire format, unlike numerator/denominator which are
-// confirmed via a real EHRbase WebTemplate example.
+// sibling keys, same convention as DV_QUANTITY's magnitude/unit - both
+// confirmed against a real EHRbase WebTemplate ("Vital_Signs" SpO₂). |type
+// is a PROPORTION_KIND ordinal (java.lang.Long), NOT the kind's string
+// name - confirmed live via a real EHRbase submission that rejected the
+// string with "Cannot deserialize value of type `java.lang.Long` from
+// String \"percent\"". Ordinals per BaseTypes.xsd (0=ratio, 1=unitary,
+// 2=percent, 3=fraction, 4=integer_fraction).
 const PATH = '/content/data/items[at0005]';
 
 function definition(proportionType) {
@@ -28,7 +30,7 @@ test('a {numerator, denominator} value writes both to their own suffix, never a 
   const flat = toOpenEhrFlatComposition(definition('ratio'), { ratio_field: { numerator: 1, denominator: 128 } });
   assert.equal(flat[`${PATH}|numerator`], 1);
   assert.equal(flat[`${PATH}|denominator`], 128);
-  assert.equal(flat[`${PATH}|type`], 'ratio');
+  assert.equal(flat[`${PATH}|type`], 0, 'PROPORTION_KIND ordinal for "ratio", not the string name');
   assert.equal(flat[PATH], undefined, 'must never write a bare, unsuffixed key for DV_PROPORTION');
 });
 
@@ -36,7 +38,7 @@ test('type "percent" with only a numerator supplied still writes the implied den
   const flat = toOpenEhrFlatComposition(definition('percent'), { ratio_field: { numerator: 45.2 } });
   assert.equal(flat[`${PATH}|numerator`], 45.2);
   assert.equal(flat[`${PATH}|denominator`], 100);
-  assert.equal(flat[`${PATH}|type`], 'percent');
+  assert.equal(flat[`${PATH}|type`], 2, 'PROPORTION_KIND ordinal for "percent", not the string name');
 });
 
 test('type "unitary" with only a numerator supplied still writes the implied denominator of 1', () => {

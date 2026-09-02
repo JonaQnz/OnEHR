@@ -104,6 +104,18 @@ const STRUCTURAL_RM_TYPES = new Set([
   'PARTY_PROXY', 'PARTY_IDENTIFIED', 'PARTY_RELATED', 'PARTY_SELF',
 ]);
 
+/** DV_PROPORTION.type's wire encoding - a PROPORTION_KIND ordinal
+ * (java.lang.Long in EHRbase's own Archie RM model), not the kind's
+ * string name. Confirmed live 2026-09-02 against a real EHRbase instance:
+ * writing the string ("percent") failed with "Cannot deserialize value of
+ * type `java.lang.Long` from String \"percent\"". Ordinals per
+ * BaseTypes.xsd's PROPORTION_KIND enumeration (0=ratio, 1=unitary,
+ * 2=percent, 3=fraction, 4=integer_fraction) - see ProportionKind's own
+ * doc comment (packages/core/openehr) for what each kind means. */
+const PROPORTION_KIND_CODE: Record<'ratio' | 'unitary' | 'percent' | 'fraction' | 'integer_fraction', number> = {
+  ratio: 0, unitary: 1, percent: 2, fraction: 3, integer_fraction: 4,
+};
+
 /** RM data_types.text 5.2.2 (TERM_MAPPING): `match` is a `char` constrained
  * to exactly these four values ('>' broader, '=' equivalent, '<' narrower,
  * '?' unknown) - confirmed against the current openEHR RM Data Types spec
@@ -158,11 +170,8 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     // through to the generic `output[key] = value` write, a bare
     // number/object with no suffix. numerator/denominator/type are always
     // suffixed sibling keys, same convention as DV_QUANTITY's magnitude/
-    // unit above. `|type` is written using best-effort confidence (see
-    // webTemplateParser.ts's DV_PROPORTION extraction comment for why) -
-    // verify against a live EHRbase submission the first time a real
-    // DV_PROPORTION-bound field is actually built and used. `|precision`
-    // is deliberately not attempted - out of scope for this pass.
+    // unit above. `|precision` is deliberately not attempted - out of
+    // scope for this pass.
     const numerator = source?.numerator ?? value;
     if (isEmpty(numerator)) return;
     output[`${key}|numerator`] = typeof numerator === 'string' && numerator.trim() ? Number(numerator) : numerator;
@@ -176,7 +185,14 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     const impliedDenominator = binding.proportionType === 'unitary' ? 1 : binding.proportionType === 'percent' ? 100 : undefined;
     const denominator = source?.denominator ?? impliedDenominator;
     if (!isEmpty(denominator)) output[`${key}|denominator`] = typeof denominator === 'string' && denominator.trim() ? Number(denominator) : denominator;
-    if (binding.proportionType) output[`${key}|type`] = binding.proportionType;
+    // `type` is `DvProportion.type` in EHRbase's own RM model (Java's
+    // Archie), a PROPORTION_KIND ordinal (java.lang.Long), NOT the kind's
+    // string name. Confirmed live 2026-09-02: writing the string
+    // ("percent") got a 400 straight from EHRbase - "Cannot deserialize
+    // value of type `java.lang.Long` from String \"percent\"" - the
+    // original best-effort guess here was wrong. PROPORTION_KIND_CODE
+    // (below) is the corrected mapping, per BaseTypes.xsd's enumeration.
+    if (binding.proportionType) output[`${key}|type`] = PROPORTION_KIND_CODE[binding.proportionType];
     return;
   }
   if (rmType === 'DV_IDENTIFIER') {

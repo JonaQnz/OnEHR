@@ -430,37 +430,44 @@ test('generateCanonicalForm carries the archetype\'s per-unit min/max/precision 
   ]);
 });
 
-// DV_PROPORTION.type extraction - best-effort (see webTemplateParser.ts's
-// own comment on this branch for why, unlike the DV_QUANTITY case just
-// above which is confirmed against a real WebTemplate example). Exercises
-// the "list resolves to exactly one recognized PROPORTION_KIND" path this
-// parser actually implements.
-function fio2Template() {
+// DV_PROPORTION.type extraction - CONFIRMED live 2026-09-02 against the
+// real "Vital_Signs" WebTemplate (SpO₂, openEHR-EHR-OBSERVATION.
+// pulse_oximetry.v1): the allowed kind(s) are a top-level `proportionTypes:
+// string[]` array directly on the node, NOT inside `inputs[]` (that array
+// only ever carries the `numerator`/`denominator` DECIMAL inputs
+// themselves for this rmType). This fixture mirrors that real shape
+// exactly, replacing an earlier best-effort guess that hunted `inputs[]`
+// for a 'type' suffix and never matched anything real.
+function spo2Template() {
   return {
-    templateId: 'vitals_icu.v1',
+    templateId: 'vital_signs.v1',
     tree: {
       id: 'vitals', rmType: 'COMPOSITION', aqlPath: '',
       children: [{
-        id: 'fio2', name: 'FiO2', rmType: 'DV_PROPORTION',
-        aqlPath: '/content[openEHR-EHR-OBSERVATION.vitals.v2]/data[at0001]/events[at0006]/data[at0003]/items[at0004]',
-        inputs: [{ suffix: 'type', list: [{ value: '1' }] }], // 1 = unitary, per BaseTypes.xsd's PROPORTION_KIND enumeration
+        id: 'spo', name: 'SpO₂', rmType: 'DV_PROPORTION',
+        aqlPath: '/content[openEHR-EHR-OBSERVATION.pulse_oximetry.v1]/data[at0001]/events[at0002]/data[at0003]/items[at0006]/value',
+        inputs: [
+          { suffix: 'numerator', type: 'DECIMAL', validation: { range: { min: 0, max: 100 } } },
+          { suffix: 'denominator', type: 'DECIMAL', validation: { range: { min: 100, max: 100 } } },
+        ],
+        proportionTypes: ['percent'],
       }],
     },
   };
 }
 
 test('generateCanonicalForm carries a resolved, single-valued DV_PROPORTION type through as proportionType', () => {
-  const parsed = parseWebTemplate(fio2Template());
-  const fio2 = parsed.fields.find((field) => field.technicalName === 'fio2');
-  assert.equal(fio2.constraints.proportionType, 'unitary');
+  const parsed = parseWebTemplate(spo2Template());
+  const spo2 = parsed.fields.find((field) => field.technicalName === 'spo');
+  assert.equal(spo2.constraints.proportionType, 'percent');
 
   const generated = generateCanonicalForm({
     name: 'Vitals', templateId: parsed.templateId, alias: parsed.alias,
-    fields: [fio2], id: 'form-proportion-1',
+    fields: [spo2], id: 'form-proportion-1',
   });
   const leaf = findNode(generated.layout, (node) => node.type === 'input-proportion');
   assert.ok(leaf, 'the generated proportion field exists');
-  assert.equal(leaf.proportionType, 'unitary');
+  assert.equal(leaf.proportionType, 'percent');
 });
 
 test('a DV_PROPORTION node with no recognizable type input leaves proportionType unset, not defaulted', () => {
