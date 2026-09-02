@@ -523,6 +523,17 @@ export async function patchFormSession(id: string, input: FormSessionPatchInput,
   const values = beforeSave.data;
   const requestedStatus = input.status || (input.values ? 'in_progress' : currentStatus);
   const status = transitionStatus(currentStatus, requestedStatus);
+  // Deliberately does not touch `validation` - only validateFormSession/
+  // submitFormSession (below) ever write that column. publicSession() below
+  // therefore returns whatever validation result was last computed for a
+  // PRIOR set of values, not the ones just saved here - a patch is a plain
+  // save, not an implicit re-check. Confirmed live (2026-09-02): reading
+  // this echoed-back array as if it reflected the just-patched values looks
+  // like a persistent validation failure even after the values are already
+  // fixed, and can lead to silently discarding valid data trying to
+  // "resolve" a stale error that no longer applies. Callers who need a
+  // current validation result must call validateFormSession explicitly (or
+  // rely on submitFormSessionToProvider's own fresh re-validation).
   const updated = await prisma.formSession.update({ where: { id: sessionId }, data: { values: values as any, status, revision: { increment: 1 } } });
   const afterSave = await runBestEffortHook({ name: 'afterSave', formId: record.formId, form, data: (updated.values || {}) as Record<string, unknown>, patientId: record.patientId, sessionId, actor, metadata: { status: updated.status } });
   const patient = await resolveSessionPatient(record.patientId, record.patientNamespace);
