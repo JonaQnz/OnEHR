@@ -115,6 +115,21 @@ function nodeIdentity(node: WebTemplateTreeNode, opts?: { templateId?: string })
  * the flat and canonical shapes diverge enough (indexed keys vs. nested
  * objects) that a shared helper would need as much branching as either
  * implementation alone; what IS shared is which types get real handling. */
+/** RM data_types.text 5.2.2: TERM_MAPPING.match is a `char`, constrained to
+ * exactly these four values ('>' broader, '=' equivalent, '<' narrower, '?'
+ * unknown) - confirmed against the current openEHR RM Data Types spec while
+ * validating this file against it (2026-09-02). Nothing in this app
+ * currently sets a custom match value (every caller either omits it or
+ * relies on the '=' default), so this has never fired live, but without it
+ * a future caller passing any other string - a form script, a future UI
+ * that lets a clinician pick a mapping's match type - would silently
+ * produce an RM-invalid TERM_MAPPING. */
+const VALID_TERM_MAPPING_MATCH = new Set(['>', '=', '<', '?']);
+
+function normalizedTermMappingMatch(value: unknown): string {
+  return typeof value === 'string' && VALID_TERM_MAPPING_MATCH.has(value) ? value : '=';
+}
+
 /** Shared by both the DV_TEXT and DV_CODED_TEXT codeMappings branches below -
  * builds the TERM_MAPPING list from a codeMappings.enabled field's runtime
  * `{value, mappings?}` shape. Deliberately no `purpose`/`preferred_term` -
@@ -127,7 +142,7 @@ function buildTermMappings(source: Record<string, unknown>): Canonical[] {
     if (!isRecord(entry) || isEmpty(entry.terminologyId) || isEmpty(entry.code)) return [];
     return [{
       _type: 'TERM_MAPPING',
-      match: typeof entry.match === 'string' && entry.match ? entry.match : '=',
+      match: normalizedTermMappingMatch(entry.match),
       target: codePhrase(String(entry.terminologyId), String(entry.code)),
     }];
   });
@@ -204,7 +219,20 @@ function buildLeafDvValue(rmType: string | undefined, field: RuntimeFieldDescrip
     return { _type: 'DV_CODED_TEXT', value: String(displayValue), defining_code: definingCode };
   }
   if (rmType === 'DV_BOOLEAN') return { _type: 'DV_BOOLEAN', value: Boolean(value) };
-  if (rmType === 'DV_COUNT') return { _type: 'DV_COUNT', magnitude: typeof value === 'string' ? Number(value) : value };
+  if (rmType === 'DV_COUNT') {
+    // RM data_types.quantity: DV_COUNT.magnitude is Integer, not Real -
+    // unlike DV_QUANTITY, which genuinely allows fractional magnitudes.
+    // getInputType() maps DV_COUNT to the same generic 'input-number'
+    // widget as DV_DECIMAL, with no integer-only constraint enforced
+    // anywhere upstream, so a user can freely type "3.7" into a
+    // DV_COUNT-bound field - confirmed while validating this file against
+    // the RM spec (2026-09-02). Round here, at the RM-strict serialization
+    // boundary, rather than trust every upstream input path to have
+    // already enforced it (the same defensive posture buildLeafDvValue
+    // already takes for `units` vs `unit` above).
+    const raw = typeof value === 'string' ? Number(value) : value;
+    return { _type: 'DV_COUNT', magnitude: typeof raw === 'number' && Number.isFinite(raw) ? Math.round(raw) : raw };
+  }
   if (rmType === 'DV_DATE') return { _type: 'DV_DATE', value: String(value) };
   if (rmType === 'DV_DATE_TIME') return { _type: 'DV_DATE_TIME', value: String(value) };
   if (rmType === 'DV_DURATION') return { _type: 'DV_DURATION', value: String(value) };
