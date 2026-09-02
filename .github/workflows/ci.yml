@@ -30,6 +30,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # apps/api's tsc build fails with a flood of unrelated-looking errors
+      # (implicit-any params, missing properties, "ApplicationRole" not
+      # exported by "@prisma/client", ...) if the Prisma Client's generated
+      # types are missing - and `npm ci` does not reliably generate them by
+      # itself in every environment (relies on @prisma/client's postinstall
+      # script actually running, which some npm configurations/registries
+      # block). Generating explicitly removes that ambiguity rather than
+      # hoping postinstall did its job.
+      - name: Generate Prisma Client
+        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
+
       # The root `test` script runs every workspace's own `test` script in
       # dependency order (core -> openehr-engine -> plugin-api ->
       # formbuilder-mcp-server -> openehr-architect-mcp -> api -> web),
