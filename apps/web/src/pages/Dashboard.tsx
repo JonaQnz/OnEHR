@@ -129,44 +129,82 @@ export default function Dashboard() {
     }
   };
 
-  const handlePublish = (id: string) => {
+  const handlePublish = async (id: string) => {
     if (!confirm('Are you sure you want to publish this form? This will create a new version.')) return;
-    fetch(`${API_BASE_URL}/forms/${id}/publish`, { method: 'POST' })
-      .then(res => res.json())
-      .then(() => fetchForms());
+    try {
+      const res = await fetch(`${API_BASE_URL}/forms/${id}/publish`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(`Publish failed: ${data.error || data.message || 'Unknown error'}`);
+        return;
+      }
+      fetchForms();
+    } catch (err) {
+      alert('Publish failed: could not reach the server.');
+    }
   };
 
-  const handleCreateDraft = (id: string, isComposition: boolean) => {
-    fetch(`${API_BASE_URL}/forms/${id}/create-draft`, { method: 'POST' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.form) {
-          navigate(isComposition ? `/compositions/${data.form.id}/builder` : `/forms/${data.form.id}/builder`);
-        }
-      });
+  const handleCreateDraft = async (id: string, isComposition: boolean) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/forms/${id}/create-draft`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(`Creating a draft failed: ${data.error || data.message || 'Unknown error'}`);
+        return;
+      }
+      if (data.form) {
+        navigate(isComposition ? `/compositions/${data.form.id}/builder` : `/forms/${data.form.id}/builder`);
+      }
+    } catch (err) {
+      alert('Creating a draft failed: could not reach the server.');
+    }
   };
 
-  const handleArchive = (id: string) => {
+  const handleArchive = async (id: string) => {
     if (!confirm('Are you sure you want to archive/shut off this version? It will no longer be active.')) return;
-    fetch(`${API_BASE_URL}/forms/${id}/archive`, { method: 'POST' })
-      .then(() => fetchForms());
+    try {
+      const res = await fetch(`${API_BASE_URL}/forms/${id}/archive`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(`Archive failed: ${data.error || data.message || 'Unknown error'}`);
+        return;
+      }
+      fetchForms();
+    } catch (err) {
+      alert('Archive failed: could not reach the server.');
+    }
   };
 
-  const handleRestore = (id: string, isComposition: boolean) => {
+  const handleRestore = async (id: string, isComposition: boolean) => {
     if (!confirm('Are you sure you want to restore this version? It will create a new draft from this layout.')) return;
-    fetch(`${API_BASE_URL}/forms/${id}/restore`, { method: 'POST' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.form) {
-          navigate(isComposition ? `/compositions/${data.form.id}/builder` : `/forms/${data.form.id}/builder`);
-        }
-      });
+    try {
+      const res = await fetch(`${API_BASE_URL}/forms/${id}/restore`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(`Restore failed: ${data.error || data.message || 'Unknown error'}`);
+        return;
+      }
+      if (data.form) {
+        navigate(isComposition ? `/compositions/${data.form.id}/builder` : `/forms/${data.form.id}/builder`);
+      }
+    } catch (err) {
+      alert('Restore failed: could not reach the server.');
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this form?')) return;
-    fetch(`${API_BASE_URL}/forms/${id}/delete`, { method: 'POST' })
-      .then(() => fetchForms());
+    try {
+      const res = await fetch(`${API_BASE_URL}/forms/${id}/delete`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(`Delete failed: ${data.error || data.message || 'Unknown error'}`);
+        return;
+      }
+      fetchForms();
+    } catch (err) {
+      alert('Delete failed: could not reach the server.');
+    }
   };
 
   const toggleGroup = (groupId: string) => {
