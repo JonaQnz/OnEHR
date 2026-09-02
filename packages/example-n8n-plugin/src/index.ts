@@ -1,6 +1,13 @@
 import type { FormBuilderPlugin, JsonObject, PluginHookName } from 'plugin-api';
 import { createN8nDataProvider } from './dataProvider';
 
+/** The result contract every n8n workflow this plugin provisions must
+ * return - checked on the way back in from every hook/submit response.
+ * Also interpolated into the generated `jsCode` of the "Hook Response" node
+ * in `emptyWorkflowPayload` (n8n's own JS runtime, not this file's), so
+ * that generated code and this file's own check can never drift apart. */
+const HOOK_RESULT_PROTOCOL = 'formbuilder.plugin-hook.v1';
+
 function environment(name: string): string | undefined {
   const processLike = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process;
   const value = processLike?.env?.[name];
@@ -113,7 +120,7 @@ function emptyWorkflowPayload(form: JsonObject, workflowSlug: string, hooks: rea
     'const warnings = Array.isArray(source.warnings) ? source.warnings.map((item) => ({ ...item, severity: "warning" })) : [];',
     'const notices = [...warnings, ...(Array.isArray(source.notices) ? source.notices : [])];',
     'const errors = Array.isArray(source.errors) ? source.errors : [];',
-    'return [{ json: { protocol: "formbuilder.plugin-hook.v1", data: source.data || source.values || {}, notices, errors, stop: source.stop === true, ...(typeof source.message === "string" ? { message: source.message } : {}) } }];',
+    `return [{ json: { protocol: ${JSON.stringify(HOOK_RESULT_PROTOCOL)}, data: source.data || source.values || {}, notices, errors, stop: source.stop === true, ...(typeof source.message === "string" ? { message: source.message } : {}) } }];`,
   ].join('\n');
   const submitName = 'Form Webhook';
   const submitResponseName = 'Submit Hook Response';
@@ -165,130 +172,6 @@ function emptyWorkflowPayload(form: JsonObject, workflowSlug: string, hooks: rea
   } as unknown as JsonObject;
 }
 
-function workflowPayload(form: JsonObject, workflowSlug: string, ehrbaseUrl: string, hooks: readonly string[]): JsonObject {
-  const formId = text(form.id) || 'form';
-  const submitPath = lifecyclePath(workflowSlug, 'submit');
-  const webhookName = 'Form Webhook';
-  const lookupName = 'Resolve EHRbase EHR';
-  const buildName = 'Build EHRbase Request';
-  const targetName = 'EHRbase Target';
-  const finalResponseName = 'Submit Hook Response';
-  const code = [
-    `const raw = $node[${JSON.stringify(webhookName)}].json;`,
-    "const source = raw.body && typeof raw.body === 'object' ? raw.body : raw;",
-    'const result = $json || {};',
-    "const first = Array.isArray(result.ehrs) ? result.ehrs[0] : undefined;",
-    "const ehrId = result.ehr_id?.value || result.ehr_id || result.ehrId || first?.ehr_id?.value || first?.ehr_id || first?.ehrId;",
-    "if (!ehrId) throw new Error('EHRbase returned no EHR for the patient');",
-    "return [{ json: { ...source, composition: { ...source.composition, ehrId } } }];",
-  ].join('\\n');
-  const hookNodes = hooks.filter((hook) => hook !== 'submit').flatMap((hook, index) => {
-    const path = lifecyclePath(workflowSlug, hook);
-    const name = `Form Webhook ${hook}`;
-    const responseName = `${hook} Hook Response`;
-    return [
-      {
-        id: `form-webhook-${hook.toLowerCase()}`,
-        name,
-        type: 'n8n-nodes-base.webhook',
-        typeVersion: 2,
-        position: [-640, (index + 1) * 180],
-        parameters: { httpMethod: 'POST', path, responseMode: 'lastNode', options: {} },
-        webhookId: path,
-      },
-      {
-        id: `hook-response-${hook.toLowerCase()}`,
-        name: responseName,
-        type: 'n8n-nodes-base.code',
-        typeVersion: 2,
-        position: [-360, (index + 1) * 180],
-        parameters: { jsCode: "const raw = $json || {}; const source = raw.body && typeof raw.body === 'object' ? raw.body : raw; const warnings = Array.isArray(source.warnings) ? source.warnings.map((item) => ({ ...item, severity: 'warning' })) : []; const notices = [...warnings, ...(Array.isArray(source.notices) ? source.notices : [])]; const errors = Array.isArray(source.errors) ? source.errors : []; return [{ json: { protocol: 'formbuilder.plugin-hook.v1', data: source.data || source.values || {}, notices, errors, stop: source.stop === true, ...(typeof source.message === 'string' ? { message: source.message } : {}) } }];" },
-      },
-    ];
-  });
-  const hookConnections = Object.fromEntries(hooks.filter((hook) => hook !== 'submit').map((hook) => {
-    const name = `Form Webhook ${hook}`;
-    const responseName = `${hook} Hook Response`;
-    return [name, { main: [[{ node: responseName, type: 'main', index: 0 }]] }];
-  }));
-  return {
-    name: `Form Builder: ${text(form.name) || formId}`,
-    settings: { executionOrder: 'v1' },
-    nodes: [
-      {
-        id: 'form-webhook',
-        name: webhookName,
-        type: 'n8n-nodes-base.webhook',
-        typeVersion: 2,
-        position: [-640, 0],
-        parameters: { httpMethod: 'POST', path: submitPath, responseMode: 'lastNode', options: {} },
-        webhookId: submitPath,
-      },
-      ...hookNodes,
-      {
-        id: 'ehrbase-lookup',
-        name: lookupName,
-        type: 'n8n-nodes-base.httpRequest',
-        typeVersion: 4.2,
-        position: [-400, 0],
-        parameters: {
-          method: 'GET',
-          url: `${ehrbaseUrl}/ehr`,
-          sendQuery: true,
-          queryParameters: { parameters: [
-            { name: 'subject_id', value: '={{$json.patient.id}}' },
-            { name: 'subject_namespace', value: '={{$json.patient.namespace || "default"}}' },
-          ] },
-          options: {},
-        },
-      },
-      {
-        id: 'build-ehrbase-request',
-        name: buildName,
-        type: 'n8n-nodes-base.code',
-        typeVersion: 2,
-        position: [-160, 0],
-        parameters: { jsCode: code },
-      },
-      {
-        id: 'ehrbase-target',
-        name: targetName,
-        type: 'n8n-nodes-base.httpRequest',
-        typeVersion: 4.2,
-        position: [120, 0],
-        parameters: {
-          method: 'POST',
-          url: `${ehrbaseUrl}/ehr/{{$json.composition.ehrId}}/composition`,
-          sendQuery: true,
-          queryParameters: { parameters: [
-            { name: 'templateId', value: '={{$json.composition.templateId}}' },
-            { name: 'format', value: 'FLAT' },
-          ] },
-          sendBody: true,
-          specifyBody: 'json',
-          jsonBody: '={{ JSON.stringify($json.composition.values) }}',
-          options: {},
-        },
-      },
-      {
-        id: 'submit-hook-response',
-        name: finalResponseName,
-        type: 'n8n-nodes-base.code',
-        typeVersion: 2,
-        position: [360, 0],
-        parameters: { jsCode: "const raw = $node['Form Webhook'].json || {}; const source = raw.body && typeof raw.body === 'object' ? raw.body : raw; const built = $node['Build EHRbase Request'].json || {}; const provider = $json || {}; const warnings = Array.isArray(source.warnings) ? source.warnings.map((item) => ({ ...item, severity: 'warning' })) : []; const notices = [...warnings, ...(Array.isArray(source.notices) ? source.notices : [])]; const errors = Array.isArray(source.errors) ? source.errors : []; return [{ json: { protocol: 'formbuilder.plugin-hook.v1', data: built.data || built.values || source.data || source.values || {}, notices, errors, stop: source.stop === true, ...(typeof source.message === 'string' ? { message: source.message } : {}), provider } }];" },
-      },
-    ],
-    connections: {
-      [webhookName]: { main: [[{ node: lookupName, type: 'main', index: 0 }]] },
-      [lookupName]: { main: [[{ node: buildName, type: 'main', index: 0 }]] },
-      [buildName]: { main: [[{ node: targetName, type: 'main', index: 0 }]] },
-      [targetName]: { main: [[{ node: finalResponseName, type: 'main', index: 0 }]] },
-      ...hookConnections,
-    },
-  } as unknown as JsonObject;
-}
-
 function submissionSettings(form: JsonObject, workflowId: string, urls: { internal: Record<string, string>; public: Record<string, string> }): JsonObject {
   const currentSettings = form.settings && typeof form.settings === 'object' && !Array.isArray(form.settings) ? form.settings as JsonObject : {};
   const enabled = Object.fromEntries(ALL_HOOKS.map((hook) => [hook, Boolean(urls.internal[hook])]));
@@ -331,7 +214,6 @@ const plugin: FormBuilderPlugin = {
           apiUrl: { type: 'string', title: 'n8n API URL', format: 'uri', default: 'http://host.docker.internal:5678/api/v1', description: 'Docker: host.docker.internal; lokale Ausführung: localhost' },
           apiKey: { type: 'string', title: 'n8n API Key', format: 'password' },
           publicUrl: { type: 'string', title: 'Öffentliche n8n URL', format: 'uri' },
-          ehrbaseUrl: { type: 'string', title: 'EHRbase URL für n8n', format: 'uri' },
           webhooks: {
             type: 'object',
             title: 'Aktive n8n Webhooks (global)',
@@ -385,19 +267,17 @@ const plugin: FormBuilderPlugin = {
         if (submission.mode !== 'workflow' || submission.providerId !== 'n8n') return {};
         context.requirePermission('network:request');
         const pluginSettings = context.getSettings() as JsonObject;
-        const configuredApiUrl = pluginSetting(pluginSettings, 'apiUrl');
         const apiKey = pluginSetting(pluginSettings, 'apiKey') || environment('N8N_API_KEY');
         if (!apiKey) return { errors: [{ path: 'n8n.apiKey', message: 'N8N_API_KEY ist nicht konfiguriert.' }] };
         const workflow = submission.workflow && typeof submission.workflow === 'object' && !Array.isArray(submission.workflow) ? submission.workflow as JsonObject : {};
         if (!workflow.hooks || typeof workflow.hooks !== 'object' || Array.isArray(workflow.hooks)) return {};
         const hooks = workflow.hooks as JsonObject;
-        const formId = text(hookContext.form.id) || 'form';
         const endpoint = text(hooks[hook]);
         if (!endpoint) return {};
-        const payload = { protocol: 'formbuilder.plugin-hook.v1', hook, form: hookContext.form, data: hookContext.data || {}, patient: { id: hookContext.patientId }, session: { id: hookContext.sessionId, userId: hookContext.userId }, metadata: hookContext.metadata || {} } as unknown as JsonObject;
+        const payload = { protocol: HOOK_RESULT_PROTOCOL, hook, form: hookContext.form, data: hookContext.data || {}, patient: { id: hookContext.patientId }, session: { id: hookContext.sessionId, userId: hookContext.userId }, metadata: hookContext.metadata || {} } as unknown as JsonObject;
         let response: Response;
         try {
-          response = await fetch(endpoint, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-N8N-API-KEY': apiKey, 'X-Formbuilder-Protocol': 'formbuilder.plugin-hook.v1' }, signal: AbortSignal.timeout(15000), body: JSON.stringify(payload) });
+          response = await fetch(endpoint, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-N8N-API-KEY': apiKey, 'X-Formbuilder-Protocol': HOOK_RESULT_PROTOCOL }, signal: AbortSignal.timeout(15000), body: JSON.stringify(payload) });
         } catch (error) {
           const timedOut = error instanceof Error && /timeout|abort/i.test(error.message);
           const message = timedOut ? 'n8n Workflow antwortete nicht innerhalb von 15 Sekunden.' : `n8n Hook konnte nicht erreicht werden: ${error instanceof Error ? error.message : String(error)}`;
@@ -412,7 +292,7 @@ const plugin: FormBuilderPlugin = {
           console.error(`[N8N HOOK RESULT] ${JSON.stringify({ hook, status: response.status, errors: [{ severity: 'error', code: 'N8N_HOOK_HTTP_ERROR', message }], stop: true })}`);
           return { notices: [{ severity: 'error', path: `n8n.${hook}`, code: 'N8N_HOOK_HTTP_ERROR', message }], stop: true, stopMessage: `n8n ${hook} wurde mit HTTP ${response.status} beendet.` };
         }
-        if (body.protocol !== 'formbuilder.plugin-hook.v1') {
+        if (body.protocol !== HOOK_RESULT_PROTOCOL) {
           const message = 'n8n Workflow antwortete ohne standardisiertes Form-Builder-Ergebnis.';
           console.error(`[N8N HOOK RESULT] ${JSON.stringify({ hook, status: response.status, errors: [{ severity: 'error', code: 'N8N_HOOK_INVALID_RESPONSE', message }], stop: true })}`);
           return { notices: [{ severity: 'error', path: `n8n.${hook}`, code: 'N8N_HOOK_INVALID_RESPONSE', message }], stop: true, stopMessage: 'n8n Workflow-Ergebnis konnte nicht verarbeitet werden.' };
@@ -448,7 +328,6 @@ const plugin: FormBuilderPlugin = {
       const workflowId = text(currentWorkflow.workflowId);
       const configuredPath = text(currentWorkflow.webhookUrl) || (currentWorkflow.hooks && typeof currentWorkflow.hooks === 'object' && !Array.isArray(currentWorkflow.hooks) ? text((currentWorkflow.hooks as JsonObject).submit) : undefined);
       const workflowSlug = configuredPath?.split('/webhook/')[1]?.split('/')[0] || `formbuilder-${slug(formId)}`;
-      const ehrbaseUrl = (pluginSetting(settings, 'ehrbaseUrl') || environment('N8N_EHRBASE_URL') || environment('EHRBASE_URL') || 'http://localhost:8080/ehrbase/rest/openehr/v1').replace(/\/$/, '');
       const workflow = emptyWorkflowPayload(form, workflowSlug, activeHooks);
       const url = `${apiBase(configuredApiUrl)}/workflows${workflowId ? `/${encodeURIComponent(workflowId)}` : ''}`;
       let response: Response;
