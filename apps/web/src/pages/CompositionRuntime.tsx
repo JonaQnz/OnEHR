@@ -187,12 +187,32 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
   const page = composition?.pages[pageIndex]; const contextReady = patientId.trim().length > 0 && ehrId.trim().length > 0;
   const reset = () => { setSession(null); setLaunches({}); setData({}); setNotice(''); setSaveOutcomes({}); setTransaction(null); setTransactionError(''); transactionClientId.current = crypto.randomUUID(); iframeRefs.current = {}; };
   const refreshSession = async (sessionId = session?.id) => { if (!sessionId) return; const next = await request<CompositionSession>(`/composition-sessions/${encodeURIComponent(sessionId)}`); setSession(next); return next; };
+  // Dedupes concurrent ensureSession() calls for the same (record, patient,
+  // mode, ...) identity against one shared in-flight request, keyed so a
+  // later call for a genuinely different identity still starts its own.
+  // Without this, two near-simultaneous callers - most reliably React
+  // StrictMode's deliberate double-invocation of this component's mount
+  // effect (every dev-mode Composition load), but just as reachable from a
+  // real double-click or fast back-and-forth navigation - both read the
+  // same stale `session === null` React state before either POST resolves,
+  // so both proceed to POST /composition-sessions and each gets back a
+  // genuinely separate, real composition session from the server; only the
+  // later setSession() wins in the UI, leaving the other one silently
+  // orphaned in the database. Confirmed live (2026-09-02): two
+  // "Diagnose (Basis) – Einzelformular" composition sessions were created
+  // 2ms apart from a single page load.
+  const ensureSessionInFlight = useRef<{ key: string; promise: Promise<CompositionSession | undefined> } | null>(null);
   const ensureSession = async (): Promise<CompositionSession | undefined> => {
     if (!record || !contextReady) return undefined;
     if (session && session.patientId === patientId.trim() && session.mode === mode) return session;
     const forceNew = searchParams.get('forceNew') === 'true';
-    const next = await request<CompositionSession>('/composition-sessions', { method: 'POST', body: JSON.stringify({ compositionFormId: record.id, patientId: patientId.trim(), patientNamespace: namespace.trim() || undefined, ehrId: ehrId.trim() || undefined, mode, forceNew }) });
-    setSession(next); return next;
+    const key = [record.id, patientId.trim(), namespace.trim(), ehrId.trim(), mode, forceNew].join('|');
+    if (ensureSessionInFlight.current?.key === key) return ensureSessionInFlight.current.promise;
+    const promise = request<CompositionSession>('/composition-sessions', { method: 'POST', body: JSON.stringify({ compositionFormId: record.id, patientId: patientId.trim(), patientNamespace: namespace.trim() || undefined, ehrId: ehrId.trim() || undefined, mode, forceNew }) })
+      .then((next) => { setSession(next); return next; })
+      .finally(() => { if (ensureSessionInFlight.current?.key === key) ensureSessionInFlight.current = null; });
+    ensureSessionInFlight.current = { key, promise };
+    return promise;
   };
   // `force` (an explicit "Aktualisieren"-style refresh, e.g. the
   // Medikationssicherheit page's onPageVisibility-triggered data.refresh())
