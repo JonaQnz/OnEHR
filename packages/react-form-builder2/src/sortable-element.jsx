@@ -38,9 +38,27 @@ const useDragAndDrop = (props) => {
       canDrop: monitor.canDrop(),
     }),
     drop: (item, monitor) => {
-      // React DnD bubbles a nested Dustbin drop to every outer sortable card.
-      // Never replay an already completed drop on the canvas.
+      // React DnD bubbles a nested Dustbin's drop up to every outer sortable
+      // card wrapping it (a TwoColumnRow/ThreeColumnRow/FieldSet card is
+      // itself rendered as a top-level SortableFormElement, with its column
+      // Dustbins nested inside that same DOM subtree). `monitor.didDrop()`
+      // is meant to guard against replaying an already-handled drop, but
+      // relying on it alone here raced the Dustbin's own drop in practice -
+      // confirmed live: dropping a template field into a row's column
+      // intermittently either silently deleted the whole row (this outer
+      // handler firing a SECOND, real insertCard() at the row's own index
+      // with a fresh onCreate() id, immediately followed by another engine
+      // recomputing this card's own position and orphaning it) or hung the
+      // tab outright (setAsChild's ancestor walk looping forever once a
+      // stray duplicate corrupted the parentId chain). The `hover` handler
+      // above already refuses to act on a container row
+      // (`props.data?.isContainer && !item.data?.isContainer`) precisely so
+      // the nested Dustbin stays the sole authority for what lands inside a
+      // row/group - the `drop` handler needs the identical guard, not just
+      // `didDrop()`, so a container card's own outer wrapper never treats a
+      // column drop as "insert me as a new sibling at my row's index" too.
       if (monitor.didDrop()) return undefined;
+      if (props.data?.isContainer && !item.data?.isContainer) return undefined;
       const hoverIndex = props.index;
       if (item.data?.parentId && typeof props.insertCard === 'function') {
         props.insertCard(item, hoverIndex, item.id);
