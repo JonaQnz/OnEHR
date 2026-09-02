@@ -619,7 +619,27 @@ function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: str
       } else if (key.endsWith('|code')) value = flat[key];
       else if (key.endsWith('|value') && !matches.includes(key.replace('|value', '|code'))) value = flat[key];
       else continue;
-    } else value = flat[key];
+    } else {
+      // A field bound as plain DV_TEXT (no |code/|value/|terminology
+      // suffixes in our own write convention - see code-mappings-flat.
+      // test.js) can still meet data on read that WAS committed as
+      // DV_CODED_TEXT: this archetype's node is a genuine union type
+      // (free text OR coded text - see coded-text-free-text-fallback.
+      // test.js), and another form bound to the very same path chose the
+      // coded alternative. EHRbase's FLAT rendering of that committed node
+      // is then the ordinary DV_CODED_TEXT |value/|code/|terminology
+      // triple, not a bare path. |code/|terminology never belong in a
+      // plain-DV_TEXT runtime value - skip them and take |value (or the
+      // bare, unsuffixed key for a genuinely plain DV_TEXT node) so the
+      // human-readable text prefills either way. Confirmed live
+      // (2026-09-02): "Kodierte Diagnose" (bound DV_TEXT, no codeMappings)
+      // prefilling from "Diagnose (Basis)"'s DV_CODED_TEXT-bound
+      // submission of "Arterielle Hypertonie" (ICD I10) showed "I10"
+      // instead, because Object.keys() order put `|code` before `|value`
+      // and this branch took whichever matched first.
+      if (key.endsWith('|code') || key.endsWith('|terminology')) continue;
+      value = flat[key];
+    }
     if (indices.length === 0) return value;
     let current = values;
     indices.forEach((index, position) => {
