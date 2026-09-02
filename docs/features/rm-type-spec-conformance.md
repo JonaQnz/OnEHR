@@ -169,51 +169,96 @@ original "length" framing: the validation mechanism already exists and
 works, it just isn't fed archetype-derived constraints the way
 DV_QUANTITY's now is.
 
-**Next step**: find a real WebTemplate with a regex-pattern-constrained
-text node (check `inputs[]` for a text field - likely `list: ['/.../',
-...]` or similar, not yet confirmed shape) and thread it into
-`field.validation.regex` at generation time, the same way
-`unitOptions`/`proportionType` are now populated from
-`field.constraints`. Given `validateOne` already treats a
-`validation.regex` mismatch as a **hard error**, not a warning
-(unlike the DV_QUANTITY range/precision checks), think carefully before
-auto-populating this from every archetype-constrained text node -
-existing data that predates the constraint could suddenly fail
-validation on next edit where the DV_QUANTITY case couldn't (those were
-deliberately shipped as warnings for exactly this reason). This needs
-its own decision, not just "match the DV_QUANTITY pattern."
+**Live search (2026-09-02): no example exists anywhere in this system.**
+Checked every clinically-meaningful WebTemplate on the active EHRbase
+connection - all 5 already-imported `vg_*`/`Vital_Signs` templates plus
+18 more fetched fresh (`vg_Procedure`, `vg_MedicationStatement`,
+`vg_ServiceRequest`, `vg_MedicationAdministration`, `vg_Specimen`, all
+8 oncology templates, and the German `vg_diagnostikbefund`/
+`vg_pflegebericht`/`vg_entlassungsbrief` set) - 23 of the 28 templates
+on the connection, skipping only the obvious dev/test ones
+(`vg_control_test`, `vg_empty_test`, `vg_progessnote`) and the
+"composed"/"packed" wrapper templates that just re-bundle pieces
+already checked. Every single `DV_TEXT` node across all 23 has a plain
+`inputs: [{"type": "TEXT"}]` - zero `list` entries, zero `pattern` keys,
+nowhere. This is the same shape of finding as the pre-#46 DV_ORDINAL
+search (no live example), but here after checking essentially the
+entire template catalog rather than one field. Plain, unconstrained
+`DV_TEXT` itself needs no fix - `buildLeafDvValue`'s `DV_TEXT` branch
+(`canonicalComposition.ts`) already produces a correct
+`{_type: 'DV_TEXT', value: String(value)}` for every one of these
+fields today.
 
-### 3. DV_DURATION - format validation gap, serialization is likely fine
+**Decision: do not build this speculatively.** Unlike DV_ORDINAL (where
+a wrong per-option `ordinal` guess only affects one synthetic test
+value with no user-facing consequence until corrected), a wrong guess
+at the archetype's `list: [...]` regex-delimiter shape here would feed
+directly into `field.validation.regex`, which `validateOne` already
+enforces as a **hard error** - a mis-parsed pattern could silently
+start hard-blocking real existing data on next edit, with no live
+example available to catch the mistake the way EHRbase's own error
+message caught DV_PROPORTION's wire-format guess. This item stays
+backlog until a real archetype-constrained text node turns up (e.g. a
+new imported template), not attempted blind.
+
+### 3. DV_DURATION - fixed (PR #48)
 
 **Spec** (verified against the RM Data Types IM PDF, section 6.3's
 DV_DURATION class): `value: String` - *"ISO8601 duration"*, inheriting
 `DV_AMOUNT` and `ISO8601_DURATION`. Confirmed: *"a deviation from
 ISO8601 is supported, allowing the 'W' designator to be mixed with
-other designators"* - this app's eventual regex needs to allow for that
-deviation, not just a strict-ISO8601 pattern copied from elsewhere.
+other designators"* - the regex below allows for that deviation, not
+just a strict-ISO8601 pattern copied from elsewhere.
 
 **Confirmed in code**: `canonicalComposition.ts` has a plain
 passthrough (`{_type: 'DV_DURATION', value: String(value)}`) - this is
 actually **structurally correct** (DV_DURATION.value is just a bare
 string, no substructure needing suffixed FLAT keys the way
-Quantity/Proportion/Identifier do), so this is not the same class of
-bug as the others. The real gap is that **nothing validates the string
-is actually a well-formed ISO 8601 duration** before it's written -
-`input-duration` has no dedicated branch in `validateOne` at all
-(falls through to whatever the generic text-ish checks are). A
-clinician could type "3 days" or "72h" and it would reach EHRbase
-unvalidated.
+Quantity/Proportion/Identifier do), so this was never the same class of
+bug as the others. The real gap was that **nothing validated the
+string is actually a well-formed ISO 8601 duration** before it was
+written - `input-duration` had no dedicated branch in `validateOne` at
+all (falls through to the generic text-ish checks, none of which check
+duration shape). A clinician typing "3 days" or "72h" reached EHRbase
+unvalidated. Confirmed the widget itself is a plain text input
+(`FormRuntime.tsx`'s `inputType()` has no `input-duration` case, so it
+hits the `'text'` default) - free-text entry, no shape enforcement
+anywhere client-side.
 
-**Next step**: lower priority than #1/#2 (no live-submission risk of
-outright rejection the way a malformed Quantity/Proportion causes a
-400 - EHRbase likely rejects a malformed duration string too, just
-without this app catching it first with a clear German error message).
-Add an ISO 8601 duration regex check to `validateOne`'s `input-duration`
-branch. No live template hunt strictly required first (the fix doesn't
-depend on archetype-specific data), but confirm the widget actually
-captures free text today before assuming what shape the fix needs.
+**Fix**: a `DV_DURATION_PATTERN` regex in `form-runtime/index.ts`,
+built directly from the RM's own designator set (`Y`/`M`/`W`/`D` date
+designators, `T` + `H`/`M`/`S` time designators, `W` explicitly allowed
+alongside the others per the spec's own deviation note) with lookaheads
+rejecting the two vacuous cases ISO 8601 disallows - bare `P` and `PT`
+with no designators at all. A new `validateOne` branch for
+`input-duration` fields, as a **hard error** (not a warning like
+DV_QUANTITY's range/precision) - unlike an archetype-specific range,
+the ISO 8601 duration shape is the RM type's own universal wire
+contract, so a non-match is never legitimate pre-existing data, only a
+genuine wire-format defect. No sign character (`-P...`) is accepted -
+the RM Data Types IM text for DV_DURATION never mentions a signed form,
+so that wasn't asserted without a spec citation.
 
-### 4. DV_DATE / DV_TIME / DV_DATE_TIME archetype constraints - confirmed gap, two distinct mechanisms
+No live template hunt was needed - the fix doesn't depend on
+archetype-specific data, only the RM type's own inherent format
+contract. 13 new tests in
+`packages/core/tests/duration-format-validation.test.js` cover every
+designator combination, the W-mixing deviation specifically, both
+vacuous-string rejections, and the required/empty interaction.
+
+**Live-tested anyway** (`vg_Procedure.v1.1.0`'s "Total duration",
+at0061 - a real DV_DURATION-bound field): `"3 days"` was correctly
+rejected client- and server-side with the exact new `duration-format`
+message; the RM's own W-mixing deviation was submitted deliberately
+(`P1Y2W3D`) and accepted end-to-end. AQL readback showed EHRbase stores
+it as `{_type: 'DV_DURATION', value: 'P1Y17D'}` - it normalizes the
+value (2 weeks + 3 days = 17 days) into a W-free canonical form on its
+own side, rather than preserving the submitted designators verbatim.
+That's EHRbase's own storage behavior, not a defect in this app's
+validation - the deviation is real and openEHR-conformant input is
+correctly accepted either way.
+
+### 4. DV_DATE / DV_TIME / DV_DATE_TIME archetype constraints - confirmed code gap, no live example anywhere (checked)
 
 **Spec** (verified via the actual [AOM2 specification](https://specifications.openehr.org/releases/AM/latest/AOM2.html) -
 this item was "not yet checked, plausible" in the first draft; now
@@ -242,12 +287,39 @@ needed, same as DV_DURATION), but nothing upstream ever populates a
 range or precision constraint to check the value against, and
 `validateOne` has no date/time-specific branch at all.
 
-**Next step**: find a real WebTemplate with an actual date/time range
-constraint (a "must be a plausible birth date" or ICU-context
-timestamp-range field is a likely real example - not yet found) and
-confirm the WebTemplate JSON's `inputs[]` shape for both the range and
-the partial-pattern case before writing any extraction code - two
-different shapes to confirm, not one.
+**Live search (2026-09-02): no example exists anywhere in this system,
+same as DV_TEXT.** Checked the same 23 of 28 templates as the DV_TEXT
+search (all already-imported `vg_*`/`Vital_Signs`, all 8 oncology
+templates, the German `vg_diagnostikbefund`/`vg_pflegebericht`/
+`vg_entlassungsbrief` set). Every single `DV_DATE`/`DV_TIME`/
+`DV_DATE_TIME` node's `inputs[]` across all 23 is the bare
+`[{"type": "DATETIME"}]` (or `DATE`/`TIME`) - zero `validation`/range
+keys, zero pattern/precision hints, nowhere. Confirmed by direct
+inspection, not just a keyword grep coming up empty.
+
+**Decision: do not build this speculatively - same reasoning as
+DV_TEXT.** Unlike DV_DURATION (whose ISO 8601 shape is the RM type's
+own universal, archetype-independent contract), a date/time range or
+partial-pattern constraint is genuinely archetype-specific data with
+**two distinct, unconfirmed WebTemplate JSON shapes** to get right
+(range vs. precision/completeness) - guessing either risks the same
+DV_PROPORTION-style wrong-guess, except here there is no live
+submission to correct it against (no archetype in this system exercises
+either mechanism to test with), and any validation built from a wrong
+guess is a **hard error** with real false-positive risk against
+existing dates. This item stays backlog until a real
+archetype-constrained date/time node turns up - e.g. a birth-date range
+or an ICU timestamp-precision constraint in a newly imported template -
+not attempted blind.
+
+With this, both remaining "unconfirmed" backlog items (#2 DV_TEXT, #4
+DV_DATE/TIME) have now been checked against the same live template
+catalog and found to have zero real examples - this audit pass is
+complete for what's safely buildable today. DV_QUANTITY, DV_IDENTIFIER,
+DV_PROPORTION, DV_ORDINAL, and DV_DURATION are shipped and
+live-verified (#42-#48); DV_TEXT and DV_DATE/TIME stay documented,
+grounded gaps rather than either guessed-at code or silently-dropped
+findings.
 
 ## Deliberately out of scope for this backlog
 
@@ -263,18 +335,22 @@ different shapes to confirm, not one.
   session can run a stale build if it isn't restarted after a
   `packages/mcp-server` change; not a code gap, an environment note.
 
-## Suggested sequencing
+## Sequencing (done)
 
-DV_ORDINAL first - it's the only item here with a *confirmed* code gap
-(zero RM handling anywhere) rather than a suspected one, and clinical
-ordinal scores are common enough that a real WebTemplate example is
-likely findable quickly. DV_TEXT's `C_STRING` pattern and DV_DATE/TIME's
-range-and-partial-pattern constraints should both start with the same
-"find a real example, confirm the `inputs[]` shape" step before any code
-is written - resist the temptation to guess the wire format the way the
-first DV_PROPORTION pass did; it took a live 400 from EHRbase to find
-out the guess was wrong, and it took actually reading the AOM2 spec
-(not recalling it) to catch that the DV_TEXT framing itself was wrong
-before any code was written. DV_DURATION's fix doesn't depend on
-finding a specific archetype at all, so it can slot in whenever
-convenient.
+DV_ORDINAL went first - it was the only item with a *confirmed* code
+gap (zero RM handling anywhere) rather than a suspected one, and a real
+(if imperfect) WebTemplate example turned up quickly
+(`vg_Person.v1.1.1`'s "Versicherungsnummer"). DV_DURATION followed -
+its fix doesn't depend on finding a specific archetype at all, only the
+RM type's own universal format contract. DV_TEXT's `C_STRING` pattern
+and DV_DATE/TIME's range-and-partial-pattern constraints were both
+checked next, exhaustively (23 of 28 templates on the connection,
+direct inspection of every `DV_TEXT`/`DV_DATE`/`DV_TIME`/`DV_DATE_TIME`
+node's `inputs[]`) - both came back with zero real examples, so neither
+was built. That was the right call, not a shortfall: guessing either
+wire format risked a repeat of DV_PROPORTION's first-pass mistake (it
+took a live 400 from EHRbase to catch a wrong guess there), except
+here there is no live submission available to catch a wrong guess
+against, and both would ship as hard validation errors with real
+false-positive risk. Nothing left in this backlog is safely buildable
+without a new real-world template surfacing first.
