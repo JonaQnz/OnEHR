@@ -231,10 +231,13 @@ Already fixed (PR #16): the `openehr-engine` repeat-index regex, the
    unguarded `JSON.parse(text)` - a non-JSON error body (e.g. a proxy 502
    HTML page) throws a raw `SyntaxError` instead of a clean
    `FormbuilderApiError`, degrading the agent-facing error message.
-4. Dead code in `example-n8n-plugin/src/index.ts`: a ~120-line
+4. ✅ Dead code in `example-n8n-plugin/src/index.ts`: a ~120-line
    `workflowPayload()` function that's never called (the plugin actually
    uses `emptyWorkflowPayload()`), plus a user-facing "EHRbase URL für
-   n8n" setting that's computed and then silently discarded.
+   n8n" setting that's computed and then silently discarded. Confirmed
+   absent now (likely via the n8n-provider-to-plugin move) - re-verified
+   this pass with a direct file read: `workflowPayload` is gone,
+   `emptyWorkflowPayload` is the only one left.
 5. `quote()`/`union()` helpers and a diagnostics-array filter predicate
    copy-pasted between `form-scripting/index.ts` and
    `composition-scripting/index.ts`.
