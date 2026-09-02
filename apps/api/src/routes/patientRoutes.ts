@@ -17,6 +17,27 @@ router.post('/sync', requirePermission('patient.search'), asyncHandler(async (_r
 
 import { requireNonEmptyString } from '../validation/formValidation';
 
+// Lets a caller (the Form Builder UI, an agent) check up front whether
+// patient creation is routed through EHRbase directly or the FHIR CDR
+// connector, and - in FHIR mode - which Person Form Section's values it
+// needs, before attempting create_patient. See patientService's own doc
+// comment for why this fails closed instead of silently falling back.
+//
+// MUST be registered before the `/:id` route below: Express matches routes
+// in registration order, and `/:id` matches any single path segment - so
+// `/creation-configuration` (also one segment) was being swallowed by
+// `/:id` (id="creation-configuration") whenever it was registered after
+// it, returning a nonsensical "Patient not found" 404 for a route that
+// never looks up a patient at all. Confirmed live (2026-09-02): the Form
+// Builder UI's own "Patient anlegen" quick-create dialog calls this
+// endpoint first to decide which fields to show, silently got the 404, and
+// fell back to a plain EHRbase-shaped form - which then failed for real at
+// submit time on this (FHIR-mode) deployment with "personFormValues is
+// required", since the UI never knew to collect it.
+router.get('/creation-configuration', requirePermission('patient.search'), (_req, res) => {
+  res.json(getPatientCreationConfiguration());
+});
+
 router.get('/:id', requirePermission('patient.read'), asyncHandler(async (req, res) => {
   const id = requireNonEmptyString(req.params.id, 'id');
   const patient = await getPatient(id);
@@ -39,15 +60,6 @@ router.get('/:id/compositions', requirePermission('patient.read'), asyncHandler(
   const rows = await executeAqlQuery(query, { ehrId: patient.ehrId });
   res.json(rows);
 }));
-
-// Lets a caller (the Form Builder UI, an agent) check up front whether
-// patient creation is routed through EHRbase directly or the FHIR CDR
-// connector, and - in FHIR mode - which Person Form Section's values it
-// needs, before attempting create_patient. See patientService's own doc
-// comment for why this fails closed instead of silently falling back.
-router.get('/creation-configuration', requirePermission('patient.search'), (_req, res) => {
-  res.json(getPatientCreationConfiguration());
-});
 
 router.post('/', requirePermission('patient.search'), asyncHandler(async (req, res) => {
   const { patientId, firstName, lastName, birthDate, gender, personFormValues } = req.body;
