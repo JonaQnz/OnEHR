@@ -64,6 +64,47 @@ export function migrateCanonicalFormToV1(input: unknown, idOverride?: string): F
     throw new Error('"extensions" must be an object');
   }
 
+  // CanonicalForm's remaining fields (name/version/sourceTemplates/layout/
+  // bindings/locales) are all non-optional on the type, but until now
+  // nothing here actually checked them - `input as unknown as
+  // CanonicalForm` let a payload missing any of these through silently,
+  // to fail much later and far from the actual bad data (e.g. a missing
+  // `layout` surfacing as a confusing crash deep inside
+  // `collectRuntimeFields` instead of a clear error right here at the
+  // trust boundary both apps/api and apps/web rely on for every stored
+  // form). Mirrors the equivalent checks apps/api's
+  // `normalizeCanonicalFormPayload` already does, but only at the one
+  // HTTP form-creation endpoint - every other caller (every route/service
+  // that re-loads an already-stored form) calls this function directly
+  // and never passed through those checks.
+  if (!idOverride && typeof input.id !== 'string') {
+    throw new Error('"id" must be a string');
+  }
+  if (typeof input.name !== 'string' || input.name.trim() === '') {
+    throw new Error('"name" must be a non-empty string');
+  }
+  if (typeof input.version !== 'string' || input.version.trim() === '') {
+    throw new Error('"version" must be a non-empty string');
+  }
+  const sourceTemplates = input.sourceTemplates === undefined ? [] : input.sourceTemplates;
+  if (!Array.isArray(sourceTemplates)) {
+    throw new Error('"sourceTemplates" must be an array');
+  }
+  if (!isRecord(input.layout)) {
+    throw new Error('"layout" must be an object');
+  }
+  if (input.layout.type !== 'form') {
+    throw new Error('"layout.type" must be "form"');
+  }
+  const bindings = input.bindings === undefined ? {} : input.bindings;
+  if (!isRecord(bindings)) {
+    throw new Error('"bindings" must be an object');
+  }
+  const locales = input.locales === undefined ? {} : input.locales;
+  if (!isRecord(locales)) {
+    throw new Error('"locales" must be an object');
+  }
+
   const rawForm = input as unknown as CanonicalForm;
   const definition = {
     ...rawForm,
@@ -71,7 +112,10 @@ export function migrateCanonicalFormToV1(input: unknown, idOverride?: string): F
     schemaVersion: FORM_DEFINITION_SCHEMA_VERSION,
     revision: revision as number,
     extensions: extensions as Record<string, JsonValue>,
-    ...(rawForm.layout ? { layout: backfillLegacyBindings(rawForm.layout, rawForm.bindings) } : {}),
+    sourceTemplates: sourceTemplates as CanonicalForm['sourceTemplates'],
+    bindings: bindings as CanonicalForm['bindings'],
+    locales: locales as CanonicalForm['locales'],
+    layout: backfillLegacyBindings(rawForm.layout, rawForm.bindings),
   };
 
   return {
