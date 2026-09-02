@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel a still-running run for the same branch/PR once a newer commit
+# lands, instead of letting both finish.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test suite (packages, api, web)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches the Node version Dockerfile.api/Dockerfile.web actually
+          # ship (node:18-slim / node:18-alpine) - CI should exercise the
+          # same runtime as production, not whatever happens to be newest.
+          node-version: '18'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The root `test` script runs every workspace's own `test` script in
+      # dependency order (core -> openehr-engine -> plugin-api ->
+      # formbuilder-mcp-server -> openehr-architect-mcp -> api -> web),
+      # each of which builds its own package first. None of these require a
+      # running database or EHRbase instance - the api/http-layer tests
+      # mock the service layer directly rather than hitting Postgres, and
+      # the dedicated `test:integration:ehrbase` script (real EHRbase
+      # required) is intentionally NOT part of this - confirmed locally by
+      # running the full suite with no DATABASE_URL set at all.
+      - name: Run test suite
+        run: npm test
+
+  build-web:
+    name: Production build (apps/web)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Mirrors Dockerfile.web's build stage exactly, so a build that would
+      # break the production Docker image fails here first. This step was
+      # added after discovering `npm run build` in apps/web was actually
+      # broken on main (a worker chunk's CJS/ESM interop failed under
+      # Rollup only in production, not in the Vite dev server) - fixed in
+      # the same change that introduced this workflow.
+      - name: Build core package
+        run: npm run build --workspace=core
+
+      - name: Build react-form-builder2 (vendored, built lib consumed by apps/web)
+        run: npm run build:lib --workspace=react-form-builder2
+
+      - name: Build all other packages/plugins apps/web depends on
+        run: npm run build:packages
+
+      - name: Build apps/web (tsc -b && vite build)
+        run: npm run build --workspace=web
