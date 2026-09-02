@@ -35,8 +35,20 @@ test('n8n example plugin provisions a webhook-to-EHRbase workflow from form sett
   process.env.N8N_PUBLIC_URL = 'http://n8n.test';
   process.env.N8N_EHRBASE_URL = 'http://ehrbase.test/ehrbase/rest/openehr/v1';
   try {
-    const registry = new PluginRegistry(silentLogger);
+    // The plugin now reads its own settings via `context.getSettings()`
+    // (backed by this function, keyed by the plugin's own id) instead of a
+    // host-injected `metadata.pluginSettings` - see the
+    // `[[hardcoded-example-plugin-settings-fix]]` memory for why.
+    const registry = new PluginRegistry(silentLogger, undefined, (pluginId) => (
+      pluginId === 'org.example.n8n'
+        ? { webhooks: {
+          beforeLoad: true, afterLoad: true, beforeSave: true, afterSave: true,
+          beforeValidate: true, afterValidate: true, beforeSubmit: true, afterSubmit: true, submit: true,
+        } }
+        : {}
+    ));
     await registry.register(plugin);
+    assert.equal(registry.getDataProvider('n8n')?.id, 'n8n', 'the plugin registers its own n8n FormDataProvider, not apps/api');
     const result = await registry.runAction('org.example.n8n', 'org.example.n8n.provision', {
       form: {
         id: 'form-1',
@@ -47,10 +59,7 @@ test('n8n example plugin provisions a webhook-to-EHRbase workflow from form sett
           beforeValidate: true, afterValidate: true, beforeSubmit: true, afterSubmit: true, submit: true,
         } } } },
       },
-      metadata: { pluginSettings: { webhooks: {
-        beforeLoad: true, afterLoad: true, beforeSave: true, afterSave: true,
-        beforeValidate: true, afterValidate: true, beforeSubmit: true, afterSubmit: true, submit: true,
-      } } },
+      metadata: {},
     });
     assert.equal(result.errors, undefined);
     assert.match(result.message, /erstellt/);

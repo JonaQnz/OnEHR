@@ -1,8 +1,20 @@
-import { FORM_SUBMISSION_PROTOCOL } from 'core';
+/**
+ * n8n `FormDataProvider` - moved here from `apps/api/src/services/n8nDataProvider.ts`
+ * (see the `[[n8n-provider-moved-into-plugin]]` memory for why): this
+ * provider is only ever reachable through a form whose
+ * `settings.submission.workflow` was itself provisioned by THIS plugin's own
+ * `org.example.n8n.provision` action - there is no other way to get a form
+ * into that state. Keeping the provider as core, always-registered
+ * `apps/api` code made it dead code whenever this plugin wasn't loaded (the
+ * default in this deployment), while still needing this exact plugin's own
+ * settings (`apiUrl`/`apiKey`) to do anything. Registering it via
+ * `context.registerFormDataProvider()` means it only exists - and only
+ * ever gets asked for - when this plugin is actually installed.
+ */
 import axios, { type AxiosInstance } from 'axios';
 import type {
   FormDataProvider,
-  FormDataProviderContext,
+  FormDataProviderError,
   FormDataProviderForm,
   FormDataProviderLoadInput,
   FormDataProviderLoadResult,
@@ -10,14 +22,14 @@ import type {
   FormSubmissionEnvelope,
   FormDataProviderSubmitResult,
 } from 'core';
-
+import { FORM_SUBMISSION_PROTOCOL } from 'core';
 import { toOpenEhrFlatComposition } from 'openehr-engine';
-import { getPluginSettings } from './configService';
+
 type ProviderHttp = Pick<AxiosInstance, 'post'>;
 type ProviderResponse = { data: any; headers?: Record<string, any>; status?: number };
 type ProviderMessage = { severity: 'info' | 'warning' | 'error'; code?: string; path?: string; message: string };
 
-export class N8nProviderError extends Error {
+export class N8nProviderError extends Error implements FormDataProviderError {
   public readonly status?: number;
   public readonly code: string;
   public readonly messages?: ProviderMessage[];
@@ -35,11 +47,11 @@ function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-function reachableWorkflowUrl(endpoint: string): string {
+function reachableWorkflowUrl(endpoint: string, getSettings: () => Record<string, unknown>): string {
   try {
     const parsed = new URL(endpoint);
     if (!['localhost', '127.0.0.1', '::1'].includes(parsed.hostname)) return endpoint;
-    const configuredApi = text(getPluginSettings('org.example.n8n').apiUrl);
+    const configuredApi = text(getSettings().apiUrl);
     if (!configuredApi) return endpoint;
     const api = new URL(configuredApi);
     parsed.protocol = api.protocol;
@@ -51,7 +63,7 @@ function reachableWorkflowUrl(endpoint: string): string {
   }
 }
 
-function workflowUrl(form: FormDataProviderForm): string {
+function workflowUrl(form: FormDataProviderForm, getSettings: () => Record<string, unknown>): string {
   const submission = form.definition.settings?.submission;
   if (submission?.mode !== 'workflow' || submission.providerId !== 'n8n') {
     throw new N8nProviderError('Das Formular ist nicht für n8n konfiguriert.', 'N8N_FORM_NOT_CONFIGURED', 409);
@@ -64,14 +76,14 @@ function workflowUrl(form: FormDataProviderForm): string {
   } catch {
     throw new N8nProviderError('Der n8n Webhook ist keine gültige HTTP-URL.', 'N8N_WEBHOOK_INVALID', 422);
   }
-  return reachableWorkflowUrl(endpoint);
+  return reachableWorkflowUrl(endpoint, getSettings);
 }
 
-async function verifyWorkflowBeforeSubmit(form: FormDataProviderForm, endpoint: string): Promise<void> {
+async function verifyWorkflowBeforeSubmit(form: FormDataProviderForm, endpoint: string, getSettings: () => Record<string, unknown>): Promise<void> {
   const workflow = form.definition.settings?.submission?.workflow;
   const workflowId = text(workflow?.workflowId);
   if (!workflowId) return;
-  const settings = getPluginSettings('org.example.n8n');
+  const settings = getSettings();
   const apiUrl = text(settings.apiUrl);
   const apiKey = text(settings.apiKey);
   if (!apiUrl || !apiKey) throw new N8nProviderError('n8n Workflow kann vor dem Absenden nicht geprüft werden: API URL oder API-Key fehlen.', 'N8N_PREFLIGHT_NOT_CONFIGURED', 409);
@@ -103,8 +115,10 @@ export class N8nDataProvider implements FormDataProvider {
   public readonly capabilities = ['submit'] as const;
 
   private readonly http: ProviderHttp;
+  private readonly getSettings: () => Record<string, unknown>;
 
-  constructor(options: { http?: ProviderHttp } = {}) {
+  constructor(getSettings: () => Record<string, unknown>, options: { http?: ProviderHttp } = {}) {
+    this.getSettings = getSettings;
     this.http = options.http || axios;
   }
 
@@ -113,7 +127,7 @@ export class N8nDataProvider implements FormDataProvider {
   }
 
   public async submit(input: FormDataProviderSubmitInput): Promise<FormDataProviderSubmitResult> {
-    const endpoint = workflowUrl(input.form);
+    const endpoint = workflowUrl(input.form, this.getSettings);
     const payload: FormSubmissionEnvelope = {
       protocol: FORM_SUBMISSION_PROTOCOL,
       source: 'formbuilder',
@@ -140,7 +154,7 @@ export class N8nDataProvider implements FormDataProvider {
     };
 
     let response: ProviderResponse;
-    await verifyWorkflowBeforeSubmit(input.form, endpoint);
+    await verifyWorkflowBeforeSubmit(input.form, endpoint, this.getSettings);
     try {
       response = await this.http.post(endpoint, payload, {
         timeout: 15000,
@@ -172,7 +186,7 @@ export class N8nDataProvider implements FormDataProvider {
       const errors = Array.isArray(workflowResult.errors) ? workflowResult.errors : [];
       if (workflowResult.stop === true || errors.length > 0) {
         const first = errors.find((item: any) => item && typeof item.message === 'string');
-      console.info('[N8N PROVIDER RESULT]', JSON.stringify({ status: response.status, notices: workflowResult.notices || [], errors, stop: workflowResult.stop === true, ...(typeof workflowResult.message === 'string' ? { message: workflowResult.message } : {}) }));
+        console.info('[N8N PROVIDER RESULT]', JSON.stringify({ status: response.status, notices: workflowResult.notices || [], errors, stop: workflowResult.stop === true, ...(typeof workflowResult.message === 'string' ? { message: workflowResult.message } : {}) }));
         const notices = Array.isArray(workflowResult.notices) ? workflowResult.notices : [];
         const details = [...errors, ...notices].map((item: any) => typeof item?.message === 'string' ? item.message : '').filter(Boolean).join('; ');
         const resultMessages: ProviderMessage[] = [...errors, ...notices].filter((item: any) => item && typeof item.message === 'string').map((item: any) => ({ severity: item.severity === 'error' || item.severity === 'warning' ? item.severity : 'info', ...(typeof item.code === 'string' ? { code: item.code } : {}), ...(typeof item.path === 'string' ? { path: item.path } : {}), message: item.message }));
@@ -183,4 +197,6 @@ export class N8nDataProvider implements FormDataProvider {
   }
 }
 
-export const n8nDataProvider = new N8nDataProvider();
+export function createN8nDataProvider(getSettings: () => Record<string, unknown>, options?: { http?: ProviderHttp }): FormDataProvider {
+  return new N8nDataProvider(getSettings, options);
+}

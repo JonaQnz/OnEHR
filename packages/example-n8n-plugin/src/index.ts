@@ -1,4 +1,5 @@
 import type { FormBuilderPlugin, JsonObject, PluginHookName } from 'plugin-api';
+import { createN8nDataProvider } from './dataProvider';
 
 function environment(name: string): string | undefined {
   const processLike = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process;
@@ -36,10 +37,12 @@ function logHookResult(hook: string, status: number, body: JsonObject): void {
   else console.info(`[N8N HOOK RESULT] ${summary}`);
 }
 
-function pluginSetting(metadata: JsonObject | undefined, key: string): string | undefined {
-  const settings = metadata?.pluginSettings;
-  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return undefined;
-  return text((settings as JsonObject)[key]);
+// `settings` here is always this plugin's own `context.getSettings()` -
+// read directly, never unwrapped from host-injected hook/action metadata
+// (see the `[[hardcoded-example-plugin-settings-fix]]` memory for the
+// per-plugin-id-hardcoded metadata mechanism this replaced).
+function pluginSetting(settings: JsonObject, key: string): string | undefined {
+  return text(settings[key]);
 }
 
 function lifecyclePath(workflowSlug: string, hook: string): string {
@@ -50,15 +53,13 @@ const LIFECYCLE_HOOKS = ['beforeLoad', 'afterLoad', 'beforeSave', 'afterSave', '
 const ALL_HOOKS = [...LIFECYCLE_HOOKS, 'submit'] as const;
 type HookName = (typeof ALL_HOOKS)[number];
 
-function settingObject(metadata: JsonObject | undefined, key: string): JsonObject {
-  const settings = metadata?.pluginSettings;
-  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return {};
-  const value = (settings as JsonObject)[key];
+function settingObject(settings: JsonObject, key: string): JsonObject {
+  const value = settings[key];
   return value && typeof value === 'object' && !Array.isArray(value) ? value as JsonObject : {};
 }
 
-function enabledHooks(metadata: JsonObject | undefined, workflow: JsonObject): HookName[] {
-  const global = settingObject(metadata, 'webhooks');
+function enabledHooks(settings: JsonObject, workflow: JsonObject): HookName[] {
+  const global = settingObject(settings, 'webhooks');
   const form = workflow.enabledHooks && typeof workflow.enabledHooks === 'object' && !Array.isArray(workflow.enabledHooks) ? workflow.enabledHooks as JsonObject : {};
   return ALL_HOOKS.filter((hook) => {
     const globalDefault = false;
@@ -313,10 +314,11 @@ const plugin: FormBuilderPlugin = {
     apiVersion: '1.0',
     name: 'Example n8n Workflow',
     description: 'Provisioniert pro Formular einen sicheren Webhook-Workflow mit standardisiertem Ergebnisvertrag.',
-    extensionPoints: ['settings', 'workflow', 'lifecycle'],
+    extensionPoints: ['settings', 'workflow', 'lifecycle', 'dataProvider'],
     permissions: ['form:read', 'form:write', 'network:request'],
   },
   activate(context) {
+    context.registerFormDataProvider(createN8nDataProvider(context.getSettings));
     context.registerSettingsPanel({
       key: 'org.example.n8n.connection',
       panelId: 'org.example.n8n.connection',
@@ -382,8 +384,9 @@ const plugin: FormBuilderPlugin = {
         const submission = settings.submission && typeof settings.submission === 'object' && !Array.isArray(settings.submission) ? settings.submission as JsonObject : {};
         if (submission.mode !== 'workflow' || submission.providerId !== 'n8n') return {};
         context.requirePermission('network:request');
-        const configuredApiUrl = pluginSetting(hookContext.metadata, 'apiUrl');
-        const apiKey = pluginSetting(hookContext.metadata, 'apiKey') || environment('N8N_API_KEY');
+        const pluginSettings = context.getSettings() as JsonObject;
+        const configuredApiUrl = pluginSetting(pluginSettings, 'apiUrl');
+        const apiKey = pluginSetting(pluginSettings, 'apiKey') || environment('N8N_API_KEY');
         if (!apiKey) return { errors: [{ path: 'n8n.apiKey', message: 'N8N_API_KEY ist nicht konfiguriert.' }] };
         const workflow = submission.workflow && typeof submission.workflow === 'object' && !Array.isArray(submission.workflow) ? submission.workflow as JsonObject : {};
         if (!workflow.hooks || typeof workflow.hooks !== 'object' || Array.isArray(workflow.hooks)) return {};
@@ -426,25 +429,26 @@ const plugin: FormBuilderPlugin = {
         };
       });
     }
-    context.registerAction('org.example.n8n.provision', async ({ form: inputForm, metadata }) => {
+    context.registerAction('org.example.n8n.provision', async ({ form: inputForm }) => {
       context.requirePermission('form:read');
       context.requirePermission('form:write');
       context.requirePermission('network:request');
-      const configuredApiUrl = pluginSetting(metadata, 'apiUrl');
-      const configuredPublicUrl = pluginSetting(metadata, 'publicUrl');
-      const apiKey = pluginSetting(metadata, 'apiKey') || environment('N8N_API_KEY');
+      const settings = context.getSettings() as JsonObject;
+      const configuredApiUrl = pluginSetting(settings, 'apiUrl');
+      const configuredPublicUrl = pluginSetting(settings, 'publicUrl');
+      const apiKey = pluginSetting(settings, 'apiKey') || environment('N8N_API_KEY');
       if (!apiKey) return { errors: [{ path: 'n8n.apiKey', message: 'N8N_API_KEY ist nicht konfiguriert.' }] };
       const form = formObject(inputForm);
       const formId = text(form.id) || 'form';
       const currentSettings = form.settings && typeof form.settings === 'object' && !Array.isArray(form.settings) ? form.settings as JsonObject : {};
       const currentSubmission = currentSettings.submission && typeof currentSettings.submission === 'object' && !Array.isArray(currentSettings.submission) ? currentSettings.submission as JsonObject : {};
       const currentWorkflow = currentSubmission.workflow && typeof currentSubmission.workflow === 'object' && !Array.isArray(currentSubmission.workflow) ? currentSubmission.workflow as JsonObject : {};
-      const activeHooks = enabledHooks(metadata, currentWorkflow);
+      const activeHooks = enabledHooks(settings, currentWorkflow);
       if (activeHooks.length === 0) return { errors: [{ path: 'n8n.webhooks', message: 'Mindestens ein global aktivierter n8n Webhook muss für dieses Formular ausgewählt sein.' }] };
       const workflowId = text(currentWorkflow.workflowId);
       const configuredPath = text(currentWorkflow.webhookUrl) || (currentWorkflow.hooks && typeof currentWorkflow.hooks === 'object' && !Array.isArray(currentWorkflow.hooks) ? text((currentWorkflow.hooks as JsonObject).submit) : undefined);
       const workflowSlug = configuredPath?.split('/webhook/')[1]?.split('/')[0] || `formbuilder-${slug(formId)}`;
-      const ehrbaseUrl = (pluginSetting(metadata, 'ehrbaseUrl') || environment('N8N_EHRBASE_URL') || environment('EHRBASE_URL') || 'http://localhost:8080/ehrbase/rest/openehr/v1').replace(/\/$/, '');
+      const ehrbaseUrl = (pluginSetting(settings, 'ehrbaseUrl') || environment('N8N_EHRBASE_URL') || environment('EHRBASE_URL') || 'http://localhost:8080/ehrbase/rest/openehr/v1').replace(/\/$/, '');
       const workflow = emptyWorkflowPayload(form, workflowSlug, activeHooks);
       const url = `${apiBase(configuredApiUrl)}/workflows${workflowId ? `/${encodeURIComponent(workflowId)}` : ''}`;
       let response: Response;
