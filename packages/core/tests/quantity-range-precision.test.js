@@ -89,3 +89,15 @@ test('a value in an unrecognized unit is flagged by the existing "unit" check, n
   assert.equal(result.issues.length, 1);
   assert.equal(result.issues[0].code, 'unit');
 });
+
+// Found while adding DV_PROPORTION support alongside this file: numericValue()
+// returns NaN, not undefined, for a non-numeric magnitude STRING wrapped in
+// an otherwise-valid-looking object - the old `magnitude === undefined`
+// guard missed this entirely (only a bare non-object value, or an object
+// with magnitude truly absent, was ever caught). A malformed-but-object-
+// shaped quantity silently produced zero validation issues.
+test('a non-numeric magnitude string inside an otherwise well-formed object is still a type error, not silently accepted', () => {
+  const result = validateRuntimeValues(form(FREQUENZ_UNITS), { frequenz: { magnitude: 'not-a-number', unit: '1/d' } });
+  assert.equal(result.issues.length, 1);
+  assert.equal(result.issues[0].code, 'type');
+});

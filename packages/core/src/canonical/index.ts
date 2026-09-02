@@ -36,6 +36,13 @@ export interface FormElementLayout {
     maxexclusive?: boolean;
     precision?: number;
   }>;
+  /** An 'input-proportion' field's archetype-constrained PROPORTION_KIND
+   * (openEHR RM data_types.html) - see ProportionKind's doc comment in
+   * packages/core/openehr for what each value implies about the
+   * denominator and numerator/denominator integer-ness. Absent means
+   * unconstrained ('ratio' behavior: any numerator/denominator, still
+   * subject to the universal "denominator ≠ 0" invariant). */
+  proportionType?: 'ratio' | 'unitary' | 'percent' | 'fraction' | 'integer_fraction';
   options?: Array<{
     value: string;
     /** Display text, in the UI's preferred language (German-first - see

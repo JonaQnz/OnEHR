@@ -181,8 +181,9 @@ function optionType(node: FormElementLayout): string {
 
 function valueType(node: FormElementLayout): string {
   if (node.type === 'input-boolean') return 'boolean | null';
-  if (['input-number', 'input-proportion', 'input-range'].includes(node.type)) return 'number | null';
+  if (['input-number', 'input-range'].includes(node.type)) return 'number | null';
   if (node.type === 'input-quantity') return '{ magnitude: number; unit: string } | null';
+  if (node.type === 'input-proportion') return '{ numerator: number; denominator?: number } | null';
   if (['input-select', 'input-ordinal'].includes(node.type)) return optionType(node);
   return 'string | null';
 }

@@ -1,4 +1,5 @@
 import { NON_FIELD_LAYOUT_TYPES, type CanonicalForm, type CodeMappingConfig, type FormElementLayout, type JsonPrimitive, type JsonValue, type ValidationIssue } from '../canonical';
+import type { ProportionKind } from '../openehr';
 
 export type RuntimePrimitive = JsonPrimitive;
 export type RuntimeJsonValue = JsonValue;
@@ -18,6 +19,10 @@ export type RuntimeValues = Record<string, RuntimeValue>;
  * "local". */
 export interface RuntimeOption { value: string; text: string; rmValue?: string; terminology?: string; }
 export interface RuntimeUnitOption { unit: string; min?: number; max?: number; minexclusive?: boolean; maxexclusive?: boolean; precision?: number; }
+// See ProportionKind's doc comment (packages/core/openehr) for what each
+// kind means - this is where that meaning is actually enforced, in
+// validateOne's 'input-proportion' branch below.
+const PROPORTION_KIND_DENOMINATOR: Partial<Record<ProportionKind, number>> = { unitary: 1, percent: 100 };
 export interface RuntimeFieldDescriptor {
   id: string; name: string; type: string; label: string; description?: string | undefined;
   required: boolean; readOnly: boolean; options: RuntimeOption[]; unitOptions: RuntimeUnitOption[];
@@ -32,6 +37,8 @@ export interface RuntimeFieldDescriptor {
   /** See FormElementLayout.allowFreeText - a DV_CODED_TEXT|DV_TEXT union;
    * a value not matching any `options` entry is free text, not an error. */
   allowFreeText: boolean;
+  /** See ProportionKind - only meaningful for field.type === 'input-proportion'. */
+  proportionType?: ProportionKind | undefined;
 }
 export interface RuntimeGroupDescriptor {
   id: string;
@@ -41,7 +48,7 @@ export interface RuntimeGroupDescriptor {
 }
 export interface RuntimeValidationIssue extends ValidationIssue {
   path: string;
-  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required' | 'quantity-range' | 'quantity-precision';
+  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required' | 'quantity-range' | 'quantity-precision' | 'proportion-denominator' | 'proportion-type';
 }
 export interface RuntimeValidationResult { valid: boolean; issues: RuntimeValidationIssue[]; }
 
@@ -98,6 +105,7 @@ function toDescriptor(node: FormElementLayout, locales: RuntimeLocales, repeatab
     })),
     allowFreeText: node.allowFreeText === true,
     unitOptions: (node.unitOptions || []).map((option) => typeof option === 'string' ? { unit: option } : { ...option }),
+    ...(node.proportionType ? { proportionType: node.proportionType } : {}),
     validation: node.validation, visibility: node.visibility ?? node.enableWhen,
     repeatable: node.repeatable === true, repeatMin: node.repeatMin ?? 0, repeatMax: node.repeatMax ?? -1,
     ...(repeatableGroupId ? { repeatableGroupId } : {}),
@@ -249,14 +257,40 @@ export function isRuntimeFieldVisible(field: RuntimeFieldDescriptor, values: Run
 
 const empty = (value: RuntimeValue): boolean => value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
 
+function asNumber(value: unknown): number | undefined {
+  return typeof value === 'number' ? value : (typeof value === 'string' && value.trim() ? Number(value) : undefined);
+}
+
 function numericValue(field: RuntimeFieldDescriptor, value: RuntimeValue): number | undefined {
   if (field.type === 'input-quantity') {
     if (!isRecord(value)) return undefined;
-    const magnitude = value.magnitude;
-    return typeof magnitude === 'number' ? magnitude : (typeof magnitude === 'string' && magnitude.trim() ? Number(magnitude) : undefined);
+    return asNumber(value.magnitude);
   }
-  if (['input-number', 'input-proportion', 'input-range'].includes(field.type)) return typeof value === 'number' ? value : (typeof value === 'string' && value.trim() ? Number(value) : undefined);
+  // A DV_PROPORTION runtime value is {numerator, denominator?} (mirrors
+  // input-quantity's {magnitude, unit} shape) - `denominator` is omitted
+  // by the single-field widget for the common 'percent'/'unitary' kinds
+  // (implied by field.proportionType, see PROPORTION_KIND_DENOMINATOR),
+  // present for 'ratio'/'fraction'/'integer_fraction' where it genuinely
+  // varies. This function only ever needs the numerator - see
+  // proportionDenominator() below for the (possibly-implied) denominator.
+  if (field.type === 'input-proportion') {
+    if (!isRecord(value)) return undefined;
+    return asNumber(value.numerator);
+  }
+  if (['input-number', 'input-range'].includes(field.type)) return asNumber(value);
   return undefined;
+}
+
+/** The effective denominator for a DV_PROPORTION value: whatever was
+ * explicitly supplied, or the one PROPORTION_KIND_DENOMINATOR implies for
+ * field.proportionType ('unitary' => 1, 'percent' => 100) when none was.
+ * Returns undefined only for 'ratio'/'fraction'/'integer_fraction'/
+ * unknown-type with no explicit denominator - those kinds have no implied
+ * value, so a missing denominator is a real gap, not something to default. */
+function proportionDenominator(field: RuntimeFieldDescriptor, value: RuntimeValue): number | undefined {
+  const explicit = isRecord(value) ? asNumber(value.denominator) : undefined;
+  if (explicit !== undefined) return explicit;
+  return field.proportionType ? PROPORTION_KIND_DENOMINATOR[field.proportionType] : undefined;
 }
 
 function issue(issues: RuntimeValidationIssue[], path: string, code: RuntimeValidationIssue['code'], message: string, severity?: RuntimeValidationIssue['severity']): void {
@@ -296,7 +330,14 @@ function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path
   if (empty(value)) { if (field.required) issue(issues, path, 'required', `${field.label} is required.`); return; }
   if (field.type === 'input-quantity') {
     const magnitude = numericValue(field, value);
-    if (!isRecord(value) || magnitude === undefined) { issue(issues, path, 'type', `${field.label} requires a numeric quantity.`); return; }
+    // Was `magnitude === undefined` - numericValue()/asNumber() returns
+    // NaN, not undefined, for a non-numeric magnitude string (e.g.
+    // {magnitude: 'abc'}), so that check silently let a genuinely invalid
+    // quantity through as long as the value was an object at all. A bare
+    // non-object value (magnitude missing an object wrapper entirely, e.g.
+    // a plain string) was already caught by !isRecord(value) above it -
+    // this only ever missed the "wrapped but garbage inside" case.
+    if (!isRecord(value) || typeof magnitude !== 'number' || !Number.isFinite(magnitude)) { issue(issues, path, 'type', `${field.label} requires a numeric quantity.`); return; }
     const unit = value.unit;
     if (field.unitOptions.length > 0 && (typeof unit !== 'string' || !unit)) issue(issues, path, 'unit', `${field.label} requires a unit.`);
     else if (field.unitOptions.length > 0 && typeof unit === 'string' && !field.unitOptions.some((option) => option.unit === unit)) issue(issues, path, 'unit', `${field.label} has an unsupported unit.`);
@@ -325,7 +366,52 @@ function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path
       }
     }
   }
-  if (['input-number', 'input-proportion', 'input-range'].includes(field.type) && !Number.isFinite(numericValue(field, value))) { issue(issues, path, 'type', `${field.label} requires a number.`); return; }
+  if (field.type === 'input-proportion') {
+    const numerator = numericValue(field, value);
+    // See the identical fix just above for input-quantity's magnitude
+    // check - same NaN-vs-undefined gap, same reason.
+    if (!isRecord(value) || typeof numerator !== 'number' || !Number.isFinite(numerator)) { issue(issues, path, 'type', `${field.label} requires a numeric proportion.`); return; }
+    // An explicitly-supplied but non-numeric denominator (e.g. {denominator:
+    // 'xyz'}) must be caught here, not left to fall through as if it were
+    // absent - proportionDenominator() only treats a denominator as
+    // "genuinely absent" when the raw value is undefined; asNumber() still
+    // returns NaN, not undefined, for garbage input, exactly the same
+    // distinction the magnitude/numerator check above already makes.
+    if (value.denominator !== undefined && !Number.isFinite(asNumber(value.denominator))) { issue(issues, path, 'type', `${field.label} requires a numeric denominator.`); return; }
+    const denominator = proportionDenominator(field, value);
+    // denominator === 0 is the one universal DV_PROPORTION invariant (RM
+    // spec amendment SPECRM-32: "Add invariant to DV_PROPORTION preventing
+    // 0 denominator") - a real, unconditional RM-validity error, not an
+    // archetype-specific nudge, so this is the one 'proportion-*' issue
+    // that's NOT a warning. It blocks regardless of proportionType,
+    // including when proportionType is unset entirely.
+    if (denominator === 0) { issue(issues, path, 'proportion-denominator', `${field.label}: the denominator must not be 0.`); return; }
+    if (denominator === undefined) {
+      // 'ratio'/'fraction'/'integer_fraction' (or an unrecognized/unset
+      // type) never gets an implied denominator - the field genuinely
+      // needs one supplied, same severity as `required` above (this is
+      // "you didn't finish filling in the value", not archetype drift).
+      issue(issues, path, 'type', `${field.label} requires a denominator.`);
+      return;
+    }
+    // From here on, proportionType-implied checks - warnings, not hard
+    // blocks, matching quantity-range/quantity-precision's own reasoning
+    // just above: PROPORTION_KIND enforcement is new, and nothing has ever
+    // submitted a DV_PROPORTION value in this system yet (confirmed live,
+    // 2026-09-02) so there's no legacy-data risk either way here - kept a
+    // warning anyway for consistency with the rest of this function's
+    // "archetype-constraint checks are advisory" stance, and because a
+    // clinician mid-entry may legitimately have an inconsistent
+    // intermediate state before finishing the field.
+    if (field.proportionType === 'percent' && denominator !== 100) {
+      issue(issues, path, 'proportion-type', `${field.label}: type 'percent' requires a denominator of 100, got ${denominator}.`, 'warning');
+    } else if (field.proportionType === 'unitary' && denominator !== 1) {
+      issue(issues, path, 'proportion-type', `${field.label}: type 'unitary' requires a denominator of 1, got ${denominator}.`, 'warning');
+    } else if ((field.proportionType === 'fraction' || field.proportionType === 'integer_fraction') && (!Number.isInteger(numerator) || !Number.isInteger(denominator))) {
+      issue(issues, path, 'proportion-type', `${field.label}: type '${field.proportionType}' requires both numerator and denominator to be whole numbers.`, 'warning');
+    }
+  }
+  if (['input-number', 'input-range'].includes(field.type) && !Number.isFinite(numericValue(field, value))) { issue(issues, path, 'type', `${field.label} requires a number.`); return; }
   if (field.type === 'input-boolean' && typeof value !== 'boolean') issue(issues, path, 'type', `${field.label} requires a boolean.`);
   if (['input-select', 'input-ordinal'].includes(field.type) && typeof value !== 'string' && !Array.isArray(value)) issue(issues, path, 'type', `${field.label} requires a selected option.`);
   // A DV_CODED_TEXT|DV_TEXT union field (field.allowFreeText, from the OPT

@@ -153,6 +153,32 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     if (!isEmpty(source?.unit)) output[`${key}|unit`] = source?.unit;
     return;
   }
+  if (rmType === 'DV_PROPORTION') {
+    // DV_PROPORTION had no branch here at all before 2026-09-02 - fell
+    // through to the generic `output[key] = value` write, a bare
+    // number/object with no suffix. numerator/denominator/type are always
+    // suffixed sibling keys, same convention as DV_QUANTITY's magnitude/
+    // unit above. `|type` is written using best-effort confidence (see
+    // webTemplateParser.ts's DV_PROPORTION extraction comment for why) -
+    // verify against a live EHRbase submission the first time a real
+    // DV_PROPORTION-bound field is actually built and used. `|precision`
+    // is deliberately not attempted - out of scope for this pass.
+    const numerator = source?.numerator ?? value;
+    if (isEmpty(numerator)) return;
+    output[`${key}|numerator`] = typeof numerator === 'string' && numerator.trim() ? Number(numerator) : numerator;
+    // PROPORTION_KIND_DENOMINATOR (form-runtime/index.ts) is the single
+    // source of truth for which kinds imply a fixed denominator - mirrored
+    // here rather than imported (openehr-engine has no dependency on core's
+    // form-runtime module) so a 'percent'/'unitary' field whose runtime
+    // value only carries `numerator` (the single-field widget - see the
+    // widget UX decision this session) still writes a complete, valid
+    // DV_PROPORTION rather than one missing `denominator` entirely.
+    const impliedDenominator = binding.proportionType === 'unitary' ? 1 : binding.proportionType === 'percent' ? 100 : undefined;
+    const denominator = source?.denominator ?? impliedDenominator;
+    if (!isEmpty(denominator)) output[`${key}|denominator`] = typeof denominator === 'string' && denominator.trim() ? Number(denominator) : denominator;
+    if (binding.proportionType) output[`${key}|type`] = binding.proportionType;
+    return;
+  }
   if (rmType === 'DV_IDENTIFIER') {
     // DV_IDENTIFIER (RM: id 1..1, issuer/assigner/type each 0..1, invariant
     // "not id.is_empty") was falling through to the generic `output[key] =
@@ -453,6 +479,9 @@ interface FieldBinding {
    * separate `groupBindings` map (see below), not here, precisely so this
    * per-member detection keeps working unchanged for either shape. */
   repeatableGroupId?: string;
+  /** See FormElementLayout.proportionType (core/canonical) - only ever set
+   * for a DV_PROPORTION-bound field. */
+  proportionType?: 'ratio' | 'unitary' | 'percent' | 'fraction' | 'integer_fraction';
 }
 
 function layoutFieldBinding(binding: unknown): FieldBinding | undefined {
@@ -526,6 +555,13 @@ function collectFieldBindings(layout: CanonicalForm['layout']): CollectedBinding
       : undefined;
     const codeMappings = node.codeMappings?.enabled ? node.codeMappings : undefined;
     const allowFreeText = (node as unknown as Record<string, unknown>).allowFreeText === true;
+    // Unlike input-quantity's unit (a runtime/user choice, never needed at
+    // write time - see setFlatValue's DV_QUANTITY branch, which only ever
+    // reads the value's own `unit`), a DV_PROPORTION's type is archetype-
+    // fixed and must be known at write time even when the runtime value
+    // only supplies `numerator` (a 'percent'/'unitary' field's implied
+    // denominator - see setFlatValue's DV_PROPORTION branch).
+    const proportionType = text((node as unknown as Record<string, unknown>).proportionType);
     if (isRepeatableContainer && node.id) {
       repeatableGroupIds.add(node.id);
       if (binding) groupBindings.set(node.id, binding);
@@ -535,6 +571,7 @@ function collectFieldBindings(layout: CanonicalForm['layout']): CollectedBinding
         ...(options?.length ? { options } : {}),
         ...(codeMappings ? { codeMappings } : {}),
         ...(allowFreeText ? { allowFreeText } : {}),
+        ...(proportionType ? { proportionType: proportionType as 'ratio' | 'unitary' | 'percent' | 'fraction' | 'integer_fraction' } : {}),
         // The group container's own id never applies to itself as a member -
         // only to its descendants (repeatableGroupId, not childGroupId).
         ...(repeatableGroupId ? { repeatableGroupId } : {}),
@@ -696,6 +733,17 @@ function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: str
     if (rmType === 'DV_QUANTITY') {
       if (!key.endsWith('|magnitude')) continue;
       value = { magnitude: flat[key], unit: flat[key.replace('|magnitude', '|unit')] };
+    } else if (rmType === 'DV_PROPORTION') {
+      // Counterpart read for setFlatValue's DV_PROPORTION branch. Always
+      // reconstructs both numerator and denominator when both are present
+      // in the flat data (mirrors DV_QUANTITY's {magnitude, unit} above) -
+      // even for a 'percent'/'unitary' field whose single-field widget
+      // never asks the user for a denominator, the value it wrote still
+      // has one (implied at write time), and prefilling should show the
+      // real committed value, not silently drop it back to numerator-only.
+      if (!key.endsWith('|numerator')) continue;
+      const denominator = flat[key.replace('|numerator', '|denominator')];
+      value = isEmpty(denominator) ? { numerator: flat[key] } : { numerator: flat[key], denominator };
     } else if (rmType === 'DV_IDENTIFIER') {
       // Counterpart read for setFlatValue's DV_IDENTIFIER branch - `id` is
       // the only attribute any field currently exposes (a plain input-text
