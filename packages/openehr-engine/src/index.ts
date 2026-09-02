@@ -215,7 +215,24 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     if (!isEmpty(source?.type)) output[`${key}|type`] = source?.type;
     return;
   }
-  if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE') {
+  if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE' || rmType === 'DV_ORDINAL') {
+    // DV_ORDINAL best-effort note: RM-wise this is {value: Integer, symbol:
+    // DV_CODED_TEXT} - a strictly richer structure than a plain
+    // DV_CODED_TEXT. Reusing this branch's |code/|value/|terminology write
+    // for it is a hypothesis, not a confirmed convention: no real
+    // WebTemplate example in this system has a populated DV_ORDINAL option
+    // list to test the FLAT wire format against (see
+    // docs/features/rm-type-spec-conformance.md). The reasoning: the
+    // value<->symbol pairing is entirely archetype-fixed per option (same
+    // as a DV_CODED_TEXT dropdown, where only the chosen code is ever
+    // submitted, never the full option metadata) - so EHRbase plausibly
+    // resolves the ordinal integer server-side from the code alone, the
+    // same way it already resolves everything else about a DV_CODED_TEXT
+    // option from its own WebTemplate value set. buildLeafDvValue's
+    // DV_ORDINAL branch (canonicalComposition.ts) is the one actually
+    // exercised on a real browser submission - correct there with higher
+    // confidence, matching the RM spec's unambiguous {value, symbol} shape
+    // directly rather than reusing this FLAT hypothesis.
     // codeMappings.enabled on a DV_CODED_TEXT-bound field must be checked
     // BEFORE the generic CODE_PHRASE handling below, not after - this
     // branch used to live further down as a separate `if`, which a
@@ -770,10 +787,14 @@ function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: str
       // round-trips them structurally; skipped here deliberately.
       if (!key.endsWith('|id')) continue;
       value = flat[key];
-    } else if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE') {
+    } else if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE' || rmType === 'DV_ORDINAL') {
       // A fixed-options DV_CODED_TEXT select's runtime value IS the code
       // (matched against field.options[].value), so |code correctly wins
-      // there whenever both siblings exist. A codeMappings.enabled field is
+      // there whenever both siblings exist - true for DV_ORDINAL too (its
+      // codeMappingsEnabled is always undefined, so this always falls to
+      // the |code branch below; see setFlatValue's DV_ORDINAL comment for
+      // the FLAT-convention caveat this read side shares). A
+      // codeMappings.enabled field is
       // the opposite case: rmType is still reported as DV_CODED_TEXT (it's
       // written to the RM as one, defining_code and all - see
       // buildLeafDvValue), but the field's own runtime semantic is "free

@@ -340,7 +340,7 @@ export function parseWebTemplate(webTemplate: any): {
           }
         }
 
-        const needsOptions = (node.rmType === 'DV_CODED_TEXT' || node.rmType === 'CODE_PHRASE');
+        const needsOptions = (node.rmType === 'DV_CODED_TEXT' || node.rmType === 'CODE_PHRASE' || node.rmType === 'DV_ORDINAL');
         if (needsOptions && node.inputs) {
           const codeInput = node.inputs.find((i: any) => i.suffix === 'code' || i.type === 'CODED_TEXT');
           const listInput = codeInput || node.inputs[0];
@@ -355,6 +355,22 @@ export function parseWebTemplate(webTemplate: any): {
                 // text, so English-default templates (rmValue === text)
                 // don't bloat every option with a redundant duplicate field.
                 ...(rmValue && rmValue !== text ? { rmValue } : {}),
+                // DV_ORDINAL's per-option archetype-fixed integer (RM:
+                // DV_ORDINAL.value, 1..1). Best-effort field name - by
+                // direct analogy with DV_SCALE's CONFIRMED WebTemplate
+                // convention (ehrbase/ehrbase#706: each list entry carries
+                // a numeric `scale` field alongside `value`/`label`, e.g.
+                // {"value": "at0005", "label": "No breathlessness",
+                // "scale": 0.0}) - DV_ORDINAL is DV_SCALE's integer-only
+                // sibling in EHRbase's own WebTemplate generation, so
+                // `ordinal` is the natural parallel name, but this
+                // specific field name is NOT independently confirmed (no
+                // WebTemplate in this system has a populated DV_ORDINAL
+                // list to check against - see
+                // docs/features/rm-type-spec-conformance.md). Verify
+                // against a live get_template_fields result the first
+                // time a real enumerated DV_ORDINAL archetype is found.
+                ...(node.rmType === 'DV_ORDINAL' && typeof l.ordinal === 'number' ? { ordinal: l.ordinal } : {}),
               };
             });
           }
