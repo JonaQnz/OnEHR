@@ -21,10 +21,15 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # Matches the Node version Dockerfile.api/Dockerfile.web actually
-          # ship (node:18-slim / node:18-alpine) - CI should exercise the
-          # same runtime as production, not whatever happens to be newest.
-          node-version: '18'
+          # apps/web's own devDependencies (vite@8, vitest@4) declare
+          # engines requiring Node >=20 - vitest's CLI hard-crashes on
+          # Node 18 at startup ("SyntaxError: The requested module
+          # 'node:util' does not provide an export named 'styleText'",
+          # an export Node only added at 20.12/21.7+). Node 18 (matching
+          # the Dockerfiles, see build-web below) is fine for `vite build`
+          # itself but not for running the test suite - confirmed live by
+          # watching this exact job fail on Node 18 and pass on Node 22.
+          node-version: '22'
           cache: npm
 
       - name: Install dependencies
@@ -41,10 +46,11 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate --schema=apps/api/prisma/schema.prisma
 
-      # The root `test` script runs every workspace's own `test` script in
-      # dependency order (core -> openehr-engine -> plugin-api ->
-      # formbuilder-mcp-server -> openehr-architect-mcp -> api -> web),
-      # each of which builds its own package first. None of these require a
+      # The root `test` script first builds every package/plugin apps/api's
+      # own tests load at runtime (build:packages), then runs every
+      # workspace's own `test` script in dependency order (core ->
+      # openehr-engine -> plugin-api -> openehr-architect-mcp ->
+      # formbuilder-mcp-server -> api -> web). None of these require a
       # running database or EHRbase instance - the api/http-layer tests
       # mock the service layer directly rather than hitting Postgres, and
       # the dedicated `test:integration:ehrbase` script (real EHRbase
