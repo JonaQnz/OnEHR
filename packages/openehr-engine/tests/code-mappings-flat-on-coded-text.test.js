@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { toOpenEhrFlatComposition } = require('../dist');
+const { toOpenEhrFlatComposition, fromOpenEhrFlatComposition } = require('../dist');
 
 // Live bug (2026-09-01): "Diagnose (Basis)"'s diagnose_name - a real
 // production field, WebTemplate rmType DV_CODED_TEXT with codeMappings
@@ -51,4 +51,52 @@ test('a DV_CODED_TEXT-bound codeMappings.enabled field writes the bare-path/mapp
 test('a DV_CODED_TEXT-bound codeMappings.enabled field with no value yet writes nothing', () => {
   const flat = toOpenEhrFlatComposition(definition(), {});
   assert.equal(Object.keys(flat).filter((key) => key.startsWith(PATH)).length, 0);
+});
+
+// Second live bug (2026-09-02), found while verifying the first: prefilling
+// a codeMappings.enabled field from a patient's own prior submission showed
+// the ICD code ("I10") instead of the diagnosis name ("Arterielle
+// Hypertonie") in the text field. Root cause was on the READ side, not the
+// write side covered above. EHRbase serializes a codeMappings.enabled field
+// to the RM as a genuine DV_CODED_TEXT with defining_code (see
+// canonicalComposition.ts's buildLeafDvValue) once committed, so its own
+// FLAT rendering on GET emits the ordinary DV_CODED_TEXT `|value`/`|code`
+// sibling pair - the SAME sibling pair a real fixed-options select would
+// have, just with the opposite runtime meaning (readFlatValue's rmType is
+// reported as DV_CODED_TEXT either way; the two field kinds are only
+// distinguishable via the binding's own codeMappings.enabled flag). Without
+// that flag threaded through, readFlatValue always preferred `|code`,
+// correct for a fixed-options select, backwards here.
+test('prefill: a DV_CODED_TEXT-bound codeMappings.enabled field reads the human-readable |value sibling, not the |code sibling, when EHRbase returns both', () => {
+  const flat = {
+    [`${PATH}|value`]: 'Arterielle Hypertonie',
+    [`${PATH}|code`]: 'I10',
+    [`${PATH}|terminology`]: 'local',
+  };
+  const values = fromOpenEhrFlatComposition(definition(), flat);
+  assert.deepEqual(values.diagnose_name, { value: 'Arterielle Hypertonie' });
+});
+
+// Sibling fixed-options-select case, same FLAT shape, opposite expectation -
+// guards against "fixing" the codeMappings case by just always preferring
+// |value, which would silently break every ordinary coded select instead.
+test('prefill: an ordinary (non-codeMappings) DV_CODED_TEXT select still reads the |code sibling, unaffected by the above', () => {
+  const plainSelectDefinition = {
+    sourceTemplates: [{ alias: 'diag', id: 'diag.v1', version: '1.0.0', type: 'openEhrWebTemplate' }],
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'diagnose_status', type: 'input-select',
+        binding: { path: PATH, rmType: 'DV_CODED_TEXT' },
+        options: [{ text: 'Aktiv', value: 'at0026' }, { text: 'Inaktiv', value: 'at0027' }],
+      }],
+    },
+    bindings: {},
+  };
+  const flat = {
+    [`${PATH}|value`]: 'Aktiv',
+    [`${PATH}|code`]: 'at0026',
+  };
+  const values = fromOpenEhrFlatComposition(plainSelectDefinition, flat);
+  assert.equal(values.diagnose_status, 'at0026');
 });

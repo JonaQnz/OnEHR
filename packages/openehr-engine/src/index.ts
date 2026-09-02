@@ -575,7 +575,7 @@ export function toOpenEhrFlatComposition(definition: CanonicalForm, values: Form
   return flat;
 }
 
-function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: string): unknown {
+function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: string, codeMappingsEnabled?: boolean): unknown {
   const escaped = path.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&').replace(/\\\//g, '(?::\\d+)?/');
   const matcher = new RegExp(`^${escaped}(?::\\d+)?(?:\\|.*)?$`);
   const matches = Object.keys(flat).filter((key) => matcher.test(key));
@@ -597,7 +597,26 @@ function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: str
       if (!key.endsWith('|magnitude')) continue;
       value = { magnitude: flat[key], unit: flat[key.replace('|magnitude', '|unit')] };
     } else if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE') {
-      if (key.endsWith('|code')) value = flat[key];
+      // A fixed-options DV_CODED_TEXT select's runtime value IS the code
+      // (matched against field.options[].value), so |code correctly wins
+      // there whenever both siblings exist. A codeMappings.enabled field is
+      // the opposite case: rmType is still reported as DV_CODED_TEXT (it's
+      // written to the RM as one, defining_code and all - see
+      // buildLeafDvValue), but the field's own runtime semantic is "free
+      // text with an optional code annotation" (see unwrapCodeMappedValue,
+      // core/form-runtime) - readOne below wraps this into {value,
+      // mappings}, and `value` must be the human-readable text, not the
+      // code, or prefilling from a patient's own previously-submitted data
+      // silently swaps a diagnosis name for its ICD code in the visible
+      // field. Confirmed live (2026-09-02): re-prefilling "Kodierte
+      // Diagnose" from a "Diagnose (Basis)" submission of "Arterielle
+      // Hypertonie" (mapped to ICD I10) showed "I10" in the Diagnose text
+      // field instead of the diagnosis name.
+      if (codeMappingsEnabled) {
+        if (key.endsWith('|value')) value = flat[key];
+        else if (key.endsWith('|code') && !matches.includes(key.replace('|code', '|value'))) value = flat[key];
+        else continue;
+      } else if (key.endsWith('|code')) value = flat[key];
       else if (key.endsWith('|value') && !matches.includes(key.replace('|value', '|code'))) value = flat[key];
       else continue;
     } else value = flat[key];
@@ -646,7 +665,7 @@ export function fromOpenEhrFlatComposition(definition: CanonicalForm, compositio
   const { layoutBindings } = collectFieldBindings(definition.layout);
   const processedPaths = new Set<string>();
   const readOne = (binding: FieldBinding, flatPath: string): unknown => {
-    const value = readFlatValue(composition, flatPath, binding.rmType);
+    const value = readFlatValue(composition, flatPath, binding.rmType, binding.codeMappings?.enabled);
     if (isEmpty(value) || !binding.codeMappings?.enabled) return value;
     const mappings = readCodeMappings(composition, flatPath);
     return { value, ...(mappings.length > 0 ? { mappings } : {}) };
