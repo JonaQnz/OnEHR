@@ -2,6 +2,7 @@ import prisma from '../db/prisma';
 import {
   assertFormSessionTransition,
   getCompositionDefinition,
+  isFormDataProviderError,
   isFormRuntimeMode,
   isFormSessionChangeType,
   isFormSessionStatus,
@@ -24,10 +25,9 @@ import { migrateCanonicalFormToV1 } from 'core';
 import { getOpenEhrFormOptions } from 'openehr-engine';
 import { getDataProvider } from './dataProviderRegistry';
 import { EhrbaseProviderError } from './ehrbaseDataProvider';
-import { N8nProviderError } from './n8nDataProvider';
 import { getCompositionRepository } from './compositionRepository';
 import { recordCompositionVersionEvent } from './compositionVersionEvents';
-import { getConfig, getPluginSettings, resolveSessionAlwaysNew } from './configService';
+import { getConfig, resolveSessionAlwaysNew } from './configService';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 import type { PluginHookName, PluginHookResult } from 'plugin-api';
 import { markPatientHasPersonArchetype, resolvePatientReference } from './patientService';
@@ -166,10 +166,14 @@ async function runSessionHook(input: SessionHookInput) {
     userId: input.actor.userId,
     form: input.form as any,
     data: input.data as any,
+    // No plugin's own settings are injected here - every hook handler
+    // already has its own `context` (from `activate(context)`) in closure
+    // scope, and `context.getSettings()` reads that exact plugin's own
+    // persisted settings directly, generically, for any plugin, not just
+    // one hardcoded by id. See `[[hardcoded-example-plugin-settings-fix]]`.
     metadata: {
       ...(input.metadata || {}),
       authMode: input.actor.authMode,
-      pluginSettings: getPluginSettings('org.example.n8n'),
     } as any,
   });
 }
@@ -625,9 +629,17 @@ function isVersionConflict(error: unknown): boolean {
   return error instanceof EhrbaseProviderError && error.code === 'COMPOSITION_VERSION_CONFLICT';
 }
 
+/** Any `FormDataProvider`'s own error translates the same way, whether it's
+ * a built-in provider (EHRbase) or one supplied by a plugin (n8n, or any
+ * future workflow-engine plugin) - detected structurally via
+ * `isFormDataProviderError()`, never by importing a specific provider's
+ * error class. A plugin-supplied provider living in its own package is
+ * never a compile-time dependency of this file. */
 function mapProviderError(error: unknown): never {
-  if (error instanceof EhrbaseProviderError) throw new HttpError(error.status || 502, error.message, { code: error.code });
-  if (error instanceof N8nProviderError) throw new HttpError(error.status && error.status >= 400 && error.status < 500 ? error.status : 502, error.message, { code: error.code, messages: error.messages || [{ severity: 'error', code: error.code, message: error.message }] });
+  if (isFormDataProviderError(error)) {
+    const status = typeof error.status === 'number' && error.status >= 400 && error.status < 600 ? error.status : 502;
+    throw new HttpError(status, error.message, { code: error.code, messages: error.messages ? [...error.messages] : [{ severity: 'error', code: error.code, message: error.message }] });
+  }
   throw error;
 }
 

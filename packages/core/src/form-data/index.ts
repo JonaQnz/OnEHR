@@ -1,12 +1,7 @@
-import type { CanonicalForm, JsonPrimitive, JsonValue } from '../canonical';
+import type { CanonicalForm, JsonValue } from '../canonical';
 import type { FormSessionValues, FormRuntimeMode, UserAuthMode } from '../form-session';
 
 export const FORM_DATA_PROVIDER_API_VERSION = '1.0' as const;
-
-/** @deprecated Use JsonPrimitive from the core contract. */
-export type ProviderJsonPrimitive = JsonPrimitive;
-/** @deprecated Use JsonValue from the core contract. */
-export type ProviderJsonValue = JsonValue;
 
 export interface FormDataProviderContext {
   mode: FormRuntimeMode;
@@ -66,7 +61,7 @@ export interface FormDataProviderLoadResult {
   providerId: string;
   values: FormSessionValues;
   reference?: string;
-  metadata?: Record<string, ProviderJsonValue>;
+  metadata?: Record<string, JsonValue>;
 }
 
 export interface FormDataProviderSubmitInput {
@@ -90,7 +85,7 @@ export interface FormDataProviderSubmitInput {
 export interface FormDataProviderSubmitResult {
   providerId: string;
   reference?: string;
-  metadata?: Record<string, ProviderJsonValue>;
+  metadata?: Record<string, JsonValue>;
 }
 
 export interface FormDataProvider {
@@ -108,4 +103,35 @@ export interface FormDataProvider {
    * capabilities before calling it.
    */
   draft?(input: FormDataProviderSubmitInput): Promise<FormDataProviderSubmitResult>;
+}
+
+export interface FormDataProviderMessage {
+  severity: 'info' | 'warning' | 'error';
+  code?: string;
+  path?: string;
+  message: string;
+}
+
+/**
+ * The shape a `FormDataProvider`'s own thrown errors are expected to carry -
+ * an HTTP-ish `status`/`code` plus optional structured `messages`, on top of
+ * a normal `Error`. Any provider (built into this app, like EHRbase's, or
+ * supplied by a plugin, like n8n's) can throw one of these and have the
+ * caller translate it consistently; callers detect it via
+ * `isFormDataProviderError()` (structural, not `instanceof` a specific
+ * provider's error class) so a provider living in a separate plugin package
+ * never has to be imported by the code that just wants to relay its error -
+ * see the `[[n8n-provider-moved-into-plugin]]` memory for the coupling this
+ * replaced (a host-side `instanceof N8nProviderError` check that forced
+ * `apps/api` to import a class from a plugin package it otherwise no longer
+ * depends on at all).
+ */
+export interface FormDataProviderError extends Error {
+  status?: number;
+  code: string;
+  messages?: readonly FormDataProviderMessage[];
+}
+
+export function isFormDataProviderError(error: unknown): error is FormDataProviderError {
+  return error instanceof Error && typeof (error as { code?: unknown }).code === 'string';
 }

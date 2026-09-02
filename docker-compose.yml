@@ -38,7 +38,6 @@ services:
       - N8N_API_URL=${N8N_API_URL:-http://host.docker.internal:5678/api/v1}
       - N8N_API_KEY=${N8N_API_KEY:-}
       - N8N_PUBLIC_URL=${N8N_PUBLIC_URL:-http://localhost:5678}
-      - N8N_EHRBASE_URL=${N8N_EHRBASE_URL:-http://ehrbase:8080/ehrbase/rest/openehr/v1}
       # Loaded plugin packages, comma-separated npm package names (see
       # pluginRegistry.ts's getConfiguredPluginPackages, which merges this
       # with any packages persisted via AppConfig.pluginPackages). Left

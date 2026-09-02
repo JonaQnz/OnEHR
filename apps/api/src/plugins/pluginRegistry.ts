@@ -1,6 +1,6 @@
 import path from 'path';
 import { FormBuilderPlugin, PluginLogger, PluginManifest, PluginRegistry } from 'plugin-api';
-import { getConfig } from '../services/configService';
+import { getConfig, getPluginSettings } from '../services/configService';
 
 const logger: PluginLogger = {
   debug: (message, details) => console.debug(`[PLUGIN] ${message}`, details || ''),
@@ -16,7 +16,13 @@ export interface PluginPackageStatus {
   error?: string;
 }
 
-export const pluginRegistry = new PluginRegistry(logger);
+// Wires each plugin's `context.getSettings()` to this app's own persisted
+// plugin-settings store, keyed generically by the calling plugin's own id -
+// no plugin gets special-cased here (see the
+// `[[hardcoded-example-plugin-settings-fix]]` memory for the bug this
+// replaced: a shared hook dispatcher used to hardcode one specific plugin's
+// id instead of using this exact mechanism).
+export const pluginRegistry = new PluginRegistry(logger, undefined, getPluginSettings);
 const loadedPackages = new Map<string, string>();
 const failedPackages = new Map<string, string>();
 const packageNamePattern = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;

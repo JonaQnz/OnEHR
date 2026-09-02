@@ -4,6 +4,7 @@ import type {
   CompositionVersion,
   FormDataProvider,
   FormDataProviderContext,
+  FormDataProviderError,
   FormDataProviderForm,
   FormDataProviderLoadInput,
   FormDataProviderLoadResult,
@@ -114,7 +115,7 @@ export interface ContributionDetails {
   versions: ContributionVersionSummary[];
 }
 
-export class EhrbaseProviderError extends Error {
+export class EhrbaseProviderError extends Error implements FormDataProviderError {
   public readonly status?: number;
   public readonly code: string;
 

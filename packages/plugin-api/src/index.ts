@@ -4,8 +4,11 @@ import type {
   JsonValue as CoreJsonValue,
   FormIssue as CoreFormIssue,
   ValidationIssue as CoreValidationIssue,
+  FormDataProvider,
 } from 'core';
 import type { Principal } from 'core';
+
+export type { FormDataProvider } from 'core';
 
 export type JsonPrimitive = CoreJsonPrimitive;
 export type JsonValue = CoreJsonValue;
@@ -295,6 +298,17 @@ export interface PluginActivationContext {
   permissions: readonly PluginPermission[];
   hasPermission(permission: PluginPermission): boolean;
   requirePermission(permission: PluginPermission): void;
+  /**
+   * This plugin's own persisted settings (whatever was saved through its
+   * `settings` contribution's property schema) - read fresh on every call,
+   * not just a snapshot from `activate()` time. The generic replacement for
+   * a plugin reaching for its settings via a host-injected, per-plugin-id
+   * hardcoded metadata key (see `[[hardcoded-example-plugin-settings-fix]]`
+   * memory for the exact bug this replaced) - every registered hook/action
+   * closure already has `context` in scope, so this is always available
+   * without the host needing to know which plugin is asking.
+   */
+  getSettings(): Record<string, unknown>;
   registerContribution(contribution: PluginContribution): void;
   registerFieldType(contribution: Omit<FieldContribution, 'extensionPoint'>): void;
   registerSettingsPanel(contribution: Omit<SettingsContribution, 'extensionPoint'>): void;
@@ -307,6 +321,19 @@ export interface PluginActivationContext {
     handler: PluginAction,
   ): void;
   registerDataProvider(contribution: Omit<DataProviderContribution, 'extensionPoint'>): void;
+  /**
+   * Registers a live, callable `FormDataProvider` implementation - not just
+   * the `DataProviderContribution` metadata `registerDataProvider` above
+   * declares. This is what makes a provider actually reachable via
+   * `getDataProvider(id)` on the host; the metadata contribution is derived
+   * from the provider automatically (id/displayName/capabilities), so a
+   * plugin never has to declare the same information twice. Use this (not a
+   * hardcoded host-side registration) for any provider that only makes sense
+   * when this plugin is actually installed and configured - e.g. a
+   * workflow-engine submission target a form can only be switched to via
+   * this same plugin's own settings panel.
+   */
+  registerFormDataProvider(provider: FormDataProvider): void;
   registerWidgetPackage(contribution: Omit<WidgetPackageContribution, 'extensionPoint'>): void;
   registerWorkflow(contribution: Omit<WorkflowContribution, 'extensionPoint'>): void;
   registerUIExtension(contribution: Omit<UIExtensionContribution, 'extensionPoint'>): void;
@@ -432,10 +459,16 @@ export class PluginRegistry {
   private readonly contributions = new Map<string, RegisteredContribution>();
   private readonly hooks = new Map<PluginHookName, Array<{ pluginId: string; handler: PluginHook }>>();
   private readonly actions = new Map<string, { pluginId: string; handler: PluginAction }>();
+  private readonly dataProviders = new Map<string, { pluginId: string; provider: FormDataProvider }>();
 
   public constructor(
     private readonly logger: PluginLogger = console,
     private readonly pluginTimeoutMs: number = DEFAULT_PLUGIN_TIMEOUT_MS,
+    /** Reads one plugin's own persisted settings by id - backs
+     * `PluginActivationContext.getSettings()`. Optional so a host that has
+     * no persisted-settings concept at all (e.g. a test harness) can still
+     * construct a registry; `getSettings()` then just returns `{}`. */
+    private readonly getPluginSettingsFn?: (pluginId: string) => Record<string, unknown>,
   ) {}
 
   public async register(plugin: FormBuilderPlugin): Promise<void> {
@@ -446,6 +479,7 @@ export class PluginRegistry {
     const pendingContributions: PluginContribution[] = [];
     const pendingHooks: Array<{ name: PluginHookName; handler: PluginHook }> = [];
     const pendingActions: Array<{ actionId: string; handler: PluginAction }> = [];
+    const pendingDataProviders: FormDataProvider[] = [];
     const context: PluginActivationContext = {
       manifest: plugin.manifest,
       host: PLUGIN_HOST_INFO,
@@ -455,6 +489,7 @@ export class PluginRegistry {
       requirePermission: (permission) => {
         if (!(plugin.manifest.permissions || []).includes(permission)) throw new Error(`Plugin ${plugin.manifest.id} requires permission ${permission}`);
       },
+      getSettings: () => (this.getPluginSettingsFn ? this.getPluginSettingsFn(plugin.manifest.id) : {}),
       registerContribution: (contribution) => {
         validateContribution(contribution);
         if (!plugin.manifest.extensionPoints.includes(contribution.extensionPoint)) {
@@ -485,6 +520,27 @@ export class PluginRegistry {
         pendingActions.push({ actionId, handler });
       },
       registerDataProvider: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'dataProvider' }),
+      registerFormDataProvider: (provider) => {
+        if (!provider || typeof provider.id !== 'string' || !provider.id) throw new Error(`Plugin ${plugin.manifest.id} registered a data provider with no id`);
+        if (typeof provider.load !== 'function' || typeof provider.submit !== 'function') {
+          throw new Error(`Plugin ${plugin.manifest.id} data provider ${provider.id} must implement load() and submit()`);
+        }
+        if (this.dataProviders.has(provider.id)) throw new Error(`Data provider ${provider.id} is already registered`);
+        if (pendingDataProviders.some((existing) => existing.id === provider.id)) throw new Error(`Data provider ${provider.id} is already registered`);
+        // Derive the metadata contribution from the provider itself - a
+        // plugin author never has to declare id/displayName/capabilities
+        // twice. `draft` has no DataProviderContribution equivalent (that
+        // capability list predates it); load/submit are the only ones any
+        // host-side listing currently needs to show.
+        context.registerContribution({
+          extensionPoint: 'dataProvider',
+          key: provider.id,
+          providerId: provider.id,
+          label: provider.displayName,
+          capabilities: provider.capabilities.filter((capability): capability is 'load' | 'submit' => capability === 'load' || capability === 'submit'),
+        });
+        pendingDataProviders.push(provider);
+      },
       registerWidgetPackage: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'widget' }),
       registerWorkflow: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'workflow' }),
       registerUIExtension: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'ui' }),
@@ -533,10 +589,24 @@ export class PluginRegistry {
     for (const action of pendingActions) {
       this.actions.set(`${plugin.manifest.id}:${action.actionId}`, { pluginId: plugin.manifest.id, handler: action.handler });
     }
+    for (const provider of pendingDataProviders) {
+      this.dataProviders.set(provider.id, { pluginId: plugin.manifest.id, provider });
+    }
+  }
+
+  public getDataProvider(id: string): FormDataProvider | undefined {
+    return this.dataProviders.get(id)?.provider;
+  }
+
+  public listDataProviders(): FormDataProvider[] {
+    return Array.from(this.dataProviders.values(), (entry) => entry.provider);
   }
 
   public unregister(pluginId: string): boolean {
     if (!this.plugins.delete(pluginId)) return false;
+    for (const [id, entry] of this.dataProviders.entries()) {
+      if (entry.pluginId === pluginId) this.dataProviders.delete(id);
+    }
     for (const [key, contribution] of this.contributions.entries()) {
       if (contribution.pluginId === pluginId) this.contributions.delete(key);
     }

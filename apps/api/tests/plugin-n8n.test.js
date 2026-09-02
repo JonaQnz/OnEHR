@@ -6,7 +6,7 @@ const plugin = require('formbuilder-example-n8n-plugin').default;
 
 const silentLogger = { debug() {}, info() {}, warn() {}, error() {} };
 
-test('n8n example plugin provisions a webhook-to-EHRbase workflow from form settings', async () => {
+test('n8n example plugin provisions a webhook + protocol-adapter workflow from form settings', async () => {
   const requests = [];
   const server = http.createServer((req, res) => {
     let body = '';
@@ -28,15 +28,25 @@ test('n8n example plugin provisions a webhook-to-EHRbase workflow from form sett
     api: process.env.N8N_API_URL,
     key: process.env.N8N_API_KEY,
     public: process.env.N8N_PUBLIC_URL,
-    ehrbase: process.env.N8N_EHRBASE_URL,
   };
   process.env.N8N_API_URL = `http://127.0.0.1:${address.port}/api/v1`;
   process.env.N8N_API_KEY = 'test-key';
   process.env.N8N_PUBLIC_URL = 'http://n8n.test';
-  process.env.N8N_EHRBASE_URL = 'http://ehrbase.test/ehrbase/rest/openehr/v1';
   try {
-    const registry = new PluginRegistry(silentLogger);
+    // The plugin now reads its own settings via `context.getSettings()`
+    // (backed by this function, keyed by the plugin's own id) instead of a
+    // host-injected `metadata.pluginSettings` - see the
+    // `[[hardcoded-example-plugin-settings-fix]]` memory for why.
+    const registry = new PluginRegistry(silentLogger, undefined, (pluginId) => (
+      pluginId === 'org.example.n8n'
+        ? { webhooks: {
+          beforeLoad: true, afterLoad: true, beforeSave: true, afterSave: true,
+          beforeValidate: true, afterValidate: true, beforeSubmit: true, afterSubmit: true, submit: true,
+        } }
+        : {}
+    ));
     await registry.register(plugin);
+    assert.equal(registry.getDataProvider('n8n')?.id, 'n8n', 'the plugin registers its own n8n FormDataProvider, not apps/api');
     const result = await registry.runAction('org.example.n8n', 'org.example.n8n.provision', {
       form: {
         id: 'form-1',
@@ -47,10 +57,7 @@ test('n8n example plugin provisions a webhook-to-EHRbase workflow from form sett
           beforeValidate: true, afterValidate: true, beforeSubmit: true, afterSubmit: true, submit: true,
         } } } },
       },
-      metadata: { pluginSettings: { webhooks: {
-        beforeLoad: true, afterLoad: true, beforeSave: true, afterSave: true,
-        beforeValidate: true, afterValidate: true, beforeSubmit: true, afterSubmit: true, submit: true,
-      } } },
+      metadata: {},
     });
     assert.equal(result.errors, undefined);
     assert.match(result.message, /erstellt/);
@@ -75,7 +82,7 @@ test('n8n example plugin provisions a webhook-to-EHRbase workflow from form sett
     assert.match(requests[3].url, /\/webhook\/formbuilder-form-1\/submit$/);
     assert.equal(registry.unregister('org.example.n8n'), true);
   } finally {
-    for (const [name, value] of Object.entries({ N8N_API_URL: previous.api, N8N_API_KEY: previous.key, N8N_PUBLIC_URL: previous.public, N8N_EHRBASE_URL: previous.ehrbase })) {
+    for (const [name, value] of Object.entries({ N8N_API_URL: previous.api, N8N_API_KEY: previous.key, N8N_PUBLIC_URL: previous.public })) {
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
     }
