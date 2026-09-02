@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import FormBuilders, { ReactFormBuilder, FormElementsEdit, ElementKinds } from 'react-form-builder2';
 const ElementStore = FormBuilders.ElementStore;
@@ -23,10 +23,24 @@ import { API_BASE_URL } from '../integration/apiBaseUrl';
 function LiveJsonEditor({ form, onSave }: { form: any, onSave: (f: any, items: any[]) => void }) {
   const [jsonString, setJsonString] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Autosave used to PUT on every single valid-JSON keystroke - typing a
+  // sentence fired a request per character, each racing every other in
+  // flight with no guarantee the last one to land was the last one typed.
+  // Debounce the network call and abort whichever save is still in flight
+  // before starting the next one, so only the most recent edit ever wins.
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setJsonString(JSON.stringify(form.canonical_json, null, 2));
   }, [form]);
+
+  // Cancel any pending/in-flight autosave on unmount so it doesn't fire (or
+  // land) after this editor is gone.
+  useEffect(() => () => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveAbortRef.current?.abort();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -37,12 +51,22 @@ function LiveJsonEditor({ form, onSave }: { form: any, onSave: (f: any, items: a
       const items = canonicalToFormBuilder(parsed);
       const newForm = { ...form, canonical_json: parsed };
       onSave(newForm, items);
-      
-      fetch(`${API_BASE_URL}/forms/${form.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsed)
-      }).catch(err => console.error("Auto-save failed from JSON view:", err));
+
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        saveAbortRef.current?.abort();
+        const controller = new AbortController();
+        saveAbortRef.current = controller;
+        fetch(`${API_BASE_URL}/forms/${form.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(parsed),
+          signal: controller.signal,
+        }).catch(err => {
+          if (err?.name === 'AbortError') return;
+          console.error("Auto-save failed from JSON view:", err);
+        });
+      }, 500);
 
     } catch (err: any) {
       setError(err.message);
