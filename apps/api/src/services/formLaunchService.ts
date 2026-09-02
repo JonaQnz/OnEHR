@@ -40,13 +40,34 @@ export async function launchForm(input: FormLaunchRequest, actor: SessionActor):
   const load = input.load || 'never';
   if (load !== 'never' && load !== 'provider') throw new HttpError(400, 'load must be never or provider');
 
-  const form = await prisma.form.findUnique({ where: { id: formId } });
-  if (!form) throw new HttpError(404, 'Form not found');
-  if (form.status !== 'published') throw new HttpError(409, 'Only published forms can be launched through the integration API');
+  const requestedForm = await prisma.form.findUnique({ where: { id: formId } });
+  if (!requestedForm) throw new HttpError(404, 'Form not found');
+  // formId is frequently a lineage anchor rather than "the record that's
+  // published right now": a Composition block's own formId is whatever
+  // specific version was published at the time the block was configured,
+  // and that exact row becomes an archived sibling (status flips, a new
+  // row id is minted) the instant anyone publishes a newer version under
+  // the same parent_id - see create_form_draft/publish_form. Without this
+  // resolution, EVERY Composition embedding that Form Section breaks on
+  // its next fresh launch the moment the Form Section's author publishes
+  // a content fix, with no way to recover except manually repointing every
+  // block's formId - defeating the entire point of a reusable Form Section
+  // library. Mirrors GET /forms/parent/:parentId/latest-published, which
+  // LiveForm.tsx already relies on for the exact same reason. Confirmed
+  // live (2026-09-02): launching a Composition's "Person (Basis)" block
+  // failed with "Only published forms can be launched..." right after
+  // publishing a content fix to that Form Section.
+  const form = requestedForm.status === 'published'
+    ? requestedForm
+    : await prisma.form.findFirst({
+        where: { parent_id: requestedForm.parent_id || requestedForm.id, status: 'published' },
+        orderBy: { createdAt: 'desc' },
+      });
+  if (!form) throw new HttpError(409, 'Only published forms can be launched through the integration API');
 
   const initialValues = objectValues(input.initialValues);
   let session = await createFormSession({
-    formId,
+    formId: form.id,
     patientId,
     ...(input.patient.namespace ? { patientNamespace: input.patient.namespace } : {}),
     mode,

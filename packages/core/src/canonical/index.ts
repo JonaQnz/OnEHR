@@ -46,6 +46,19 @@ export interface FormElementLayout {
      * "Vermutet"/"Aktiv" being rejected by EHRbase, which expects
      * "Suspected"/"Active"). */
     rmValue?: string;
+    /** This option's external terminology_id, for the (uncommon) case where
+     * the archetype's own binding requires an external/hosted terminology
+     * (e.g. a FHIR-published ValueSet) rather than openEHR's default local
+     * archetype terminology. Absent for the vast majority of coded fields,
+     * which correctly submit terminology_id "local" - only set this when
+     * EHRbase's own validator rejects "local" for the field (see
+     * openehr-engine's buildLeafDvValue/setFlatValue, which read this in
+     * preference to defaulting to "local"). Live bug this fixes: vg_Person's
+     * Vitalstatus field's archetype binding requires
+     * terminology://fhir.hl7.org//ValueSet/$expand?url=.../ValueSet/Vitalstatus,
+     * not "local" - EHRbase rejected every submission with "terminology_id
+     * does not match" until each option carried this. */
+    terminology?: string;
   }>;
   /** True when this field's underlying openEHR constraint is a
    * DV_CODED_TEXT|DV_TEXT union (a coded value set with a genuine free-text

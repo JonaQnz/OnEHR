@@ -698,6 +698,39 @@ test('allowFreeText: a DV_CODED_TEXT field with a known option still builds a fu
   assert.deepEqual(el.value, { _type: 'DV_CODED_TEXT', value: 'Hauptdiagnose', defining_code: { _type: 'CODE_PHRASE', terminology_id: { _type: 'TERMINOLOGY_ID', value: 'local' }, code_string: 'at0064' } });
 });
 
+// option.terminology - the uncommon case where an archetype's binding
+// requires an external/hosted terminology instead of openEHR's default
+// "local" (e.g. vg_Person's Vitalstatus, bound to a FHIR-published
+// ValueSet). Live bug this fixes (2026-09-02): every submission of such a
+// field was rejected by EHRbase with "terminology_id does not match",
+// because this canonical/structured-RM path always defaulted straight to
+// 'local', ignoring the option's own terminology metadata (unlike
+// setFlatValue, the FLAT-format path, which already read it correctly).
+test('option.terminology overrides the "local" default for a field whose archetype requires an external terminology', () => {
+  const externalTerminologyDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [{
+        id: 'qualifier_category', type: 'input-select',
+        binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0007]', rmType: 'DV_CODED_TEXT' },
+        options: [{ value: 'L', text: 'Patient lebt', terminology: 'terminology://fhir.hl7.org//ValueSet/$expand?url=https://www.medizininformatik-initiative.de/fhir/core/modul-person/ValueSet/Vitalstatus' }],
+      }],
+    },
+  };
+  const composition = buildCanonicalComposition(externalTerminologyDefinition, { qualifier_category: 'L' }, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
+  const el = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0007');
+  assert.deepEqual(el.value, {
+    _type: 'DV_CODED_TEXT',
+    value: 'Patient lebt',
+    defining_code: {
+      _type: 'CODE_PHRASE',
+      terminology_id: { _type: 'TERMINOLOGY_ID', value: 'terminology://fhir.hl7.org//ValueSet/$expand?url=https://www.medizininformatik-initiative.de/fhir/core/modul-person/ValueSet/Vitalstatus' },
+      code_string: 'L',
+    },
+  });
+});
+
 test('allowFreeText: an unmatched value on a DV_CODED_TEXT|DV_TEXT union field serializes as plain DV_TEXT, never a bogus defining_code', () => {
   const freeTextDefinition = {
     ...definition,
