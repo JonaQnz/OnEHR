@@ -9,12 +9,28 @@ export interface QuantityUnitOption {
   precision?: number;
 }
 
+/** openEHR RM PROPORTION_KIND (data_types.html) - the archetype's own
+ * constraint on a DV_PROPORTION node, normally fixed to a single kind per
+ * node (e.g. an oxygen-fraction field is always 'unitary', a lab titer is
+ * always 'ratio'), not chosen per-submission. Each kind implies a fixed
+ * denominator except 'ratio' (free) - 'unitary' => 1, 'percent' => 100 -
+ * and 'fraction'/'integer_fraction' additionally require both numerator
+ * and denominator to be whole numbers. See form-runtime/index.ts's
+ * validateOne 'input-proportion' branch for what actually enforces this. */
+export type ProportionKind = 'ratio' | 'unitary' | 'percent' | 'fraction' | 'integer_fraction';
+
 export interface FieldConstraint {
   min?: number;
   max?: number;
   precision?: number;
   units?: string[];
   unitOptions?: QuantityUnitOption[];
+  /** Best-effort - see webTemplateParser.ts's DV_PROPORTION branch for why
+   * this is extracted defensively rather than with the same confidence as
+   * DV_QUANTITY's unitOptions. Absent (rather than defaulted) when nothing
+   * recognizable was found on the WebTemplate node, so a caller can tell
+   * "genuinely unconstrained" apart from "couldn't determine it". */
+  proportionType?: ProportionKind;
 }
 
 export interface FieldRegistryItem {

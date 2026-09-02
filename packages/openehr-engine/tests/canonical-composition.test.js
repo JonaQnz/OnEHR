@@ -979,3 +979,47 @@ test('EVENT_CONTEXT.start_time uses a bound field\'s real value when the form pr
   const fallback = buildCanonicalComposition(definition, {}, webTemplateTree, { time: '2026-08-26T10:00:00.000Z' });
   assert.equal(fallback.context.start_time.value, '2026-08-26T10:00:00.000Z');
 });
+
+// DV_PROPORTION had no branch in buildLeafDvValue at all before
+// 2026-09-02 - fell through to the generic passthrough
+// ({_type: 'DV_PROPORTION', value: <raw runtime value>}), not a real
+// DV_PROPORTION RM structure. Same ADMIN_ENTRY/vitals fixture shape as the
+// DV_COUNT test above, swapping the leaf's rmType.
+test('DV_PROPORTION serializes as a genuine {numerator, denominator, type} structure, not a generic passthrough', () => {
+  const proportionTree = {
+    id: 'vitals', name: 'Vitals', rmType: 'COMPOSITION', nodeId: 'openEHR-EHR-COMPOSITION.encounter.v1',
+    children: [
+      { id: 'category', name: 'category', rmType: 'DV_CODED_TEXT', min: 1, max: 1, aqlPath: '/category', inputs: [{ suffix: 'code', type: 'CODED_TEXT', list: [{ value: '433', label: 'event' }] }] },
+      { id: 'context', name: 'context', rmType: 'EVENT_CONTEXT', min: 1, max: 1, children: [
+        { id: 'start_time', name: 'start_time', rmType: 'DV_DATE_TIME', min: 1, max: 1, aqlPath: '/context/start_time' },
+        { id: 'setting', name: 'setting', rmType: 'DV_CODED_TEXT', min: 1, max: 1, aqlPath: '/context/setting' },
+      ] },
+      {
+        id: 'vitals_entry', name: 'Vitals', rmType: 'ADMIN_ENTRY', min: 0, max: 1,
+        nodeId: 'openEHR-EHR-ADMIN_ENTRY.vitals.v1', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]',
+        children: [
+          { id: 'fio2', name: 'FiO2', rmType: 'DV_PROPORTION', min: 0, max: 1, nodeId: 'at0002', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0002]' },
+        ],
+      },
+    ],
+  };
+  const proportionDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [
+        { id: 'setting', type: 'select', binding: { path: '/context/setting', rmType: 'DV_CODED_TEXT' }, options: [{ value: '238', text: 'other care' }] },
+        { id: 'fio2', type: 'input-proportion', proportionType: 'unitary', binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0002]', rmType: 'DV_PROPORTION' } },
+      ],
+    },
+  };
+  const composition = buildCanonicalComposition(proportionDefinition, { fio2: { numerator: 0.35 } }, proportionTree, { time: '2026-08-26T10:00:00.000Z' });
+  const fio2El = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0002');
+  assert.equal(fio2El.value._type, 'DV_PROPORTION');
+  assert.equal(fio2El.value.numerator, 0.35);
+  // 'unitary' implies denominator 1 - the field's own single-number widget
+  // never asked for one, but the committed RM value still needs a real,
+  // valid DV_PROPORTION.
+  assert.equal(fio2El.value.denominator, 1);
+  assert.equal(fio2El.value.type, 'unitary');
+});

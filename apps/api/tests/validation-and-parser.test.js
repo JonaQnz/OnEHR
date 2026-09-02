@@ -429,3 +429,45 @@ test('generateCanonicalForm carries the archetype\'s per-unit min/max/precision 
     { unit: '1/h', min: 1, max: 24, precision: 0 },
   ]);
 });
+
+// DV_PROPORTION.type extraction - best-effort (see webTemplateParser.ts's
+// own comment on this branch for why, unlike the DV_QUANTITY case just
+// above which is confirmed against a real WebTemplate example). Exercises
+// the "list resolves to exactly one recognized PROPORTION_KIND" path this
+// parser actually implements.
+function fio2Template() {
+  return {
+    templateId: 'vitals_icu.v1',
+    tree: {
+      id: 'vitals', rmType: 'COMPOSITION', aqlPath: '',
+      children: [{
+        id: 'fio2', name: 'FiO2', rmType: 'DV_PROPORTION',
+        aqlPath: '/content[openEHR-EHR-OBSERVATION.vitals.v2]/data[at0001]/events[at0006]/data[at0003]/items[at0004]',
+        inputs: [{ suffix: 'type', list: [{ value: '1' }] }], // 1 = unitary, per BaseTypes.xsd's PROPORTION_KIND enumeration
+      }],
+    },
+  };
+}
+
+test('generateCanonicalForm carries a resolved, single-valued DV_PROPORTION type through as proportionType', () => {
+  const parsed = parseWebTemplate(fio2Template());
+  const fio2 = parsed.fields.find((field) => field.technicalName === 'fio2');
+  assert.equal(fio2.constraints.proportionType, 'unitary');
+
+  const generated = generateCanonicalForm({
+    name: 'Vitals', templateId: parsed.templateId, alias: parsed.alias,
+    fields: [fio2], id: 'form-proportion-1',
+  });
+  const leaf = findNode(generated.layout, (node) => node.type === 'input-proportion');
+  assert.ok(leaf, 'the generated proportion field exists');
+  assert.equal(leaf.proportionType, 'unitary');
+});
+
+test('a DV_PROPORTION node with no recognizable type input leaves proportionType unset, not defaulted', () => {
+  const parsed = parseWebTemplate({
+    templateId: 'vitals_icu.v1',
+    tree: { id: 'vitals', rmType: 'COMPOSITION', aqlPath: '', children: [{ id: 'ratio_field', name: 'Ratio', rmType: 'DV_PROPORTION', aqlPath: '/content/data/items[at0002]' }] },
+  });
+  const field = parsed.fields.find((f) => f.technicalName === 'ratio_field');
+  assert.equal(field.constraints?.proportionType, undefined);
+});

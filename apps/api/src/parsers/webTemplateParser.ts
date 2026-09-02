@@ -318,6 +318,35 @@ export function parseWebTemplate(webTemplate: any): {
           field.constraints = constraints;
         }
 
+        // DV_PROPORTION's archetype-constrained PROPORTION_KIND ('ratio' /
+        // 'unitary' / 'percent' / 'fraction' / 'integer_fraction' - see
+        // ProportionKind's doc comment, packages/core/openehr). Best-effort,
+        // unlike the DV_QUANTITY unit extraction just above: no live
+        // WebTemplate example with a constrained proportion `type` was
+        // available to confirm the exact `inputs[]` suffix EHRbase emits
+        // for it (nothing in this system currently binds DV_PROPORTION -
+        // confirmed via a DB scan, 2026-09-02). Tries every suffix name
+        // that would be a reasonable guess by analogy with DV_QUANTITY's
+        // own 'unit'/'units' suffix pair, and only assigns proportionType
+        // when the list resolves to exactly one recognized kind - the
+        // common real case (a given clinical concept is normally always
+        // one fixed kind, not a user choice) - rather than guessing among
+        // several. Absent (not defaulted) otherwise, so a caller can tell
+        // "genuinely unconstrained" apart from "the archetype has a type
+        // constraint this parser didn't recognize". Verify and correct
+        // against a real EHRbase WebTemplate the first time a form is
+        // actually built against a DV_PROPORTION-bearing archetype.
+        if (node.rmType === 'DV_PROPORTION' && node.inputs) {
+          const typeInput = node.inputs.find((i: any) => i.suffix === 'type' || i.suffix === 'proportion_type' || i.suffix === 'kind');
+          const rawKinds: string[] = (typeInput?.list || []).map((l: any) => String(l.value ?? l.id ?? '').toLowerCase());
+          const recognized = new Set(['ratio', 'unitary', 'percent', 'fraction', 'integer_fraction', '0', '1', '2', '3', '4']);
+          const numericToKind: Record<string, string> = { '0': 'ratio', '1': 'unitary', '2': 'percent', '3': 'fraction', '4': 'integer_fraction' };
+          const resolvedKinds = [...new Set(rawKinds.filter((kind) => recognized.has(kind)).map((kind) => numericToKind[kind] || kind))];
+          if (resolvedKinds.length === 1) {
+            field.constraints = { ...(field.constraints || {}), proportionType: resolvedKinds[0] as FieldConstraint['proportionType'] };
+          }
+        }
+
         const needsOptions = (node.rmType === 'DV_CODED_TEXT' || node.rmType === 'CODE_PHRASE');
         if (needsOptions && node.inputs) {
           const codeInput = node.inputs.find((i: any) => i.suffix === 'code' || i.type === 'CODED_TEXT');
@@ -538,6 +567,9 @@ export function parseWebTemplate(webTemplate: any): {
         // discarded both, leaving the field free to accept e.g. 0.5 or -3.
         layoutNode.unitOptions = matchedField.constraints.unitOptions
           ?? matchedField.constraints.units.map(u => ({ unit: u }));
+      }
+      if (inputType === 'input-proportion' && matchedField.constraints?.proportionType) {
+        layoutNode.proportionType = matchedField.constraints.proportionType;
       }
 
       if (matchedField.options) {

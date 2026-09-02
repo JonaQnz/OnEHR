@@ -38,6 +38,9 @@ export function generateCanonicalForm(
       inputComponent.unitOptions = field.constraints.unitOptions
         ?? field.constraints.units.map(u => ({ unit: u }));
     }
+    if (inputType === 'input-proportion' && field.constraints?.proportionType) {
+      inputComponent.proportionType = field.constraints.proportionType;
+    }
 
     return {
       type: 'row',

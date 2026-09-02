@@ -62,9 +62,23 @@ function validateValue(
     }
   }
 
+  // {numerator, denominator?} (core's RuntimeFieldDescriptor shape - see
+  // FormRuntime.tsx's input-proportion widget) - `required` above only
+  // catches val being entirely undefined/null/'', not an empty {}, so this
+  // needs its own completeness check, same pattern as input-quantity's
+  // magEmpty/unitEmpty just above (denominator is intentionally NOT
+  // required here even outside the required check - 'percent'/'unitary'
+  // fields never collect one from the user at all).
+  if (node.type === 'input-proportion' && node.required && !isEmpty) {
+    const numerator = val?.numerator;
+    if (numerator === undefined || numerator === null || numerator === '') {
+      errors[errorKey] = `Field "${node.label}" is required.`;
+    }
+  }
+
   // Range validation
   if (!isEmpty && (node.type === 'input-quantity' || node.type === 'input-proportion')) {
-    const magnitude = node.type === 'input-quantity' ? Number(val.magnitude) : Number(val);
+    const magnitude = node.type === 'input-quantity' ? Number(val.magnitude) : Number(val?.numerator);
     if (!isNaN(magnitude)) {
       if (node.validation?.min !== undefined && magnitude < node.validation.min) {
         errors[errorKey] = `Value for "${node.label}" must be at least ${node.validation.min}.`;

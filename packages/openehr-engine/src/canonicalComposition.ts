@@ -259,6 +259,23 @@ function buildLeafDvValue(rmType: string | undefined, field: RuntimeFieldDescrip
     }
     return { _type: 'DV_TEXT', value: String(value) };
   }
+  if (rmType === 'DV_PROPORTION') {
+    // Had no branch here at all before 2026-09-02 (fell through to the
+    // generic passthrough below, `{_type: 'DV_PROPORTION', value: <raw
+    // runtime value>}` - not a real DV_PROPORTION structure at all). See
+    // openehr-engine/index.ts's setFlatValue DV_PROPORTION branch for the
+    // FLAT-path sibling fix and the same "|type| best-effort, unverified
+    // against a live EHRbase submission" caveat - applies here too.
+    const numerator = source?.numerator ?? value;
+    const impliedDenominator = field?.proportionType === 'unitary' ? 1 : field?.proportionType === 'percent' ? 100 : undefined;
+    const denominator = source?.denominator ?? impliedDenominator;
+    return {
+      _type: 'DV_PROPORTION',
+      numerator: typeof numerator === 'string' ? Number(numerator) : numerator,
+      ...(denominator !== undefined ? { denominator: typeof denominator === 'string' ? Number(denominator) : denominator } : {}),
+      ...(field?.proportionType ? { type: field.proportionType } : {}),
+    };
+  }
   if (rmType === 'DV_IDENTIFIER') {
     if (source) return { _type: 'DV_IDENTIFIER', ...source };
     // A field bound straight to a DV_IDENTIFIER slot with no dedicated

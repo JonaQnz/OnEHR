@@ -100,7 +100,10 @@ function inputType(node: FormElementLayout): string {
   if (node.type === 'input-date-time') return 'datetime-local';
   if (node.type === 'input-time') return 'time';
   if (node.type === 'input-date') return 'date';
-  if (node.type === 'input-number' || node.type === 'input-proportion') return 'number';
+  // input-proportion has its own dedicated branch below (a {numerator,
+  // denominator?} object, never a bare number) - never reaches this
+  // generic fallback, so it's deliberately not included here.
+  if (node.type === 'input-number') return 'number';
   return 'text';
 }
 
@@ -690,6 +693,36 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     if (node.type === 'input-quantity') {
       const quantity = value && typeof value === 'object' ? value as Record<string, unknown> : {};
       return <div style={{ display: 'flex', gap: '0.5rem' }}><input style={{ ...style, flex: 1 }} type="number" disabled={disabled} value={String(quantity.magnitude ?? '')} onChange={(event) => onChange({ ...quantity, magnitude: event.target.value === '' ? null : Number(event.target.value) })} />{field.unitOptions.length > 0 ? <select style={{ ...style, maxWidth: '10rem' }} disabled={disabled} value={String(quantity.unit || '')} onChange={(event) => onChange({ ...quantity, unit: event.target.value })}><option value="">Einheit</option>{field.unitOptions.map((option) => <option key={option.unit} value={option.unit}>{option.unit}</option>)}</select> : null}</div>;
+    }
+    if (node.type === 'input-proportion') {
+      // DV_PROPORTION runtime value: {numerator, denominator?} - mirrors
+      // input-quantity's {magnitude, unit} shape just above. Widget UX
+      // decision (2026-09-02): for the common 'percent'/'unitary' kinds the
+      // denominator is fixed by the archetype (100 / 1) and never shown -
+      // one plain number field, exactly like input-number. Every other
+      // kind ('ratio'/'fraction'/'integer_fraction', or no proportionType
+      // at all, i.e. genuinely unconstrained) shows numerator AND
+      // denominator side by side, since both vary. The denominator itself
+      // is filled in server-side (setFlatValue/buildLeafDvValue) when
+      // implied, not by this widget - so the single-field case's onChange
+      // only ever touches `numerator`.
+      const proportion = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+      const impliedDenominator = field.proportionType === 'unitary' || field.proportionType === 'percent';
+      if (impliedDenominator) {
+        return (
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input style={{ ...style, flex: 1 }} type="number" disabled={disabled} value={String(proportion.numerator ?? '')} onChange={(event) => onChange(event.target.value === '' ? null : { numerator: Number(event.target.value) })} />
+            {field.proportionType === 'percent' ? <span style={{ color: '#64748b', fontSize: '0.85rem' }}>%</span> : null}
+          </div>
+        );
+      }
+      return (
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <input style={{ ...style, flex: 1 }} type="number" disabled={disabled} placeholder="Zähler" value={String(proportion.numerator ?? '')} onChange={(event) => onChange({ ...proportion, numerator: event.target.value === '' ? null : Number(event.target.value) })} />
+          <span style={{ color: '#94a3b8' }}>/</span>
+          <input style={{ ...style, flex: 1 }} type="number" disabled={disabled} placeholder="Nenner" value={String(proportion.denominator ?? '')} onChange={(event) => onChange({ ...proportion, denominator: event.target.value === '' ? null : Number(event.target.value) })} />
+        </div>
+      );
     }
     if (node.uiElement === 'Range' || node.type === 'input-range') return <input style={style} type="range" disabled={disabled} min={node.min_value ?? field.validation?.min ?? 0} max={node.max_value ?? field.validation?.max ?? 100} step={node.step ?? 1} value={Number(value ?? node.min_value ?? 0)} onChange={(event) => onChange(Number(event.target.value))} />;
     if (field.codeMappings?.enabled) {
