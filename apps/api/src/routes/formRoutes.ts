@@ -18,8 +18,8 @@ import {
   hydrateFormScriptConnectors,
   ScriptConnectorError,
 } from '../services/scriptConnectorRegistry';
-import { requirePermission } from '../middleware/auth';
-import { executeStoredAqlFunctionRecord } from '../services/aqlFunctionService';
+import { deriveAuthMode, requirePermission } from '../middleware/auth';
+import { buildSessionRuntimeContext, executeStoredAqlFunctionRecord } from '../services/aqlFunctionService';
 import { executeDataWidget } from '../services/dataWidgetService';
 import { resolvePatientReference } from '../services/patientService';
 import { diffRowsSince } from '../services/compositionDataDiff';
@@ -341,6 +341,38 @@ router.get('/:id/audit-bindings', asyncHandler(async (req, res) => {
   const webTemplate = await getRemoteWebTemplate(templateId);
   const findings = auditFormBindings(canonicalForm, webTemplate?.tree);
   res.json({ templateId, findings });
+}));
+
+/**
+ * Same context a real launched Form Session would carry (context.composition,
+ * context.aql from the form's imported AqlFunctions) - but computed ad hoc
+ * against a designer-supplied patient/EHR, without creating a FormSession
+ * row. Powers FormBuilder.tsx's Preview tab ("Test-Patient für
+ * AQL-Vorbelegung"), so a designer can see beforeLoad prefill scripts run
+ * against real data before ever launching the form for a real patient.
+ * See docs/features/aql-prefill.md.
+ */
+router.post('/:id/preview-context', asyncHandler(async (req, res) => {
+  const formId = requireNonEmptyString(req.params.id, 'id');
+  const stored = await prisma.form.findUnique({ where: { id: formId } });
+  if (!stored) throw new HttpError(404, 'Form not found');
+  const definition = migrateCanonicalFormToV1({ ...(stored.canonical_json as any), id: stored.id }, stored.id);
+  const patientId = typeof req.body?.patientId === 'string' && req.body.patientId.trim() ? req.body.patientId.trim() : 'preview';
+  const patientNamespace = typeof req.body?.patientNamespace === 'string' && req.body.patientNamespace.trim() ? req.body.patientNamespace.trim() : undefined;
+  const ehrId = typeof req.body?.ehrId === 'string' && req.body.ehrId.trim() ? req.body.ehrId.trim() : undefined;
+  const context = await buildSessionRuntimeContext(
+    { id: stored.id, version: stored.version, definition },
+    {
+      mode: 'prefill',
+      patientId,
+      ...(patientNamespace ? { patientNamespace } : {}),
+      ...(ehrId ? { ehrId } : {}),
+      sessionId: 'preview',
+      userId: req.principal?.userId || 'anonymous',
+      authMode: deriveAuthMode(req.principal?.authSource),
+    },
+  );
+  res.json(context);
 }));
 
 router.post('/:id/script/check', asyncHandler(async (req, res) => {

@@ -23,9 +23,12 @@ import { ExtensionSlot, ExtensionWrapperSlot, useFrontendPlugins } from './Front
 import { ClinicalGrid } from './layout/ClinicalLayout';
 import {
   FormScriptClient,
+  type FormScriptFieldProvenance,
   type FormScriptLifecycleResult,
+  type FormScriptPrefillConflict,
   type FormScriptUiState,
 } from '../scripting/runtime/FormScriptClient';
+import { PrefillConflictDialog, type PrefillConflictItem } from './PrefillConflictDialog';
 
 type RuntimeDefinition = CanonicalForm | FormDefinitionV1;
 type GroupRow = Record<string, unknown>;
@@ -372,6 +375,17 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   const [uiStates, setUiStates] = useState<Record<string, FormScriptUiState>>({});
   const [scriptErrors, setScriptErrors] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<{ level: string; message: string } | null>(null);
+  // Which of the currently-set field values came from field(id).prefill(...)
+  // rather than a clinician's own entry - drives the small provenance
+  // badge next to a field. Keyed by field id; a field with no entry here
+  // (or explicitly null) was set some other way. See
+  // docs/features/aql-prefill.md.
+  const [fieldProvenance, setFieldProvenance] = useState<Record<string, FormScriptFieldProvenance | null>>({});
+  // Prefill attempts currently awaiting a clinician's decision (see
+  // PrefillConflictDialog) - the Form Script's own field(id).prefill(...)
+  // call is suspended until resolvePrefillConflicts() answers every one
+  // of these by requestId.
+  const [pendingPrefillConflicts, setPendingPrefillConflicts] = useState<PrefillConflictItem[]>([]);
   const valuesRef = useRef(values);
   const nonPersistedIdsRef = useRef(new Set<string>());
   const scriptClientRef = useRef<FormScriptClient | null>(null);
@@ -434,7 +448,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
         ...scriptRuntimeContext,
       },
       runtimeFunctions: runtimeContext?.codeFunctions || [],
-      onSetValue: (id, value, persist) => {
+      onSetValue: (id, value, persist, provenance) => {
         if (persist) nonPersistedIdsRef.current.delete(id);
         else nonPersistedIdsRef.current.add(id);
         setValues((previous) => {
@@ -442,6 +456,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
           valuesRef.current = next;
           return next;
         });
+        setFieldProvenance((previous) => (previous[id] === provenance ? previous : { ...previous, [id]: provenance }));
       },
       onUpdateValues: (nextValues, persist) => {
         Object.keys(nextValues).forEach((id) => {
@@ -463,6 +478,15 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
         }));
       },
       onToast: (level, message) => setToast({ level, message }),
+      onPrefillConflict: (conflict: FormScriptPrefillConflict) => {
+        setPendingPrefillConflicts((previous) => [...previous, {
+          requestId: conflict.requestId,
+          fieldId: conflict.fieldId,
+          fieldLabel: fieldById.get(conflict.fieldId)?.label,
+          currentValue: conflict.currentValue,
+          prefillValue: conflict.prefillValue,
+        }]);
+      },
     });
     scriptClientRef.current = client;
     void client.ready()
@@ -482,6 +506,10 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
 
     return () => {
       if (scriptClientRef.current === client) scriptClientRef.current = null;
+      // Any conflict this client raised is now unanswerable (its worker is
+      // gone) - drop it rather than leave a dialog open referencing a dead
+      // requestId.
+      setPendingPrefillConflicts([]);
       void client.destroy(valuesRef.current);
     };
   }, [
@@ -500,6 +528,12 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     scriptIds,
     scriptRuntimeContext,
   ]);
+
+  const resolvePrefillConflicts = (resolutions: Array<{ requestId: string; apply: boolean }>) => {
+    resolutions.forEach(({ requestId, apply }) => scriptClientRef.current?.resolvePrefillConflict(requestId, apply));
+    const resolvedIds = new Set(resolutions.map((item) => item.requestId));
+    setPendingPrefillConflicts((previous) => previous.filter((item) => !resolvedIds.has(item.requestId)));
+  };
 
   useImperativeHandle(ref, () => ({
     runLifecycle: async (name) => (
@@ -823,12 +857,23 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
       ? Array.from({ length: field.repeatMin }, () => undefined)
       : repeated;
 
+    const thisFieldProvenance = groupContext ? undefined : fieldProvenance[id];
     return (
       <div key={basePath} style={{ marginBottom: '1.15rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-          <label style={{ fontWeight: 600, margin: 0 }}>
-            {effectiveField.label}
-            {effectiveField.required && <span style={{ color: '#dc2626' }}> *</span>}
+          <label style={{ fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>
+              {effectiveField.label}
+              {effectiveField.required && <span style={{ color: '#dc2626' }}> *</span>}
+            </span>
+            {thisFieldProvenance && (
+              <span
+                title={thisFieldProvenance.timestamp ? `Aus AQL geladen: ${new Date(thisFieldProvenance.timestamp).toLocaleString('de-DE')}` : 'Aus AQL geladen'}
+                style={{ fontSize: '0.72rem', fontWeight: 500, color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '999px', padding: '0.05rem 0.55rem' }}
+              >
+                ⤓ {thisFieldProvenance.source}{thisFieldProvenance.timestamp ? ` · ${new Date(thisFieldProvenance.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : ''}
+              </span>
+            )}
           </label>
           <ExtensionSlot name="form:field:actions" context={{ fieldId: id, groupId: groupContext?.groupId, rowIndex: groupContext?.index, readOnly }} />
         </div>
@@ -986,6 +1031,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   return (
     <ExtensionWrapperSlot name="form:wrapper" context={{ values, setValues, definition, patientId, ehrId, encounterId }}>
       {formContent}
+      <PrefillConflictDialog conflicts={pendingPrefillConflicts} onResolve={resolvePrefillConflicts} />
     </ExtensionWrapperSlot>
   );
 });

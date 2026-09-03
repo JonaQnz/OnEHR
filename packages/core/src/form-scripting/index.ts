@@ -94,8 +94,19 @@ function walk(node: FormElementLayout, visit: (node: FormElementLayout) => void)
 }
 
 function nodeId(node: FormElementLayout): string | undefined {
-  // Use technical name (node.name) if available, fallback to internal id
-  return node.name || node.id;
+  // Must match form-runtime/index.ts's own nodeId() exactly: `id || name`,
+  // not `name || id`. This file only generates the FieldId/GroupId type
+  // union a designer sees in the Script Editor - but the *runtime* values
+  // object (and the DOM inputs bound to it) are keyed by whatever
+  // form-runtime's nodeId() picks. Any field whose canonical `id` and
+  // `name` differ (the norm for openEHR-bound fields, e.g. id "test_name"
+  // vs name "vg_observationlab.v1.2.0_test_name") used to get offered the
+  // `name` as its FieldId - a key the runtime never reads, so
+  // field(id).setValue()/.prefill() silently no-op'd on script-set fields:
+  // the change event log showed the value "changing", but no DOM input
+  // ever re-rendered with it. Found live 2026-09-03 verifying AQL prefill
+  // against vg_ObservationLab.v1.2.0. See docs/features/aql-prefill.md.
+  return node.id || node.name;
 }
 
 function union(values: readonly string[]): string {
@@ -340,10 +351,22 @@ ${connectorCatalogProperties}
 
   export interface SetValueOptions { emitChange?: boolean; }
   export interface ChangeHandlerOptions { debounce?: number; cancelPrevious?: boolean; }
+  export interface PrefillMeta {
+    /** Shown next to the field as this value's provenance - typically the
+     * imported AQL function's "package.name", but any short label works. */
+    source: string;
+    timestamp?: string;
+  }
+
   export interface FieldApi<T> {
     readonly value: T | undefined;
     setValue(value: T, options?: SetValueOptions): void;
     clear(options?: SetValueOptions): void;
+    /** Applies an AQL-sourced value, or - if the field already holds a
+     * different, non-prefill value (a clinician's own entry) - asks the
+     * host via a conflict dialog first. Resolves once the value actually
+     * landed (or the clinician declined). See docs/features/aql-prefill.md. */
+    prefill(value: T, meta: PrefillMeta): Promise<{ applied: boolean }>;
     onChange(handler: (event: ChangeEvent<T>) => MaybePromise<void>, options?: ChangeHandlerOptions): void;
     validate(handler: (value: T | undefined, context: ValidationContext) => MaybePromise<string | null | undefined>): void;
   }
@@ -509,6 +532,13 @@ ${connectorCatalogProperties}
     ): Promise<ConnectorCatalog[C][O] extends { output: infer R } ? R : never>;
   }
 
+  /** Built-in helper for resolving a value out of an AQL result row - see
+   * context.aql above for where the row data itself comes from. Not a
+   * function package (functions.*) - always available, core runtime. */
+  export interface AqlApi {
+    resolvePath(result: unknown, path: string): unknown;
+  }
+
   export interface FormScriptSdk {
     form: FormApi;
     ui: UiApi;
@@ -516,6 +546,7 @@ ${connectorCatalogProperties}
     context: FormScriptContext;
     /** Synchronous, browser-safe functions contributed by installed function packages. */
     functions: Record<string, Record<string, (...args: unknown[]) => unknown>>;
+    aql: AqlApi;
     state: StateApi;
     events: EventApi;
     logger: LoggerApi;

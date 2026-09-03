@@ -12,3 +12,4 @@ export * from './auth';
 export * from './composition';
 export * from './composition-scripting';
 export * from './composition-history';
+export * from './aql-runtime';

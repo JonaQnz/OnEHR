@@ -1,3 +1,14 @@
+// Deep-imports the one submodule this worker actually needs instead of
+// `from 'core'` (core's full barrel index.ts) - something transitively
+// pulled in by that barrel trips the same CJS/ESM interop failure the
+// root vite.config.ts's `core` source alias exists to avoid in the first
+// place ("Uncaught ReferenceError: exports is not defined", confirmed
+// live: this worker is bundled as its own module graph, separate from
+// the main app's, and apparently doesn't get the same clean resolution
+// for every one of core's submodules). aql-runtime has no dependencies
+// of its own, so importing just this path sidesteps whatever the culprit
+// elsewhere in the barrel is.
+import { resolveAqlResultPath } from 'core/aql-runtime';
 import { buildGlobalFunctionsObject } from './registeredFunctions';
 
 export interface FormScriptUiState {
@@ -71,6 +82,7 @@ type HostMessage =
   | { type: 'lifecycle'; name: LifecycleName; requestId: string; values: Record<string, unknown> }
   | { type: 'validate'; requestId: string; values: Record<string, unknown> }
   | { type: 'api:response'; requestId: string; result?: unknown; error?: string; code?: string; durationMs?: number }
+  | { type: 'prefill:resolve'; requestId: string; apply: boolean }
   | { type: 'ui-event'; event: 'focus' | 'blur'; id: string }
   | { type: 'button'; id: string }
   | { type: 'destroy'; requestId: string };
@@ -101,6 +113,16 @@ interface PendingApiRequest {
   resolve(value: unknown): void;
   reject(error: Error): void;
   cleanup(): void;
+}
+
+interface FieldProvenance {
+  kind: 'prefill';
+  source: string;
+  timestamp?: string;
+}
+
+interface PendingPrefillRequest {
+  resolve(apply: boolean): void;
 }
 
 const workerScope = self as unknown as {
@@ -139,10 +161,20 @@ const validatorErrors = new Map<string, string>();
 const pendingChanges: ChangePayload[] = [];
 const pendingApiRequests = new Map<string, PendingApiRequest>();
 const apiButtonPending = new Map<string, number>();
+// Tracks, per field id, whether the current value came from an AQL
+// prefill run rather than a clinician's own entry - lets a repeated
+// prefill() call refresh its own previously-set value silently (no
+// conflict), while still catching a real collision with something the
+// clinician actually typed. Cleared whenever the field changes through
+// any other path (plain setValue(), or a 'change' message reporting a
+// real user edit) - see setFieldValue()/the 'change' message handler.
+const provenance = new Map<string, FieldProvenance>();
+const pendingPrefillRequests = new Map<string, PendingPrefillRequest>();
 let changePump: Promise<void> | undefined;
 let changePumpSuspended = 0;
 let logSequence = 0;
 let apiSequence = 0;
+let prefillSequence = 0;
 let lastPostedErrors = '';
 
 const equal = (left: unknown, right: unknown): boolean => {
@@ -504,10 +536,69 @@ function setFieldValue(
   const previousValue = values[id];
   if (equal(previousValue, value)) return;
   values[id] = value;
-  post('form:set-value', { id, value, persist });
+  // Reflects provenance.get(id) as of THIS call - prefillFieldValue()
+  // sets it before calling setFieldValue(), the plain setValue()/clear()
+  // SDK methods clear it before calling setFieldValue(), so whichever ran
+  // last is what gets posted here.
+  post('form:set-value', { id, value, persist, provenance: provenance.get(id) || null });
   if (options.emitChange !== false) {
     enqueueChange({ id, value, previousValue, source, initialLoad: false });
   }
+}
+
+/**
+ * Applies (or, on conflict, offers to apply) an AQL-sourced value to a
+ * field. An empty field, or one whose current value already came from a
+ * previous prefill() call (a refresh, not an overwrite), is updated
+ * directly. Anything else - a clinician's own entry already sitting there
+ * - is never silently overwritten: this asks the host, which shows one
+ * dialog per field, or batches several concurrent conflicts (e.g. a
+ * beforeLoad loop prefilling many fields at once) into a single dialog -
+ * see FormRuntime.tsx's usePrefillConflicts. Mirrors the existing
+ * api:call/api:response request pattern above (callApi()) rather than
+ * inventing a new protocol.
+ */
+function prefillFieldValue(
+  id: string,
+  value: unknown,
+  meta: { source: string; timestamp?: string },
+): Promise<{ applied: boolean }> {
+  assertKnown('fields', id);
+  const previousValue = values[id];
+  const isEmpty = previousValue === undefined || previousValue === null || previousValue === '';
+  const isRefreshOfPriorPrefill = provenance.get(id)?.kind === 'prefill';
+  const apply = () => {
+    provenance.set(id, { kind: 'prefill', source: meta.source, ...(meta.timestamp ? { timestamp: meta.timestamp } : {}) });
+    setFieldValue(id, value, undefined, 'script');
+  };
+  if (isEmpty || isRefreshOfPriorPrefill || equal(previousValue, value)) {
+    apply();
+    return Promise.resolve({ applied: true });
+  }
+  const requestId = `prefill-${Date.now()}-${++prefillSequence}`;
+  return new Promise<{ applied: boolean }>((resolve) => {
+    pendingPrefillRequests.set(requestId, {
+      resolve: (shouldApply) => {
+        if (shouldApply) apply();
+        resolve({ applied: shouldApply });
+      },
+    });
+    post('prefill:conflict', {
+      requestId,
+      fieldId: id,
+      currentValue: previousValue,
+      prefillValue: value,
+      source: meta.source,
+      ...(meta.timestamp ? { timestamp: meta.timestamp } : {}),
+    });
+  });
+}
+
+function resolvePrefillConflict(message: Extract<HostMessage, { type: 'prefill:resolve' }>): void {
+  const pending = pendingPrefillRequests.get(message.requestId);
+  if (!pending) return;
+  pendingPrefillRequests.delete(message.requestId);
+  pending.resolve(message.apply);
 }
 
 function setGroupItems(id: string, items: readonly Record<string, unknown>[]): void {
@@ -698,8 +789,12 @@ function createSdk(functions: Record<string, any> = buildGlobalFunctionsObject()
         get value() {
           return values[id];
         },
-        setValue: (value: unknown, options?: { emitChange?: boolean }) => setFieldValue(id, value, options),
-        clear: (options?: { emitChange?: boolean }) => setFieldValue(id, null, options),
+        setValue: (value: unknown, options?: { emitChange?: boolean }) => { provenance.delete(id); setFieldValue(id, value, options); },
+        clear: (options?: { emitChange?: boolean }) => { provenance.delete(id); setFieldValue(id, null, options); },
+        // See prefillFieldValue() above for the conflict-handling behavior.
+        // Returns a Promise the script can await to know whether the value
+        // actually landed (a clinician can decline a conflicting prefill).
+        prefill: (value: unknown, meta: { source: string; timestamp?: string }) => prefillFieldValue(id, value, meta),
         onChange: (
           handler: Handler<ChangePayload & { signal: AbortSignal }>,
           options: { debounce?: number; cancelPrevious?: boolean } = {},
@@ -843,6 +938,11 @@ function createSdk(functions: Record<string, any> = buildGlobalFunctionsObject()
     events,
     context,
     functions,
+    // Built-in, core (not plugin) AQL result helper - resolves an
+    // openEHR-flavored path (archetype-node-id/name predicates included)
+    // out of an imported context.aql[...] result. See
+    // docs/features/aql-prefill.md and packages/core/src/aql-runtime.
+    aql: { resolvePath: resolveAqlResultPath },
     state: {
       get: (key: string) => stateValues.get(key),
       set: (key: string, value: unknown) => stateValues.set(key, value),
@@ -1054,8 +1154,16 @@ workerScope.onmessage = (event) => {
         completeApiRequest(message);
         return;
       }
+      if (message.type === 'prefill:resolve') {
+        resolvePrefillConflict(message);
+        return;
+      }
       if (message.type === 'change') {
         values[message.change.id] = message.change.value;
+        // A real, host-reported edit - whatever provenance this field had
+        // no longer applies once its value changed through some other
+        // path than prefillFieldValue()/setFieldValue() above.
+        if (message.change.source === 'user') provenance.delete(message.change.id);
         enqueueChange(message.change);
         return;
       }

@@ -25,6 +25,29 @@ export interface FormScriptLifecycleResult {
   message?: string;
 }
 
+/** A field's current value came from an AQL prefill run, not a clinician's
+ * own entry - see formScript.worker.ts's `provenance` map. Carried
+ * alongside `form:set-value` so the host can render a small "aus AQL ·
+ * HH:MM"-style badge without a separate lookup. */
+export interface FormScriptFieldProvenance {
+  kind: 'prefill';
+  source: string;
+  timestamp?: string;
+}
+
+/** Raised when a script's `field(id).prefill(...)` call would overwrite a
+ * value that didn't itself come from a prior prefill (i.e. a real
+ * clinician entry) - the host decides, the worker waits. See
+ * `resolvePrefillConflict()` below. */
+export interface FormScriptPrefillConflict {
+  requestId: string;
+  fieldId: string;
+  currentValue: unknown;
+  prefillValue: unknown;
+  source: string;
+  timestamp?: string;
+}
+
 interface FormScriptClientOptions {
   formId: string;
   compiled: string;
@@ -34,11 +57,12 @@ interface FormScriptClientOptions {
   requiredFields: string[];
   context: Record<string, unknown>;
   runtimeFunctions?: Array<{ packageName: string; name: string; source: string }>;
-  onSetValue(id: string, value: unknown, persist: boolean): void;
+  onSetValue(id: string, value: unknown, persist: boolean, provenance: FormScriptFieldProvenance | null): void;
   onUpdateValues(values: RuntimeValues, persist: boolean): void;
   onValidationErrors(errors: Record<string, string>): void;
   onUiState(kind: string, id: string, state: FormScriptUiState): void;
   onToast(level: string, message: string): void;
+  onPrefillConflict(conflict: FormScriptPrefillConflict): void;
   onLog?(entry: FormScriptLogEntry): void;
 }
 
@@ -123,7 +147,18 @@ export class FormScriptClient {
       return;
     }
     if (message.type === 'form:set-value') {
-      this.options.onSetValue(String(message.id), message.value, message.persist !== false);
+      this.options.onSetValue(String(message.id), message.value, message.persist !== false, (message.provenance as FormScriptFieldProvenance | null) ?? null);
+      return;
+    }
+    if (message.type === 'prefill:conflict') {
+      this.options.onPrefillConflict({
+        requestId: String(message.requestId),
+        fieldId: String(message.fieldId),
+        currentValue: message.currentValue,
+        prefillValue: message.prefillValue,
+        source: String(message.source ?? ''),
+        ...(typeof message.timestamp === 'string' ? { timestamp: message.timestamp } : {}),
+      });
       return;
     }
     if (message.type === 'form:update-values') {
@@ -237,6 +272,15 @@ export class FormScriptClient {
       type: 'change',
       change: { id, value, previousValue, source, initialLoad },
     });
+  }
+
+  /** Answers a pending FormScriptPrefillConflict raised via onPrefillConflict -
+   * `apply: true` overwrites the field with the prefill value, `false`
+   * keeps the clinician's own entry. The worker's field(id).prefill(...)
+   * call is awaiting exactly this response. */
+  resolvePrefillConflict(requestId: string, apply: boolean): void {
+    if (this.terminated) return;
+    this.worker.postMessage({ type: 'prefill:resolve', requestId, apply });
   }
 
   dispatchGroupChange(
