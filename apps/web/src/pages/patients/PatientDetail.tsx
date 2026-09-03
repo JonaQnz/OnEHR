@@ -371,6 +371,10 @@ export default function PatientDetail() {
   const [expandedCallLogLoading, setExpandedCallLogLoading] = useState(false);
   const [exportingBruno, setExportingBruno] = useState<'patient' | 'all' | null>(null);
   const [exportError, setExportError] = useState('');
+  const [ehrStatus, setEhrStatus] = useState<{ isQueryable: boolean; isModifiable: boolean } | null>(null);
+  const [ehrStatusLoading, setEhrStatusLoading] = useState(false);
+  const [ehrStatusError, setEhrStatusError] = useState('');
+  const [ehrStatusSaving, setEhrStatusSaving] = useState<'isQueryable' | 'isModifiable' | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -447,6 +451,50 @@ export default function PatientDetail() {
   useEffect(() => {
     if (activeTab === 'debug' && !showDebugTab) setActiveTab('documents');
   }, [activeTab, showDebugTab]);
+
+  // EHR_STATUS flags (is_queryable/is_modifiable) - same lazy-load-on-tab-
+  // open pattern as the Debug tab's call logs above, admin-gated the same
+  // way. EHR-wide, not per Form-Session - see ehrStatusService.ts.
+  useEffect(() => {
+    if (activeTab !== 'overview' || !canConfigureSystem || !patient?.ehrId) return undefined;
+    const controller = new AbortController();
+    setEhrStatusLoading(true);
+    setEhrStatusError('');
+    request<{ isQueryable: boolean; isModifiable: boolean }>(`/patients/${patient.id}/ehr-status`, controller.signal)
+      .then(setEhrStatus)
+      .catch((reason) => {
+        if ((reason as Error).name !== 'AbortError') {
+          setEhrStatusError(reason instanceof Error ? reason.message : 'EHR-Status konnte nicht geladen werden.');
+        }
+      })
+      .finally(() => { if (!controller.signal.aborted) setEhrStatusLoading(false); });
+    return () => controller.abort();
+  }, [activeTab, canConfigureSystem, patient?.id, patient?.ehrId]);
+
+  const updateEhrStatusFlag = async (flag: 'isQueryable' | 'isModifiable', value: boolean) => {
+    if (!patient) return;
+    if (flag === 'isModifiable' && !value) {
+      const confirmed = window.confirm('Akte wirklich sperren? Damit können keine neuen Formulare/Compositions mehr für diesen Patienten abgesendet werden, bis sie wieder entsperrt wird.');
+      if (!confirmed) return;
+    }
+    setEhrStatusSaving(flag);
+    setEhrStatusError('');
+    try {
+      const response = await fetch(`${API}/patients/${patient.id}/ehr-status`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [flag]: value }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || body.message || `Anfrage fehlgeschlagen (${response.status})`);
+      setEhrStatus(body);
+    } catch (error) {
+      setEhrStatusError(error instanceof Error ? error.message : 'EHR-Status konnte nicht gespeichert werden.');
+    } finally {
+      setEhrStatusSaving(null);
+    }
+  };
 
   const exportBrunoFolder = async (scope: 'patient' | 'all') => {
     if (!patient) return;
@@ -835,6 +883,39 @@ export default function PatientDetail() {
           <div><span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Letzte Aktivität</span><strong style={{ display: 'block', marginTop: '0.2rem' }}>{formatDateTime(latestSession?.updatedAt)}</strong></div>
         </div>
       </div>
+      {canConfigureSystem && patient.ehrId && (
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Verwaltung</h3>
+          <p style={{ margin: '0 0 0.85rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            Wirkt auf die gesamte EHR dieses Patienten (nicht auf ein einzelnes Formular) - direkt gegen EHRbase gesetzt.
+          </p>
+          {ehrStatusError && <p style={{ color: 'var(--danger)', fontSize: '0.82rem', marginBottom: '0.6rem' }}>{ehrStatusError}</p>}
+          {ehrStatusLoading || !ehrStatus ? (
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{ehrStatusLoading ? 'Lädt…' : '–'}</span>
+          ) : (
+            <div style={{ display: 'grid', gap: '0.6rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.85rem' }}>
+                <input
+                  type="checkbox"
+                  checked={ehrStatus.isQueryable}
+                  disabled={ehrStatusSaving === 'isQueryable'}
+                  onChange={(event) => void updateEhrStatusFlag('isQueryable', event.target.checked)}
+                />
+                Für Auswertungen/AQL sichtbar
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.85rem' }}>
+                <input
+                  type="checkbox"
+                  checked={ehrStatus.isModifiable}
+                  disabled={ehrStatusSaving === 'isModifiable'}
+                  onChange={(event) => void updateEhrStatusFlag('isModifiable', event.target.checked)}
+                />
+                Akte bearbeitbar (neue Compositions erlaubt)
+              </label>
+            </div>
+          )}
+        </div>
+      )}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Letzte Aktivitäten</h3>
         {sessions.length === 0 ? (

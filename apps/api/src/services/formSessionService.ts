@@ -19,6 +19,8 @@ import {
   type FormSessionValues,
   type SessionValidationIssue,
   type UserAuthMode,
+  getFormFolderMapping,
+  resolveFolderPath,
 } from 'core';
 import { HttpError } from '../middleware/errorHandler';
 import { migrateCanonicalFormToV1 } from 'core';
@@ -32,6 +34,7 @@ import { pluginRegistry } from '../plugins/pluginRegistry';
 import type { PluginHookName, PluginHookResult } from 'plugin-api';
 import { markPatientHasPersonArchetype, resolvePatientReference } from './patientService';
 import { verifyFhirForSubmission } from './fhirVerificationService';
+import { fileCompositionIntoFolder } from './ehrDirectoryService';
 import { buildSessionRuntimeContext } from './aqlFunctionService';
 
 export interface SessionActor {
@@ -1005,6 +1008,17 @@ export async function submitFormSessionToProvider(
   if (result.metadata?.ehrId) {
     void verifyFhirForSubmission(input.form.id, result.metadata.ehrId, { sessionId: input.session.id, operation: 'verify-after-submit' })
       .catch((error) => console.warn('[formSessionService] FHIR verification after submit failed:', error instanceof Error ? error.message : error));
+  }
+  // Fire-and-forget FOLDER filing for the vast majority of forms with no
+  // FORM_FOLDER_PATH_EXTENSION_KEY set, this is a no-op. Never awaited
+  // before returning the submit result and never allowed to fail the
+  // submit itself - see ehrDirectoryService.ts's own doc comment.
+  if (result.metadata?.ehrId && result.reference) {
+    const folderMapping = getFormFolderMapping(input.form.definition);
+    if (folderMapping) {
+      void fileCompositionIntoFolder(result.metadata.ehrId, resolveFolderPath(folderMapping.path), result.reference)
+        .catch((error) => console.warn('[formSessionService] Folder filing after submit failed:', error instanceof Error ? error.message : error));
+    }
   }
   return {
     session: publicSession(

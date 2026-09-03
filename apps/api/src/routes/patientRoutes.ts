@@ -61,6 +61,28 @@ router.get('/:id/compositions', requirePermission('patient.read'), asyncHandler(
   res.json(rows);
 }));
 
+import { getEhrStatusFlags, updateEhrStatusFlags } from '../services/ehrStatusService';
+
+// EHR-wide (not per Form-Session/draft - see ehrStatusService.ts's own doc
+// comment) admin flags, gated the same as the rest of the admin surface
+// (system.configure) - powers PatientDetail.tsx's "Verwaltung" card.
+router.get('/:id/ehr-status', requirePermission('system.configure'), asyncHandler(async (req, res) => {
+  const id = requireNonEmptyString(req.params.id, 'id');
+  const patient = await getPatient(id);
+  if (!patient?.ehrId) throw new HttpError(404, 'Patient not found or has no EHR-ID on file');
+  res.json(await getEhrStatusFlags(patient.ehrId));
+}));
+
+router.put('/:id/ehr-status', requirePermission('system.configure'), asyncHandler(async (req, res) => {
+  const id = requireNonEmptyString(req.params.id, 'id');
+  const patient = await getPatient(id);
+  if (!patient?.ehrId) throw new HttpError(404, 'Patient not found or has no EHR-ID on file');
+  const { isQueryable, isModifiable } = req.body || {};
+  if (isQueryable !== undefined && typeof isQueryable !== 'boolean') throw new HttpError(400, '"isQueryable" must be a boolean');
+  if (isModifiable !== undefined && typeof isModifiable !== 'boolean') throw new HttpError(400, '"isModifiable" must be a boolean');
+  res.json(await updateEhrStatusFlags(patient.ehrId, { isQueryable, isModifiable }));
+}));
+
 router.post('/', requirePermission('patient.search'), asyncHandler(async (req, res) => {
   const { patientId, firstName, lastName, birthDate, gender, personFormValues } = req.body;
   if (!patientId || !firstName || !lastName) {

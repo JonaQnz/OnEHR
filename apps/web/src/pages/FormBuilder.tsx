@@ -20,6 +20,7 @@ import ScriptLogs from '../scripting/editor/ScriptLogs';
 import { DesignerShell } from '../designer/DesignerShell';
 import { API_BASE_URL } from '../integration/apiBaseUrl';
 import type { FormSessionRuntimeContext } from 'core';
+import { resolveFolderPath } from 'core';
 
 function LiveJsonEditor({ form, onSave }: { form: any, onSave: (f: any, items: any[]) => void }) {
   const [jsonString, setJsonString] = useState('');
@@ -608,6 +609,39 @@ function FormBuilderContent() {
   useEffect(() => {
     setFhirResourceTypeDraft(form?.canonical_json?.extensions?.['formbuilder.fhir-mapping']?.resourceType || '');
   }, [form?.id]);
+
+  // FHIR Debug tab: optional FOLDER path this form's submitted Compositions
+  // get filed under (formbuilder.folder-path extension - see
+  // packages/core/src/folder-mapping) - exact same draft/save pattern as
+  // the FHIR resource-type mapping above, just a different extension key.
+  const [folderPathDraft, setFolderPathDraft] = useState('');
+  const [folderMappingSaving, setFolderMappingSaving] = useState(false);
+  useEffect(() => {
+    setFolderPathDraft(form?.canonical_json?.extensions?.['formbuilder.folder-path']?.path || '');
+  }, [form?.id]);
+  const saveFolderMapping = async (path: string) => {
+    if (!formRef.current) return;
+    setFolderMappingSaving(true);
+    try {
+      const trimmed = path.trim();
+      const nextExtensions = { ...(formRef.current.canonical_json.extensions || {}) };
+      if (trimmed) nextExtensions['formbuilder.folder-path'] = { path: trimmed };
+      else delete nextExtensions['formbuilder.folder-path'];
+      const nextCanonical = { ...formRef.current.canonical_json, extensions: nextExtensions };
+      const res = await fetch(`${API_BASE_URL}/forms/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nextCanonical),
+      });
+      const saved = await res.json();
+      setForm(saved);
+      formRef.current = saved;
+    } catch (error) {
+      console.error('Konnte Ordner-Zuordnung nicht speichern:', error);
+    } finally {
+      setFolderMappingSaving(false);
+    }
+  };
   const saveFhirMapping = async (resourceType: string) => {
     if (!formRef.current) return;
     setFhirMappingSaving(true);
@@ -1531,6 +1565,30 @@ function FormBuilderContent() {
                   {fhirMappingSaving ? 'Speichert…' : 'Speichern'}
                 </button>
               </div>
+            </div>
+
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.1rem' }}>
+              <h3 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>Ordner-Pfad</h3>
+              <p style={{ margin: '0 0 0.75rem', fontSize: '0.82rem', color: '#64748b' }}>
+                Wo im EHR-Directory (FOLDER) sollen abgesendete Compositions dieses Formulars einsortiert werden? Optional - leer lassen, wenn keine Ablage gewünscht ist. Einziger unterstützter Platzhalter: <code>{'{year}'}</code>.
+              </p>
+              <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  className="form-input"
+                  style={{ minWidth: '220px' }}
+                  placeholder="z. B. Tumorboard/{year}"
+                  value={folderPathDraft}
+                  onChange={(event) => setFolderPathDraft(event.target.value)}
+                />
+                <button type="button" className="btn-workbench secondary" disabled={folderMappingSaving} onClick={() => saveFolderMapping(folderPathDraft)}>
+                  {folderMappingSaving ? 'Speichert…' : 'Speichern'}
+                </button>
+              </div>
+              {folderPathDraft.trim() && (
+                <p style={{ margin: '0.6rem 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+                  Aufgelöst: <code>{resolveFolderPath(folderPathDraft.trim())}</code>
+                </p>
+              )}
             </div>
 
             <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.1rem' }}>
