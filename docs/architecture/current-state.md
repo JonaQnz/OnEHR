@@ -32,11 +32,12 @@ npm workspaces (`apps/*`, `packages/*`):
   `openehr-architect` subagent).
 - **`packages/openehr-engine`** - WebTemplate parsing and openEHR RM data
   type handling.
-- **`packages/plugin-api`** + plugin packages (`aql-prefill-plugin`,
-  `example-vitals-plugin`, `example-n8n-plugin`,
-  `formbuilder-plugin-iframe`, `postal-lookup-plugin`,
+- **`packages/plugin-api`** + plugin packages (`example-vitals-plugin`,
+  `example-n8n-plugin`, `formbuilder-plugin-iframe`, `postal-lookup-plugin`,
   `formbuilder-plugin-clinical-scores`) - backend/frontend plugin
-  extension points.
+  extension points. AQL prefill is no longer one of these - it's core,
+  Form-Script-integrated functionality now (`packages/core/src/aql-runtime`,
+  `field(id).prefill(...)`), see `docs/features/aql-prefill.md`.
 - **`packages/react-form-builder2`** - vendored/forked drag-and-drop form
   designer library the Form Builder canvas is built on.
 

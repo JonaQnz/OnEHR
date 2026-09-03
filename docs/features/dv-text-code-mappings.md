@@ -135,6 +135,11 @@ edits `match` directly.
 ## Deliberately out of scope (Phase 1)
 
 - No terminology lookup/autocomplete service - manual code entry only.
+  **Update**: a related-but-distinct follow-up (AQL-driven field
+  prefilling, not a terminology lookup service for the code itself) has
+  since shipped as core, Form-Script-integrated functionality - see
+  `docs/features/aql-prefill.md`. A live terminology-search/autocomplete
+  service specifically for the code input above remains unimplemented.
 - No validation of the code's format/existence against the configured
   terminology - any non-empty string is accepted.
 - `DV_TEXT.language`/`.encoding`/`.hyperlink` (deprecated) remain

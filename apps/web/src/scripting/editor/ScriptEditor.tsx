@@ -89,6 +89,10 @@ export default function ScriptEditor({ formId, definition, onSaved }: ScriptEdit
   const [functionSearch, setFunctionSearch] = useState('');
   const [codePackages, setCodePackages] = useState(savedImports.codePackages);
   const [aqlFunctionIds, setAqlFunctionIds] = useState(savedImports.aqlFunctionIds);
+  // Which form field the "+ Vorbelegung" snippet targets, per imported AQL
+  // function - a designer picks the field once from the form's own known
+  // fields instead of typing an id from memory.
+  const [prefillTargets, setPrefillTargets] = useState<Record<string, string>>({});
   const checkSequence = useRef(0);
   const codeInput = useRef<HTMLTextAreaElement>(null);
   const savedAllowedOperations = getFormScriptConnectorConfiguration(definition).allowedOperations;
@@ -410,9 +414,41 @@ export default function ScriptEditor({ formId, definition, onSaved }: ScriptEdit
           <strong style={{ gridColumn: '1 / -1', marginTop: '0.45rem' }}>AQL-Kontext</strong>
           {filteredAql.map((item) => {
             const selected = aqlFunctionIds.includes(item.id);
+            const qualifiedName = `${item.packageName}.${item.name}`;
+            const targetField = prefillTargets[item.id] || schemaIds.fields[0] || '';
             return <label className="script-connector-option" key={item.id}>
               <input type="checkbox" checked={selected} onChange={(event) => setAqlFunctionIds((current) => event.target.checked ? [...new Set([...current, item.id])].sort() : current.filter((id) => id !== item.id))} />
-              <span><strong>{item.packageName}.{item.name}</strong><code>context.aql['{item.packageName}.{item.name}']</code><small>{item.description}</small>{selected && <button type="button" className="btn-workbench secondary" onClick={() => insertSnippet(`const ${item.name} = context.aql['${item.packageName}.${item.name}'];`)} style={{ marginTop: '0.25rem', padding: '0.2rem 0.45rem', fontSize: '0.72rem' }}>+ Kontext-Code</button>}</span>
+              <span>
+                <strong>{qualifiedName}</strong><code>context.aql['{qualifiedName}']</code><small>{item.description}</small>
+                {selected && <button type="button" className="btn-workbench secondary" onClick={() => insertSnippet(`const ${item.name} = context.aql['${qualifiedName}'];`)} style={{ marginTop: '0.25rem', marginRight: '0.35rem', padding: '0.2rem 0.45rem', fontSize: '0.72rem' }}>+ Kontext-Code</button>}
+                {selected && schemaIds.fields.length > 0 && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.25rem' }}>
+                    <select
+                      aria-label={`Zielfeld für Vorbelegung aus ${qualifiedName}`}
+                      value={targetField}
+                      onChange={(event) => setPrefillTargets((current) => ({ ...current, [item.id]: event.target.value }))}
+                      style={{ fontSize: '0.72rem', padding: '0.15rem 0.3rem' }}
+                    >
+                      {schemaIds.fields.map((fieldId) => <option key={fieldId} value={fieldId}>{fieldId}</option>)}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn-workbench secondary"
+                      title="Fügt einen beforeLoad-Block ein, der dieses Feld aus dem AQL-Ergebnis vorbelegt - den Ergebnis-Pfad danach selbst eintragen."
+                      onClick={() => insertSnippet(
+                        `events.beforeLoad(async () => {\n`
+                        + `  const result = context.aql['${qualifiedName}'];\n`
+                        + `  const value = aql.resolvePath(result, "TODO: Pfad im Ergebnis, z. B. rows/0/a/items[at0006]/value");\n`
+                        + `  await form.field('${targetField}').prefill(value, { source: '${qualifiedName}' });\n`
+                        + `});`,
+                      )}
+                      style={{ padding: '0.2rem 0.45rem', fontSize: '0.72rem' }}
+                    >
+                      + Vorbelegung
+                    </button>
+                  </span>
+                )}
+              </span>
             </label>;
           })}
         </div>

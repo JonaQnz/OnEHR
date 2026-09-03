@@ -2,7 +2,6 @@ import { Router } from 'express';
 import type { PluginActionContext } from 'plugin-api';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 import { getConfig, getPluginSettings, getSafePluginSettings, saveConfig, savePluginSettings } from '../services/configService';
-import { resolveActiveEhrbaseAuthorizationHeader } from '../services/ehrbaseConnectionPlugins';
 import { getPluginPackageStatuses, loadPluginPackage, unloadPluginPackage } from '../plugins/pluginRegistry';
 import { requirePermission } from '../middleware/auth';
 import prisma from '../db/prisma';
@@ -150,7 +149,7 @@ router.post('/actions/:pluginId/:actionId', requirePermission('form.execute'), a
   const actionId = typeof req.params.actionId === 'string' ? req.params.actionId : '';
   console.log(`[PluginRoutes] POST /actions/${pluginId}/${actionId} received`);
 
-  const contribution = pluginRegistry.getContributions().find((item) => (item.pluginId === pluginId || (item.pluginId === 'org.openehr.aql-prefill' && pluginId === 'formbuilder-plugin-aql-prefill') || (item.pluginId === 'formbuilder-plugin-aql-prefill' && pluginId === 'org.openehr.aql-prefill')) && ['settings', 'runtime', 'form'].includes(item.extensionPoint) && (item as any).actionId === actionId);
+  const contribution = pluginRegistry.getContributions().find((item) => item.pluginId === pluginId && ['settings', 'runtime', 'form'].includes(item.extensionPoint) && (item as any).actionId === actionId);
   if (!contribution) {
     console.warn(`[PluginRoutes] Action not declared for ${pluginId}:${actionId}`);
     return res.status(404).json({ error: 'Plugin action is not declared' });
@@ -171,16 +170,6 @@ router.post('/actions/:pluginId/:actionId', requirePermission('form.execute'), a
       pluginSettings: getPluginSettings(contribution.pluginId),
     },
   };
-  // The AQL prefill plugin calls EHRbase itself and needs the active
-  // connection's URL/credentials to do so. Resolve them here, where the
-  // config/connection services are directly available, instead of the
-  // plugin having to reach across the package boundary for them.
-  if (contribution.pluginId === 'org.openehr.aql-prefill') {
-    context.metadata!.ehrbaseUrl = getConfig().ehrbaseUrl ?? null;
-    if (!context.metadata!.authorization) {
-      context.metadata!.authorization = await resolveActiveEhrbaseAuthorizationHeader().catch(() => undefined) ?? null;
-    }
-  }
   try {
     if (contribution.extensionPoint === 'settings' && context.formId) {
       const storedForm = await prisma.form.findUnique({ where: { id: context.formId } });

@@ -6,7 +6,6 @@ type FrontendPluginLoader = () => Promise<FrontendPluginModule>;
 // their documented package entry points; application components never import
 // plugin implementation files.
 const frontendPluginLoaders: readonly FrontendPluginLoader[] = [
-  () => import('formbuilder-plugin-aql-prefill'),
   () => import('formbuilder-plugin-iframe/frontend'),
 ];
 

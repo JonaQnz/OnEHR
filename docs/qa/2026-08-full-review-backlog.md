@@ -172,10 +172,10 @@ each area, not a strict global ranking.
    (each with its own hardcoded API URL, see #2); `Dashboard.tsx`/
    `FormBuilder.tsx`/`PatientList.tsx` instead use raw inline `fetch()`
    with yet another, inconsistent error-handling pattern.
-7. "First row determines table columns" bug duplicated in
+7. ✅ "First row determines table columns" bug duplicated in
    `PatientDetail.tsx` (`renderClinicalCompositions`) and
    `WidgetDataCard.tsx` (`list` display) - a later row with extra keys
-   silently loses those columns in the rendered table.
+   silently loses those columns in the rendered table. PR #62.
 8. Status-badge color-map + renderer duplicated between `PatientDetail
    .tsx` (`STATUS_COLORS`/`statusBadge`) and `CompositionRuntime.tsx`
    (`CHILD_STATUS_COLORS`/`childBadge`) with overlapping but not
@@ -211,7 +211,7 @@ Already fixed (PR #16): the `openehr-engine` repeat-index regex, the
 `insertCompositionBlock` layout-desync bug, and the shared-array bug in
 `createInitialRuntimeValues`. Remaining:
 
-1. **`migrateCanonicalFormToV1` validates almost nothing**
+1. ✅ **`migrateCanonicalFormToV1` validates almost nothing**
    (`packages/core/src/form-definition/index.ts`) - `input as unknown as
    CanonicalForm`, only `schemaVersion`/`revision`/`extensions` are
    actually checked despite this being the trusted upgrade path both
@@ -219,7 +219,7 @@ Already fixed (PR #16): the `openehr-engine` repeat-index regex, the
    missing `layout` silently produces an object with no `layout` key
    despite the type requiring one, surfacing as a crash further
    downstream in `collectRuntimeFields` instead of a clear validation
-   error at the boundary.
+   error at the boundary. PR #63.
 2. ✅ **`NON_FIELD_TYPES` duplicated** between `packages/core/src/
    form-runtime/index.ts` (drives `collectRuntimeFields`) and the inline
    exclusion list in `form-scripting/index.ts`'s `isDataField()` (drives
@@ -249,13 +249,19 @@ Already fixed (PR #16): the `openehr-engine` repeat-index regex, the
    fix (now covered - see `packages/openehr-engine/tests/
    flat-composition-repeats.test.js`, but that only covers the read
    path found broken here, not the write side or every rmType branch);
-   `packages/core`'s `form-definition` and `form-scripting` modules have
-   no test file at all; `validateRuntimeValues`'s option/unit/min/max/
-   pattern/`repeat-max`/visibility-evaluator logic is essentially
-   untested beyond draft/final mode and basic type checks; 5 of 6 plugin
-   packages have zero tests (`aql-prefill-plugin`'s hand-rolled AQL
-   predicate parser in `resultPathResolver.ts` is the single highest-risk
-   untested piece of logic found in the entire review).
+   `packages/core`'s `form-scripting` module still has no test file at all
+   (`form-definition` now does -
+   `packages/core/tests/form-definition-validation.test.js`);
+   `validateRuntimeValues`'s option/unit/min/max/pattern/`repeat-max`/
+   visibility-evaluator logic is essentially untested beyond draft/final
+   mode and basic type checks. ✅ The single highest-risk untested piece of
+   logic found in the entire review - `aql-prefill-plugin`'s hand-rolled
+   AQL predicate parser in `resultPathResolver.ts` - is resolved, not by
+   adding tests to the plugin but by retiring it entirely: AQL prefill is
+   now core, Form-Script-integrated functionality
+   (`packages/core/src/aql-runtime`, `field(id).prefill(...)` - see
+   `docs/features/aql-prefill.md`), and the ported path resolver has 19
+   tests (`packages/core/tests/aql-result-path.test.js`).
 
 ## Suggested next slice
 
@@ -306,19 +312,45 @@ apps/web #9's `AbortController` gap is now half-closed: `PatientDetail
 .tsx` has it, `CompositionRuntime.tsx` still doesn't.
 
 What's left after those: apps/api #9/#11/#12 (all minor/test-coverage,
-no urgency), apps/web #4/#6-#13 (session-recreate-on-keystroke,
-`request<T>()` duplication, the two "first row determines table
-columns" bugs, status-badge color-map duplication, missing
+no urgency), apps/web #4/#6/#8-#13 (session-recreate-on-keystroke,
+`request<T>()` duplication, status-badge color-map duplication, missing
 `AbortController`/mount-guards, missing `aria-label`s, hardcoded hex
 colors, oversized single-file components), and the shared-packages
-items (#1/#3-#7, plus the test-coverage gaps in finding #7:
-`form-definition`/`form-scripting` have no test file at all,
-`validateRuntimeValues` option/unit/min/max/pattern/`repeat-max`/
-visibility-evaluator coverage, 5 of 6 plugin packages with zero tests -
-`aql-prefill-plugin`'s hand-rolled AQL predicate parser is the single
-highest-risk untested piece of logic found in the entire review). None
-of this is urgent, but with CI now in place, a fix here won't silently
-regress the way earlier fixes in this document sometimes did.
+items (#3/#5-#7, plus the test-coverage gaps in finding #7:
+`form-scripting` still has no test file at all (`form-definition` now
+does), `validateRuntimeValues` option/unit/min/max/pattern/`repeat-max`/
+visibility-evaluator coverage untested, 5 of 6 plugin packages with zero
+tests). None of this is urgent, but with CI now in place, a fix here
+won't silently regress the way earlier fixes in this document sometimes
+did.
+
+**Not from the original review**: while retiring `aql-prefill-plugin`
+in favor of core, Form-Script-integrated AQL prefill
+(`docs/features/aql-prefill.md`), its hand-rolled path resolver - the
+single highest-risk untested piece of logic found in the entire
+review - was ported into `packages/core/src/aql-runtime` with full test
+coverage (19 tests), and the plugin's own separate, untested
+config/caching apparatus (`aqlPrefillStore.ts`/`aqlPrefillCache.ts`,
+~2600 lines total) was deleted outright rather than carried forward.
+
+**Also not from the original review, found live-testing the above**:
+`packages/core/src/form-scripting/index.ts`'s field-id resolution
+(`name || id`) silently disagreed with `packages/core/src/form-runtime/
+index.ts`'s (`id || name`) - the Script Editor's autocompleted `FieldId`
+type offered a key the runtime's actual values object never used, so
+`field(id).setValue()`/`.prefill()` against any field whose canonical
+`id`/`name` differ (the norm for openEHR-bound fields) silently no-op'd
+on the DOM while the Runtime Logs panel logged the value as changed.
+Almost certainly present since `form-scripting`'s FieldId generation was
+first written, affecting every Form Section's Form Script, not just AQL
+prefill - just never exercised end-to-end against a real form's rendered
+output until now. Fixed by matching `form-runtime`'s convention exactly.
+Separately, `FormBuilder.tsx`'s Preview tab's "Test-Patient (für
+AQL-Vorbelegung)" picker never actually fetched a runtime context -
+`context.aql` was permanently `{}` in Preview no matter which patient
+was selected, because nothing called the backend to build one. Fixed by
+a new `POST /api/forms/:id/preview-context` route. See
+`docs/features/aql-prefill.md` for both.
 
 **Tooling caveat**: plain `grep`/Bash-`grep` has repeatedly returned
 false-negative (empty) results for content demonstrably present in

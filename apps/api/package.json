@@ -21,7 +21,6 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "formbuilder-plugin-aql-prefill": "*",
     "formbuilder-plugin-iframe": "*",
     "formbuilder-plugin-postal-lookup": "*",
     "jose": "^4.15.9",

@@ -7,7 +7,6 @@ export type UIExtensionSlotName =
   | 'form:field:actions' 
   | 'form:group:actions' 
   | 'form:overlay'
-  | 'designer:aql-prefill'
   | 'designer:toolbar'
   | 'designer:toolbox'
   | 'designer:canvas'
