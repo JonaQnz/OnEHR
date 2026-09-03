@@ -718,11 +718,29 @@ function buildNode(node: WebTemplateTreeNode, scope: RuntimeValues, index: Field
       if (items.length === 0 && (node.min ?? 0) === 0) return undefined;
       return { _type: 'SECTION', name: dvText(nodeLabel(node)), ...nodeIdentity(node), items };
     }
-    case 'ADMIN_ENTRY':
-    case 'EVALUATION': {
+    case 'ADMIN_ENTRY': {
+      // ADMIN_ENTRY extends ENTRY directly (not CARE_ENTRY) - it has no
+      // `protocol` attribute at all, unlike OBSERVATION/EVALUATION/
+      // INSTRUCTION/ACTION below. Never call buildProtocol here even though
+      // it shares its data-tree shape with EVALUATION.
       const data = buildEntryData(node, scope, index, context, 'data');
       if ((data.items as unknown[]).length === 0 && (node.min ?? 0) === 0) return undefined;
       return { _type: node.rmType, name: dvText(nodeLabel(node)), ...nodeIdentity(node), ...entryAttributes(context), data };
+    }
+    case 'EVALUATION': {
+      const data = buildEntryData(node, scope, index, context, 'data');
+      if ((data.items as unknown[]).length === 0 && (node.min ?? 0) === 0) return undefined;
+      // `protocol` (0..1 on CARE_ENTRY, same as OBSERVATION/ACTION/
+      // INSTRUCTION below) - EVALUATION is a CARE_ENTRY too, but this case
+      // never called buildProtocol, unlike its three siblings (see
+      // buildProtocol's own comment for the original OBSERVATION/ACTION
+      // finding). Confirmed live: vg_Diagnosis's "Zuletzt aktualisiert"
+      // (last_updated, at0070) binds under `/protocol[at0032]/items[at0070]`
+      // directly off the EVALUATION content node - silently vanished
+      // (submitted with no error, `protocol` read back `null` via AQL)
+      // exactly like the already-fixed OBSERVATION/ACTION/INSTRUCTION gap.
+      const protocol = buildProtocol(node, scope, index, context);
+      return { _type: node.rmType, name: dvText(nodeLabel(node)), ...nodeIdentity(node), ...entryAttributes(context), data, ...(protocol ? { protocol } : {}) };
     }
     case 'OBSERVATION': {
       const data = buildObservationData(node, scope, index, context);
@@ -781,6 +799,20 @@ function buildNode(node: WebTemplateTreeNode, scope: RuntimeValues, index: Field
       // all, so any field bound under INSTRUCTION's own /protocol[...]
       // silently vanished regardless of form config.
       const protocol = buildProtocol(node, scope, index, context);
+      // `expiry_time` (0..1 on INSTRUCTION, RM data_types §5.1) is a real,
+      // submittable attribute the WebTemplate export never models as a
+      // visible ELEMENT - same category as ACTION's own `time`/
+      // `ism_transition/current_state` above (resolveFixedAttributeField).
+      // Confirmed live: vg_ServiceRequest's "Ablaufdatum der Anordnung"
+      // (expiry_time) binds directly to `/content[INSTRUCTION...]/
+      // expiry_time` with no `/value` suffix at all (unlike every
+      // ELEMENT-wrapped field) - nothing ever built this attribute, so the
+      // value silently vanished (submitted with no error, the whole
+      // INSTRUCTION read back with no `expiry_time` key via AQL).
+      const expiryTimeField = resolveFixedAttributeField(node, index, scope, '/expiry_time');
+      const expiryTime = expiryTimeField
+        ? buildLeafDvValue('DV_DATE_TIME', expiryTimeField.field, expiryTimeField.raw) as Canonical | undefined
+        : undefined;
       return {
         _type: 'INSTRUCTION', name: dvText(nodeLabel(node)), ...nodeIdentity(node), ...entryAttributes(context),
         narrative: dvText(nodeLabel(activityNode || node)),
@@ -797,6 +829,7 @@ function buildNode(node: WebTemplateTreeNode, scope: RuntimeValues, index: Field
         // pattern (seen live as "/.*/", its regex-delimited display form).
         activities: [{ _type: 'ACTIVITY', name: dvText(nodeLabel(activityNode || node)), archetype_node_id: (activityNode?.nodeId || activityNode?.id) || `${node.nodeId || node.id}-activity`, action_archetype_id: '.*', description, timing: { _type: 'DV_PARSABLE', value: 'R1', formalism: 'timing' } }],
         ...(protocol ? { protocol } : {}),
+        ...(expiryTime ? { expiry_time: expiryTime } : {}),
       };
     }
     case 'CLUSTER':

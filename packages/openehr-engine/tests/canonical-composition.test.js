@@ -964,6 +964,117 @@ test('INSTRUCTION.protocol is built and attached, not silently dropped (same gap
   assert.equal(instruction.activities[0].action_archetype_id, '.*');
 });
 
+test('EVALUATION.protocol is built and attached, not silently dropped (same gap as OBSERVATION/ACTION/INSTRUCTION.protocol, missed on EVALUATION\'s own switch case)', () => {
+  // Confirmed live (vg_Diagnosis.v1.1.1): "Zuletzt aktualisiert" (last_updated,
+  // at0070) binds under /protocol[at0032]/items[at0070]/value directly off
+  // the EVALUATION content node, a sibling of /data[at0001], not nested
+  // under it. EVALUATION is a CARE_ENTRY (like OBSERVATION/ACTION/
+  // INSTRUCTION) and so has a real `protocol` attribute too, but its switch
+  // case never called buildProtocol at all - the three sibling entry types
+  // already got this exact fix (see the tests above); EVALUATION alone was
+  // missed. A real submission with this field filled committed successfully
+  // but read back with `protocol: null` via AQL.
+  const tree = {
+    id: 'dx', name: 'Diagnosis', rmType: 'COMPOSITION', nodeId: 'openEHR-EHR-COMPOSITION.report.v1',
+    children: [{
+      id: 'primary_diagnosis', name: 'Primary diagnosis', rmType: 'EVALUATION', min: 0, max: 1,
+      nodeId: 'openEHR-EHR-EVALUATION.problem_diagnosis.v1', aqlPath: '/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1]',
+      children: [
+        { id: 'problem_diagnosis_name', name: 'Problem/Diagnosis name', rmType: 'DV_TEXT', min: 1, max: 1, nodeId: 'at0002', aqlPath: '/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1]/data[at0001]/items[at0002]/value' },
+        { id: 'last_updated', name: 'Last updated', rmType: 'DV_DATE_TIME', min: 0, max: 1, nodeId: 'at0070', aqlPath: '/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1]/protocol[at0032]/items[at0070]/value' },
+      ],
+    }],
+  };
+  const definition = {
+    id: 'dx-form', name: 'Diagnosis', version: '1.0.0',
+    sourceTemplates: [{ alias: 'dx', id: 'dx.v1', version: '1.0.0', type: 'openEhrWebTemplate' }],
+    locales: { en: {} }, bindings: {},
+    layout: {
+      type: 'form',
+      children: [
+        { id: 'problem_diagnosis_name', type: 'input-text', binding: { path: '/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1]/data[at0001]/items[at0002]/value', rmType: 'DV_TEXT' } },
+        { id: 'last_updated', type: 'input-date-time', binding: { path: '/content[openEHR-EHR-EVALUATION.problem_diagnosis.v1]/protocol[at0032]/items[at0070]/value', rmType: 'DV_DATE_TIME' } },
+      ],
+    },
+  };
+  const composition = buildCanonicalComposition(definition, { problem_diagnosis_name: 'E11.9', last_updated: '2026-09-03T08:00:00.000Z' }, tree, { time: '2026-08-26T10:00:00.000Z' });
+  const evaluation = composition.content[0];
+  assert.ok(evaluation.protocol, 'EVALUATION.protocol must be present when a protocol-bound field has a value');
+  assert.equal(evaluation.protocol._type, 'ITEM_TREE');
+  assert.equal(evaluation.protocol.archetype_node_id, 'at0032');
+  assert.equal(evaluation.protocol.items[0].value.value, '2026-09-03T08:00:00.000Z');
+});
+
+test('ADMIN_ENTRY never gets a protocol attribute, even if the tree happened to carry /protocol[...] children - it extends ENTRY directly, not CARE_ENTRY, and has no such RM attribute at all', () => {
+  const tree = {
+    id: 'ax', name: 'Admin', rmType: 'COMPOSITION', nodeId: 'openEHR-EHR-COMPOSITION.report.v1',
+    children: [{
+      id: 'entry', name: 'Entry', rmType: 'ADMIN_ENTRY', min: 0, max: 1, nodeId: 'openEHR-EHR-ADMIN_ENTRY.vitals.v1', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]',
+      children: [{ id: 'test_name', name: 'Test name', rmType: 'DV_TEXT', min: 0, max: 1, nodeId: 'at0005', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0005]' }],
+    }],
+  };
+  const definition = {
+    id: 'ax-form', name: 'Admin', version: '1.0.0',
+    sourceTemplates: [{ alias: 'ax', id: 'ax.v1', version: '1.0.0', type: 'openEhrWebTemplate' }],
+    locales: { en: {} }, bindings: {},
+    layout: { type: 'form', children: [{ id: 'test_name', type: 'input-text', binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0005]', rmType: 'DV_TEXT' } }] },
+  };
+  const composition = buildCanonicalComposition(definition, { test_name: 'Wert' }, tree, { time: '2026-08-26T10:00:00.000Z' });
+  const entry = composition.content[0];
+  assert.equal('protocol' in entry, false, 'ADMIN_ENTRY has no protocol attribute per RM - must never be present, not even empty');
+});
+
+test('INSTRUCTION.expiry_time uses a bound field\'s real value when the form provides one (same fixed-attribute gap as ACTION.time/ism_transition)', () => {
+  // Confirmed live (vg_ServiceRequest.v1.1.1): "Ablaufdatum der Anordnung"
+  // (expiry_time) binds directly to /content[INSTRUCTION...]/expiry_time -
+  // no /value suffix at all, unlike every ELEMENT-wrapped field, because
+  // expiry_time is a genuine bare INSTRUCTION attribute (RM data_types
+  // §5.1), never modeled as a visible WebTemplate ELEMENT. Nothing ever
+  // built it - a real submission with this field filled committed
+  // successfully but the whole INSTRUCTION read back with no `expiry_time`
+  // key at all via AQL.
+  const tree = {
+    id: 'sr', name: 'ServiceRequest', rmType: 'COMPOSITION', nodeId: 'openEHR-EHR-COMPOSITION.report.v1',
+    children: [{
+      id: 'service_request', name: 'Service request', rmType: 'INSTRUCTION', min: 0, max: 1,
+      nodeId: 'openEHR-EHR-INSTRUCTION.service_request.v1', aqlPath: '/content[openEHR-EHR-INSTRUCTION.service_request.v1]',
+      children: [{
+        id: 'activity', name: 'Activity', rmType: 'ACTIVITY', min: 1, max: 1, nodeId: 'at0001',
+        aqlPath: '/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]',
+        children: [{
+          id: 'description', name: 'Description', rmType: 'ITEM_TREE', min: 1, max: 1, nodeId: 'at0009',
+          aqlPath: '/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]',
+          children: [{ id: 'service_name', name: 'Service name', rmType: 'DV_TEXT', min: 1, max: 1, nodeId: 'at0121', aqlPath: '/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0121]/value' }],
+        }],
+      }],
+    }],
+  };
+  const definition = {
+    id: 'sr-form', name: 'ServiceRequest', version: '1.0.0',
+    sourceTemplates: [{ alias: 'sr', id: 'sr.v1', version: '1.0.0', type: 'openEhrWebTemplate' }],
+    locales: { en: {} }, bindings: {},
+    layout: {
+      type: 'form',
+      children: [
+        { id: 'service_name', type: 'input-text', binding: { path: '/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0121]/value', rmType: 'DV_TEXT' } },
+        { id: 'expiry_time', type: 'input-date-time', binding: { path: '/content[openEHR-EHR-INSTRUCTION.service_request.v1]/expiry_time', rmType: 'DV_DATE_TIME' } },
+      ],
+    },
+  };
+  const composition = buildCanonicalComposition(definition, { service_name: 'Röntgen Thorax', expiry_time: '2026-09-09T09:00:00.000Z' }, tree, { time: '2026-08-26T10:00:00.000Z' });
+  const instruction = composition.content[0];
+  assert.ok(instruction.expiry_time, 'INSTRUCTION.expiry_time must be present when a bound field has a value');
+  assert.equal(instruction.expiry_time._type, 'DV_DATE_TIME');
+  assert.equal(instruction.expiry_time.value, '2026-09-09T09:00:00.000Z');
+
+  // And the attribute is simply omitted (not a fabricated default) when no
+  // such field is bound at all - unlike ACTION.time/ism_transition, expiry_time
+  // is genuinely optional (0..1) with no RM-mandatory fallback needed.
+  const fallbackDefinition = { ...definition, layout: { type: 'form', children: [definition.layout.children[0]] } };
+  const fallbackComposition = buildCanonicalComposition(fallbackDefinition, { service_name: 'Röntgen Thorax' }, tree, { time: '2026-08-26T10:00:00.000Z' });
+  assert.equal('expiry_time' in fallbackComposition.content[0], false);
+});
+
 test('EVENT_CONTEXT.start_time uses a bound field\'s real value when the form provides one, not always "now" (same fixed-attribute gap as ACTION.time)', () => {
   // Confirmed live (vg_ServiceRequest.v1.1.1): the HIP mapping targets
   // /context/start_time directly from FHIR authoredOn.

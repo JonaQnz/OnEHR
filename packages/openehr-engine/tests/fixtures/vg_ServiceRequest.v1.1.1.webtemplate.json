@@ -1,0 +1,1429 @@
+{
+ "templateId": "vg_ServiceRequest.v1.1.1",
+ "version": "2.3",
+ "defaultLanguage": "en",
+ "languages": [
+  "de",
+  "en"
+ ],
+ "tree": {
+  "id": "vg_servicerequest.v1.1.1",
+  "name": "vg_ServiceRequest.v1.1.1",
+  "localizedName": "vg_ServiceRequest.v1.1.1",
+  "rmType": "COMPOSITION",
+  "nodeId": "openEHR-EHR-COMPOSITION.report.v1",
+  "min": 1,
+  "max": 1,
+  "localizedNames": {
+   "de": "vg_ServiceRequest.v1.1.1",
+   "en": "vg_ServiceRequest.v1.1.1"
+  },
+  "localizedDescriptions": {
+   "de": "Ein Dokument zur Übermittlung von Informationen an andere, meist als Antwort auf eine Anfrage.",
+   "en": "Document to communicate information to others, commonly in response to a request from another party."
+  },
+  "children": [
+   {
+    "id": "category",
+    "name": "category",
+    "localizedName": "category",
+    "rmType": "DV_CODED_TEXT",
+    "min": 1,
+    "max": 1,
+    "aqlPath": "/category",
+    "inputs": [
+     {
+      "suffix": "code",
+      "type": "CODED_TEXT",
+      "list": [
+       {
+        "value": "433",
+        "label": "event",
+        "localizedLabels": {
+         "de": "event",
+         "en": "event"
+        }
+       }
+      ],
+      "terminology": "openehr"
+     }
+    ],
+    "inContext": true
+   },
+   {
+    "id": "context",
+    "name": "context",
+    "localizedName": "context",
+    "rmType": "EVENT_CONTEXT",
+    "min": 1,
+    "max": 1,
+    "aqlPath": "/context",
+    "children": [
+     {
+      "id": "report_id",
+      "name": "Report ID",
+      "localizedName": "Report ID",
+      "rmType": "DV_TEXT",
+      "nodeId": "at0002",
+      "min": 0,
+      "max": 1,
+      "localizedNames": {
+       "de": "Bericht ID",
+       "en": "Report ID"
+      },
+      "localizedDescriptions": {
+       "de": "Identifizierungsmerkmal des Berichts.",
+       "en": "Identification information about the report."
+      },
+      "aqlPath": "/context/other_context[at0001]/items[at0002]/value",
+      "inputs": [
+       {
+        "type": "TEXT"
+       }
+      ]
+     },
+     {
+      "id": "status",
+      "name": "Status",
+      "localizedName": "Status",
+      "rmType": "DV_TEXT",
+      "nodeId": "at0005",
+      "min": 0,
+      "max": 1,
+      "localizedNames": {
+       "de": "Status",
+       "en": "Status"
+      },
+      "localizedDescriptions": {
+       "de": "Der Status des gesamten Berichts. Hinweis: Dies ist nicht der Status einer Berichtskomponente.",
+       "en": "The status of the entire report. Note: This is not the status of any of the report components."
+      },
+      "aqlPath": "/context/other_context[at0001]/items[at0005]/value",
+      "inputs": [
+       {
+        "type": "TEXT"
+       }
+      ]
+     },
+     {
+      "id": "case_identification",
+      "name": "Case identification",
+      "localizedName": "Case identification",
+      "rmType": "CLUSTER",
+      "nodeId": "openEHR-EHR-CLUSTER.case_identification.v0",
+      "min": 0,
+      "max": 1,
+      "localizedNames": {
+       "de": "Fallidentifikation",
+       "en": "Case identification"
+      },
+      "localizedDescriptions": {
+       "de": "Zur Erfassung von Details zur Identifikation eines Falls im Gesundheitswesen.",
+       "en": "To record case identification details for public health purposes."
+      },
+      "aqlPath": "/context/other_context[at0001]/items[openEHR-EHR-CLUSTER.case_identification.v0]",
+      "children": [
+       {
+        "id": "case_identifier",
+        "name": "Case identifier",
+        "localizedName": "Case identifier",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0001",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Fall-Kennung",
+         "en": "Case identifier"
+        },
+        "localizedDescriptions": {
+         "de": "Der Bezeichner/die Kennung dieses Falls.",
+         "en": "The identifier of this case."
+        },
+        "aqlPath": "/context/other_context[at0001]/items[openEHR-EHR-CLUSTER.case_identification.v0]/items[at0001]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ]
+       },
+       {
+        "id": "case_started",
+        "name": "Case started",
+        "localizedName": "Case started",
+        "rmType": "DV_DATE_TIME",
+        "nodeId": "at0002",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Fall-Beginn",
+         "en": "Case started"
+        },
+        "localizedDescriptions": {
+         "de": "Das Datum, an dem der Fall begann/eröffnet wurde.",
+         "en": "The date that the case was commenced."
+        },
+        "aqlPath": "/context/other_context[at0001]/items[openEHR-EHR-CLUSTER.case_identification.v0]/items[at0002]/value",
+        "inputs": [
+         {
+          "type": "DATETIME"
+         }
+        ]
+       },
+       {
+        "id": "status",
+        "name": "Status",
+        "localizedName": "Status",
+        "rmType": "DV_CODED_TEXT",
+        "nodeId": "at0003",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Status",
+         "en": "Status"
+        },
+        "localizedDescriptions": {
+         "de": "Der Status des Falls. \r\nDer Status \"abgeschlossen\" bedeutet, dass dem Patienten die entsprechende Fallnummer zugeordnet wurde. \r\nDer Status \"abgebrochen\" bedeutet, dass dem Patienten die entsprechende Fallnummer fälschlicherweise zugeordnet wurde.",
+         "en": "The status of the case. A status of completed means the patient has been associated with the given case number.\r\nA status of aborted means the patient was associated with the case number in error."
+        },
+        "aqlPath": "/context/other_context[at0001]/items[openEHR-EHR-CLUSTER.case_identification.v0]/items[at0003]/value",
+        "inputs": [
+         {
+          "suffix": "code",
+          "type": "CODED_TEXT",
+          "list": [
+           {
+            "value": "at0004",
+            "label": "Completed",
+            "localizedLabels": {
+             "de": "Abgeschlossen",
+             "en": "Completed"
+            },
+            "localizedDescriptions": {
+             "de": "Dem Patienten wurde die entsprechende Fallkennung zugeordnet.",
+             "en": "The case has been associated with the given case identifier."
+            }
+           },
+           {
+            "value": "at0005",
+            "label": "Aborted",
+            "localizedLabels": {
+             "de": "Abgebrochen",
+             "en": "Aborted"
+            },
+            "localizedDescriptions": {
+             "de": "Dem Patienten wurde die entsprechende Fallkennung fälschlicherweise zugeordnet.",
+             "en": "The subject was associated with the case identifier in error."
+            }
+           }
+          ],
+          "terminology": "local"
+         }
+        ]
+       },
+       {
+        "id": "case_identified",
+        "name": "Case identified",
+        "localizedName": "Case identified",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0006",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "identifizierter Fall",
+         "en": "Case identified"
+        },
+        "localizedDescriptions": {
+         "de": "Bezeichnung oder kodierter Text zur Bezeichnung des Falls.",
+         "en": "Text or coded description of the case identified."
+        },
+        "aqlPath": "/context/other_context[at0001]/items[openEHR-EHR-CLUSTER.case_identification.v0]/items[at0006]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "start_time",
+      "name": "start_time",
+      "rmType": "DV_DATE_TIME",
+      "min": 1,
+      "max": 1,
+      "aqlPath": "/context/start_time",
+      "inputs": [
+       {
+        "type": "DATETIME"
+       }
+      ],
+      "inContext": true
+     },
+     {
+      "id": "setting",
+      "name": "setting",
+      "rmType": "DV_CODED_TEXT",
+      "min": 1,
+      "max": 1,
+      "aqlPath": "/context/setting",
+      "inputs": [
+       {
+        "suffix": "code",
+        "type": "TEXT"
+       },
+       {
+        "suffix": "value",
+        "type": "TEXT"
+       }
+      ],
+      "inContext": true
+     }
+    ]
+   },
+   {
+    "id": "service_request",
+    "name": "Service request",
+    "localizedName": "Service request",
+    "rmType": "INSTRUCTION",
+    "nodeId": "openEHR-EHR-INSTRUCTION.service_request.v1",
+    "min": 0,
+    "max": 1,
+    "localizedNames": {
+     "de": "Dienstleistung",
+     "en": "Service request"
+    },
+    "localizedDescriptions": {
+     "de": "Antrag auf eine gesundheitsbezogene Dienstleistung oder Aktivität, die von einem Kliniker, einer Klinik oder einer Einrichtung erbracht werden soll.",
+     "en": "Request for a health-related service or activity to be delivered by a clinician, organisation or agency."
+    },
+    "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]",
+    "children": [
+     {
+      "id": "current_activity",
+      "name": "Current Activity",
+      "localizedName": "Current Activity",
+      "rmType": "ACTIVITY",
+      "nodeId": "at0001",
+      "min": 1,
+      "max": -1,
+      "localizedNames": {
+       "de": "Aktuelle Aktivität",
+       "en": "Current Activity"
+      },
+      "localizedDescriptions": {
+       "de": "Aktuelle Aktivität",
+       "en": "Current Activity."
+      },
+      "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]",
+      "children": [
+       {
+        "id": "service_name",
+        "name": "Service name",
+        "localizedName": "Service name",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0121",
+        "min": 1,
+        "max": 1,
+        "localizedNames": {
+         "de": "Name der Dienstleistung",
+         "en": "Service name"
+        },
+        "localizedDescriptions": {
+         "de": "Der Name der einzelnen beantragten Dienstleistung oder Aktivität.",
+         "en": "The name of the single service or activity requested."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0121]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "Coding of the 'Service name' with a coding system is desirable, if available. For example: 'referral' to an endocrinologist for diabetes management."
+        }
+       },
+       {
+        "id": "service_type",
+        "name": "Service type",
+        "localizedName": "Service type",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0148",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Art der Dienstleistung",
+         "en": "Service type"
+        },
+        "localizedDescriptions": {
+         "de": "Kategorie der beantragten Dienstleistung.",
+         "en": "Category of service requested."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0148]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "Coding of the 'Service type' with a coding system is desirable, if available. If the 'Service name' was coded, it is possible for this data point to be derived from the code. For example: biochemistry or microbiology laboratory, ultrasound or CT imaging."
+        }
+       },
+       {
+        "id": "description",
+        "name": "Description",
+        "localizedName": "Description",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0135",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Beschreibung",
+         "en": "Description"
+        },
+        "localizedDescriptions": {
+         "de": "Narrative Beschreibung der gewünschten Dienstleistung.",
+         "en": "Narrative description about the service requested."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0135]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "This data point should be used to describe the named service in more detail, including how it should be delivered, patient concerns and issues that might be encountered in delivering the service."
+        }
+       },
+       {
+        "id": "order_detail",
+        "name": "Order detail",
+        "localizedName": "Order detail",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0153",
+        "min": 0,
+        "max": -1,
+        "localizedNames": {
+         "de": "Auftragsdetail",
+         "en": "Order detail"
+        },
+        "localizedDescriptions": {
+         "de": "Zusätzliche Details und Anweisungen darüber, wie die Dienstleistungen zu erbringen sind.",
+         "en": "Additional details and instructions about how the services are to be delivered."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0153]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "Coding of the order detail with a terminology is preferred, where possible. This data element allows multiple occurrences. "
+        }
+       },
+       {
+        "id": "reason_for_request",
+        "name": "Reason for request",
+        "localizedName": "Reason for request",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0062",
+        "min": 0,
+        "max": -1,
+        "localizedNames": {
+         "de": "Grund für die Anforderung",
+         "en": "Reason for request"
+        },
+        "localizedDescriptions": {
+         "de": "Ein kurzer Satz, der den Grund für die Anforderung beschreibt.",
+         "en": "A short phrase describing the reason for the request."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0062]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "Coding of the 'Reason for request' with a coding system is desirable, if available. This data element allows multiple occurrences to enable the user to record a multiple responses, if required. For example: 'manage diabetes complications'."
+        }
+       },
+       {
+        "id": "reason_description",
+        "name": "Reason description",
+        "localizedName": "Reason description",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0064",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Beschreibung des Grundes",
+         "en": "Reason description"
+        },
+        "localizedDescriptions": {
+         "de": "Narrative Beschreibung über den Grund der Anforderung.",
+         "en": "Narrative description about the reason for request."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0064]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "For example: 'The patient's diabetes has recently become more difficult to stabilise and renal function is deteriorating'."
+        }
+       },
+       {
+        "id": "clinical_indication",
+        "name": "Clinical indication",
+        "localizedName": "Clinical indication",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0152",
+        "min": 0,
+        "max": -1,
+        "localizedNames": {
+         "de": "Klinische Indikation",
+         "en": "Clinical indication"
+        },
+        "localizedDescriptions": {
+         "de": "Der klinische Grund für die angeordnete Leistung.",
+         "en": "The clinical reason for the ordered service."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0152]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "Coding of the clinical indication with a terminology is preferred, where possible. This data element allows multiple occurrences. For example: 'Angina' or 'Type 1 Diabetes mellitus'."
+        }
+       },
+       {
+        "id": "intent",
+        "name": "Intent",
+        "localizedName": "Intent",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0065",
+        "min": 1,
+        "max": 1,
+        "localizedNames": {
+         "de": "Intention",
+         "en": "Intent"
+        },
+        "localizedDescriptions": {
+         "de": "Beschreibung der Intention für die Anfrage.",
+         "en": "Description of the intent for the request."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0065]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "For example: a referral to a specialist may have the intent of the specialist taking over responsibility for care of the patient, or it may be to provide a second opinion on treatment options. Coding of the 'Intent' with a coding system is desirable, if available. This data element allows multiple occurrences to enable the user to record a multiple responses, if required."
+        }
+       },
+       {
+        "id": "urgency",
+        "name": "Urgency",
+        "localizedName": "Urgency",
+        "rmType": "DV_CODED_TEXT",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Dringlichkeit",
+         "en": "Urgency"
+        },
+        "localizedDescriptions": {
+         "de": "Dringlichkeit der Anforderung der Dienstleistung.",
+         "en": "Urgency of the request for service."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0068]/value",
+        "inputs": [
+         {
+          "suffix": "code",
+          "type": "CODED_TEXT",
+          "list": [
+           {
+            "value": "at0136",
+            "label": "Emergency",
+            "localizedLabels": {
+             "de": "Notfall",
+             "en": "Emergency"
+            },
+            "localizedDescriptions": {
+             "de": "Die Anforderung erfordert sofortige Behandlung.",
+             "en": "The request requires immediate attention."
+            }
+           },
+           {
+            "value": "at0137",
+            "label": "Urgent",
+            "localizedLabels": {
+             "de": "Dringend",
+             "en": "Urgent"
+            },
+            "localizedDescriptions": {
+             "de": "Die Anforderung erfordert eine prioritäre Behandlung.",
+             "en": "The request requires prioritised attention."
+            }
+           },
+           {
+            "value": "at0138",
+            "label": "Routine",
+            "localizedLabels": {
+             "de": "Routine",
+             "en": "Routine"
+            },
+            "localizedDescriptions": {
+             "de": "Die Anforderung erfordert keine priorisierte Planung.",
+             "en": "The request does not require prioritised scheduling."
+            }
+           }
+          ],
+          "listOpen": true,
+          "terminology": "local"
+         },
+         {
+          "suffix": "other",
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "Specific definitions of emergency and urgent will vary between clinical contexts, clinical systems and the nature of the request itself, so have not been defined in this archetype. If explicit timing is required then the Service period should be clearly stated."
+        }
+       },
+       {
+        "id": "service_due",
+        "name": "Service due",
+        "localizedName": "Service due",
+        "rmType": "ELEMENT",
+        "nodeId": "at0040",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Dienstleistung erforderlich",
+         "en": "Service due"
+        },
+        "localizedDescriptions": {
+         "de": "Datum/Uhrzeit oder akzeptables Intervall von Datum/Uhrzeit für die Erbringung der Dienstleistung.",
+         "en": "The date/time, or acceptable interval of date/time, for provision of the service."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0040]",
+        "children": [
+         {
+          "id": "date_time_value",
+          "name": "Service due",
+          "localizedName": "Service due",
+          "rmType": "DV_DATE_TIME",
+          "nodeId": "at0040",
+          "min": 1,
+          "max": 1,
+          "localizedNames": {
+           "de": "Dienstleistung erforderlich",
+           "en": "Service due"
+          },
+          "localizedDescriptions": {
+           "de": "Datum/Uhrzeit oder akzeptables Intervall von Datum/Uhrzeit für die Erbringung der Dienstleistung.",
+           "en": "The date/time, or acceptable interval of date/time, for provision of the service."
+          },
+          "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0040]/value",
+          "inputs": [
+           {
+            "type": "DATETIME"
+           }
+          ],
+          "annotations": {
+           "comment": "This data element allows for recording of the timing for a single service, either as a date and time, a date ranges or a text descriptor which can allow for 'next available. In practice, clinicians will often think in terms of ordering services as approximate timing, for example: review in 3 months, 6 months or 12 months. As clinical systems need more exact parameters to operate on, this '3 months' will usually be converted to an exact date 3 months from the date of recording and stored using this data element. If complex timing or sequences of timings are required, use the CLUSTER.service_direction archetype within the 'Complex timing' SLOT and this data element becomes redundant."
+          }
+         },
+         {
+          "id": "interval<dv_date_time>_value",
+          "name": "Service due",
+          "localizedName": "Service due",
+          "rmType": "DV_INTERVAL<DV_DATE_TIME>",
+          "nodeId": "at0040",
+          "min": 1,
+          "max": 1,
+          "localizedNames": {
+           "de": "Dienstleistung erforderlich",
+           "en": "Service due"
+          },
+          "localizedDescriptions": {
+           "de": "Datum/Uhrzeit oder akzeptables Intervall von Datum/Uhrzeit für die Erbringung der Dienstleistung.",
+           "en": "The date/time, or acceptable interval of date/time, for provision of the service."
+          },
+          "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0040]/value",
+          "children": [
+           {
+            "id": "upper",
+            "name": "upper",
+            "localizedName": "upper",
+            "rmType": "DV_DATE_TIME",
+            "min": 1,
+            "max": 1,
+            "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0040]/value/upper",
+            "inputs": [
+             {
+              "type": "DATETIME"
+             }
+            ]
+           },
+           {
+            "id": "lower",
+            "name": "lower",
+            "localizedName": "lower",
+            "rmType": "DV_DATE_TIME",
+            "min": 1,
+            "max": 1,
+            "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0040]/value/lower",
+            "inputs": [
+             {
+              "type": "DATETIME"
+             }
+            ]
+           }
+          ],
+          "annotations": {
+           "comment": "This data element allows for recording of the timing for a single service, either as a date and time, a date ranges or a text descriptor which can allow for 'next available. In practice, clinicians will often think in terms of ordering services as approximate timing, for example: review in 3 months, 6 months or 12 months. As clinical systems need more exact parameters to operate on, this '3 months' will usually be converted to an exact date 3 months from the date of recording and stored using this data element. If complex timing or sequences of timings are required, use the CLUSTER.service_direction archetype within the 'Complex timing' SLOT and this data element becomes redundant."
+          }
+         },
+         {
+          "id": "text_value",
+          "name": "Service due",
+          "localizedName": "Service due",
+          "rmType": "DV_TEXT",
+          "nodeId": "at0040",
+          "min": 1,
+          "max": 1,
+          "localizedNames": {
+           "de": "Dienstleistung erforderlich",
+           "en": "Service due"
+          },
+          "localizedDescriptions": {
+           "de": "Datum/Uhrzeit oder akzeptables Intervall von Datum/Uhrzeit für die Erbringung der Dienstleistung.",
+           "en": "The date/time, or acceptable interval of date/time, for provision of the service."
+          },
+          "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0040]/value",
+          "inputs": [
+           {
+            "type": "TEXT"
+           }
+          ],
+          "annotations": {
+           "comment": "This data element allows for recording of the timing for a single service, either as a date and time, a date ranges or a text descriptor which can allow for 'next available. In practice, clinicians will often think in terms of ordering services as approximate timing, for example: review in 3 months, 6 months or 12 months. As clinical systems need more exact parameters to operate on, this '3 months' will usually be converted to an exact date 3 months from the date of recording and stored using this data element. If complex timing or sequences of timings are required, use the CLUSTER.service_direction archetype within the 'Complex timing' SLOT and this data element becomes redundant."
+          }
+         }
+        ],
+        "annotations": {
+         "comment": "This data element allows for recording of the timing for a single service, either as a date and time, a date ranges or a text descriptor which can allow for 'next available. In practice, clinicians will often think in terms of ordering services as approximate timing, for example: review in 3 months, 6 months or 12 months. As clinical systems need more exact parameters to operate on, this '3 months' will usually be converted to an exact date 3 months from the date of recording and stored using this data element. If complex timing or sequences of timings are required, use the CLUSTER.service_direction archetype within the 'Complex timing' SLOT and this data element becomes redundant."
+        }
+       },
+       {
+        "id": "service_period_start",
+        "name": "Service period start",
+        "localizedName": "Service period start",
+        "rmType": "DV_DATE_TIME",
+        "nodeId": "at0145",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Beginn der Dienstleistung",
+         "en": "Service period start"
+        },
+        "localizedDescriptions": {
+         "de": "Datum/Uhrzeit, die den Beginn des gültigen Zeitraums für die Durchführung dieses Dienstleistung markiert.",
+         "en": "The date/time that marks the beginning of the valid period of time for delivery of this service."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0145]/value",
+        "inputs": [
+         {
+          "type": "DATETIME"
+         }
+        ],
+        "annotations": {
+         "comment": "This date/time is the equivalent to the earliest possible date for service delivery. For example: sometimes a certain amount of time must pass before a service can be performed, for example some procedures can only be performed once the patient has stopped taking medications for a specific amount of time."
+        }
+       },
+       {
+        "id": "service_period_expiry",
+        "name": "Service period expiry",
+        "localizedName": "Service period expiry",
+        "rmType": "DV_DATE_TIME",
+        "nodeId": "at0144",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Ende der Dienstleistung",
+         "en": "Service period expiry"
+        },
+        "localizedDescriptions": {
+         "de": "Datum/Uhrzeit, das das Ende des klinisch gültigen Zeitraums für die Durchführung dieses Dienstleistung markiert.",
+         "en": "The date/time that marks the conclusion of the clinically valid period of time for delivery of this service."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0144]/value",
+        "inputs": [
+         {
+          "type": "DATETIME"
+         }
+        ],
+        "annotations": {
+         "comment": "This date/time is the equivalent to the latest possible date for service delivery or to the date of expiry for this request. For example: a service may be required to be completed before another event, such as scheduled surgery."
+        }
+       },
+       {
+        "id": "indefinite",
+        "name": "Indefinite?",
+        "localizedName": "Indefinite?",
+        "rmType": "DV_BOOLEAN",
+        "nodeId": "at0147",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Unbestimmt?",
+         "en": "Indefinite?"
+        },
+        "localizedDescriptions": {
+         "de": "Die Gültigkeitsdauer für diesen Anforderung ist offen und hat kein Ablaufdatum.",
+         "en": "The valid period for this request is open ended and has no date of expiry."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0147]/value",
+        "inputs": [
+         {
+          "type": "BOOLEAN",
+          "list": [
+           {
+            "value": "true",
+            "label": "true"
+           }
+          ]
+         }
+        ],
+        "annotations": {
+         "comment": "Record as TRUE to record explicity that the request has no expiry date. For example: commonly required for a referral to a specialist for long-term or lifelong care."
+        }
+       },
+       {
+        "id": "supplementary_information",
+        "name": "Supplementary information",
+        "localizedName": "Supplementary information",
+        "rmType": "DV_BOOLEAN",
+        "nodeId": "at0076",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Ergänzende Informationen",
+         "en": "Supplementary information"
+        },
+        "localizedDescriptions": {
+         "de": "Ergänzende Informationen werden auf Anfrage zur Verfügung gestellt.",
+         "en": "Supplementary information will be following request."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0076]/value",
+        "inputs": [
+         {
+          "type": "BOOLEAN",
+          "list": [
+           {
+            "value": "true",
+            "label": "true"
+           }
+          ]
+         }
+        ],
+        "annotations": {
+         "comment": "Record as TRUE if additional information has been identified and will be forwarded when available. For example: pending test results."
+        }
+       },
+       {
+        "id": "information_description",
+        "name": "Information description",
+        "localizedName": "Information description",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0078",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Beschreibung der Informationen",
+         "en": "Information description"
+        },
+        "localizedDescriptions": {
+         "de": "Beschreibung der Zusatzinformationen.",
+         "en": "Description of the supplementary information."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0078]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ]
+       },
+       {
+        "id": "comment",
+        "name": "Comment",
+        "localizedName": "Comment",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0150",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Kommentar",
+         "en": "Comment"
+        },
+        "localizedDescriptions": {
+         "de": "Weitere Informationen über die Dienstanforderung, welche bisher nicht in den anderen Feldern erfasst wurden.",
+         "en": "Additional narrative about the service request not captured in other fields."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/description[at0009]/items[at0150]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ]
+       },
+       {
+        "id": "timing",
+        "name": "timing",
+        "rmType": "DV_PARSABLE",
+        "min": 0,
+        "max": 1,
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/timing",
+        "inputs": [
+         {
+          "suffix": "value",
+          "type": "TEXT"
+         },
+         {
+          "suffix": "formalism",
+          "type": "TEXT"
+         }
+        ],
+        "inContext": true
+       },
+       {
+        "id": "action_archetype_id",
+        "name": "action_archetype_id",
+        "rmType": "STRING",
+        "min": 1,
+        "max": 1,
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/activities[at0001]/action_archetype_id",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ],
+        "inContext": true
+       }
+      ]
+     },
+     {
+      "id": "requester_order_identifier",
+      "name": "Requester order identifier",
+      "localizedName": "Requester order identifier",
+      "rmType": "ELEMENT",
+      "nodeId": "at0010",
+      "min": 0,
+      "max": 1,
+      "localizedNames": {
+       "de": "Auftrags-ID des anfordernden/einsendenden Systems",
+       "en": "Requester order identifier"
+      },
+      "localizedDescriptions": {
+       "de": "Lokale Auftrags-ID des anfordernden/einsendenden Systems.",
+       "en": "The local identifier assigned by the requesting clinical system."
+      },
+      "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[at0010]",
+      "children": [
+       {
+        "id": "text_value",
+        "name": "Requester order identifier",
+        "localizedName": "Requester order identifier",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0010",
+        "min": 1,
+        "max": 1,
+        "localizedNames": {
+         "de": "Auftrags-ID des anfordernden/einsendenden Systems",
+         "en": "Requester order identifier"
+        },
+        "localizedDescriptions": {
+         "de": "Lokale Auftrags-ID des anfordernden/einsendenden Systems.",
+         "en": "The local identifier assigned by the requesting clinical system."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[at0010]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "Usually equivalent to the HL7 Placer Order Identifier."
+        }
+       },
+       {
+        "id": "identifier_value",
+        "name": "Requester order identifier",
+        "localizedName": "Requester order identifier",
+        "rmType": "DV_IDENTIFIER",
+        "nodeId": "at0010",
+        "min": 1,
+        "max": 1,
+        "localizedNames": {
+         "de": "Auftrags-ID des anfordernden/einsendenden Systems",
+         "en": "Requester order identifier"
+        },
+        "localizedDescriptions": {
+         "de": "Lokale Auftrags-ID des anfordernden/einsendenden Systems.",
+         "en": "The local identifier assigned by the requesting clinical system."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[at0010]/value",
+        "inputs": [
+         {
+          "suffix": "id",
+          "type": "TEXT"
+         },
+         {
+          "suffix": "type",
+          "type": "TEXT"
+         },
+         {
+          "suffix": "issuer",
+          "type": "TEXT"
+         },
+         {
+          "suffix": "assigner",
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "Usually equivalent to the HL7 Placer Order Identifier."
+        }
+       }
+      ],
+      "annotations": {
+       "comment": "Usually equivalent to the HL7 Placer Order Identifier."
+      }
+     },
+     {
+      "id": "organisation",
+      "name": "Organisation",
+      "localizedName": "Organisation",
+      "rmType": "CLUSTER",
+      "nodeId": "openEHR-EHR-CLUSTER.organisation.v1",
+      "min": 0,
+      "max": 1,
+      "localizedNames": {
+       "de": "Organisation",
+       "en": "Organisation"
+      },
+      "localizedDescriptions": {
+       "de": "Eine Einheit, die aus einer oder mehreren Personen besteht und ein bestimmtes Ziel hat.",
+       "en": "An entity comprising one or more people and having a particular purpose."
+      },
+      "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[openEHR-EHR-CLUSTER.organisation.v1]",
+      "children": [
+       {
+        "id": "name",
+        "name": "Name",
+        "localizedName": "Name",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0001",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Namenszeile",
+         "en": "Name"
+        },
+        "localizedDescriptions": {
+         "de": "Der Name oder Bezeichnung der Organisation in unstrukturierter Form.",
+         "en": "The unstructured name or label for the organisation."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[openEHR-EHR-CLUSTER.organisation.v1]/items[at0001]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "For example: 'Royal Children's Hospital'; 'ABC District Nursing Service'; 'YNWA Oslo' or 'JB Smith Lawyers'."
+        }
+       },
+       {
+        "id": "identifier",
+        "name": "Identifier",
+        "localizedName": "Identifier",
+        "rmType": "ELEMENT",
+        "nodeId": "at0003",
+        "min": 0,
+        "max": -1,
+        "localizedNames": {
+         "de": "Identifier",
+         "en": "Identifier"
+        },
+        "localizedDescriptions": {
+         "de": "Identifikator, der der identifizierten Organisation zugeordnet ist.",
+         "en": "Identifier associated with the organisation."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[openEHR-EHR-CLUSTER.organisation.v1]/items[at0003]",
+        "children": [
+         {
+          "id": "identifier_value",
+          "name": "Identifier",
+          "localizedName": "Identifier",
+          "rmType": "DV_IDENTIFIER",
+          "nodeId": "at0003",
+          "min": 1,
+          "max": 1,
+          "localizedNames": {
+           "de": "Identifier",
+           "en": "Identifier"
+          },
+          "localizedDescriptions": {
+           "de": "Identifikator, der der identifizierten Organisation zugeordnet ist.",
+           "en": "Identifier associated with the organisation."
+          },
+          "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[openEHR-EHR-CLUSTER.organisation.v1]/items[at0003]/value",
+          "inputs": [
+           {
+            "suffix": "id",
+            "type": "TEXT"
+           },
+           {
+            "suffix": "type",
+            "type": "TEXT"
+           },
+           {
+            "suffix": "issuer",
+            "type": "TEXT"
+           },
+           {
+            "suffix": "assigner",
+            "type": "TEXT"
+           }
+          ],
+          "annotations": {
+           "comment": "Occurrences for this data element is set to 0..* to allow for more than one Identifier to be recorded. Note that the ID data type contains multiple subcomponents for recording the ID value, type, issuer and assigner."
+          }
+         },
+         {
+          "id": "text_value",
+          "name": "Identifier",
+          "localizedName": "Identifier",
+          "rmType": "DV_TEXT",
+          "nodeId": "at0003",
+          "min": 1,
+          "max": 1,
+          "localizedNames": {
+           "de": "Identifier",
+           "en": "Identifier"
+          },
+          "localizedDescriptions": {
+           "de": "Identifikator, der der identifizierten Organisation zugeordnet ist.",
+           "en": "Identifier associated with the organisation."
+          },
+          "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[openEHR-EHR-CLUSTER.organisation.v1]/items[at0003]/value",
+          "inputs": [
+           {
+            "type": "TEXT"
+           }
+          ],
+          "annotations": {
+           "comment": "Occurrences for this data element is set to 0..* to allow for more than one Identifier to be recorded. Note that the ID data type contains multiple subcomponents for recording the ID value, type, issuer and assigner."
+          }
+         }
+        ],
+        "annotations": {
+         "comment": "Occurrences for this data element is set to 0..* to allow for more than one Identifier to be recorded. Note that the ID data type contains multiple subcomponents for recording the ID value, type, issuer and assigner."
+        }
+       },
+       {
+        "id": "role",
+        "name": "Role",
+        "localizedName": "Role",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0004",
+        "min": 0,
+        "max": -1,
+        "localizedNames": {
+         "de": "Funktion",
+         "en": "Role"
+        },
+        "localizedDescriptions": {
+         "de": "Die Beziehung oder Rolle der Organisation zum Pflegebedürftigen oder Patient.",
+         "en": "The relationship or role of the organisation to the individual or subject of care."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[openEHR-EHR-CLUSTER.organisation.v1]/items[at0004]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "For example: oncologist; palliative care home nursing service; or informal support network."
+        }
+       },
+       {
+        "id": "comment",
+        "name": "Comment",
+        "localizedName": "Comment",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0019",
+        "min": 0,
+        "max": 1,
+        "localizedNames": {
+         "de": "Kommentar",
+         "en": "Comment"
+        },
+        "localizedDescriptions": {
+         "de": "Zusätzlicher Text zu der Organisation, der in anderen Bereichen nicht erfasst wird.",
+         "en": "Additional narrative about the organisation not captured in other fields."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[openEHR-EHR-CLUSTER.organisation.v1]/items[at0019]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ]
+       }
+      ],
+      "annotations": {
+       "comment": "For example: a company, institution, association, network, department, community group, healthcare practice group, payer/insurer, care team, or a group of neighbours who provide care or support."
+      }
+     },
+     {
+      "id": "receiver_order_identifier",
+      "name": "Receiver order identifier",
+      "localizedName": "Receiver order identifier",
+      "rmType": "ELEMENT",
+      "nodeId": "at0011",
+      "min": 0,
+      "max": 1,
+      "localizedNames": {
+       "de": "Auftrags-ID (Empfänger)",
+       "en": "Receiver order identifier"
+      },
+      "localizedDescriptions": {
+       "de": "Lokale Auftrags-ID, die der Anforderung durch den Kliniker oder die Organisation, die die Leistungsanforderung erhält, zugewiesen wurde.\r\n",
+       "en": "The local identifier assigned to the request by the clinician or organisation receiving the request for service."
+      },
+      "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[at0011]",
+      "children": [
+       {
+        "id": "text_value",
+        "name": "Receiver order identifier",
+        "localizedName": "Receiver order identifier",
+        "rmType": "DV_TEXT",
+        "nodeId": "at0011",
+        "min": 1,
+        "max": 1,
+        "localizedNames": {
+         "de": "Auftrags-ID (Empfänger)",
+         "en": "Receiver order identifier"
+        },
+        "localizedDescriptions": {
+         "de": "Lokale Auftrags-ID, die der Anforderung durch den Kliniker oder die Organisation, die die Leistungsanforderung erhält, zugewiesen wurde.\r\n",
+         "en": "The local identifier assigned to the request by the clinician or organisation receiving the request for service."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[at0011]/value",
+        "inputs": [
+         {
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "Usually equivalent to the HL7 Filler Order Identifier."
+        }
+       },
+       {
+        "id": "identifier_value",
+        "name": "Receiver order identifier",
+        "localizedName": "Receiver order identifier",
+        "rmType": "DV_IDENTIFIER",
+        "nodeId": "at0011",
+        "min": 1,
+        "max": 1,
+        "localizedNames": {
+         "de": "Auftrags-ID (Empfänger)",
+         "en": "Receiver order identifier"
+        },
+        "localizedDescriptions": {
+         "de": "Lokale Auftrags-ID, die der Anforderung durch den Kliniker oder die Organisation, die die Leistungsanforderung erhält, zugewiesen wurde.\r\n",
+         "en": "The local identifier assigned to the request by the clinician or organisation receiving the request for service."
+        },
+        "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[at0011]/value",
+        "inputs": [
+         {
+          "suffix": "id",
+          "type": "TEXT"
+         },
+         {
+          "suffix": "type",
+          "type": "TEXT"
+         },
+         {
+          "suffix": "issuer",
+          "type": "TEXT"
+         },
+         {
+          "suffix": "assigner",
+          "type": "TEXT"
+         }
+        ],
+        "annotations": {
+         "comment": "Usually equivalent to the HL7 Filler Order Identifier."
+        }
+       }
+      ],
+      "annotations": {
+       "comment": "Usually equivalent to the HL7 Filler Order Identifier."
+      }
+     },
+     {
+      "id": "request_status",
+      "name": "Request status",
+      "localizedName": "Request status",
+      "rmType": "DV_TEXT",
+      "nodeId": "at0127",
+      "min": 0,
+      "max": 1,
+      "localizedNames": {
+       "de": "Status der Anfrage",
+       "en": "Request status"
+      },
+      "localizedDescriptions": {
+       "de": "Der Status des Zustellungsantrags, wie vom Antragsteller angegeben.",
+       "en": "The status of the request for service as indicated by the requester."
+      },
+      "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/protocol[at0008]/items[at0127]/value",
+      "inputs": [
+       {
+        "type": "TEXT"
+       }
+      ],
+      "annotations": {
+       "comment": "Status is used to denote whether this is the initial request, or a follow-up request to change or provide supplementary information. Coding with a terminology is preferred, where possible."
+      }
+     },
+     {
+      "id": "subject",
+      "name": "subject",
+      "rmType": "PARTY_PROXY",
+      "min": 1,
+      "max": 1,
+      "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/subject",
+      "inputs": [
+       {
+        "suffix": "id",
+        "type": "TEXT"
+       },
+       {
+        "suffix": "id_scheme",
+        "type": "TEXT"
+       },
+       {
+        "suffix": "id_namespace",
+        "type": "TEXT"
+       },
+       {
+        "suffix": "name",
+        "type": "TEXT"
+       }
+      ],
+      "inContext": true
+     },
+     {
+      "id": "narrative",
+      "name": "narrative",
+      "rmType": "DV_TEXT",
+      "min": 1,
+      "max": 1,
+      "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/narrative",
+      "inputs": [
+       {
+        "type": "TEXT"
+       }
+      ],
+      "inContext": true
+     },
+     {
+      "id": "language",
+      "name": "language",
+      "rmType": "CODE_PHRASE",
+      "min": 1,
+      "max": 1,
+      "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/language",
+      "inContext": true
+     },
+     {
+      "id": "encoding",
+      "name": "encoding",
+      "rmType": "CODE_PHRASE",
+      "min": 1,
+      "max": 1,
+      "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/encoding",
+      "inContext": true
+     },
+     {
+      "id": "expiry_time",
+      "name": "expiry_time",
+      "rmType": "DV_DATE_TIME",
+      "min": 0,
+      "max": 1,
+      "aqlPath": "/content[openEHR-EHR-INSTRUCTION.service_request.v1]/expiry_time",
+      "inputs": [
+       {
+        "type": "DATETIME"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "composer",
+    "name": "composer",
+    "rmType": "PARTY_PROXY",
+    "min": 1,
+    "max": 1,
+    "aqlPath": "/composer",
+    "inputs": [
+     {
+      "suffix": "id",
+      "type": "TEXT"
+     },
+     {
+      "suffix": "id_scheme",
+      "type": "TEXT"
+     },
+     {
+      "suffix": "id_namespace",
+      "type": "TEXT"
+     },
+     {
+      "suffix": "name",
+      "type": "TEXT"
+     }
+    ],
+    "inContext": true
+   },
+   {
+    "id": "language",
+    "name": "language",
+    "rmType": "CODE_PHRASE",
+    "min": 1,
+    "max": 1,
+    "aqlPath": "/language",
+    "inContext": true
+   },
+   {
+    "id": "territory",
+    "name": "territory",
+    "rmType": "CODE_PHRASE",
+    "min": 1,
+    "max": 1,
+    "aqlPath": "/territory",
+    "inContext": true
+   }
+  ]
+ }
+}

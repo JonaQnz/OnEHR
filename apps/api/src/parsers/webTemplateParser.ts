@@ -377,10 +377,31 @@ export function parseWebTemplate(webTemplate: any): {
         }
 
         if (node.rmType === 'DV_BOOLEAN') {
-          field.options = [
-            { value: 'true', text: 'Yes' },
-            { value: 'false', text: 'No' }
-          ];
+          // A DV_BOOLEAN archetype slot can be constrained to a SINGLE
+          // allowed value ({True} only) - a common openEHR "presence flag"
+          // idiom (e.g. vg_ServiceRequest.v1.1.1's "indefinite": "Record as
+          // TRUE to record explicitly that the request has no expiry date")
+          // rather than a real yes/no toggle. Confirmed live: EHRbase's own
+          // WebTemplate export surfaces this exactly like a coded field's
+          // option list - `inputs[0].list` contains only
+          // `[{value:"true", label:"true"}]`, no "false" entry at all - and
+          // EHRbase rejects a submitted `false` with "The value false must
+          // be true". Hardcoding both Yes/No unconditionally (the previous
+          // behavior) silently hid this constraint from every consumer
+          // (widget derivation, validation, this field list) until a live
+          // 400 from EHRbase. Read the same `list` this file already reads
+          // for DV_CODED_TEXT/DV_ORDINAL above; only fall back to the
+          // traditional both-options default when a template genuinely
+          // provides no list at all (defensive - not confirmed any real
+          // template omits it, but nothing here should ever produce zero
+          // options for a boolean field).
+          const booleanList: Array<{ value: string; label?: string }> | undefined = node.inputs?.[0]?.list;
+          field.options = booleanList && booleanList.length > 0
+            ? booleanList.map((l) => ({ value: l.value, text: l.value === 'true' ? 'Yes' : l.value === 'false' ? 'No' : (l.label || l.value) }))
+            : [
+              { value: 'true', text: 'Yes' },
+              { value: 'false', text: 'No' }
+            ];
         }
 
         fields.push(field);
