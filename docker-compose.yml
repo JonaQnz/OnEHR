@@ -76,7 +76,6 @@ services:
       # Prisma schema is mounted so the API container can regenerate its client
       # when local development adds a persisted model.
       - ./apps/api/prisma:/app/apps/api/prisma
-      - ./packages/aql-prefill-plugin/dist:/app/packages/aql-prefill-plugin/dist
 
   web:
     # Dev setup with hot reload
@@ -98,7 +97,6 @@ services:
       - apps_api_node_modules:/app/apps/api/node_modules
       - packages_core_node_modules:/app/packages/core/node_modules
       - packages_rfb_node_modules:/app/packages/react-form-builder2/node_modules
-      - packages_aql_prefill_node_modules:/app/packages/aql-prefill-plugin/node_modules
     command: sh -c "npm install --legacy-peer-deps && npm run build:packages && npm run build:lib --workspace=react-form-builder2 && cd apps/web && npm run dev -- --host 0.0.0.0 --port 3000 --force"
 
 volumes:
@@ -108,4 +106,3 @@ volumes:
   apps_api_node_modules:
   packages_core_node_modules:
   packages_rfb_node_modules:
-  packages_aql_prefill_node_modules:

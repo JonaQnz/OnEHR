@@ -14,6 +14,18 @@ export default defineConfig({
     alias: {
       core: path.resolve(__dirname, '../../packages/core/src'),
       'openehr-engine': path.resolve(__dirname, '../../packages/openehr-engine/src'),
+      // Same CJS/ESM interop problem as 'core' above, but hit specifically
+      // via formScript.worker.ts's separate module graph: Vite's dep
+      // pre-bundling (which converts CJS -> ESM) only covers the main
+      // thread's graph, not a module Worker's. Without this alias the
+      // worker requests dist/index.js (plain `exports.foo = ...` CJS)
+      // directly and crashes on load with "Uncaught ReferenceError: exports
+      // is not defined" - confirmed live 2026-09-03, reproduced even with
+      // the pristine origin/main worker file, i.e. pre-existing.
+      'formbuilder-plugin-clinical-scores': path.resolve(
+        __dirname,
+        '../../packages/formbuilder-plugin-clinical-scores/src',
+      ),
     },
   },
   define: {

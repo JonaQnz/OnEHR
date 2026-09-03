@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "core": "*",
-    "formbuilder-plugin-aql-prefill": "*",
     "formbuilder-plugin-clinical-scores": "*",
     "lucide-react": "^1.24.0",
     "openehr-engine": "*",
