@@ -544,7 +544,7 @@ function FormBuilderContent() {
   const updateElementFnRef = React.useRef<((elem: any) => void) | null>(null);
 
   // One integrated workbench per form: Designer | Preview | TypeScript | Logs | Live JSON
-  const [previewMode, setPreviewMode] = useState<'edit' | 'runtime' | 'typescript' | 'logs' | 'clinical' | 'export' | 'json'>('edit');
+  const [previewMode, setPreviewMode] = useState<'edit' | 'runtime' | 'typescript' | 'logs' | 'clinical' | 'export' | 'json' | 'fhirDebug'>('edit');
   // Warnings Drawer toggle
   const [warningsOpen, setWarningsOpen] = useState(false);
 
@@ -593,6 +593,73 @@ function FormBuilderContent() {
       finally { setPreviewContextLoaded(true); }
     })();
   }, []);
+
+  // FHIR Debug tab: which FHIR resource type this form's submitted data
+  // should show up as on the FHIR CDR (formbuilder.fhir-mapping extension -
+  // see packages/core/src/fhir-mapping), plus the manual "Jetzt prüfen"
+  // result. Reuses appliedPreviewEhrId from the Preview tab's own
+  // patient-picker above - one patient chosen, usable in both tabs.
+  const [fhirResourceTypeDraft, setFhirResourceTypeDraft] = useState('');
+  const [fhirMappingSaving, setFhirMappingSaving] = useState(false);
+  const [fhirVerifyLoading, setFhirVerifyLoading] = useState(false);
+  const [fhirVerifyResult, setFhirVerifyResult] = useState<any>(null);
+  const [fhirVerifyError, setFhirVerifyError] = useState<string | null>(null);
+  const [fhirCallLogs, setFhirCallLogs] = useState<any[]>([]);
+  useEffect(() => {
+    setFhirResourceTypeDraft(form?.canonical_json?.extensions?.['formbuilder.fhir-mapping']?.resourceType || '');
+  }, [form?.id]);
+  const saveFhirMapping = async (resourceType: string) => {
+    if (!formRef.current) return;
+    setFhirMappingSaving(true);
+    try {
+      const trimmed = resourceType.trim();
+      const nextExtensions = { ...(formRef.current.canonical_json.extensions || {}) };
+      if (trimmed) nextExtensions['formbuilder.fhir-mapping'] = { resourceType: trimmed };
+      else delete nextExtensions['formbuilder.fhir-mapping'];
+      const nextCanonical = { ...formRef.current.canonical_json, extensions: nextExtensions };
+      const res = await fetch(`${API_BASE_URL}/forms/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nextCanonical),
+      });
+      const saved = await res.json();
+      setForm(saved);
+      formRef.current = saved;
+    } catch (error) {
+      console.error('Konnte FHIR-Ressourcenzuordnung nicht speichern:', error);
+    } finally {
+      setFhirMappingSaving(false);
+    }
+  };
+  const runFhirVerify = async () => {
+    if (!appliedPreviewEhrId) { setFhirVerifyError('Bitte zuerst einen Patienten/EHR-ID auswählen (oben im Preview-Tab).'); return; }
+    setFhirVerifyLoading(true);
+    setFhirVerifyError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/forms/${id}/fhir-verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ehrId: appliedPreviewEhrId }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.message || `HTTP ${res.status}`);
+      setFhirVerifyResult(await res.json());
+    } catch (error: any) {
+      setFhirVerifyError(error?.message || 'Prüfung fehlgeschlagen.');
+    } finally {
+      setFhirVerifyLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (previewMode !== 'fhirDebug' || !id) return;
+    fetch(`${API_BASE_URL}/admin/ehrbase/call-logs?formId=${encodeURIComponent(String(id))}&protocol=fhir&limit=10`)
+      .then((res) => (res.ok ? res.json() : { logs: [] }))
+      .then((data) => setFhirCallLogs(Array.isArray(data?.logs) ? data.logs : []))
+      // Admin-gated (system.configure) - a non-admin form designer gets a
+      // 403 here, which just means "no history shown", not an error worth
+      // surfacing; the resource-type picker and "Jetzt prüfen" above stay
+      // fully usable either way.
+      .catch(() => setFhirCallLogs([]));
+  }, [previewMode, id, fhirVerifyResult]);
 
   // The actual context.aql/context.composition a beforeLoad prefill script
   // reads - fetched fresh whenever the applied preview patient/EHR changes
@@ -1360,6 +1427,7 @@ function FormBuilderContent() {
             <button type="button" className={`btn-workbench secondary ${previewMode === 'runtime' ? 'active' : ''}`} onClick={() => setPreviewMode('runtime')}>Preview</button>
             <button type="button" className={`btn-workbench secondary ${previewMode === 'typescript' ? 'active' : ''}`} onClick={() => setPreviewMode('typescript')}>TypeScript</button>
             <button type="button" className={`btn-workbench secondary ${previewMode === 'logs' ? 'active' : ''}`} onClick={() => setPreviewMode('logs')}>Logs</button>
+            <button type="button" className={`btn-workbench secondary ${previewMode === 'fhirDebug' ? 'active' : ''}`} onClick={() => setPreviewMode('fhirDebug')}>FHIR Debug</button>
           </nav>
           <button
             className="btn-workbench success"
@@ -1444,9 +1512,100 @@ function FormBuilderContent() {
               <div style={{ maxWidth: '960px', margin: '0 auto', color: '#64748b' }}>Patientenkontext wird geladen…</div>
             )}
           </div>
+        ) : previewMode === 'fhirDebug' ? (
+          <div className="workbench-scripting-view" style={{ padding: '1.25rem', maxWidth: '960px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.1rem' }}>
+              <h3 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>FHIR-Ressourcenzuordnung</h3>
+              <p style={{ margin: '0 0 0.75rem', fontSize: '0.82rem', color: '#64748b' }}>
+                Welche FHIR-Ressource soll für die eingereichten Daten dieses Formulars auf der FHIR-CDR gesucht werden? HIP konvertiert die Composition serverseitig - hier wird nur geprüft, was dabei ankam, nicht selbst geschrieben.
+              </p>
+              <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  className="form-input"
+                  style={{ minWidth: '220px' }}
+                  placeholder="z. B. ServiceRequest, Procedure, Observation"
+                  value={fhirResourceTypeDraft}
+                  onChange={(event) => setFhirResourceTypeDraft(event.target.value)}
+                />
+                <button type="button" className="btn-workbench secondary" disabled={fhirMappingSaving} onClick={() => saveFhirMapping(fhirResourceTypeDraft)}>
+                  {fhirMappingSaving ? 'Speichert…' : 'Speichern'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.1rem' }}>
+              <h3 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>Jetzt prüfen</h3>
+              <p style={{ margin: '0 0 0.75rem', fontSize: '0.82rem', color: '#64748b' }}>
+                Nutzt den im Preview-Tab oben gewählten Test-Patienten
+                {appliedPreviewEhrId ? <> (EHR-ID <code>{appliedPreviewEhrId}</code>)</> : ' - dort ist aktuell keiner ausgewählt'}.
+                Läuft außerdem automatisch nach jedem echten "Absenden" dieses Formulars.
+              </p>
+              <button type="button" className="btn-workbench success" disabled={fhirVerifyLoading} onClick={runFhirVerify}>
+                {fhirVerifyLoading ? 'Prüft…' : 'Jetzt prüfen'}
+              </button>
+              {fhirVerifyError && <p style={{ color: '#dc2626', fontSize: '0.82rem', marginTop: '0.6rem' }}>{fhirVerifyError}</p>}
+              {fhirVerifyResult && (
+                <div style={{ marginTop: '0.85rem' }}>
+                  {fhirVerifyResult.status === 'unmapped' && (
+                    <p style={{ fontSize: '0.85rem', color: '#b45309' }}>Kein Ressourcentyp zugeordnet - oben zuerst eintragen und speichern.</p>
+                  )}
+                  {fhirVerifyResult.status === 'no-fhir-patient' && (
+                    <p style={{ fontSize: '0.85rem', color: '#b45309' }}>Dieser Patient hat keine hinterlegte FHIR-Patient-ID (nur Patienten, die über die HIP-FHIR-API angelegt wurden, haben eine).</p>
+                  )}
+                  {fhirVerifyResult.status === 'ok' && (
+                    <>
+                      <p style={{ fontSize: '0.85rem', color: '#16a34a', fontWeight: 600 }}>
+                        {fhirVerifyResult.resourceType} - {Array.isArray(fhirVerifyResult.bundle?.entry) ? fhirVerifyResult.bundle.entry.length : 0} Treffer
+                      </p>
+                      <details style={{ marginTop: '0.5rem' }}>
+                        <summary style={{ cursor: 'pointer', fontSize: '0.82rem', color: '#334155' }}>FHIR-Antwort (Bundle)</summary>
+                        <pre style={{ maxHeight: '320px', overflow: 'auto', background: '#0f172a', color: '#e2e8f0', padding: '0.75rem', borderRadius: '8px', fontSize: '0.75rem' }}>
+                          {JSON.stringify(fhirVerifyResult.bundle, null, 2)}
+                        </pre>
+                      </details>
+                      {fhirVerifyResult.composition && (
+                        <details style={{ marginTop: '0.5rem' }}>
+                          <summary style={{ cursor: 'pointer', fontSize: '0.82rem', color: '#334155' }}>Zuletzt gesendete Composition (Flat)</summary>
+                          <pre style={{ maxHeight: '320px', overflow: 'auto', background: '#0f172a', color: '#e2e8f0', padding: '0.75rem', borderRadius: '8px', fontSize: '0.75rem' }}>
+                            {JSON.stringify(fhirVerifyResult.composition.flat, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {fhirCallLogs.length > 0 && (
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.1rem' }}>
+                <h3 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>Letzte FHIR-Prüfungen</h3>
+                <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', color: '#64748b' }}>
+                      <th style={{ padding: '0.3rem 0.5rem' }}>Zeitpunkt</th>
+                      <th style={{ padding: '0.3rem 0.5rem' }}>Ressource</th>
+                      <th style={{ padding: '0.3rem 0.5rem' }}>Operation</th>
+                      <th style={{ padding: '0.3rem 0.5rem' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fhirCallLogs.map((log) => (
+                      <tr key={log.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '0.3rem 0.5rem' }}>{new Date(log.createdAt).toLocaleString('de-DE')}</td>
+                        <td style={{ padding: '0.3rem 0.5rem' }}>{log.resourceType}</td>
+                        <td style={{ padding: '0.3rem 0.5rem' }}>{log.operation}</td>
+                        <td style={{ padding: '0.3rem 0.5rem', color: log.success ? '#16a34a' : '#dc2626' }}>{log.success ? 'OK' : 'Fehler'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         ) : previewMode === 'json' ? (
           <div className="workbench-scripting-view">
-            <LiveJsonEditor 
+            <LiveJsonEditor
               form={form} 
               onSave={(newForm, newBuilderItems) => {
                  setForm(newForm);

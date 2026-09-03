@@ -270,12 +270,8 @@ export async function createPatient(input: CreatePatientInput) {
   // bare EHR_STATUS; the next sync flips it true once Stammdaten is actually
   // documented (and, per the update branch above, never clobbers this name
   // with "Unbekannt" in the meantime).
-  const patient = await prisma.patient.create({ data: { patientId: input.patientId, patientNamespace: namespace, firstName: input.firstName, lastName: input.lastName, birthDate: input.birthDate, gender: input.gender, ehrId, origin: 'native', hasPersonArchetype: false } });
-  // fhirPatientId is not persisted (no schema column - the Prisma record's
-  // ehrId is what everything else keys off) - included here only so a
-  // caller that just created a HIP-routed patient can see/log the FHIR
-  // Patient id without a second lookup.
-  return fhirPatientId ? { ...patient, fhirPatientId } : patient;
+  const patient = await prisma.patient.create({ data: { patientId: input.patientId, patientNamespace: namespace, firstName: input.firstName, lastName: input.lastName, birthDate: input.birthDate, gender: input.gender, ehrId, origin: 'native', hasPersonArchetype: false, fhirPatientId } });
+  return patient;
 }
 export async function listPatients(sync = true) {
   if (sync) {

@@ -158,13 +158,41 @@ export async function getFhirResource(resourceType: string, id: string): Promise
 
 /** Searches a resource type (GET /{resourceType}?...). `query` values are
  * passed through as-is as search parameters (e.g. { patient: 'Patient/123',
- * code: '...' }). Returns the raw FHIR Bundle. */
-export async function searchFhirResource(resourceType: string, query: Record<string, string> = {}): Promise<any> {
+ * code: '...' }). Returns the raw FHIR Bundle.
+ *
+ * `context` is optional call-log routing info (ehrId/patientId/formId/
+ * sessionId) - when given, the search itself is logged via
+ * logIntegrationCall the same way createFhirResource already logs writes.
+ * Every existing caller (the admin `/fhir-cdr/:resourceType` route) omits
+ * it and stays unlogged, same as before; only fhirVerificationService.ts
+ * passes it, since that's the one place a search result needs to be
+ * traceable back to the form/session that triggered it. */
+export async function searchFhirResource(
+  resourceType: string,
+  query: Record<string, string> = {},
+  context?: { ehrId?: string; patientId?: string; formId?: string; sessionId?: string; operation?: string },
+): Promise<any> {
   const { baseUrl, headers, auth } = await fhirRequestConfig();
+  const url = `${baseUrl}/${encodeURIComponent(resourceType)}`;
   try {
-    const response = await axios.get(`${baseUrl}/${encodeURIComponent(resourceType)}`, { headers, auth, params: query, timeout: 20_000 });
+    const response = await axios.get(url, { headers, auth, params: query, timeout: 20_000 });
+    if (context) {
+      logIntegrationCall({
+        protocol: 'fhir', resourceType, operation: context.operation || 'search', method: 'GET', url,
+        requestBody: query, responseBody: response.data, statusCode: response.status, success: true,
+        ehrId: context.ehrId, patientId: context.patientId, formId: context.formId, sessionId: context.sessionId,
+      });
+    }
     return response.data;
   } catch (error: any) {
+    if (context) {
+      logIntegrationCall({
+        protocol: 'fhir', resourceType, operation: context.operation || 'search', method: 'GET', url,
+        requestBody: query, responseBody: error?.response?.data, statusCode: error?.response?.status,
+        success: false, errorMessage: describeError(error),
+        ehrId: context.ehrId, patientId: context.patientId, formId: context.formId, sessionId: context.sessionId,
+      });
+    }
     console.error(`[fhirCdrService] Failed to search ${resourceType}:`, describeError(error));
     throw new Error(`Failed to search ${resourceType} on FHIR CDR: ${describeError(error)}`);
   }

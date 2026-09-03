@@ -27,6 +27,10 @@ export interface LogIntegrationCallInput {
   ehrId?: string;
   patientId?: string;
   fhirPatientId?: string;
+  /** Only set by the FHIR verification calls the FHIR Debug tab makes - see
+   * fhirVerificationService.ts. Every other call site leaves this unset. */
+  formId?: string;
+  sessionId?: string;
 }
 
 // Deliberately never throws - a logging failure must never affect the real
@@ -48,6 +52,8 @@ export async function logIntegrationCall(input: LogIntegrationCallInput): Promis
         ehrId: input.ehrId,
         patientId: input.patientId,
         fhirPatientId: input.fhirPatientId,
+        formId: input.formId,
+        sessionId: input.sessionId,
       },
     });
   } catch (error) {
@@ -65,6 +71,7 @@ export interface ListIntegrationCallLogsOptions {
   // rows the Patient Detail debug tab needs to show.
   ehrId?: string;
   patientId?: string;
+  formId?: string;
   limit?: number;
   offset?: number;
 }
@@ -72,7 +79,7 @@ export interface ListIntegrationCallLogsOptions {
 // Lightweight rows only (no request/response bodies) - use
 // getIntegrationCallLog for the full payload of one entry.
 export async function listIntegrationCallLogs(options: ListIntegrationCallLogsOptions = {}) {
-  const { protocol, resourceType, success, ehrId, patientId, limit = 50, offset = 0 } = options;
+  const { protocol, resourceType, success, ehrId, patientId, formId, limit = 50, offset = 0 } = options;
   const identifierFilter = ehrId && patientId
     ? { OR: [{ ehrId }, { patientId }] }
     : ehrId ? { ehrId } : patientId ? { patientId } : {};
@@ -81,6 +88,7 @@ export async function listIntegrationCallLogs(options: ListIntegrationCallLogsOp
       ...(protocol ? { protocol } : {}),
       ...(resourceType ? { resourceType } : {}),
       ...(success !== undefined ? { success } : {}),
+      ...(formId ? { formId } : {}),
       ...identifierFilter,
     },
     orderBy: { createdAt: 'desc' },
@@ -88,7 +96,8 @@ export async function listIntegrationCallLogs(options: ListIntegrationCallLogsOp
     skip: Math.max(0, offset),
     select: {
       id: true, protocol: true, resourceType: true, operation: true, method: true, url: true,
-      statusCode: true, success: true, errorMessage: true, ehrId: true, patientId: true, fhirPatientId: true, createdAt: true,
+      statusCode: true, success: true, errorMessage: true, ehrId: true, patientId: true, fhirPatientId: true,
+      formId: true, sessionId: true, createdAt: true,
     },
   });
 }

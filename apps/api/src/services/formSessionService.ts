@@ -31,6 +31,7 @@ import { getConfig, resolveSessionAlwaysNew } from './configService';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 import type { PluginHookName, PluginHookResult } from 'plugin-api';
 import { markPatientHasPersonArchetype, resolvePatientReference } from './patientService';
+import { verifyFhirForSubmission } from './fhirVerificationService';
 import { buildSessionRuntimeContext } from './aqlFunctionService';
 
 export interface SessionActor {
@@ -994,6 +995,16 @@ export async function submitFormSessionToProvider(
   const submittedTemplateId = input.form.definition.sourceTemplates?.[0]?.id;
   if (result.metadata?.ehrId && submittedTemplateId && submittedTemplateId === getConfig().patientRegistryPersonTemplateId) {
     void markPatientHasPersonArchetype(result.metadata.ehrId).catch((error) => console.warn('[formSessionService] Could not refresh hasPersonArchetype after submit:', error instanceof Error ? error.message : error));
+  }
+  // Fire-and-forget FHIR verification for the FHIR Debug tab - a no-op
+  // (returns 'unmapped') for the vast majority of forms that have no
+  // FORM_FHIR_MAPPING_EXTENSION_KEY set. Never awaited before returning the
+  // submit result and never allowed to fail the submit itself - see
+  // fhirVerificationService.ts's own doc comment for why this only
+  // verifies (searches), never writes.
+  if (result.metadata?.ehrId) {
+    void verifyFhirForSubmission(input.form.id, result.metadata.ehrId, { sessionId: input.session.id, operation: 'verify-after-submit' })
+      .catch((error) => console.warn('[formSessionService] FHIR verification after submit failed:', error instanceof Error ? error.message : error));
   }
   return {
     session: publicSession(
