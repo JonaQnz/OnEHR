@@ -6,6 +6,7 @@ import { exportMappings } from '../exporters/mappingExporter';
 import { asyncHandler, HttpError } from '../middleware/errorHandler';
 import { normalizeCanonicalFormPayload, requireNonEmptyString } from '../validation/formValidation';
 import { COMPOSITION_EXTENSION_KEY, COMPOSITION_SCHEMA_VERSION, COMPOSITION_SCRIPTING_EXTENSION_KEY, FORM_DEFINITION_SCHEMA_VERSION, getCompositionDefinition, migrateCanonicalFormToV1, normalizeCompositionScript } from 'core';
+import { verifyFhirForSubmission } from '../services/fhirVerificationService';
 import { generateCanonicalForm } from '../services/formGenerator';
 import {
   FormScriptCompileResult,
@@ -341,6 +342,23 @@ router.get('/:id/audit-bindings', asyncHandler(async (req, res) => {
   const webTemplate = await getRemoteWebTemplate(templateId);
   const findings = auditFormBindings(canonicalForm, webTemplate?.tree);
   res.json({ templateId, findings });
+}));
+
+/**
+ * Manual "Jetzt prüfen" action for the FormBuilder "FHIR Debug" tab -
+ * searches the FHIR CDR for the resource type this form is mapped to
+ * (FORM_FHIR_MAPPING_EXTENSION_KEY) and returns what's there. Verifies
+ * only, never writes - see fhirVerificationService.ts's own doc comment.
+ * Same shape as the automatic check submitFormSessionToProvider fires
+ * after a real submit, callable any time (including against a draft) for
+ * on-demand debugging.
+ */
+router.post('/:id/fhir-verify', asyncHandler(async (req, res) => {
+  const formId = requireNonEmptyString(req.params.id, 'id');
+  const ehrId = typeof req.body?.ehrId === 'string' ? req.body.ehrId.trim() : '';
+  if (!ehrId) throw new HttpError(400, '"ehrId" must be a non-empty string');
+  const sessionId = typeof req.body?.sessionId === 'string' && req.body.sessionId.trim() ? req.body.sessionId.trim() : undefined;
+  res.json(await verifyFhirForSubmission(formId, ehrId, { sessionId, operation: 'verify-manual' }));
 }));
 
 router.post('/:id/script/check', asyncHandler(async (req, res) => {

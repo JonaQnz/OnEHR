@@ -342,6 +342,15 @@ model Patient {
   birthDate          String?       @map("birth_date")
   gender             String?
   ehrId              String        @unique @map("ehr_id")
+  // Set only when this patient was created (or later resolved) through the
+  // FHIR CDR connector - see patientService.createPatient()'s 'fhir' mode
+  // and ehrbaseConnectionPlugins.ts's createFhirPatient(). Not every
+  // openEHR-EHR-CLUSTER.person.v1 (vg_Person) archetype has a free
+  // person-level identifier slot to carry this as clinical data instead
+  // (checked while building the FHIR debug view - vg_Person.v1.1.1's only
+  // DV_IDENTIFIER fields are insurance number / organisation identifiers),
+  // so it lives here as Forms-internal metadata alongside ehrId.
+  fhirPatientId      String?       @map("fhir_patient_id")
   // Where this record came from: "native" was created here in Forms
   // (create_patient / the "Patient anlegen" button); "imported" was
   // discovered on EHRbase (an EHR with no Forms-authored data behind it
@@ -402,11 +411,19 @@ model IntegrationCallLog {
   ehrId         String?             @map("ehr_id")
   patientId     String?             @map("patient_id")
   fhirPatientId String?             @map("fhir_patient_id")
+  // Set only by the FHIR verification calls the FHIR Debug tab makes
+  // (fhirVerificationService.ts) - which Form/FormSession this call was
+  // checking on behalf of. Every other call site (create_patient, a normal
+  // Composition commit, ...) leaves both unset, same as ehrId/patientId
+  // already do for calls that aren't about a specific patient.
+  formId        String?             @map("form_id")
+  sessionId     String?             @map("session_id")
   createdAt     DateTime            @default(now()) @map("created_at")
 
   @@index([protocol, resourceType])
   @@index([ehrId])
   @@index([createdAt])
+  @@index([formId])
   @@map("integration_call_logs")
 }
 

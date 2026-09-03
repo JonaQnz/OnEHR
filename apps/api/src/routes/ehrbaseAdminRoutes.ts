@@ -82,9 +82,10 @@ router.get('/call-logs', asyncHandler(async (req, res) => {
   const success = req.query.success === 'true' ? true : req.query.success === 'false' ? false : undefined;
   const ehrId = typeof req.query.ehrId === 'string' ? req.query.ehrId : undefined;
   const patientId = typeof req.query.patientId === 'string' ? req.query.patientId : undefined;
+  const formId = typeof req.query.formId === 'string' ? req.query.formId : undefined;
   const limit = req.query.limit ? Number(req.query.limit) : undefined;
   const offset = req.query.offset ? Number(req.query.offset) : undefined;
-  res.json({ logs: await listIntegrationCallLogs({ protocol, resourceType, success, ehrId, patientId, limit, offset }) });
+  res.json({ logs: await listIntegrationCallLogs({ protocol, resourceType, success, ehrId, patientId, formId, limit, offset }) });
 }));
 
 // Batch export: every call log matching the given filters, zipped as a
