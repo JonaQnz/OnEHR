@@ -21,6 +21,7 @@ import { DesignerShell } from '../designer/DesignerShell';
 import { API_BASE_URL } from '../integration/apiBaseUrl';
 import type { FormSessionRuntimeContext } from 'core';
 import { resolveFolderPath } from 'core';
+import { Undo2, Redo2, Search, X, ChevronUp, ChevronDown } from 'lucide-react';
 
 function LiveJsonEditor({ form, onSave }: { form: any, onSave: (f: any, items: any[]) => void }) {
   const [jsonString, setJsonString] = useState('');
@@ -508,6 +509,41 @@ function FormBuilderContent() {
     () => hydrateCustomBuilderElements(builderItems, customFields),
     [builderItems, customFields],
   );
+
+  // Designer-canvas undo/redo. Every add/delete/move/reorder/property-panel
+  // edit already funnels through one choke point - handleSave, called as
+  // react-form-builder2's onPost (saveAlways={true}) - so that's the only
+  // place history needs to be captured; see handleSave below. Snapshots are
+  // full builderItems arrays (the flat, already-proven "resync the canvas"
+  // shape - see the existing `ElementStore.dispatch('setData', ...)` call
+  // inside handleSave), not diffs - forms are small enough that this is
+  // cheap, and it avoids inventing a patch format for a tree whose shape
+  // comes from a vendored library we don't fully control.
+  const undoStackRef = React.useRef<any[][]>([]);
+  const redoStackRef = React.useRef<any[][]>([]);
+  // Guards the history-restoring writeback itself from being mistaken for a
+  // new user edit - defensive (applyHistorySnapshot doesn't call handleSave,
+  // so nothing currently re-enters the push-to-history branch), kept in
+  // case that ever changes.
+  const isApplyingHistoryRef = React.useRef(false);
+  // Bumped on every push/pop so the Undo/Redo buttons' disabled state
+  // re-renders - the stacks themselves live in refs, not state, since their
+  // contents don't need to trigger renders on their own.
+  const [historyVersion, setHistoryVersion] = useState(0);
+  // Confirmed live: patching a restored (many-item) snapshot into the
+  // canvas via `ElementStore.dispatch('setData', ...)` - the same call
+  // handleSave itself already makes for a normal single-field edit's own
+  // resync - hangs indefinitely here when *every* item in the array is a
+  // new object reference at once (a full undo/redo snapshot, not one
+  // changed field), apparently forcing the vendored library into an
+  // extremely expensive full reconciliation. Forcing a clean remount
+  // instead (bumped into <ReactFormBuilder>'s own `key` prop below) reuses
+  // the exact same fresh-mount path every normal page load already takes
+  // reliably, sidestepping that reconciliation entirely.
+  const [canvasGeneration, setCanvasGeneration] = useState(0);
+  const canvasSearchContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const [canvasSearchQuery, setCanvasSearchQuery] = useState('');
+  const [canvasSearchMatchIndex, setCanvasSearchMatchIndex] = useState(0);
   const [remoteTemplates, setRemoteTemplates] = useState<any[]>([]);
   const [remoteTemplatesError, setRemoteTemplatesError] = useState<string | null>(null);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
@@ -1148,10 +1184,27 @@ function FormBuilderContent() {
 
 
 
+  const HISTORY_LIMIT = 50;
+
   const handleSave = (postData: any) => {
     if (!formRef.current) return;
     let items = Array.isArray(postData) ? postData : (postData?.task_data || builderItems);
-    
+
+    // Undo/redo history: capture the pre-edit state once per genuine user
+    // edit, before it's overwritten below. A drag operation can plausibly
+    // fire onPost more than once (react-form-builder2's own live-reorder
+    // events) - if that turns out to fragment one visual drag into several
+    // undo steps in practice, the fix is a short debounce on this push, not
+    // on the edit itself. Skipped entirely while replaying a snapshot
+    // (isApplyingHistoryRef) and for no-op saves (identical to current
+    // builderItems) so Undo never lands on a dead end.
+    if (!isApplyingHistoryRef.current && JSON.stringify(items) !== JSON.stringify(builderItems)) {
+      undoStackRef.current.push(builderItems);
+      if (undoStackRef.current.length > HISTORY_LIMIT) undoStackRef.current.shift();
+      redoStackRef.current = [];
+      setHistoryVersion((v) => v + 1);
+    }
+
     let changed = false;
     items.forEach((item: any) => {
       // 1. Maintain the "Type: Name" prefix format in item.text (shown on canvas badges)
@@ -1198,6 +1251,77 @@ function FormBuilderContent() {
       })
       .catch(err => console.error("Autosave failed:", err));
   };
+
+  // Shared restore path for both undo and redo - writes a past builderItems
+  // snapshot back to the backend, then forces <ReactFormBuilder> to remount
+  // (via canvasGeneration in its key prop) so it re-mounts fresh from the
+  // new builderItems through its own onLoad, the same clean path every
+  // normal page load already takes reliably - see canvasGeneration's own
+  // comment above for why a live ElementStore resync isn't used here.
+  // Deliberately doesn't go through handleSave, so this never re-enters the
+  // history-push branch.
+  const applyHistorySnapshot = (items: any[]) => {
+    if (!formRef.current) return;
+    isApplyingHistoryRef.current = true;
+    try {
+      setBuilderItems(items);
+      const updatedCanonical = formBuilderToCanonical(items, formRef.current.canonical_json);
+      fetch(`${API_BASE_URL}/forms/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedCanonical),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          setForm(data);
+          setCanvasGeneration((g) => g + 1);
+        })
+        .catch((err) => console.error('Undo/redo save failed:', err));
+    } finally {
+      isApplyingHistoryRef.current = false;
+    }
+  };
+
+  const performUndo = () => {
+    const previous = undoStackRef.current.pop();
+    if (!previous) return;
+    redoStackRef.current.push(builderItems);
+    setHistoryVersion((v) => v + 1);
+    applyHistorySnapshot(previous);
+  };
+
+  const performRedo = () => {
+    const next = redoStackRef.current.pop();
+    if (!next) return;
+    undoStackRef.current.push(builderItems);
+    setHistoryVersion((v) => v + 1);
+    applyHistorySnapshot(next);
+  };
+
+  // Reset history when navigating to a different form - an undo must never
+  // apply a snapshot belonging to the form previously open in this tab.
+  useEffect(() => {
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    setHistoryVersion((v) => v + 1);
+  }, [id]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (previewMode !== 'edit') return;
+      const target = event.target as HTMLElement | null;
+      const isTextInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (isTextInput) return;
+      const modifierPressed = event.metaKey || event.ctrlKey;
+      if (!modifierPressed || event.key.toLowerCase() !== 'z') return;
+      event.preventDefault();
+      if (event.shiftKey) performRedo();
+      else performUndo();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewMode, builderItems]);
 
   const downloadJson = (jsonObj: any, filename: string) => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(jsonObj, null, 2));
@@ -1253,6 +1377,62 @@ function FormBuilderContent() {
     });
     return groups;
   };
+
+  // Canvas field search (already-placed fields, not the left-panel template
+  // palette - see the separate searchQuery/getFilteredFields above, which
+  // filters a different data source for a different purpose). Deliberately
+  // scroll-to-highlight only, no click-to-open-the-field's-edit-panel: the
+  // vendored react-form-builder2 only exposes edit-mode via its own internal
+  // click handler (props.editModeOn, sortable-element.jsx), with no
+  // confirmed external hook to trigger it - the same gap that blocks
+  // "click a validation error to jump to its field", backlogged for now.
+  // Must stay above the `if (!form) return` below - hooks can never be
+  // called conditionally.
+  const canvasSearchMatches = React.useMemo(() => {
+    const query = canvasSearchQuery.trim().toLowerCase();
+    if (!query) return [];
+    return builderItems.filter((item: any) => {
+      const label = String(item.label || item.text || '').toLowerCase();
+      const fieldName = String(item.field_name || '').toLowerCase();
+      const openehrPath = String(item.custom_metadata?.openehrPath || '').toLowerCase();
+      return label.includes(query) || fieldName.includes(query) || openehrPath.includes(query);
+    });
+  }, [canvasSearchQuery, builderItems]);
+
+  useEffect(() => {
+    setCanvasSearchMatchIndex(0);
+  }, [canvasSearchQuery]);
+
+  useEffect(() => {
+    const container = canvasSearchContainerRef.current;
+    const item = canvasSearchMatches[canvasSearchMatchIndex];
+    if (!container || !item) return;
+    const label = String(item.label || item.text || '').trim();
+    if (!label) return;
+    // `.field-title-info` (this app's own canvas-card markup, not the
+    // vendored library's - see `.rfb-item > ... > .field-title-info` in the
+    // rendered DOM) holds the label text, prefixed with a type emoji and
+    // followed by a "Required" badge with no separators - `includes` rather
+    // than an exact/startsWith match against the raw label.
+    const candidates = Array.from(container.querySelectorAll('.field-title-info')) as HTMLElement[];
+    const target = candidates.find((el) => el.textContent?.includes(label));
+    if (!target) return;
+    const card = (target.closest('.rfb-item') as HTMLElement | null) || target;
+    // Clear any still-fading highlight from a previous match first - typing
+    // fires this effect once per intermediate query state (character by
+    // character), each on its own 2s auto-removal timer, so without this a
+    // fast typist can briefly see more than one field highlighted at once.
+    container.querySelectorAll('.canvas-search-highlight').forEach((el) => el.classList.remove('canvas-search-highlight'));
+    // Deliberately no `behavior: 'smooth'` - confirmed live that a smooth
+    // scrollIntoView inside this canvas (heavy DOM, react-dnd drag refs on
+    // every item) makes the tab unresponsive for 45s+ mid-animation, fully
+    // reproducible with a bare scrollIntoView call with none of this
+    // feature's own code involved. An instant jump has none of that risk.
+    card.scrollIntoView({ block: 'center' });
+    card.classList.add('canvas-search-highlight');
+    const timer = window.setTimeout(() => card.classList.remove('canvas-search-highlight'), 2000);
+    return () => window.clearTimeout(timer);
+  }, [canvasSearchMatches, canvasSearchMatchIndex]);
 
   if (!form) return <p>Loading Form Builder...</p>;
 
@@ -1426,6 +1606,13 @@ function FormBuilderContent() {
 
   const isFormValid = warnings.length === 0;
 
+  // `historyVersion >= 0` is always true - it's only here so this
+  // computation re-runs (and the Undo/Redo buttons' disabled state stays
+  // correct) on every history push/pop, since the stacks themselves live in
+  // refs and don't trigger renders on their own.
+  const canUndo = historyVersion >= 0 && undoStackRef.current.length > 0;
+  const canRedo = historyVersion >= 0 && redoStackRef.current.length > 0;
+
   const templateId = form.canonical_json.sourceTemplates?.[0]?.id || '';
 
   const showTechnicalPaths = form.canonical_json.settings?.showTechnicalPaths ?? true;
@@ -1463,6 +1650,32 @@ function FormBuilderContent() {
             <button type="button" className={`btn-workbench secondary ${previewMode === 'logs' ? 'active' : ''}`} onClick={() => setPreviewMode('logs')}>Logs</button>
             <button type="button" className={`btn-workbench secondary ${previewMode === 'fhirDebug' ? 'active' : ''}`} onClick={() => setPreviewMode('fhirDebug')}>FHIR Debug</button>
           </nav>
+          {previewMode === 'edit' && (
+            <div style={{ display: 'flex', gap: '0.25rem' }}>
+              <button
+                type="button"
+                className="btn-workbench secondary"
+                onClick={performUndo}
+                disabled={!canUndo}
+                title="Rückgängig (Cmd/Ctrl+Z)"
+                aria-label="Rückgängig"
+                style={{ padding: '0.5rem 0.6rem' }}
+              >
+                <Undo2 size={16} />
+              </button>
+              <button
+                type="button"
+                className="btn-workbench secondary"
+                onClick={performRedo}
+                disabled={!canRedo}
+                title="Wiederholen (Cmd/Ctrl+Shift+Z)"
+                aria-label="Wiederholen"
+                style={{ padding: '0.5rem 0.6rem' }}
+              >
+                <Redo2 size={16} />
+              </button>
+            </div>
+          )}
           <button
             className="btn-workbench success"
             onClick={() => handleSave({ task_data: builderItems })}
@@ -1832,7 +2045,7 @@ function FormBuilderContent() {
 
             {/* Center Panel: Form Canvas */}
             <div className="workbench-panel center">
-              <div className="canvas-scroll-container">
+              <div className="canvas-scroll-container" ref={canvasSearchContainerRef}>
                 {/* Form-sheet header */}
                 <div className="canvas-form-header">
                   <div className="canvas-form-title">{form.name}</div>
@@ -1843,6 +2056,54 @@ function FormBuilderContent() {
                     )}
                   </div>
                 </div>
+                {builderItems.length > 0 && (
+                  <div className="canvas-search-bar" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.75rem', margin: '0 0 0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                    <Search size={14} color="#94a3b8" />
+                    <input
+                      type="text"
+                      placeholder="Platziertes Feld suchen…"
+                      value={canvasSearchQuery}
+                      onChange={(e) => setCanvasSearchQuery(e.target.value)}
+                      style={{ flex: 1, border: 'none', background: 'transparent', fontSize: '0.82rem', outline: 'none' }}
+                    />
+                    {canvasSearchQuery.trim() && (
+                      <>
+                        <span style={{ fontSize: '0.75rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                          {canvasSearchMatches.length > 0 ? `${canvasSearchMatchIndex + 1} / ${canvasSearchMatches.length}` : '0 Treffer'}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn-icon"
+                          disabled={canvasSearchMatches.length === 0}
+                          onClick={() => setCanvasSearchMatchIndex((i) => (i - 1 + canvasSearchMatches.length) % canvasSearchMatches.length)}
+                          title="Vorheriger Treffer"
+                          style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '0.2rem' }}
+                        >
+                          <ChevronUp size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-icon"
+                          disabled={canvasSearchMatches.length === 0}
+                          onClick={() => setCanvasSearchMatchIndex((i) => (i + 1) % canvasSearchMatches.length)}
+                          title="Nächster Treffer"
+                          style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '0.2rem' }}
+                        >
+                          <ChevronDown size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-icon"
+                          onClick={() => setCanvasSearchQuery('')}
+                          title="Suche leeren"
+                          style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '0.2rem' }}
+                        >
+                          <X size={14} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
                 {(() => {
                   const sanitizedLayout = (() => {
                     let layoutData = form.canonical_json?.layout || [];
@@ -1867,7 +2128,7 @@ function FormBuilderContent() {
                   const UnsafeReactFormBuilder = ReactFormBuilder as unknown as React.ComponentType<Record<string, unknown>>;
                   return (
                     <UnsafeReactFormBuilder
-                      key={`builder:${customFields.map((field) => field.key).sort().join('|')}`}
+                      key={`builder:${canvasGeneration}:${customFields.map((field) => field.key).sort().join('|')}`}
                       data={sanitizedLayout}
                       onPost={handleSave}
                       onLoad={async () => hydratedBuilderItems}
