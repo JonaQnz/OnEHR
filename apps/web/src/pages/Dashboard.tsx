@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Plus, FileEdit, Download, Copy, UploadCloud, FolderOpen, ExternalLink, Archive, RotateCcw, ChevronDown, ChevronRight, Trash2, LayoutPanelTop, BarChart3 } from 'lucide-react';
+import { collectRuntimeFields } from 'core';
 import { CreateFormModal } from '../components/CreateFormModal';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { API_BASE_URL } from '../integration/apiBaseUrl';
@@ -421,6 +422,25 @@ export default function Dashboard() {
                 const isTemplateOnServer = templateId ? remoteTemplates.some((t: any) => t.template_id === templateId) : false;
                 const isComposition = Boolean(f.canonical_json?.extensions?.['watehr.composition']);
 
+                // Row-detail summary shown when expanded - description/tags
+                // from settings, field list/count via the same collectRuntimeFields()
+                // the runtime itself uses, so this always matches reality rather
+                // than a second hand-rolled field walker drifting out of sync.
+                // See [[bibliothek-list-rows-too-sparse]]: rows used to show only
+                // name/version/status/template, forcing every actual look at a
+                // form's content to be an "open it and see" round-trip.
+                const description: string | undefined = f.canonical_json?.settings?.description;
+                const tags: string[] = Array.isArray(f.canonical_json?.settings?.tags) ? f.canonical_json.settings.tags : [];
+                let fieldSummary: { count: number; visibleLabels: string[]; hiddenCount: number } | undefined;
+                if (f.canonical_json?.layout) {
+                  try {
+                    const allFields = collectRuntimeFields(f.canonical_json);
+                    const visible = allFields.filter((field) => !field.alwaysHidden);
+                    fieldSummary = { count: allFields.length, visibleLabels: visible.map((field) => field.label || field.name), hiddenCount: allFields.length - visible.length };
+                  } catch { /* a malformed/legacy layout should never break the library list, just skip the summary */ }
+                }
+                const hasDetails = Boolean(description) || tags.length > 0 || Boolean(fieldSummary?.count) || history.length > 0;
+
                 return (
                   <li key={groupId} style={{ borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
                     <div style={{ padding: '1.25rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'background-color 0.2s', borderRadius: '8px' }}
@@ -428,8 +448,8 @@ export default function Dashboard() {
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                     >
                       <div style={{ paddingLeft: '0.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        {history.length > 0 ? (
-                          <button onClick={() => toggleGroup(groupId)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                        {hasDetails ? (
+                          <button onClick={() => toggleGroup(groupId)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }} title="Details ein-/ausblenden">
                             {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                           </button>
                         ) : (
@@ -447,6 +467,12 @@ export default function Dashboard() {
                             <span>Version: <span style={{ fontWeight: 600 }}>v{f.version}</span></span>
                             <span>•</span>
                             <span>Last updated: {new Date(f.updatedAt).toLocaleDateString()}</span>
+                            {fieldSummary && fieldSummary.count > 0 && (
+                              <>
+                                <span>•</span>
+                                <span>{fieldSummary.count} {fieldSummary.count === 1 ? 'Feld' : 'Felder'}</span>
+                              </>
+                            )}
                             {templateId && (
                               <>
                                 <span>•</span>
@@ -514,8 +540,36 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {isExpanded && history.length > 0 && (
-                      <div style={{ padding: '0 0 1rem 3.5rem' }}>
+                    {isExpanded && hasDetails && (
+                      <div style={{ padding: '0 0 1rem 3.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {(description || tags.length > 0 || (fieldSummary && fieldSummary.count > 0)) && (
+                          <div>
+                            {description && (
+                              <p style={{ margin: '0 0 0.6rem 0', fontSize: '0.85rem', color: 'var(--text-main)', maxWidth: '640px' }}>{description}</p>
+                            )}
+                            {tags.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: fieldSummary?.count ? '0.6rem' : 0 }}>
+                                {tags.map((tag) => (
+                                  <span key={tag} className="badge" style={{ background: '#f1f5f9', color: '#475569', fontSize: '0.72rem', fontWeight: 500 }}>{tag}</span>
+                                ))}
+                              </div>
+                            )}
+                            {fieldSummary && fieldSummary.count > 0 && (
+                              <div>
+                                <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                                  Felder ({fieldSummary.count}{fieldSummary.hiddenCount > 0 ? `, davon ${fieldSummary.hiddenCount} versteckt` : ''})
+                                </h4>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                  {fieldSummary.visibleLabels.map((label, idx) => (
+                                    <span key={`${label}-${idx}`} style={{ background: 'var(--bg-subtle, #f8fafc)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.15rem 0.5rem', fontSize: '0.78rem', color: 'var(--text-main)' }}>{label}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {history.length > 0 && (
+                      <div>
                         <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Version History</h4>
                         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                           {history.map((v: any) => (
@@ -559,6 +613,8 @@ export default function Dashboard() {
                             </li>
                           ))}
                         </ul>
+                      </div>
+                        )}
                       </div>
                     )}
                   </li>
