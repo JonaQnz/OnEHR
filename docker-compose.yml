@@ -18,6 +18,99 @@ services:
       timeout: 5s
       retries: 5
 
+  # Terminology (Block 2 of the Terminologie-Server-Integration plan) - both
+  # entirely optional: nothing else in this compose file depends on them,
+  # and apps/api works identically with them absent (see
+  # terminologyProviderRegistry.ts - zero built-in provider, unlike EHRbase).
+  # Only start these if the formbuilder-plugin-hapi-terminology plugin is
+  # actually installed/enabled - otherwise they just sit idle.
+  terminology-db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hapi
+      POSTGRES_PASSWORD: hapi
+      POSTGRES_DB: hapi
+    volumes:
+      - terminology_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hapi -d hapi"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  terminology:
+    # Version pinned deliberately (not :latest) - re-verify this is still
+    # current before a real deployment: https://hub.docker.com/r/hapiproject/hapi/tags
+    image: hapiproject/hapi:v8.8.0-1
+    restart: unless-stopped
+    ports:
+      # 8082, not 8081 - an unrelated container on this dev machine already
+      # holds 8081 (jsd-form-analyzer-kis-analyzer-1) - only the host-side
+      # port matters here, the terminology plugin talks to this service via
+      # its Docker-network name (see TERMINOLOGY_SERVER_URL/the api
+      # service's env var above), not this published port.
+      - "8082:8080"
+    environment:
+      - hapi.fhir.fhir_version=R4
+      # Postgres persistence instead of the image's default embedded H2 -
+      # required for anything beyond throwaway local testing.
+      - spring.datasource.url=jdbc:postgresql://terminology-db:5432/hapi
+      - spring.datasource.username=hapi
+      - spring.datasource.password=hapi
+      - spring.datasource.driverClassName=org.postgresql.Driver
+      - spring.jpa.properties.hibernate.dialect=ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
+      # Required for ValueSet/$expand and any _content/_text full-text
+      # search to work at all - found live (2026-09-04): without this, the
+      # image's own default config leaves Hibernate Search disabled and
+      # every $expand call (filtered or not) fails outright with
+      # "HSEARCH800001: Hibernate Search was not initialized". Local Lucene
+      # index (not Elasticsearch) is enough for this deployment's scale;
+      # the index lives on the terminology_data volume so it survives a
+      # container restart.
+      # Hibernate-native properties (not Spring Boot's own namespace) only
+      # actually reach Hibernate's Configuration through Spring's
+      # `spring.jpa.properties.*` passthrough - a bare `hibernate.search.*`
+      # env var (no prefix) is silently ignored, same reason
+      # `hibernate.dialect` above needs its `spring.jpa.properties.` prefix.
+      # HAPI's own entity mappings (TermConcept, ResourceTable) reference
+      # named analyzers ("exactAnalyzer", "standardAnalyzer", ...) that only
+      # exist once this configurer registers them - omitting it entirely
+      # (or citing the older, no-longer-correct top-level class name
+      # `ca.uhn.fhir.jpa.search.HapiLuceneAnalysisConfigurer`) crashes
+      # startup outright with "Unknown analyzer" bootstrap failures, found
+      # live (2026-09-04). On this pinned version it's a static nested
+      # class - `$`, not `.`, before the nested name, since that's the JVM
+      # binary name Hibernate Search's bean resolver actually loads via
+      # Class.forName.
+      - spring.jpa.properties.hibernate.search.enabled=true
+      - spring.jpa.properties.hibernate.search.backend.type=lucene
+      # $$ (not a single $) - docker-compose's own escape for a literal
+      # dollar sign in an environment value, so it isn't mistaken for
+      # compose's own ${VAR} interpolation syntax.
+      - spring.jpa.properties.hibernate.search.backend.analysis.configurer=ca.uhn.fhir.jpa.search.HapiHSearchAnalysisConfigurers$$HapiLuceneAnalysisConfigurer
+      - spring.jpa.properties.hibernate.search.backend.directory.type=local-filesystem
+      # NOTE (found live, 2026-09-04): a fresh named volume is root-owned by
+      # default, but this image runs as uid 65532 ("nonroot") - the very
+      # first start after `docker volume create`/`docker compose up` on a
+      # brand new terminology_data volume needs a one-time
+      # `docker run --rm -v <project>_terminology_data:/data/hapi busybox
+      # chown -R 65532:65532 /data/hapi` or the container crash-loops with
+      # "HSEARCH600015: Unable to initialize index directory". Not something
+      # compose itself can express declaratively for a named volume.
+      - spring.jpa.properties.hibernate.search.backend.directory.root=/data/hapi/lucenefiles
+      # Pre-expansion of large imported ValueSets (SNOMED CT, ICD-10-GM/OPS)
+      # keeps $expand fast at scale - the exact additional HAPI property
+      # keys for this depend on the pinned version above; verify against
+      # https://hapifhir.io/hapi-fhir/docs/server_jpa/terminology.html
+      # when actually loading a large external terminology, not asserted
+      # here as a specific config value.
+    depends_on:
+      terminology-db:
+        condition: service_healthy
+    volumes:
+      - terminology_data:/data/hapi
+
   api:
     build:
       context: .
@@ -34,6 +127,11 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@db:5432/formbuilder?schema=public
       - EHRBASE_URL=http://ehrbase:8080/ehrbase/rest/openehr/v1
+      # Only consulted by formbuilder-plugin-hapi-terminology's own
+      # index.ts as a fallback when its "HAPI Terminologie-Server" settings
+      # panel (Settings screen, PluginSettingsHost.tsx) hasn't been filled
+      # in yet - apps/api and packages/core never read this themselves.
+      - TERMINOLOGY_SERVER_URL=${TERMINOLOGY_SERVER_URL:-http://terminology:8080/fhir}
       - DATA_DIR=/app/data
       - N8N_API_URL=${N8N_API_URL:-http://host.docker.internal:5678/api/v1}
       - N8N_API_KEY=${N8N_API_KEY:-}
@@ -73,6 +171,7 @@ services:
       # local development.
       - ./packages/core/dist:/app/packages/core/dist
       - ./packages/openehr-engine/dist:/app/packages/openehr-engine/dist
+      - ./packages/formbuilder-plugin-hapi-terminology/dist:/app/packages/formbuilder-plugin-hapi-terminology/dist
       # Prisma schema is mounted so the API container can regenerate its client
       # when local development adds a persisted model.
       - ./apps/api/prisma:/app/apps/api/prisma
@@ -101,6 +200,8 @@ services:
 
 volumes:
   pgdata:
+  terminology_pgdata:
+  terminology_data:
   node_modules:
   apps_web_node_modules:
   apps_api_node_modules:

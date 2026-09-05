@@ -17,12 +17,19 @@ import type {
   RuntimeValues,
   RuntimeValidationIssue,
   FormSessionRuntimeContext,
+  CodeMappingValue,
+  CodeMappingTerminologyOption,
+  TerminologyConcept,
+  TerminologyValidationOutcome,
 } from 'core';
 import * as CoreRuntime from 'core';
+import { isBlockingIssue } from 'core';
+import { API_BASE_URL } from '../integration/apiBaseUrl';
 import { ExtensionSlot, ExtensionWrapperSlot, useFrontendPlugins } from './FrontendPluginRegistry';
 import { ClinicalGrid } from './layout/ClinicalLayout';
 import {
   FormScriptClient,
+  type FormScriptFieldMessage,
   type FormScriptFieldProvenance,
   type FormScriptLifecycleResult,
   type FormScriptPrefillConflict,
@@ -44,7 +51,14 @@ export interface RuntimeRendererProps {
   field: RuntimeFieldDescriptor;
   node: FormElementLayout;
   value: unknown;
+  /** The first blocking (isBlockingIssue - see packages/core/form-runtime)
+   * issue for this field, kept for backward compatibility with renderers
+   * written before multi-issue/severity support - prefer `issues` (all
+   * issues, own severity each) in new renderers. */
   error?: RuntimeValidationIssue;
+  /** Every issue currently attached to this field - errors and warnings
+   * alike, in the order form-runtime/form-script produced them. */
+  issues?: RuntimeValidationIssue[];
   disabled: boolean;
   onChange: (value: unknown) => void;
 }
@@ -87,6 +101,14 @@ export interface FormRuntimeProps {
    * true, so an embedded Form Section doesn't end up boxed a second time
    * inside a box it's already inside. */
   chromeless?: boolean;
+  /** Shows every field's validation issues immediately, bypassing the
+   * normal touched/blurred gating (see the `touchedFields`-based visibility
+   * rule below). Intended for FormBuilder's own Preview tab, where the
+   * designer is deliberately testing rules and gating would only get in
+   * the way. Default false/undefined - a real clinician-facing form keeps
+   * the gating so a freshly opened form isn't immediately loud with
+   * warnings on empty fields. */
+  alwaysShowValidation?: boolean;
 }
 
 export interface FormRuntimeHandle {
@@ -327,6 +349,201 @@ function AutocompleteInput({
   );
 }
 
+/** Fetch helpers for the generic, provider-agnostic `/api/terminology/*`
+ * routes (apps/api/src/routes/terminologyRoutes.ts) - this component never
+ * knows or cares which backend (HAPI or otherwise) actually answers. See
+ * TerminologyBindingEditor (FormBuilder.tsx) for the Designer-side sibling
+ * that configures `terminology.providerId`/`bindingId`/etc. in the first
+ * place. */
+async function fetchTerminologySearch(terminology: CodeMappingTerminologyOption, query: string, signal: AbortSignal): Promise<TerminologyConcept[]> {
+  const params = new URLSearchParams({ provider: terminology.providerId || '', query });
+  if (terminology.bindingId) params.set('bindingId', terminology.bindingId);
+  if (terminology.bindingVersion) params.set('bindingVersion', terminology.bindingVersion);
+  if (terminology.namespace) params.set('namespace', terminology.namespace);
+  if (terminology.namespaceVersion) params.set('namespaceVersion', terminology.namespaceVersion);
+  params.set('limit', '20');
+  const response = await fetch(`${API_BASE_URL}/terminology/search?${params.toString()}`, { signal });
+  if (!response.ok) throw new Error(`search failed (${response.status})`);
+  return response.json();
+}
+
+async function fetchTerminologyValidate(terminology: CodeMappingTerminologyOption, code: string): Promise<TerminologyValidationOutcome> {
+  const params = new URLSearchParams({ provider: terminology.providerId || '', code });
+  if (terminology.bindingId) params.set('bindingId', terminology.bindingId);
+  if (terminology.bindingVersion) params.set('bindingVersion', terminology.bindingVersion);
+  if (terminology.namespace) params.set('namespace', terminology.namespace);
+  if (terminology.namespaceVersion) params.set('namespaceVersion', terminology.namespaceVersion);
+  try {
+    const response = await fetch(`${API_BASE_URL}/terminology/validate?${params.toString()}`);
+    // A non-2xx here (network error already thrown below; this covers HTTP-
+    // level failures like an unregistered/uninstalled provider, 404'd by
+    // terminologyRoutes.ts) is deliberately folded into 'unreachable', not
+    // silently ignored - see [[Section D: no silent free-text fallback]] in
+    // the terminology plan: a configured-but-currently-unavailable provider
+    // must still surface as "can't verify right now", never as if no
+    // provider had ever been configured at all.
+    if (!response.ok) return { status: 'unreachable', message: `HTTP ${response.status}` };
+    return await response.json();
+  } catch (error) {
+    return { status: 'unreachable', message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** Turns a resolved `TerminologyValidationOutcome` into a field issue per
+ * the mapping's `validationPolicy` (packages/core/terminology's
+ * TerminologyValidationPolicy doc comment has the full three-level
+ * semantics) - `null` means "no issue, clear whatever was there before".
+ * `policy==='none'` never even reaches this (no validate() call is made at
+ * all - see TerminologyCodeInput's blur handler). */
+function issueForValidationOutcome(outcome: TerminologyValidationOutcome, policy: 'required' | 'best-effort' | 'none'): { message: string; severity: 'error' | 'warning' } | null {
+  if (outcome.status === 'valid') return null;
+  if (outcome.status === 'unreachable' || outcome.status === 'provider-error') {
+    const message = 'Terminologie-Server aktuell nicht erreichbar - Code konnte nicht geprüft werden.';
+    return policy === 'best-effort' ? { message, severity: 'warning' } : { message, severity: 'error' };
+  }
+  const reason = outcome.status === 'unknown-namespace' ? 'Terminologie unbekannt'
+    : outcome.status === 'unknown-binding' ? 'Auswahlliste unbekannt'
+    : outcome.status === 'unknown-version' ? 'Version unbekannt'
+    : 'Code nicht gefunden';
+  return { message: `Ungültiger Code (${reason}).`, severity: 'error' };
+}
+
+/**
+ * The `mapping.code` input for a `codeMappings` terminology entry once it
+ * carries a `providerId` (search-while-typing against a real terminology
+ * server) - see AutocompleteInput just above for the sibling that filters
+ * static, already-loaded `field.options` instead; this one calls out to
+ * `/api/terminology/search` live. A `providerId`-less terminology option
+ * keeps the plain, unvalidated text `<input>` (see the codeMappings render
+ * branch in `fieldInput` below) exactly as before this feature existed.
+ */
+function TerminologyCodeInput({
+  terminology, mapping, disabled, onChange, onValidation,
+}: {
+  terminology: CodeMappingTerminologyOption;
+  mapping: CodeMappingValue;
+  disabled: boolean;
+  onChange: (next: CodeMappingValue) => void;
+  onValidation: (issue: { message: string; severity: 'error' | 'warning' } | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [results, setResults] = useState<TerminologyConcept[]>([]);
+  const [highlighted, setHighlighted] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const abortRef = useRef<AbortController | undefined>(undefined);
+
+  useEffect(() => {
+    function onOutsideClick(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onOutsideClick);
+    return () => { document.removeEventListener('mousedown', onOutsideClick); abortRef.current?.abort(); clearTimeout(debounceRef.current); };
+  }, []);
+
+  const runSearch = (query: string) => {
+    abortRef.current?.abort();
+    if (query.trim().length < 2) { setResults([]); setLoading(false); setSearchError(null); return; }
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setLoading(true);
+    setSearchError(null);
+    fetchTerminologySearch(terminology, query, controller.signal)
+      .then((concepts) => { if (!controller.signal.aborted) { setResults(concepts); setLoading(false); } })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setLoading(false);
+        setResults([]);
+        setSearchError(error instanceof Error ? error.message : String(error));
+      });
+  };
+
+  const scheduleSearch = (query: string) => {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => runSearch(query), 300);
+  };
+
+  const commitConcept = (concept: TerminologyConcept) => {
+    onChange({ terminologyId: terminology.id, code: concept.code, version: concept.namespaceVersion, display: concept.display, ...(terminology.match ? { match: terminology.match } : {}) });
+    onValidation(null); // a search hit is already known-good - no separate validate() round-trip needed.
+    setOpen(false);
+    setResults([]);
+  };
+
+  const runValidateOnBlur = () => {
+    setOpen(false);
+    const policy = terminology.validationPolicy || 'required';
+    if (policy === 'none' || !mapping.code.trim()) { onValidation(null); return; }
+    void fetchTerminologyValidate(terminology, mapping.code).then((outcome) => onValidation(issueForValidationOutcome(outcome, policy)));
+  };
+
+  const style = inputStyle(false, disabled);
+  return (
+    // minWidth: 0 - found live (2026-09-04): without it, a flex item's
+    // default min-width:auto keeps it at its content's intrinsic width, so
+    // this combobox (and the dropdown results list positioned relative to
+    // it) never shrinks to fit the row - it and the trailing "Zuordnung
+    // entfernen" button after it get pushed past the visible card edge,
+    // making the remove button unreachable. Classic flexbox overflow
+    // gotcha, not specific to this component's own width.
+    <div ref={containerRef} style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+      <input
+        style={{ ...style, padding: '0.4rem 0.6rem' }}
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
+        autoComplete="off"
+        disabled={disabled}
+        value={mapping.code}
+        placeholder="Code suchen oder eingeben …"
+        onFocus={() => setOpen(true)}
+        onChange={(event) => {
+          const code = event.target.value;
+          onChange({ ...mapping, code, version: undefined, display: undefined });
+          onValidation(null);
+          setOpen(true);
+          setHighlighted(0);
+          scheduleSearch(code);
+        }}
+        onBlur={runValidateOnBlur}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown') { event.preventDefault(); setHighlighted((current) => Math.min(current + 1, results.length - 1)); }
+          else if (event.key === 'ArrowUp') { event.preventDefault(); setHighlighted((current) => Math.max(current - 1, 0)); }
+          else if (event.key === 'Enter') { const match = results[highlighted]; if (match) { event.preventDefault(); commitConcept(match); } }
+          else if (event.key === 'Escape') setOpen(false);
+        }}
+      />
+      {mapping.display && <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>{mapping.display}{mapping.version ? ` · v${mapping.version}` : ''}</div>}
+      {open && (
+        <ul
+          role="listbox"
+          style={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, right: 0, margin: '0.25rem 0 0', padding: '0.25rem', listStyle: 'none', background: 'white', border: '1px solid #cbd5e1', borderRadius: '6px', maxHeight: '14rem', overflowY: 'auto', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.12)' }}
+        >
+          {loading && <li style={{ padding: '0.4rem 0.6rem', color: '#64748b', fontSize: '0.85rem' }}>Suche …</li>}
+          {!loading && searchError && <li style={{ padding: '0.4rem 0.6rem', color: '#b91c1c', fontSize: '0.85rem' }}>Terminologie-Suche fehlgeschlagen: {searchError}</li>}
+          {!loading && !searchError && mapping.code.trim().length >= 2 && results.length === 0 && <li style={{ padding: '0.4rem 0.6rem', color: '#64748b', fontSize: '0.85rem' }}>Keine Treffer</li>}
+          {!loading && !searchError && results.map((concept, index) => (
+            <li
+              key={`${concept.code}-${index}`}
+              role="option"
+              aria-selected={index === highlighted}
+              onMouseDown={(event) => { event.preventDefault(); commitConcept(concept); }}
+              onMouseEnter={() => setHighlighted(index)}
+              style={{ padding: '0.4rem 0.6rem', borderRadius: '4px', cursor: 'pointer', background: index === highlighted ? '#eef2ff' : 'transparent' }}
+            >
+              <div style={{ fontWeight: 600 }}>{concept.code}</div>
+              {concept.display && <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{concept.display}</div>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function FormRuntime({
   definition,
   initialValues,
@@ -347,6 +564,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   mode = 'preview',
   showHeader = true,
   chromeless = false,
+  alwaysShowValidation = false,
 }, ref) {
   const { renderers } = useFrontendPlugins();
   const effectiveRendererOverrides = useMemo(() => ({
@@ -373,8 +591,23 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   const [values, setValues] = useState<RuntimeValues>(initialRuntimeValues);
   const [submitted, setSubmitted] = useState(false);
   const [uiStates, setUiStates] = useState<Record<string, FormScriptUiState>>({});
-  const [scriptErrors, setScriptErrors] = useState<Record<string, string>>({});
+  const [scriptErrors, setScriptErrors] = useState<Record<string, FormScriptFieldMessage>>({});
+  // Async, server-side terminology-validate() results for codeMappings
+  // entries - keyed the same way scriptErrors is (a synthetic path per
+  // mapping, since a mapping is a value *within* a field's value, not a
+  // field of its own) and merged into `issues` the same way, `source:
+  // 'server'` (see the Terminologie-Server-Integration plan's section C/D
+  // and TerminologyCodeInput just above).
+  const [terminologyIssues, setTerminologyIssues] = useState<Record<string, { message: string; severity: 'error' | 'warning' }>>({});
   const [toast, setToast] = useState<{ level: string; message: string } | null>(null);
+  // Field-path -> how far the clinician has interacted with it, for the
+  // validation-message visibility rule (see visibleIssues below): a
+  // warning/info shows as soon as the field is 'changed'; a blocking error
+  // waits for 'blurred' (or the existing `submitted` trigger). Bypassed
+  // entirely when alwaysShowValidation is set (FormBuilder's Preview tab).
+  const [touchedFields, setTouchedFields] = useState<Record<string, 'changed' | 'blurred'>>({});
+  const markChanged = (path: string) => setTouchedFields((prev) => (prev[path] ? prev : { ...prev, [path]: 'changed' }));
+  const markBlurred = (path: string) => setTouchedFields((prev) => (prev[path] === 'blurred' ? prev : { ...prev, [path]: 'blurred' }));
   // Which of the currently-set field values came from field(id).prefill(...)
   // rather than a clinician's own entry - drives the small provenance
   // badge next to a field. Keyed by field id; a field with no entry here
@@ -601,11 +834,23 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
       }
     });
 
-    Object.entries(scriptErrors).forEach(([path, message]) => {
-      issues.push({ path, code: 'type', message });
+    Object.entries(scriptErrors).forEach(([path, entry]) => {
+      // code: 'script' (not the generic 'type') so a Form Script business
+      // rule is distinguishable from an RM-type/shape problem wherever
+      // issues are inspected later (Live-JSON debug view, backend logs).
+      issues.push({ path, code: 'script', message: entry.message, severity: entry.severity, source: entry.source });
     });
-    return { valid: issues.length === 0, issues };
-  }, [definition, fields, scriptErrors, uiStates, values]);
+    Object.entries(terminologyIssues).forEach(([path, entry]) => {
+      issues.push({ path, code: 'mapping-invalid', message: entry.message, severity: entry.severity, source: 'server' });
+    });
+    // Mirrors CoreRuntime.validateRuntimeValues's own `valid` computation
+    // (form-runtime/index.ts) - only isBlockingIssue(...) issues block.
+    // `issues.length === 0` here would have made a form with nothing but
+    // warnings (e.g. a DV_QUANTITY precision warning, or a script
+    // validate() returning severity: 'warning') incorrectly unsubmittable.
+    const valid = !issues.some(isBlockingIssue);
+    return { valid, issues };
+  }, [definition, fields, scriptErrors, terminologyIssues, uiStates, values]);
 
   const update = (id: string, value: unknown) => {
     nonPersistedIdsRef.current.delete(id);
@@ -675,13 +920,22 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     node: FormElementLayout,
     value: unknown,
     onChange: (next: unknown) => void,
-    error?: RuntimeValidationIssue,
+    issues?: RuntimeValidationIssue[],
     inputName = field.id,
+    // The exact issue-path convention issuesFor/visibleIssues filter by
+    // (see renderField's basePath/`${basePath}[${index}]`) - only actually
+    // needed by the codeMappings branch below, to key its async
+    // terminology-validate() issues so they land on the right field.
+    issuePath = field.id,
   ): ReactNode => {
     const dynamic = uiStates[`fields:${field.id}`];
     const disabled = readOnly || dynamic?.enabled === false || dynamic?.readonly === true || field.readOnly;
+    // A missing severity has always meant "blocking" (see isBlockingIssue,
+    // packages/core/form-runtime) - kept identical here so a plain error
+    // (no severity set) still counts.
+    const error = issues?.find(isBlockingIssue);
     const override = effectiveRendererOverrides[field.type] || effectiveRendererOverrides[node.uiElement || ''];
-    if (override) return override({ field, node, value, error, disabled, onChange });
+    if (override) return override({ field, node, value, error, issues, disabled, onChange });
     const invalid = Boolean(error);
     const style = {
       width: '100%',
@@ -766,12 +1020,18 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
       // (field.codeMappings.terminologies) - the clinician only ever
       // types/edits the code itself, per "Katalog hidden": no visible
       // terminology browser, just a code entry per configured terminology.
-      const compound = (value && typeof value === 'object' && !Array.isArray(value)) ? value as { value?: unknown; mappings?: Array<{ terminologyId: string; code: string; match?: string }> } : { value };
+      const compound = (value && typeof value === 'object' && !Array.isArray(value)) ? value as { value?: unknown; mappings?: CodeMappingValue[] } : { value };
       const text = compound.value;
       const mappings = Array.isArray(compound.mappings) ? compound.mappings : [];
       const terminologies = field.codeMappings.terminologies;
       const commitMappings = (next: typeof mappings) => onChange({ value: text, ...(next.length > 0 ? { mappings: next } : {}) });
       const canAddMore = terminologies.length > 0 && (field.codeMappings.allowMultiple !== false || mappings.length === 0);
+      const setMappingIssue = (rowKey: string, issue: { message: string; severity: 'error' | 'warning' } | null) => {
+        setTerminologyIssues((current) => {
+          if (!issue) { if (!(rowKey in current)) return current; const { [rowKey]: _removed, ...rest } = current; return rest; }
+          return { ...current, [rowKey]: issue };
+        });
+      };
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <input style={style} type={inputType(node)} autoComplete="off" disabled={disabled} value={String(text ?? '')} placeholder={node.placeholder || ''} onChange={(event) => onChange({ value: event.target.value, ...(mappings.length > 0 ? { mappings } : {}) })} />
@@ -786,8 +1046,18 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
                 ) : (
                   <span style={{ fontSize: '0.78rem', color: '#64748b', flexShrink: 0, minWidth: '6rem' }}>{terminology?.label || mapping.terminologyId}</span>
                 )}
-                <input style={{ ...style, flex: 1, padding: '0.4rem 0.6rem' }} type="text" autoComplete="off" disabled={disabled} value={mapping.code} placeholder="Code" onChange={(event) => commitMappings(mappings.map((item, i) => i === index ? { ...item, code: event.target.value } : item))} />
-                <button type="button" disabled={disabled} title="Zuordnung entfernen" onClick={() => commitMappings(mappings.filter((_item, i) => i !== index))} style={{ border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer', padding: '0.3rem' }}>×</button>
+                {terminology?.providerId ? (
+                  <TerminologyCodeInput
+                    terminology={terminology}
+                    mapping={mapping}
+                    disabled={disabled}
+                    onChange={(next) => commitMappings(mappings.map((item, i) => i === index ? next : item))}
+                    onValidation={(issue) => setMappingIssue(`${issuePath}[${index}]`, issue)}
+                  />
+                ) : (
+                  <input style={{ ...style, flex: 1, padding: '0.4rem 0.6rem' }} type="text" autoComplete="off" disabled={disabled} value={mapping.code} placeholder="Code" onChange={(event) => commitMappings(mappings.map((item, i) => i === index ? { ...item, code: event.target.value } : item))} />
+                )}
+                <button type="button" disabled={disabled} title="Zuordnung entfernen" onClick={() => { setMappingIssue(`${issuePath}[${index}]`, null); commitMappings(mappings.filter((_item, i) => i !== index)); }} style={{ border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer', padding: '0.3rem' }}>×</button>
               </div>
             );
           })}
@@ -826,18 +1096,19 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     };
 
     const renderSingle = (value: unknown, index?: number) => {
-      const issueForValue = index === undefined
-        ? nodeIssues[0]
-        : nodeIssues.find((issue) => issue.path === `${basePath}[${index}]`);
+      const issuesForValue = index === undefined
+        ? nodeIssues
+        : nodeIssues.filter((issue) => issue.path === `${basePath}[${index}]`);
       const key = index === undefined ? basePath : `${basePath}-${index}`;
       return (
         <div key={key} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
           <div
             style={{ flex: 1 }}
             onFocus={() => scriptClientRef.current?.uiEvent(id, 'focus')}
-            onBlur={() => scriptClientRef.current?.uiEvent(id, 'blur')}
+            onBlur={() => { scriptClientRef.current?.uiEvent(id, 'blur'); markBlurred(basePath); }}
           >
             {fieldInput(effectiveField, effectiveNode, value, (next) => {
+              markChanged(basePath);
               if (index === undefined) {
                 commit(next);
                 return;
@@ -845,12 +1116,30 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
               const list = Array.isArray(fieldValue) ? [...fieldValue] : [];
               list[index] = next;
               commit(list);
-            }, issueForValue, groupContext ? `${id}-${groupContext.index}` : id)}
+            }, issuesForValue, groupContext ? `${id}-${groupContext.index}` : id, index === undefined ? basePath : `${basePath}[${index}]`)}
           </div>
           {index !== undefined && <button type="button" disabled={readOnly || groupContext?.disabled} onClick={() => commit((Array.isArray(fieldValue) ? fieldValue : []).filter((_item, itemIndex) => itemIndex !== index))} style={{ border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer', padding: '0.5rem' }}>×</button>}
         </div>
       );
     };
+
+    // Visibility gating: alwaysShowValidation (FormBuilder's Preview tab)
+    // bypasses this entirely - the designer is deliberately testing rules.
+    // Otherwise: a non-blocking warning/info shows as soon as the field is
+    // touched (changed is enough, no blur needed) so a designer-authored
+    // hint appears while the clinician is still typing; a blocking error
+    // waits for blur (finished editing this field) or the first submit
+    // attempt, so a freshly-opened form isn't immediately loud with
+    // "required" on every empty field.
+    const touchState = touchedFields[basePath];
+    const visibleIssues = alwaysShowValidation
+      ? nodeIssues
+      : nodeIssues.filter((issue) => (isBlockingIssue(issue) ? touchState === 'blurred' || submitted : touchState !== undefined));
+    const issueTone = (issue: RuntimeValidationIssue) => (
+      isBlockingIssue(issue)
+        ? { color: '#b91c1c', background: '#fee2e2', border: '#fecaca' }
+        : { color: '#b45309', background: '#fef3c7', border: '#fde68a' }
+    );
 
     const repeated = field.repeatable ? (Array.isArray(fieldValue) ? fieldValue : []) : [];
     const displayValues = field.repeatable && repeated.length === 0 && field.repeatMin > 0
@@ -879,7 +1168,26 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
         </div>
         {effectiveField.description && <div style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '0.4rem' }}>{effectiveField.description}</div>}
         {effectiveField.repeatable ? <>{displayValues.map((item, index) => renderSingle(item, index))}<button type="button" disabled={readOnly || groupContext?.disabled || (effectiveField.repeatMax !== -1 && repeated.length >= effectiveField.repeatMax)} onClick={() => commit([...repeated, undefined])} style={{ border: '1px dashed #94a3b8', background: 'transparent', borderRadius: '6px', padding: '0.45rem 0.75rem', color: '#475569', cursor: 'pointer' }}>+ {effectiveField.label}</button></> : renderSingle(fieldValue)}
-        {submitted && nodeIssues[0] && <div style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.3rem' }}>{nodeIssues[0].message}</div>}
+        {visibleIssues.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.35rem' }}>
+            {visibleIssues.map((issue, index) => {
+              const tone = issueTone(issue);
+              return (
+                <div
+                  key={`${issue.path}-${issue.code}-${index}`}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '0.35rem',
+                    fontSize: '0.8rem', color: tone.color, background: tone.background,
+                    border: `1px solid ${tone.border}`, borderRadius: '5px', padding: '0.3rem 0.55rem',
+                  }}
+                >
+                  <span aria-hidden="true">{isBlockingIssue(issue) ? '⨯' : '⚠'}</span>
+                  <span>{issue.message}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -916,6 +1224,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
           && rows.length >= descriptor.repeatMax;
         const groupDisabled = readOnly || dynamic?.enabled === false || dynamic?.readonly === true;
         const addRow = () => {
+          markChanged(id);
           const row: GroupRow = {};
           fields.filter((field) => field.repeatableGroupId === id && field.defaultValue !== undefined).forEach((field) => {
             row[field.id] = field.repeatable ? [field.defaultValue] : field.defaultValue;
@@ -935,11 +1244,14 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
                   <button
                     type="button"
                     disabled={groupDisabled || rows.length <= (descriptor?.repeatMin || 0)}
-                    onClick={() => replaceGroupRows(
-                      id,
-                      rows.filter((_item, itemIndex) => itemIndex !== index),
-                      { type: 'remove', index, item: row },
-                    )}
+                    onClick={() => {
+                      markChanged(id);
+                      replaceGroupRows(
+                        id,
+                        rows.filter((_item, itemIndex) => itemIndex !== index),
+                        { type: 'remove', index, item: row },
+                      );
+                    }}
                     style={{ border: 0, background: 'transparent', color: '#b91c1c', cursor: 'pointer' }}
                   >
                     Entfernen
@@ -954,7 +1266,22 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
               </div>
             ))}
             <button type="button" disabled={groupDisabled || maximumReached} onClick={addRow} style={{ border: '1px dashed #94a3b8', background: 'transparent', borderRadius: '6px', padding: '0.45rem 0.75rem', color: '#475569', cursor: 'pointer' }}>+ Eintrag hinzufügen</button>
-            {submitted && validation.issues.find((issue) => issue.path === id) && <div style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '0.3rem' }}>{validation.issues.find((issue) => issue.path === id)?.message}</div>}
+            {validation.issues.filter((issue) => issue.path === id && (alwaysShowValidation || (isBlockingIssue(issue) ? submitted : touchedFields[id] !== undefined))).map((issue, index) => {
+              const warning = !isBlockingIssue(issue);
+              return (
+                <div
+                  key={`${id}-group-issue-${index}`}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '0.35rem', marginTop: '0.35rem',
+                    fontSize: '0.8rem', color: warning ? '#b45309' : '#b91c1c', background: warning ? '#fef3c7' : '#fee2e2',
+                    border: `1px solid ${warning ? '#fde68a' : '#fecaca'}`, borderRadius: '5px', padding: '0.3rem 0.55rem',
+                  }}
+                >
+                  <span aria-hidden="true">{warning ? '⚠' : '⨯'}</span>
+                  <span>{issue.message}</span>
+                </div>
+              );
+            })}
           </section>
         );
       }
@@ -1022,7 +1349,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
         {showHeader && definition.name && <header style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}><div><h1 style={{ margin: 0 }}>{definition.name}</h1><div style={{ color: '#64748b', fontSize: '0.85rem' }}>Version {definition.version}</div></div><ExtensionSlot name="form:header:actions" context={{ readOnly }} /></header>}
         {renderNode(definition.layout, 'root')}
         {showSubmit && !readOnly && <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1rem', display: 'flex', justifyContent: 'flex-end' }}><button type="submit" className="btn" disabled={busy || (submitted && !validation.valid)}>{submitLabel}</button></div>}
-        {submitted && !validation.valid && <div role="alert" style={{ color: '#b91c1c', marginTop: '0.75rem' }}>{validation.issues.length} Validierungsfehler müssen korrigiert werden.</div>}
+        {submitted && !validation.valid && <div role="alert" style={{ color: '#b91c1c', marginTop: '0.75rem' }}>{validation.issues.filter(isBlockingIssue).length} Validierungsfehler müssen korrigiert werden.</div>}
       </div>
       <ExtensionSlot name="form:overlay" context={{ readOnly }} />
     </form>

@@ -28,27 +28,28 @@ test('a magnitude within range and precision produces no issues at all', () => {
   assert.equal(result.valid, true);
 });
 
-test('a magnitude below the unit\'s min is a warning, not a blocking issue', () => {
+test('a magnitude below the unit\'s min is a blocking, template-sourced issue', () => {
   const result = validateRuntimeValues(form(FREQUENZ_UNITS), { frequenz: { magnitude: 0, unit: '1/d' } });
   assert.equal(result.issues.length, 1);
   assert.equal(result.issues[0].code, 'quantity-range');
-  assert.equal(result.issues[0].severity, 'warning');
-  assert.equal(result.valid, true, 'a quantity-range warning must never block validity - see the "warning, not hard block" decision for pre-existing data');
+  assert.equal(result.issues[0].severity, 'error');
+  assert.equal(result.issues[0].source, 'template');
+  assert.equal(result.valid, false, 'a real archetype range constraint describes valid data and must block - see isBlockingIssue\'s doc comment');
 });
 
-test('a magnitude above the unit\'s max is a warning too', () => {
+test('a magnitude above the unit\'s max blocks too', () => {
   const result = validateRuntimeValues(form(FREQUENZ_UNITS), { frequenz: { magnitude: 30, unit: '1/h' } });
   assert.equal(result.issues.length, 1);
   assert.equal(result.issues[0].code, 'quantity-range');
-  assert.equal(result.valid, true);
+  assert.equal(result.valid, false);
 });
 
-test('a magnitude with more decimal places than the unit\'s precision allows is a warning', () => {
+test('a magnitude with more decimal places than the unit\'s precision allows blocks', () => {
   const result = validateRuntimeValues(form(FREQUENZ_UNITS), { frequenz: { magnitude: 2.5, unit: '1/d' } });
   assert.equal(result.issues.length, 1);
   assert.equal(result.issues[0].code, 'quantity-precision');
-  assert.equal(result.issues[0].severity, 'warning');
-  assert.equal(result.valid, true);
+  assert.equal(result.issues[0].severity, 'error');
+  assert.equal(result.valid, false);
 });
 
 test('an inclusive min (the default) accepts the boundary value itself', () => {
@@ -65,18 +66,18 @@ test('minexclusive rejects the boundary value itself, not just values below it',
   assert.deepEqual(aboveBoundary.issues, []);
 });
 
-test('a range/precision violation still combines correctly with a genuinely blocking issue in the same submission', () => {
+test('a range/precision violation still combines correctly with another blocking issue in the same submission', () => {
   const withUnrelatedError = validateRuntimeValues(
     { layout: { type: 'form', children: [{ type: 'container', children: [
       { type: 'input-text', id: 'name', label: 'Name', required: true },
       { type: 'input-quantity', id: 'frequenz', label: 'Frequenz', unitOptions: FREQUENZ_UNITS },
     ] }] } },
-    { frequenz: { magnitude: 0, unit: '1/d' } }, // name missing (required) + frequenz below min (warning)
+    { frequenz: { magnitude: 0, unit: '1/d' } }, // name missing (required) + frequenz below min (also blocking now)
   );
-  assert.equal(withUnrelatedError.valid, false, 'a real required-field violation must still block, even alongside a warning');
+  assert.equal(withUnrelatedError.valid, false, 'both a required-field violation and an archetype range violation must block');
   assert.equal(withUnrelatedError.issues.length, 2);
   assert.ok(withUnrelatedError.issues.some((entry) => entry.code === 'required'));
-  assert.ok(withUnrelatedError.issues.some((entry) => entry.code === 'quantity-range' && entry.severity === 'warning'));
+  assert.ok(withUnrelatedError.issues.some((entry) => entry.code === 'quantity-range' && entry.severity === 'error' && entry.source === 'template'));
 });
 
 test('a field with no unitOptions at all (archetype specifies no constraint) is completely unaffected', () => {

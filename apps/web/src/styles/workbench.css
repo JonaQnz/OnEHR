@@ -561,6 +561,21 @@
   margin: 0 0 0.25rem;
 }
 
+/* Canvas field search - highlight on the matched field's card
+   (react-form-builder2's own .rfb-item wrapper) after scrollIntoView.
+   Deliberately a static outline, no `animation`/`transition` - confirmed
+   live that an animated box-shadow keyframe here (even alone, with no
+   scroll and no React involved) makes the tab unresponsive for 45s+ in
+   this environment (heavy DOM, apparently uncomposited/software-painted
+   box-shadow repaint). JS toggles this class on/off directly (see the
+   canvas-search useEffect in FormBuilder.tsx) instead of relying on a CSS
+   animation's own timing. */
+.canvas-search-highlight {
+  outline: 3px solid #4f46e5;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
 .canvas-form-meta {
   font-size: 0.78rem;
   color: #64748b;
@@ -1758,31 +1773,67 @@
   box-shadow: 0 8px 24px rgb(15 23 42 / 7%);
 }
 
+/* The editor chrome (toolbar + code surface) is the one part of this shell
+   that reads as an "instrument panel" - dark, monospace-forward, always on
+   regardless of any app-wide theme (this app has none). The connector /
+   AI-instruction panels below stay on their existing light chrome; see the
+   2026-09 design-audit for why only the editor itself moved. */
 .script-editor-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fff;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--instrument-rule);
+  background: var(--instrument-bg-raised);
+  color: var(--instrument-ink);
+  font-family: var(--mono);
 }
 
-.script-editor-toolbar > div {
+.script-editor-toolbar > div:first-child {
   display: flex;
   align-items: center;
   gap: 0.65rem;
+  font-size: 0.85rem;
 }
 
 .script-editor-actions {
   flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 .script-editor-actions .form-input {
   width: auto;
   min-width: 9rem;
   padding-block: 0.4rem;
+}
+
+.script-editor-toolbar .btn-workbench {
+  background: var(--instrument-bg);
+  border: 1px solid var(--instrument-rule);
+  color: var(--instrument-ink-soft);
+  font-family: var(--sans, -apple-system, sans-serif);
+}
+
+.script-editor-toolbar .btn-workbench:hover {
+  color: var(--instrument-ink);
+  border-color: var(--instrument-ink-faint);
+}
+
+.script-editor-toolbar .btn-workbench.success {
+  background: var(--instrument-teal);
+  border-color: var(--instrument-teal);
+  color: #0d2c28;
+}
+
+.script-editor-toolbar .btn-workbench.success:hover {
+  filter: brightness(1.08);
+}
+
+.script-editor-toolbar .btn-workbench:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .script-status-badge {
@@ -1808,6 +1859,26 @@
 .script-status-badge.error {
   color: #991b1b;
   background: #fee2e2;
+}
+
+/* Toolbar sits on the dark instrument surface - same three states, muted
+   instrument palette instead of the pastel light-chrome colors above. */
+.script-editor-toolbar .script-status-badge {
+  font-family: var(--mono);
+  background: transparent;
+  border: 1px solid currentColor;
+}
+
+.script-editor-toolbar .script-status-badge.valid {
+  color: var(--instrument-teal);
+}
+
+.script-editor-toolbar .script-status-badge.dirty {
+  color: var(--instrument-amber);
+}
+
+.script-editor-toolbar .script-status-badge.error {
+  color: var(--instrument-brick);
 }
 
 .script-ai-panel {
@@ -1907,35 +1978,49 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-height: 32rem;
-  background: #0f172a;
+  background: var(--instrument-bg);
 }
 
 .script-editor-grid.with-types {
   grid-template-columns: minmax(0, 3fr) minmax(20rem, 2fr);
 }
 
-.script-code-input,
+/* Host div for the CodeMirror instance - CodeMirror manages its own
+   internal scroll/line/gutter styling via instrumentTheme.ts, this just
+   sizes and clips the host element it mounts into. */
+.script-code-editor {
+  width: 100%;
+  min-height: 32rem;
+  height: 100%;
+  overflow: hidden;
+}
+
+.script-code-editor .cm-editor {
+  height: 100%;
+  min-height: 32rem;
+}
+
+.script-code-editor .cm-scroller {
+  overflow: auto;
+  font-family: var(--mono);
+}
+
 .script-generated-types {
   width: 100%;
   min-height: 32rem;
   margin: 0;
   padding: 1rem 1.15rem;
   border: 0;
+  border-left: 1px solid var(--instrument-rule);
   border-radius: 0;
   outline: 0;
   resize: none;
-  color: #e2e8f0;
-  background: #0f172a;
-  font: 13px/1.65 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  color: var(--instrument-teal);
+  background: var(--instrument-bg-raised);
+  font: 13px/1.65 var(--mono);
   tab-size: 2;
   white-space: pre;
   overflow: auto;
-}
-
-.script-generated-types {
-  border-left: 1px solid #334155;
-  color: #bfdbfe;
-  background: #111827;
 }
 
 .script-completions {
@@ -1944,32 +2029,32 @@
   flex-wrap: wrap;
   gap: 0.4rem;
   padding: 0.55rem 1rem;
-  border-top: 1px solid #334155;
-  color: #cbd5e1;
-  background: #1e293b;
+  border-top: 1px solid var(--instrument-rule);
+  color: var(--instrument-ink-soft);
+  background: var(--instrument-bg-raised);
   font-size: 0.78rem;
 }
 
 .script-completions > span {
   margin-right: 0.25rem;
-  color: #94a3b8;
+  color: var(--instrument-ink-faint);
   font-weight: 700;
 }
 
 .script-completions button {
   padding: 0.22rem 0.45rem;
-  border: 1px solid #475569;
+  border: 1px solid var(--instrument-rule);
   border-radius: 5px;
-  color: #bfdbfe;
-  background: #0f172a;
-  font: 12px/1.35 "SFMono-Regular", Consolas, monospace;
+  color: var(--instrument-teal);
+  background: var(--instrument-bg);
+  font: 12px/1.35 var(--mono);
   cursor: pointer;
 }
 
 .script-completions button:hover,
 .script-completions button:focus-visible {
-  border-color: #60a5fa;
-  outline: 1px solid #60a5fa;
+  border-color: var(--instrument-teal);
+  outline: 1px solid var(--instrument-teal);
 }
 
 .script-editor-status,

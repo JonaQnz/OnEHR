@@ -7,6 +7,7 @@ export * from './form-runtime';
 export * from './form-session';
 export * from './form-launch';
 export * from './form-data';
+export * from './terminology';
 export * from './form-scripting';
 export * from './fhir-mapping';
 export * from './folder-mapping';

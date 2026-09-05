@@ -127,26 +127,36 @@ const VALID_TERM_MAPPING_MATCH = new Set(['>', '=', '<', '?']);
 
 /** Shared by both codeMappings.enabled branches below (a DV_TEXT-bound field,
  * and - see the DV_CODED_TEXT branch's own comment - the "HIP converter is
- * king" DV_CODED_TEXT-bound one) so the `mappings/N` FLAT convention can't
+ * king" DV_CODED_TEXT-bound one) so the `_mapping:N` FLAT convention can't
  * drift between them. Mirrors canonicalComposition.ts's buildTermMappings
  * for the same reason that file gives: real example compositions for this
  * use only ever carry {match, target: {terminology_id, code_string}}.
  *
- * No leading underscore: confirmed live against EHRbase (2026-09-01) -
- * `_mappings` was rejected wholesale ("Could not consume Parts"). The
- * underscore convention is for LOCATABLE meta-attributes (`_uid`, `_name`,
- * `_feeder_audit`); `mappings` is DV_TEXT's own genuine, value-bearing RM
- * attribute (data_types.text 5.2.1: DV_TEXT.mappings: List<TERM_MAPPING> -
- * corrected 2026-09-02, this previously cited 5.2.4, which is actually
- * DV_CODED_TEXT, the subclass that adds `defining_code`; `mappings` itself
- * is inherited from DV_TEXT, not introduced there), not a meta-attribute,
- * so it takes its plain RM name like any other. */
+ * Corrected 2026-09-05 (live read-path bug investigation, medication_item_name
+ * on vg_medicationstatement.v1.1.0): the previous guess here - `mappings/N`,
+ * no leading underscore, slash before the index - was itself never verified
+ * against a real EHRbase GET, only checked not to be REJECTED on write
+ * (distinguishing it from the `_mappings/N` guess before it, which was
+ * rejected wholesale with "Could not consume Parts" - see git history). A
+ * live AQL readback of a composition actually committed with a populated
+ * `mappings` list (via canonicalComposition.ts's buildLeafDvValue, the path
+ * every real submission of a codeMappings.enabled field takes - see
+ * ehrbaseDataProvider.ts's `needsCanonicalComposition`) shows EHRbase's own
+ * FLAT rendering is `<path>/_mapping:N/...` - singular, underscore-prefixed,
+ * colon-indexed, the same `name:index` shape every other repeating FLAT
+ * attribute uses (e.g. `any_event:0`), not `mappings/N`. The underscore
+ * being present despite `mappings` being a genuine value-bearing RM
+ * attribute (data_types.text 5.2.1: DV_TEXT.mappings: List<TERM_MAPPING>,
+ * inherited by DV_CODED_TEXT) rather than a LOCATABLE meta-attribute is an
+ * EHRbase FLAT-projection implementation detail, not something derivable
+ * from the RM spec - only confirmed by this live example. readCodeMappings
+ * below is the counterpart read, kept in sync with this on purpose. */
 function writeCodeMappingsFlat(output: Record<string, unknown>, key: string, text: unknown, mappings: unknown): boolean {
   if (isEmpty(text)) return false;
   output[key] = text;
   (Array.isArray(mappings) ? mappings : []).forEach((entry, mappingIndex) => {
     if (!isRecord(entry) || isEmpty(entry.terminologyId) || isEmpty(entry.code)) return;
-    const prefix = `${key}/mappings/${mappingIndex}`;
+    const prefix = `${key}/_mapping:${mappingIndex}`;
     output[`${prefix}|match`] = typeof entry.match === 'string' && VALID_TERM_MAPPING_MATCH.has(entry.match) ? entry.match : '=';
     output[`${prefix}/target|code`] = entry.code;
     output[`${prefix}/target|terminology`] = entry.terminologyId;
@@ -745,8 +755,18 @@ export function toOpenEhrFlatComposition(definition: CanonicalForm, values: Form
   return flat;
 }
 
-function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: string, codeMappingsEnabled?: boolean): unknown {
-  const escaped = path.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&').replace(/\\\//g, '(?::\\d+)?/');
+/** Escapes `path` for embedding in a RegExp, AND makes every internal `/`
+ * tolerant of an optional `:N` occurrence-index immediately before it (e.g.
+ * `any_event/foo` also matches `any_event:0/foo`) - shared by readFlatValue
+ * and readCodeMappings so an ancestor's own repeat index (any_event, a
+ * repeatable group's own structural node, ...) never has to be known ahead
+ * of time to find a field nested underneath it. */
+function escapeFlatPathForMatching(path: string): string {
+  return path.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&').replace(/\\\//g, '(?::\\d+)?/');
+}
+
+function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: string, codeMappingsEnabled?: boolean, isGroupMember?: boolean): unknown {
+  const escaped = escapeFlatPathForMatching(path);
   const matcher = new RegExp(`^${escaped}(?::\\d+)?(?:\\|.*)?$`);
   const matches = Object.keys(flat).filter((key) => matcher.test(key));
   if (matches.length === 0) return undefined;
@@ -761,7 +781,34 @@ function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: str
     // last alternative an always-true empty string (harmless on its own -
     // an OR'd empty branch never rejects a match - but not what "index
     // must be followed by /, end-of-string, or |" was supposed to mean).
-    const indices = Array.from(key.matchAll(/:(\d+)(?=\/|$|\|)/g), (match) => Number(match[1]));
+    //
+    // `isGroupMember` (added 2026-09-05, live bug: medication_item_name on
+    // vg_medicationstatement.v1.1.0 - a plain, non-group field nested under
+    // an archetype-inherent `any_event` EVENT series) - a NON-group field's
+    // own genuine repeat index (per setFlatValue's indexedPath convention)
+    // only ever sits at the very END of its path, immediately before an
+    // optional `|suffix`. Scanning the WHOLE key for every `:N` (as the
+    // group-member branch below still does, unchanged) picks up an
+    // ancestor's occurrence index too - e.g. `any_event:0` - and wrongly
+    // treats it as this field's OWN repeat dimension, wrapping a genuinely
+    // single value in a one-element array. Confirmed live (2026-09-05):
+    // both `medication_item_name` (a codeMappings.enabled field) and the
+    // sibling plain `status` field, neither repeatable in the Form's own
+    // layout, both came back as `["..."]` instead of a bare value/code
+    // purely because they live under `any_event:0`. A repeatable GROUP
+    // member's own meaningful index sits mid-path instead (at the group's
+    // structural prefix, via insertIndexAtPrefix on write) - group-member
+    // reading isn't reconstructed into row objects here regardless (see
+    // repeatable-group-flat.test.js's own round-trip test comment), but
+    // still relies on capturing every `:N` to get at least a flat, ordered
+    // list of values per member field id - preserved unchanged so this fix
+    // doesn't regress that pre-existing (documented, imperfect) behavior.
+    const indices = isGroupMember
+      ? Array.from(key.matchAll(/:(\d+)(?=\/|$|\|)/g), (match) => Number(match[1]))
+      : (() => {
+        const trailing = key.match(/:(\d+)(?:\|.*)?$/);
+        return trailing ? [Number(trailing[1])] : [];
+      })();
     let value: unknown;
     if (rmType === 'DV_QUANTITY') {
       if (!key.endsWith('|magnitude')) continue;
@@ -848,24 +895,38 @@ function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: str
   return values.length > 0 ? values : undefined;
 }
 
-/** Reconstructs a codeMappings.enabled field's `mappings/N` group of flat
+/** Reconstructs a codeMappings.enabled field's `_mapping:N` group of flat
  * keys (see writeCodeMappingsFlat) back into CodeMappingValue[] - the
  * counterpart read half of that write convention. Silently returns []
  * rather than throwing on a malformed/partial group (a `target|code` with
  * no matching `target|terminology`, say) - this is enrichment on top of
  * the field's own already-valid text value, never something that should
- * fail the whole read. */
+ * fail the whole read.
+ *
+ * Unlike the old `${path}/mappings/` plain-string-prefix check this
+ * replaced, matching goes through the same ancestor-index-tolerant regex
+ * readFlatValue uses (escapeFlatPathForMatching) - `path` itself never
+ * contains a literal ancestor occurrence index (e.g. `any_event:0`), only
+ * the real flat keys do, so a plain `startsWith` never matched a
+ * codeMappings.enabled field nested under any repeating structural node.
+ * Confirmed live (2026-09-05): medication_item_name sits under
+ * `any_event:0`, so `_mapping:0`'s own key was
+ * `.../any_event:0/medication_item_name/_mapping:0/target|code` - no
+ * substring of that starts with the un-indexed `path` alone. Each match's
+ * own literal prefix (ancestor index and all) is read directly off the
+ * matched key, not reconstructed from `path` + index, so the follow-up
+ * `|match`/`/target|...` lookups stay exact. */
 function readCodeMappings(flat: Record<string, unknown>, path: string): Array<{ terminologyId: string; code: string; match?: string }> {
-  const prefix = `${path}/mappings/`;
-  const indices = new Set<number>();
+  const escaped = escapeFlatPathForMatching(path);
+  const matcher = new RegExp(`^${escaped}(?::\\d+)?/_mapping:(\\d+)(?=[/|])`);
+  const entryPrefixes = new Map<number, string>();
   for (const key of Object.keys(flat)) {
-    if (!key.startsWith(prefix)) continue;
-    const rest = key.slice(prefix.length);
-    const index = Number(rest.split(/[/|]/)[0]);
-    if (Number.isInteger(index) && index >= 0) indices.add(index);
+    const found = key.match(matcher);
+    if (!found) continue;
+    const index = Number(found[1]);
+    if (!entryPrefixes.has(index)) entryPrefixes.set(index, key.slice(0, found[0].length));
   }
-  return Array.from(indices).sort((a, b) => a - b).flatMap((index) => {
-    const entryPrefix = `${prefix}${index}`;
+  return Array.from(entryPrefixes.entries()).sort(([a], [b]) => a - b).flatMap(([, entryPrefix]) => {
     const code = flat[`${entryPrefix}/target|code`];
     const terminologyId = flat[`${entryPrefix}/target|terminology`];
     if (isEmpty(code) || isEmpty(terminologyId)) return [];
@@ -880,7 +941,7 @@ export function fromOpenEhrFlatComposition(definition: CanonicalForm, compositio
   const { layoutBindings } = collectFieldBindings(definition.layout);
   const processedPaths = new Set<string>();
   const readOne = (binding: FieldBinding, flatPath: string): unknown => {
-    const value = readFlatValue(composition, flatPath, binding.rmType, binding.codeMappings?.enabled);
+    const value = readFlatValue(composition, flatPath, binding.rmType, binding.codeMappings?.enabled, Boolean(binding.repeatableGroupId));
     if (isEmpty(value) || !binding.codeMappings?.enabled) return value;
     const mappings = readCodeMappings(composition, flatPath);
     return { value, ...(mappings.length > 0 ? { mappings } : {}) };

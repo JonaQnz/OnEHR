@@ -1,7 +1,7 @@
 const userAuthService = require('../../dist/services/userAuthService');
 const configService = require('../../dist/services/configService');
 
-const ADMIN_PERMISSIONS = ['patient.search', 'patient.read', 'form.execute', 'form-session.read-own', 'form-session.write-own', 'composition.read', 'composition.write', 'form.design', 'form.publish', 'plugin.configure', 'system.configure', 'user.manage', 'audit.read'];
+const ADMIN_PERMISSIONS = ['patient.search', 'patient.read', 'form.execute', 'form-session.read-own', 'form-session.write-own', 'composition.read', 'composition.write', 'terminology.read', 'form.design', 'form.publish', 'plugin.configure', 'system.configure', 'user.manage', 'audit.read', 'terminology.manage', 'terminology.publish'];
 
 /**
  * Controls what attachAuth (middleware/auth.ts) sees for every request

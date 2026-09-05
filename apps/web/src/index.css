@@ -27,11 +27,37 @@
   --danger-light: #fee2e2;
 
   --border: #e2e8f0;
-  
+
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+  /* ── "Instrument panel" tokens for engineering surfaces (Script Editor,
+     later AQL Functions / Composition Script) ──────────────────────────
+     Introduced alongside the tokens above rather than replacing them, so
+     screens can move to the new look one at a time. See the 2026-09
+     design-audit: engineering surfaces read as a deliberately dark
+     instrument panel so they're never confused with the calm, paper-light
+     clinical screens (patient runtime, dashboard, patient record). */
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --teal-700: #0b5a54;
+  --teal-600: #0f6d66;
+  --teal-500: #1a8a80;
+  --teal-300: #7fc4bc;
+  --teal-100: #d9ece9;
+
+  --instrument-bg: #1b1c1e;
+  --instrument-bg-raised: #232427;
+  --instrument-rule: #34363a;
+  --instrument-ink: #e7e5df;
+  --instrument-ink-soft: #92908a;
+  --instrument-ink-faint: #5c5d60;
+  --instrument-teal: #6fc8bd;
+  --instrument-amber: #e0ab55;
+  --instrument-brick: #d8836f;
+  --instrument-violet: #9c93d4;
 }
 
 body {

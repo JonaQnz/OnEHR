@@ -13,6 +13,7 @@ import {
   getFormFunctionImportConfiguration,
   getFormScriptConnectorConfiguration,
 } from 'core';
+import CodeEditor, { type CodeEditorHandle } from './CodeEditor';
 
 const API = API_BASE_URL;
 
@@ -94,7 +95,8 @@ export default function ScriptEditor({ formId, definition, onSaved }: ScriptEdit
   // fields instead of typing an id from memory.
   const [prefillTargets, setPrefillTargets] = useState<Record<string, string>>({});
   const checkSequence = useRef(0);
-  const codeInput = useRef<HTMLTextAreaElement>(null);
+  const codeEditorRef = useRef<CodeEditorHandle>(null);
+  const cursorPosRef = useRef(0);
   const savedAllowedOperations = getFormScriptConnectorConfiguration(definition).allowedOperations;
   const schemaIds = useMemo(() => collectFormScriptSchemaIds(definition), [definition.layout]);
   const dirty = source !== definition.formScript.source
@@ -279,9 +281,8 @@ export default function ScriptEditor({ formId, definition, onSaved }: ScriptEdit
       : 'KI-Vorschlag wurde in den Editor übernommen und muss vor dem Speichern korrigiert werden.');
   };
 
-  const updateCompletions = (element: HTMLTextAreaElement) => {
-    const cursor = element.selectionStart;
-    const beforeCursor = element.value.slice(0, cursor);
+  const updateCompletions = (value: string, cursor: number) => {
+    const beforeCursor = value.slice(0, cursor);
     const candidates: Array<{ pattern: RegExp; items: string[] }> = [
       { pattern: /(?:form\.field|ui\.field)\(\s*(["'])([^"']*)$/, items: schemaIds.fields },
       { pattern: /(?:form\.group|ui\.group)\(\s*(["'])([^"']*)$/, items: [...new Set([...schemaIds.groups, ...schemaIds.repeatableGroups])] },
@@ -319,19 +320,20 @@ export default function ScriptEditor({ formId, definition, onSaved }: ScriptEdit
     setAiCandidate(null);
     setCompletion(null);
     window.requestAnimationFrame(() => {
-      codeInput.current?.focus();
-      codeInput.current?.setSelectionRange(cursor, cursor);
+      codeEditorRef.current?.focus();
+      codeEditorRef.current?.setCursor(cursor);
     });
   };
 
   const insertSnippet = (snippet: string) => {
-    const element = codeInput.current;
-    const start = element?.selectionStart ?? source.length;
-    const end = element?.selectionEnd ?? start;
+    const start = cursorPosRef.current;
     const prefix = start > 0 && !source.slice(0, start).endsWith('\n') ? '\n' : '';
-    const next = `${source.slice(0, start)}${prefix}${snippet}${source.slice(end)}`;
+    const next = `${source.slice(0, start)}${prefix}${snippet}${source.slice(start)}`;
     setSource(next);
-    window.requestAnimationFrame(() => { codeInput.current?.focus(); const cursor = start + prefix.length + snippet.length; codeInput.current?.setSelectionRange(cursor, cursor); });
+    window.requestAnimationFrame(() => {
+      codeEditorRef.current?.focus();
+      codeEditorRef.current?.setCursor(start + prefix.length + snippet.length);
+    });
   };
   const filteredCode = codeFunctions.filter((item) => `${item.packageName} ${item.name} ${item.description}`.toLowerCase().includes(functionSearch.toLowerCase()));
   const filteredAql = aqlFunctions.filter((item) => `${item.packageName} ${item.name} ${item.description}`.toLowerCase().includes(functionSearch.toLowerCase()));
@@ -523,28 +525,21 @@ export default function ScriptEditor({ formId, definition, onSaved }: ScriptEdit
       )}
 
       <div className={`script-editor-grid ${showTypes ? 'with-types' : ''}`}>
-        <textarea
-          ref={codeInput}
-          aria-label="form-script.ts"
-          className="script-code-input"
+        <CodeEditor
+          ref={codeEditorRef}
+          ariaLabel="form-script.ts"
           value={source}
-          spellCheck={false}
-          onChange={(event) => {
-            setSource(event.target.value);
+          diagnostics={diagnostics}
+          onChange={(next) => {
+            setSource(next);
             setAiCandidate(null);
-            updateCompletions(event.target);
           }}
-          onClick={(event) => updateCompletions(event.currentTarget)}
-          onKeyUp={(event) => {
-            if (event.key !== 'Escape') updateCompletions(event.currentTarget);
+          onCursorActivity={(value, pos) => {
+            cursorPosRef.current = pos;
+            updateCompletions(value, pos);
           }}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') setCompletion(null);
-            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-              event.preventDefault();
-              void save();
-            }
-          }}
+          onSave={() => void save()}
+          onEscape={() => setCompletion(null)}
         />
         {showTypes && <pre className="script-generated-types" aria-label="Generierte TypeScript-Typen">{generatedTypes}</pre>}
       </div>

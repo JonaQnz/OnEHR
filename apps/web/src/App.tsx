@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Settings, Puzzle, UserRound, Beaker, UsersRound, LogOut, BarChart3, Bug } from 'lucide-react';
+import { LayoutDashboard, Settings, Puzzle, UserRound, Beaker, UsersRound, LogOut, BarChart3, Bug, Tags } from 'lucide-react';
 import { useDebugMode } from './hooks/useDebugMode';
 import React from 'react';
 import Login from './pages/Login';
@@ -17,6 +17,7 @@ const Config = React.lazy(() => import('./pages/Config'));
 const Plugins = React.lazy(() => import('./pages/Plugins'));
 const FunctionsAdmin = React.lazy(() => import('./pages/FunctionsAdmin'));
 const WidgetsAdmin = React.lazy(() => import('./pages/WidgetsAdmin'));
+const TerminologyAdmin = React.lazy(() => import('./pages/TerminologyAdmin'));
 const UsersAdmin = React.lazy(() => import('./pages/UsersAdmin'));
 const LiveForm = React.lazy(() => import('./pages/LiveForm'));
 const CompositionBuilder = React.lazy(() => import('./pages/CompositionBuilder'));
@@ -74,6 +75,7 @@ function AppContent() {
     <Can permission="plugin.configure"><li><Link to="/plugins" className={location.pathname === '/plugins' ? 'active' : ''}><Puzzle size={18} /><span>Plugins</span></Link></li></Can>
     <Can permission="form.design"><li><Link to="/functions" className={location.pathname === '/functions' ? 'active' : ''}><Beaker size={18} /><span>Functions</span></Link></li></Can>
     <Can permission="form.design"><li><Link to="/widgets" className={location.pathname === '/widgets' ? 'active' : ''}><BarChart3 size={18} /><span>Widgets</span></Link></li></Can>
+    <Can permission="terminology.manage"><li><Link to="/terminology" className={location.pathname === '/terminology' ? 'active' : ''}><Tags size={18} /><span>Terminologien</span></Link></li></Can>
     <Can permission="user.manage"><li><Link to="/admin/users" className={location.pathname === '/admin/users' ? 'active' : ''}><UsersRound size={18} /><span>Users</span></Link></li></Can>
   </ul><div style={{ marginTop: 'auto', padding: '1rem', borderTop: '1px solid var(--border)' }}>
     <Can permission="system.configure">
@@ -84,7 +86,7 @@ function AppContent() {
       </label>
     </Can>
     <div style={{ fontSize: '.85rem', marginBottom: '.5rem' }}>{auth.user?.displayName}</div><button className="btn secondary" onClick={() => void logout()} style={{ width: '100%', justifyContent: 'center' }}><LogOut size={16} /> Logout</button></div></nav>
-  <main className="main-content"><React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}><Routes><Route path="/" element={<Dashboard />} /><Route path="/patients" element={<PatientList />} /><Route path="/patients/:id" element={<PatientDetail />} /><Route path="/config" element={<Protected permission="system.configure"><Config /></Protected>} /><Route path="/plugins" element={<Protected permission="plugin.configure"><Plugins /></Protected>} /><Route path="/functions" element={<Protected permission="form.design"><FunctionsAdmin /></Protected>} /><Route path="/widgets" element={<Protected permission="form.design"><WidgetsAdmin /></Protected>} /><Route path="/admin/users" element={<Protected permission="user.manage"><UsersAdmin /></Protected>} /><Route path="/forms/:id/export" element={<Protected permission="form.design"><FormExport /></Protected>} /><Route path="/forms/:id/runtime" element={<SessionRuntime />} /><Route path="/compositions/:id" element={<Protected permission="form.execute"><CompositionRuntime /></Protected>} /></Routes></React.Suspense></main></div>;
+  <main className="main-content"><React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}><Routes><Route path="/" element={<Dashboard />} /><Route path="/patients" element={<PatientList />} /><Route path="/patients/:id" element={<PatientDetail />} /><Route path="/config" element={<Protected permission="system.configure"><Config /></Protected>} /><Route path="/plugins" element={<Protected permission="plugin.configure"><Plugins /></Protected>} /><Route path="/functions" element={<Protected permission="form.design"><FunctionsAdmin /></Protected>} /><Route path="/widgets" element={<Protected permission="form.design"><WidgetsAdmin /></Protected>} /><Route path="/terminology" element={<Protected permission="terminology.manage"><TerminologyAdmin /></Protected>} /><Route path="/admin/users" element={<Protected permission="user.manage"><UsersAdmin /></Protected>} /><Route path="/forms/:id/export" element={<Protected permission="form.design"><FormExport /></Protected>} /><Route path="/forms/:id/runtime" element={<SessionRuntime />} /><Route path="/compositions/:id" element={<Protected permission="form.execute"><CompositionRuntime /></Protected>} /></Routes></React.Suspense></main></div>;
 }
 function App() { const [frontendPlugins, setFrontendPlugins] = React.useState<FrontendPluginRegistration[]>([]); React.useEffect(() => { void loadFrontendPluginRegistrations().then(setFrontendPlugins).catch((error: unknown) => console.error('[PLUGIN] Failed to load frontend plugins', error)); }, []); return <Router><FrontendPluginProvider plugins={frontendPlugins}><AuthGate><React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}><Routes><Route path="/live/:parentId" element={<LiveForm />} /><Route path="/embed/forms/:parentId" element={<LiveForm />} /><Route path="*" element={<AppContent />} /></Routes></React.Suspense></AuthGate></FrontendPluginProvider></Router>; }
 export default App;

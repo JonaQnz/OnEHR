@@ -190,12 +190,27 @@ function optionType(node: FormElementLayout): string {
   return values.length > 0 ? `${union(values)} | null` : 'string | null';
 }
 
+// Mirrors packages/core/canonical's CodeMappingValue exactly - kept inline
+// (not imported) because generated Form Script types are a standalone
+// snippet compiled on its own, see typeScriptDiagnostics() below.
+const CODE_MAPPING_VALUE_TYPE = "{ terminologyId: string; code: string; match?: '>' | '=' | '<' | '?'; version?: string; display?: string }";
+
 function valueType(node: FormElementLayout): string {
   if (node.type === 'input-boolean') return 'boolean | null';
   if (['input-number', 'input-range'].includes(node.type)) return 'number | null';
   if (node.type === 'input-quantity') return '{ magnitude: number; unit: string } | null';
   if (node.type === 'input-proportion') return '{ numerator: number; denominator?: number } | null';
   if (['input-select', 'input-ordinal'].includes(node.type)) return optionType(node);
+  if (node.codeMappings?.enabled) {
+    // A codeMappings-enabled text field's runtime value is either a plain
+    // string (no mapping attached yet) or a CodeMappedTextValue - see that
+    // type's own doc comment in canonical/index.ts. Found live 2026-09-05
+    // wiring the Laborpanel forms to the lab-analytes-catalog terminology:
+    // a Form Script prefilling `{value, mappings}` for a codeMappings field
+    // was rejected by TS2322 because this function always promised a bare
+    // `string`, never the compound shape scripts actually need to write.
+    return `string | { value: string; mappings?: Array<${CODE_MAPPING_VALUE_TYPE}> } | null`;
+  }
   return 'string | null';
 }
 
@@ -358,6 +373,12 @@ ${connectorCatalogProperties}
     timestamp?: string;
   }
 
+  /** A validator's return value. A plain string (or the old bare-string
+   * return every existing script already uses) is always treated as a
+   * blocking error, unchanged from before - only the object form is new,
+   * for a non-blocking warning (or an explicit error with a message). */
+  export type FieldValidatorResult = string | { message: string; severity?: 'error' | 'warning' } | null | undefined;
+
   export interface FieldApi<T> {
     readonly value: T | undefined;
     setValue(value: T, options?: SetValueOptions): void;
@@ -368,7 +389,10 @@ ${connectorCatalogProperties}
      * landed (or the clinician declined). See docs/features/aql-prefill.md. */
     prefill(value: T, meta: PrefillMeta): Promise<{ applied: boolean }>;
     onChange(handler: (event: ChangeEvent<T>) => MaybePromise<void>, options?: ChangeHandlerOptions): void;
-    validate(handler: (value: T | undefined, context: ValidationContext) => MaybePromise<string | null | undefined>): void;
+    /** Return a plain string (or throw) for a blocking error, exactly as
+     * before - or { message, severity: 'warning' } for a non-blocking
+     * warning shown at the field without preventing submit. */
+    validate(handler: (value: T | undefined, context: ValidationContext) => MaybePromise<FieldValidatorResult>): void;
   }
 
   export interface GroupChangeEvent<T> {
