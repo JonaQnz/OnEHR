@@ -1,4 +1,5 @@
 import prisma from '../db/prisma';
+import type { Prisma } from '@prisma/client';
 import {
   assertFormSessionTransition,
   getCompositionDefinition,
@@ -7,7 +8,9 @@ import {
   isFormSessionChangeType,
   isFormSessionStatus,
   validateRuntimeValues,
+  type CanonicalForm,
   type FormDataProviderContext,
+  type FormDefinitionV1,
   type FormRuntimeMode,
   type FormSession,
   type FormSessionChangeType,
@@ -17,6 +20,8 @@ import {
   type FormSessionPatchInput,
   type FormSessionStatus,
   type FormSessionValues,
+  type JsonValue,
+  type RuntimeValues,
   type SessionValidationIssue,
   type UserAuthMode,
   getFormFolderMapping,
@@ -32,7 +37,7 @@ import { getCompositionRepository } from './compositionRepository';
 import { recordCompositionVersionEvent } from './compositionVersionEvents';
 import { getConfig, resolveSessionAlwaysNew } from './configService';
 import { pluginRegistry } from '../plugins/pluginRegistry';
-import type { PluginHookName, PluginHookResult } from 'plugin-api';
+import type { JsonObject, PluginHookName, PluginHookResult } from 'plugin-api';
 import { markPatientHasPersonArchetype, resolvePatientReference } from './patientService';
 import { verifyFhirForSubmission } from './fhirVerificationService';
 import { fileCompositionIntoFolder } from './ehrDirectoryService';
@@ -64,7 +69,13 @@ export interface CreateSessionInput {
 type SessionHookInput = {
   name: PluginHookName;
   formId: string;
-  form: Record<string, unknown>;
+  // A form definition (FormDefinitionV1/CanonicalForm) is a closed interface
+  // with no index signature, so it doesn't structurally satisfy
+  // Record<string, unknown> despite being safe to pass through opaquely -
+  // `object` is the honest type for "passed through to the plugin hook
+  // boundary, never read directly here" (grep confirms `input.form` is
+  // never destructured in this file, only forwarded).
+  form: object;
   data: Record<string, unknown>;
   patientId: string;
   sessionId?: string;
@@ -134,6 +145,18 @@ function persistedMode(value: unknown): FormRuntimeMode {
   return value;
 }
 
+// Same defensive-boundary pattern as persistedStatus/persistedMode above -
+// core doesn't export an isUserAuthMode guard (authMode is a plain String
+// column, not a Prisma enum), so this was previously only "checked" by
+// `record: any` silently accepting whatever the column held. Found while
+// removing that `any` for real: an invalid stored value now fails loudly
+// here instead of quietly typing as UserAuthMode without ever having been
+// verified.
+function persistedAuthMode(value: unknown): UserAuthMode {
+  if (value !== 'local' && value !== 'hip') throw new HttpError(500, 'Stored form session has an invalid auth mode');
+  return value;
+}
+
 function transitionStatus(current: FormSessionStatus, next: FormSessionStatus): FormSessionStatus {
   try {
     assertFormSessionTransition(current, next);
@@ -169,8 +192,13 @@ async function runSessionHook(input: SessionHookInput) {
     patientId: input.patientId,
     sessionId: input.sessionId,
     userId: input.actor.userId,
-    form: input.form as any,
-    data: input.data as any,
+    // PluginHookContext.form/data/metadata are the generic plugin-facing
+    // JsonObject contract - genuinely JSON-safe at runtime (no functions/
+    // Dates), but not something TS can verify structurally from
+    // Record<string, unknown>, hence the explicit unknown-bridged cast
+    // rather than a bare `any` that would silently swallow real mistakes.
+    form: input.form as unknown as JsonObject,
+    data: input.data as unknown as JsonObject,
     // No plugin's own settings are injected here - every hook handler
     // already has its own `context` (from `activate(context)`) in closure
     // scope, and `context.getSettings()` reads that exact plugin's own
@@ -179,7 +207,7 @@ async function runSessionHook(input: SessionHookInput) {
     metadata: {
       ...(input.metadata || {}),
       authMode: input.actor.authMode,
-    } as any,
+    } as unknown as JsonObject,
   });
 }
 
@@ -234,10 +262,47 @@ async function runBestEffortHook(input: SessionHookInput): Promise<{ data: Recor
   return { data: isObject(result.data) ? result.data : input.data, messages };
 }
 
-async function formForSession(record: any): Promise<Record<string, unknown>> {
+/** The subset of a `prisma.formSession` row this file actually reads,
+ * kept deliberately separate from `@prisma/client`'s own generated
+ * `FormSession`/`FormSessionStatus`/`FormSessionLifecycleState`/
+ * `FormSessionChangeType` types - those would collide by name with this
+ * file's own `core`-imported types of the same name, and importing them
+ * would wrongly imply a raw DB enum/Json column value can be trusted
+ * without going through persistedStatus()/persistedMode()/
+ * persistedLifecycleState()/sessionValues() below. That defensive
+ * validation is the whole point; this interface only names the columns,
+ * it doesn't vouch for their contents - a genuine Prisma FormSession row
+ * satisfies it structurally with zero cast needed at any call site.
+ */
+interface FormSessionRow {
+  id: string;
+  formId: string;
+  formVersion: string;
+  mode: unknown;
+  patientId: string;
+  patientNamespace: string | null;
+  userId: string;
+  authMode: string;
+  status: unknown;
+  values: unknown;
+  validation: unknown;
+  runtimeContext: unknown;
+  revision: number;
+  providerId: string | null;
+  providerReference: string | null;
+  draftReference: string | null;
+  lifecycleState: unknown;
+  lifecycleConfirmed: boolean;
+  changeType: unknown;
+  changeDescription: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+async function formForSession(record: Pick<FormSessionRow, 'formId'>): Promise<FormDefinitionV1> {
   const form = await prisma.form.findUnique({ where: { id: record.formId } });
   if (!form) throw new HttpError(404, 'Form definition not found');
-  return migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id) as unknown as Record<string, unknown>;
+  return migrateCanonicalFormToV1({ ...(form.canonical_json as Record<string, unknown>), id: form.id }, form.id);
 }
 
 function requiredText(value: unknown, field: string): string {
@@ -291,24 +356,29 @@ function providerContext(
 }
 
 function publicSession(
-  record: any,
+  record: FormSessionRow,
   messages?: FormSessionMessage[],
   patient?: ResolvedSessionPatient,
 ): FormSession {
   const mode = persistedMode(record.mode || 'create');
   const status = persistedStatus(record.status);
+  // Computed once rather than repeating the `||` chain in both the ternary
+  // condition and its value (the previous shape re-evaluated the same
+  // expression twice, and only worked at all because `record` being `any`
+  // silently absorbed `record.patientNamespace`'s real `string | null` -
+  // the `|| undefined` here does the same null-to-undefined narrowing
+  // explicitly, now that the type checker actually sees it).
+  const patientNamespace = patient?.patientNamespace || record.patientNamespace || undefined;
   return {
     id: record.id,
     formId: record.formId,
     formVersion: record.formVersion,
     mode,
     patientId: patient?.patientId || record.patientId,
-    ...((patient?.patientNamespace || record.patientNamespace)
-      ? { patientNamespace: patient?.patientNamespace || record.patientNamespace }
-      : {}),
+    ...(patientNamespace ? { patientNamespace } : {}),
     ...(patient?.ehrId ? { ehrId: patient.ehrId } : {}),
     userId: record.userId,
-    authMode: record.authMode,
+    authMode: persistedAuthMode(record.authMode),
     status,
     values: sessionValues(record.values),
     runtimeContext: runtimeContext(record.runtimeContext),
@@ -318,7 +388,7 @@ function publicSession(
     ...(record.providerId ? { providerId: record.providerId } : {}),
     ...(record.providerReference ? { providerReference: record.providerReference } : {}),
     ...(record.draftReference ? { draftReference: record.draftReference } : {}),
-    ...((record.draftReference || record.providerReference) ? { baseVersionUid: record.draftReference || record.providerReference } : {}),
+    ...((record.draftReference || record.providerReference || undefined) ? { baseVersionUid: record.draftReference || record.providerReference || undefined } : {}),
     lifecycleState: persistedLifecycleState(record.lifecycleState),
     lifecycleConfirmed: Boolean(record.lifecycleConfirmed),
     ...(isFormSessionChangeType(record.changeType) ? { changeType: record.changeType as FormSessionChangeType } : {}),
@@ -328,7 +398,7 @@ function publicSession(
   };
 }
 
-function assertOwner(record: any, actor: SessionActor): void {
+function assertOwner(record: Pick<FormSessionRow, 'userId'>, actor: SessionActor): void {
   if (record.userId !== actor.userId && actor.userId !== 'anonymous') throw new HttpError(403, 'You do not have access to this form session');
 }
 
@@ -393,7 +463,7 @@ async function assertFormSectionLaunchAllowed(
   }
   const parentForm = await prisma.form.findUnique({ where: { id: parent.compositionFormId } });
   if (!parentForm) throw new HttpError(404, 'Composition not found');
-  const definition = getCompositionDefinition((parentForm.canonical_json as any).extensions || {});
+  const definition = getCompositionDefinition((parentForm.canonical_json as { extensions?: Record<string, JsonValue> } | null)?.extensions || {});
   const block = definition?.pages.flatMap((page) => page.blocks).find((candidate) => candidate.id === compositionContext.blockId);
   if (!block || block.type !== 'form' || !(await formsShareLineage(block.formId, form.id))) {
     throw new HttpError(422, 'This Form Section is not a block of the referenced composition session');
@@ -437,7 +507,7 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
   // Unset defers to the connection-wide sessionReuseDefault (see
   // resolveSessionAlwaysNew), itself defaulting to 'reuse' - unchanged
   // behavior for every form that sets nothing.
-  const alwaysNew = resolveSessionAlwaysNew(getOpenEhrFormOptions(form.canonical_json as any).storageStrategy, getConfig().sessionReuseDefault);
+  const alwaysNew = resolveSessionAlwaysNew(getOpenEhrFormOptions(form.canonical_json as unknown as CanonicalForm).storageStrategy, getConfig().sessionReuseDefault);
   if ((mode === 'edit' || mode === 'prefill') && !input.forceNew && !alwaysNew) {
     if (input.compositionContext?.compositionSessionId && input.compositionContext?.blockId) {
       // A Form-Section-as-block launch (compositionContext present) must
@@ -500,14 +570,14 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
     userId: actor.userId,
     authMode: actor.authMode,
     status: 'draft',
-    values: (input.values || {}) as any,
-    validation: [] as any,
-    runtimeContext: { aql: {}, codeFunctions: [] } as any,
+    values: (input.values || {}) as unknown as Prisma.InputJsonValue,
+    validation: [] as unknown as Prisma.InputJsonValue,
+    runtimeContext: { aql: {}, codeFunctions: [] } as unknown as Prisma.InputJsonValue,
     revision: 0,
     providerId: input.providerId || null,
     providerReference: input.providerReference || null,
   } });
-  const definition = migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id);
+  const definition = migrateCanonicalFormToV1({ ...(form.canonical_json as Record<string, unknown>), id: form.id }, form.id);
   const context = providerContext(patient, record.id, actor, mode);
   const loadedContext = await buildSessionRuntimeContext(
     { id: form.id, version: form.version, definition },
@@ -515,7 +585,7 @@ export async function createFormSession(input: CreateSessionInput, actor: Sessio
   );
   const updated = await prisma.formSession.update({
     where: { id: record.id },
-    data: { runtimeContext: loadedContext as any },
+    data: { runtimeContext: loadedContext as unknown as Prisma.InputJsonValue },
   });
   return publicSession(updated, undefined, patient);
 }
@@ -598,7 +668,7 @@ export async function patchFormSession(id: string, input: FormSessionPatchInput,
   // "resolve" a stale error that no longer applies. Callers who need a
   // current validation result must call validateFormSession explicitly (or
   // rely on submitFormSessionToProvider's own fresh re-validation).
-  const updated = await prisma.formSession.update({ where: { id: sessionId }, data: { values: values as any, status, revision: { increment: 1 } } });
+  const updated = await prisma.formSession.update({ where: { id: sessionId }, data: { values: values as unknown as Prisma.InputJsonValue, status, revision: { increment: 1 } } });
   const afterSave = await runBestEffortHook({ name: 'afterSave', formId: record.formId, form, data: (updated.values || {}) as Record<string, unknown>, patientId: record.patientId, sessionId, actor, metadata: { status: updated.status } });
   const patient = await resolveSessionPatient(record.patientId, record.patientNamespace);
   return publicSession(updated, [...beforeSave.messages, ...afterSave.messages], patient);
@@ -613,7 +683,7 @@ export async function validateFormSession(id: string, actor: SessionActor): Prom
   assertSessionIsEditable(currentStatus, record.lifecycleState);
   const form = await formForSession(record);
   const beforeValidate = await runRequiredHook({ name: 'beforeValidate', formId: record.formId, form, data: (record.values || {}) as Record<string, unknown>, patientId: record.patientId, sessionId, actor });
-  const result = validateRuntimeValues(form as any, beforeValidate.data as any, { mode: 'final' });
+  const result = validateRuntimeValues(form, beforeValidate.data as unknown as RuntimeValues, { mode: 'final' });
   const after = await runSessionHook({ name: 'afterValidate', formId: record.formId, form, data: beforeValidate.data, patientId: record.patientId, sessionId, actor, metadata: { valid: result.valid, issues: result.issues } });
   const afterMessages = messagesFromHook(after);
   const pluginIssues = afterMessages.filter((message) => message.severity === 'error').map((message) => ({ path: message.path || `plugin:${record.formId}`, code: message.code || 'plugin', message: message.message, severity: 'error' as const }));
@@ -621,7 +691,7 @@ export async function validateFormSession(id: string, actor: SessionActor): Prom
   const finalValues = isObject(after.data) ? after.data : beforeValidate.data;
   const valid = result.valid && pluginIssues.length === 0;
   const status = transitionStatus(currentStatus, valid ? 'ready' : 'in_progress');
-  const updated = await prisma.formSession.update({ where: { id: sessionId }, data: { values: finalValues as any, validation: issues as any, status, revision: { increment: 1 } } });
+  const updated = await prisma.formSession.update({ where: { id: sessionId }, data: { values: finalValues as unknown as Prisma.InputJsonValue, validation: issues as unknown as Prisma.InputJsonValue, status, revision: { increment: 1 } } });
   const patient = await resolveSessionPatient(record.patientId, record.patientNamespace);
   return { session: publicSession(updated, [...beforeValidate.messages, ...afterMessages], patient), valid, issues };
 }
@@ -662,7 +732,7 @@ async function providerInput(id: string, providerId: string, actor: SessionActor
     patient,
     context: providerContext(patient, session.id, actor, persistedMode(session.mode)),
     provider: getDataProvider(requiredText(providerId, 'providerId')),
-    form: { id: form.id, version: form.version, definition: migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id) },
+    form: { id: form.id, version: form.version, definition: migrateCanonicalFormToV1({ ...(form.canonical_json as Record<string, unknown>), id: form.id }, form.id) },
   };
 }
 
@@ -680,7 +750,7 @@ export function compositionUidFromReference(reference: string | null | undefined
  * never itself an edit.
  */
 export async function resolveFormSessionHistoryContext(id: string, actor: SessionActor): Promise<{
-  session: any;
+  session: FormSessionRow;
   patient: ResolvedSessionPatient;
   context: FormDataProviderContext;
   providerId: string;
@@ -702,7 +772,7 @@ export async function resolveFormSessionHistoryContext(id: string, actor: Sessio
 
 export async function loadFormSessionFromProvider(id: string, providerId: string, actor: SessionActor): Promise<{ session: FormSession; provider: unknown }> {
   const input = await providerInput(id, providerId, actor);
-  const form = input.form.definition as unknown as Record<string, unknown>;
+  const form = input.form.definition;
   const beforeLoad = await runRequiredHook({ name: 'beforeLoad', formId: input.form.id, form, data: (input.session.values || {}) as Record<string, unknown>, patientId: input.session.patientId, sessionId: input.session.id, actor, metadata: { providerId } });
   let result;
   try {
@@ -724,8 +794,8 @@ export async function loadFormSessionFromProvider(id: string, providerId: string
   // lifecycleConfirmed stays false here.
   const loadedExistingComposition = Boolean(result.reference);
   const updated = await prisma.formSession.update({ where: { id: input.session.id }, data: {
-    values: afterLoad.data as any,
-    validation: [] as any,
+    values: afterLoad.data as unknown as Prisma.InputJsonValue,
+    validation: [] as unknown as Prisma.InputJsonValue,
     status: transitionStatus(persistedStatus(input.session.status), persistedStatus(input.session.status) === 'draft' ? 'in_progress' : persistedStatus(input.session.status)),
     providerId: result.providerId,
     providerReference: result.reference || input.session.providerReference || null,
@@ -772,10 +842,10 @@ export async function autosaveFormSessionDraft(id: string, providerId: string, a
   const input = await providerInput(id, providerId, actor);
   if (persistedMode(input.session.mode) === 'view') throw new HttpError(403, 'Session is in view mode and cannot be autosaved');
   const pushToProvider = resolvePushDraftsToProvider(input.form.definition);
-  const form = input.form.definition as unknown as Record<string, unknown>;
+  const form = input.form.definition;
   const beforeSave = await runRequiredHook({ name: 'beforeSave', formId: input.form.id, form, data: values, patientId: input.session.patientId, sessionId: input.session.id, actor, metadata: { status: 'in_progress', draft: true } });
   const draftValues = beforeSave.data;
-  const draftValidation = validateRuntimeValues(form as any, draftValues as any, { mode: 'draft' });
+  const draftValidation = validateRuntimeValues(form, draftValues as unknown as RuntimeValues, { mode: 'draft' });
   if (!draftValidation.valid) {
     // Preserve each issue's real severity instead of forcing every one to
     // 'error' - draftValidation.issues can legitimately mix a genuine
@@ -787,7 +857,7 @@ export async function autosaveFormSessionDraft(id: string, providerId: string, a
   }
   const status = transitionStatus(persistedStatus(input.session.status), 'in_progress');
   let updated = await prisma.formSession.update({ where: { id: input.session.id }, data: {
-    values: draftValues as any,
+    values: draftValues as unknown as Prisma.InputJsonValue,
     status,
     revision: { increment: 1 },
   } });
@@ -895,7 +965,7 @@ export async function applySuccessfulProviderCommit(sessionId: string, result: P
   const updated = await prisma.formSession.update({ where: { id: sessionId }, data: {
     status: 'submitted',
     providerId: result.providerId,
-    values: result.values as any,
+    values: result.values as unknown as Prisma.InputJsonValue,
     providerReference: result.reference || submitReference || null,
     draftReference: null, // finalized - providerReference above is now authoritative
     lifecycleState: result.lifecycleState || 'complete',
