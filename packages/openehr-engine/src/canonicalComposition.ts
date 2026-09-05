@@ -311,6 +311,46 @@ function buildLeafDvValue(rmType: string | undefined, field: RuntimeFieldDescrip
       ...(field?.proportionType ? { type: PROPORTION_KIND_CODE[field.proportionType] } : {}),
     };
   }
+  if (rmType === 'DV_INTERVAL<DV_QUANTITY>') {
+    // Had no branch at all before this - DV_INTERVAL was a total gap
+    // (P0.1 audit, 2026-09-05): the WebTemplate parser registered these
+    // fields in its flat catalog but never built an actual layout widget
+    // for them (getDataType had no case matching the full generic string
+    // "DV_INTERVAL<DV_QUANTITY>"), confirmed live on the real, published
+    // "Medikationsabgleich" form's "Dose"/"Alternate dose" fields (RM:
+    // openEHR-EHR-CLUSTER.dosage.v2's dose/alternate_dose, at0144/at0176) -
+    // silently unrepresentable, so nobody could enter a dose range through
+    // the Designer at all.
+    //
+    // RM data_types.interval 6.1 (INTERVAL<T>): {lower?, upper?,
+    // lower_included?, upper_included?, lower_unbounded, upper_unbounded}.
+    // An interval genuinely open on one side omits that bound and sets its
+    // *_unbounded flag true - that's valid RM, not a missing-value error
+    // (see form-runtime's 'input-interval' validateOne branch: only
+    // "neither bound present" trips `required`). *_included both default
+    // true here (a closed/inclusive range) since no real archetype example
+    // in this system has ever needed an exclusive bound on a dose range -
+    // revisit if one does.
+    //
+    // Reuses this same function's own DV_QUANTITY branch for each bound
+    // rather than re-deriving the magnitude/units shape a second time, so
+    // the two can never drift apart (e.g. a future DV_QUANTITY fix
+    // automatically covers interval bounds too).
+    const lower = buildLeafDvValue('DV_QUANTITY', field, source?.lower) as Canonical | undefined;
+    const upper = buildLeafDvValue('DV_QUANTITY', field, source?.upper) as Canonical | undefined;
+    if (!lower && !upper) return undefined;
+    // lower_unbounded/upper_unbounded are RM-mandatory (1..1) - always
+    // written explicitly (never omitted), unlike lower_included/
+    // upper_included (0..1, default true, so only written when a bound is
+    // actually present - an unbounded side has no inclusivity to state).
+    return {
+      _type: 'DV_INTERVAL',
+      ...(lower ? { lower, lower_included: true } : {}),
+      lower_unbounded: !lower,
+      ...(upper ? { upper, upper_included: true } : {}),
+      upper_unbounded: !upper,
+    };
+  }
   if (rmType === 'DV_IDENTIFIER') {
     if (source) return { _type: 'DV_IDENTIFIER', ...source };
     // A field bound straight to a DV_IDENTIFIER slot with no dedicated

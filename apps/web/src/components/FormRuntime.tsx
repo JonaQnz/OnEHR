@@ -1012,6 +1012,51 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
         </div>
       );
     }
+    if (node.type === 'input-interval') {
+      // DV_INTERVAL<DV_QUANTITY> runtime value: {lower?: {magnitude, unit},
+      // upper?: {magnitude, unit}} - two input-quantity-shaped bounds
+      // sharing one unit picker (real archetype ranges - a dose range, an
+      // administration-duration range - always bound the same physical
+      // quantity on both ends; per-bound units are still stored correctly
+      // if a script/import ever sets them differently, this control just
+      // never needs to offer that). Was a total gap before this - see
+      // canonicalComposition.ts's DV_INTERVAL<DV_QUANTITY> branch for the
+      // full writeup (P0.1 audit, 2026-09-05).
+      const interval = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+      const lower = interval.lower && typeof interval.lower === 'object' ? interval.lower as Record<string, unknown> : {};
+      const upper = interval.upper && typeof interval.upper === 'object' ? interval.upper as Record<string, unknown> : {};
+      const unit = String(lower.unit || upper.unit || '');
+      const setBound = (bound: 'lower' | 'upper', patch: Record<string, unknown>) => {
+        const current = bound === 'lower' ? lower : upper;
+        onChange({ ...interval, [bound]: { ...current, ...patch } });
+      };
+      return (
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <input style={{ ...style, flex: 1 }} type="number" placeholder="von" disabled={disabled} value={String(lower.magnitude ?? '')} onChange={(event) => setBound('lower', { magnitude: event.target.value === '' ? null : Number(event.target.value), unit: lower.unit ?? unit })} />
+          <span style={{ color: '#94a3b8' }}>–</span>
+          <input style={{ ...style, flex: 1 }} type="number" placeholder="bis" disabled={disabled} value={String(upper.magnitude ?? '')} onChange={(event) => setBound('upper', { magnitude: event.target.value === '' ? null : Number(event.target.value), unit: upper.unit ?? unit })} />
+          {field.unitOptions.length > 0 ? (
+            <select
+              style={{ ...style, maxWidth: '10rem' }}
+              disabled={disabled}
+              value={unit}
+              // Always writes the unit to both bounds, even one still empty
+              // of a magnitude (mirrors input-quantity's own unconditional
+              // {...quantity, unit} above) - a bound picking up a unit with
+              // no magnitude yet is what makes "select the unit first, then
+              // type both numbers" work; that half-filled state is a normal
+              // mid-entry moment, not itself invalid (validateIntervalBound
+              // only flags a bound that HAS a magnitude with no matching
+              // unit, or vice versa with content already present).
+              onChange={(event) => onChange({ lower: { ...lower, unit: event.target.value }, upper: { ...upper, unit: event.target.value } })}
+            >
+              <option value="">Einheit</option>
+              {field.unitOptions.map((option) => <option key={option.unit} value={option.unit}>{option.unit}</option>)}
+            </select>
+          ) : null}
+        </div>
+      );
+    }
     if (node.uiElement === 'Range' || node.type === 'input-range') return <input style={style} type="range" disabled={disabled} min={node.min_value ?? field.validation?.min ?? 0} max={node.max_value ?? field.validation?.max ?? 100} step={node.step ?? 1} value={Number(value ?? node.min_value ?? 0)} onChange={(event) => onChange(Number(event.target.value))} />;
     if (field.codeMappings?.enabled) {
       // {value, mappings?} (core.CodeMappedTextValue) instead of a plain

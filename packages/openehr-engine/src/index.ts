@@ -205,6 +205,40 @@ function setFlatValue(output: Record<string, unknown>, path: string, binding: Fi
     if (binding.proportionType) output[`${key}|type`] = PROPORTION_KIND_CODE[binding.proportionType];
     return;
   }
+  if (rmType === 'DV_INTERVAL<DV_QUANTITY>') {
+    // Had no branch at all before this - see canonicalComposition.ts's
+    // buildLeafDvValue DV_INTERVAL<DV_QUANTITY> branch for the full
+    // "this was a total gap" writeup (P0.1 audit, 2026-09-05, confirmed
+    // live on "Medikationsabgleich"'s dose-range fields). Unlike
+    // DV_QUANTITY's `|magnitude`/`|unit` (bare suffixes on the same key),
+    // `lower`/`upper` are real nested paths in the archetype's own aqlPath
+    // (confirmed against the real WebTemplate: ".../value/lower",
+    // ".../value/upper") - each itself a full DV_QUANTITY, so this writes
+    // TWO path segments deep: `key/lower|magnitude`, not `key|lower_magnitude`.
+    // An open-ended interval (only one bound given) simply omits that
+    // bound's two keys entirely - EHRbase's FLAT format has no explicit
+    // way to state lower_unbounded/upper_unbounded (unlike the canonical/
+    // structured path, which does), so this can't be round-tripped through
+    // FLAT with full fidelity; only the structured Contribution path
+    // (canonicalComposition.ts) can. Real submissions in this app go
+    // through THAT path for compound types already (see this file's own
+    // module comment on codeMappings/FLAT), so this branch mainly matters
+    // for the draft-autosave FLAT path, same caveat already documented for
+    // codeMappings' own writeCodeMappingsFlat.
+    if (!isEmpty(source?.lower)) {
+      const lower = isRecord(source?.lower) ? source.lower : undefined;
+      const magnitude = lower?.magnitude ?? source?.lower;
+      if (!isEmpty(magnitude)) output[`${key}/lower|magnitude`] = typeof magnitude === 'string' && magnitude.trim() ? Number(magnitude) : magnitude;
+      if (!isEmpty(lower?.unit)) output[`${key}/lower|unit`] = lower?.unit;
+    }
+    if (!isEmpty(source?.upper)) {
+      const upper = isRecord(source?.upper) ? source.upper : undefined;
+      const magnitude = upper?.magnitude ?? source?.upper;
+      if (!isEmpty(magnitude)) output[`${key}/upper|magnitude`] = typeof magnitude === 'string' && magnitude.trim() ? Number(magnitude) : magnitude;
+      if (!isEmpty(upper?.unit)) output[`${key}/upper|unit`] = upper?.unit;
+    }
+    return;
+  }
   if (rmType === 'DV_IDENTIFIER') {
     // DV_IDENTIFIER (RM: id 1..1, issuer/assigner/type each 0..1, invariant
     // "not id.is_empty") was falling through to the generic `output[key] =
@@ -421,7 +455,10 @@ export function auditFormBindings(definition: Pick<CanonicalForm, 'layout'>, web
   const findings: BindingAuditFinding[] = [];
   function walk(node: CanonicalForm['layout']): void {
     const binding = layoutFieldBinding(node.binding);
-    const fieldId = node.id || '(unnamed)';
+    // Same id/name gap as collectFieldBindings above - a name-only field
+    // (i.e. most real fields, see that comment) reported every finding
+    // under the useless label "(unnamed)" instead of its real field name.
+    const fieldId = node.id || node.name || '(unnamed)';
     if (binding?.path) {
       const mapping = pathMap.get(binding.path);
       if (!mapping) {
@@ -577,8 +614,28 @@ function collectFieldBindings(layout: CanonicalForm['layout']): CollectedBinding
   // field), matching every real repeatable-group form in this app.
   function walk(node: CanonicalForm['layout'], repeatableGroupId?: string): void {
     const nodeType = (node as unknown as Record<string, unknown>).type;
-    const isRepeatableContainer = nodeType === 'container' && (node as unknown as Record<string, unknown>).repeatable === true && Boolean(node.id);
-    const childGroupId = isRepeatableContainer ? node.id : repeatableGroupId;
+    // A webTemplateParser-generated field (i.e. most real fields in this
+    // app - confirmed live across every field on "Medikationsabgleich")
+    // only ever carries `.name`, never a separate `.id` - the same id/name
+    // ambiguity already fixed elsewhere for form-scripting/form-runtime
+    // (see core/form-runtime's and form-scripting's own `node.id ||
+    // node.name` helpers, and openehr-engine/metadata.ts's identical one).
+    // This function used bare `node.id` only, so it silently registered
+    // ZERO layoutBindings for such a field - every one of them was actually
+    // reaching EHRbase only via the separate top-level `definition.bindings`
+    // fallback loop further down, which happens to carry a matching entry
+    // for auto-generated fields. A newly hand-inserted field (added to the
+    // layout only, the more natural place to add one) had no such legacy
+    // entry and its value silently vanished at submission with no error -
+    // found live 2026-09-05 testing the new DV_INTERVAL<DV_QUANTITY>
+    // "Dosisbereich" field, which validated and "submitted" successfully
+    // while the archetype's whole CLUSTER.dosage.v2 was silently dropped
+    // from the actual composition. Fixed at the root instead of only
+    // working around it by also adding a bindings-map entry, since the
+    // underlying gap affects every field on every form the same way.
+    const fieldId = node.id || node.name;
+    const isRepeatableContainer = nodeType === 'container' && (node as unknown as Record<string, unknown>).repeatable === true && Boolean(fieldId);
+    const childGroupId = isRepeatableContainer ? fieldId : repeatableGroupId;
     const binding = layoutFieldBinding(node.binding);
     const rawOptions = (node as unknown as Record<string, unknown>).options;
     const options = Array.isArray(rawOptions)
@@ -605,11 +662,11 @@ function collectFieldBindings(layout: CanonicalForm['layout']): CollectedBinding
     // only supplies `numerator` (a 'percent'/'unitary' field's implied
     // denominator - see setFlatValue's DV_PROPORTION branch).
     const proportionType = text((node as unknown as Record<string, unknown>).proportionType);
-    if (isRepeatableContainer && node.id) {
-      repeatableGroupIds.add(node.id);
-      if (binding) groupBindings.set(node.id, binding);
-    } else if (node.id && binding) {
-      layoutBindings.set(node.id, {
+    if (isRepeatableContainer && fieldId) {
+      repeatableGroupIds.add(fieldId);
+      if (binding) groupBindings.set(fieldId, binding);
+    } else if (fieldId && binding) {
+      layoutBindings.set(fieldId, {
         ...binding,
         ...(options?.length ? { options } : {}),
         ...(codeMappings ? { codeMappings } : {}),
@@ -765,7 +822,37 @@ function escapeFlatPathForMatching(path: string): string {
   return path.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&').replace(/\\\//g, '(?::\\d+)?/');
 }
 
+/** DV_INTERVAL<DV_QUANTITY>'s own read - split out from the main
+ * readFlatValue body below because its FLAT keys have an extra `/lower` or
+ * `/upper` path SEGMENT after the field's own base path (confirmed against
+ * the real WebTemplate's own aqlPath convention: ".../value/lower",
+ * ".../value/upper" - see setFlatValue's sibling comment), which the
+ * generic matcher there (only tolerant of a trailing `:N` then `|suffix`,
+ * never an extra `/segment`) can't express without risking a regression to
+ * every other rmType's already-hardened matching. An open-ended interval
+ * (only one bound ever written - see setFlatValue) correctly reconstructs
+ * with only that one key present; returns undefined only when NEITHER
+ * bound is present at all, matching setFlatValue's own "write nothing for
+ * an entirely empty interval" behavior. Not repeat-aware (always returns a
+ * single object, never an array of them) - fine for every real interval
+ * field in this system today (all three on "Medikationsabgleich" are
+ * min:1/max:1, non-repeating), but a genuinely repeatable
+ * DV_INTERVAL<DV_QUANTITY> field would need this extended, same as the
+ * generic path below already is for isGroupMember. */
+function readIntervalQuantityFlatValue(flat: Record<string, unknown>, path: string): { lower?: { magnitude: unknown; unit?: unknown }; upper?: { magnitude: unknown; unit?: unknown } } | undefined {
+  const escaped = escapeFlatPathForMatching(path);
+  const result: { lower?: { magnitude: unknown; unit?: unknown }; upper?: { magnitude: unknown; unit?: unknown } } = {};
+  for (const bound of ['lower', 'upper'] as const) {
+    const matcher = new RegExp(`^${escaped}(?::\\d+)?/${bound}\\|magnitude$`);
+    const magnitudeKey = Object.keys(flat).find((key) => matcher.test(key));
+    if (!magnitudeKey) continue;
+    result[bound] = { magnitude: flat[magnitudeKey], unit: flat[magnitudeKey.replace('|magnitude', '|unit')] };
+  }
+  return result.lower || result.upper ? result : undefined;
+}
+
 function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: string, codeMappingsEnabled?: boolean, isGroupMember?: boolean): unknown {
+  if (rmType === 'DV_INTERVAL<DV_QUANTITY>') return readIntervalQuantityFlatValue(flat, path);
   const escaped = escapeFlatPathForMatching(path);
   const matcher = new RegExp(`^${escaped}(?::\\d+)?(?:\\|.*)?$`);
   const matches = Object.keys(flat).filter((key) => matcher.test(key));

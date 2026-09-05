@@ -31,6 +31,15 @@ export interface FieldConstraint {
    * recognizable was found on the WebTemplate node, so a caller can tell
    * "genuinely unconstrained" apart from "couldn't determine it". */
   proportionType?: ProportionKind;
+  /** A DV_INTERVAL<DV_QUANTITY> node's per-unit range/precision, read off
+   * whichever of its `lower`/`upper` children actually carries `inputs`
+   * (the WebTemplate puts magnitude/unit constraints on the bound children,
+   * never on the interval node itself) - see webTemplateParser.ts's
+   * DV_INTERVAL branch. Same shape as DV_QUANTITY's own unitOptions,
+   * deliberately not reusing that field name since a future
+   * DV_INTERVAL<DV_DURATION>/DV_INTERVAL<DV_COUNT> would need a differently-
+   * shaped constraint here instead. */
+  intervalUnitOptions?: QuantityUnitOption[];
 }
 
 export interface FieldRegistryItem {

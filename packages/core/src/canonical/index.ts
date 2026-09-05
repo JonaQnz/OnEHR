@@ -26,7 +26,7 @@ export interface ValidationIssue extends FormIssue {
 }
 
 export interface FormElementLayout {
-  type: 'form' | 'container' | 'row' | 'column' | 'input-text' | 'input-select' | 'input-quantity' | 'input-proportion' | string;
+  type: 'form' | 'container' | 'row' | 'column' | 'input-text' | 'input-select' | 'input-quantity' | 'input-proportion' | 'input-interval' | string;
   name?: string;
   children?: FormElementLayout[];
   spanLarge?: number;
@@ -53,6 +53,19 @@ export interface FormElementLayout {
    * unconstrained ('ratio' behavior: any numerator/denominator, still
    * subject to the universal "denominator ≠ 0" invariant). */
   proportionType?: 'ratio' | 'unitary' | 'percent' | 'fraction' | 'integer_fraction';
+  /** An 'input-interval' field's bound value type - the RM's DV_INTERVAL is
+   * generic over any orderable DV_* (DV_INTERVAL<DV_QUANTITY>,
+   * DV_INTERVAL<DV_DURATION>, DV_INTERVAL<DV_COUNT>, DV_INTERVAL<DV_DATE_TIME>,
+   * ...), but only DV_QUANTITY is implemented so far (P0.1 audit,
+   * 2026-09-05 - see [[dv-interval-support]]: DV_INTERVAL was a total gap,
+   * confirmed live on the published "Medikationsabgleich" form's dose-range/
+   * administration-duration fields, silently unrepresentable in the
+   * Designer before this). DV_DURATION/DV_COUNT/DV_DATE_TIME intervals are
+   * an explicit, documented follow-up, not yet built - a field whose
+   * archetype constrains a different inner type falls back to the generic
+   * string widget exactly as before, rather than half-rendering something
+   * wrong. */
+  intervalValueType?: 'DV_QUANTITY';
   options?: Array<{
     value: string;
     /** Display text, in the UI's preferred language (German-first - see

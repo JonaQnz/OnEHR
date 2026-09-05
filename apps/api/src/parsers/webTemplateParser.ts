@@ -136,6 +136,31 @@ function containerBinding(node: any, alias: string, templateId: string): OpenEhr
   };
 }
 
+/** Shared by the DV_QUANTITY and DV_INTERVAL<DV_QUANTITY> branches below -
+ * both read a WebTemplate `inputs[].list` (unit code + optional
+ * range/precision validation) into the same QuantityUnitOption shape,
+ * just off a different node (the field itself vs. its `lower`/`upper`
+ * children). Factored out rather than duplicated when DV_INTERVAL support
+ * was added (P0.1 audit, 2026-09-05) so the two never drift apart. */
+function unitOptionsFromList(list: any[]): Array<{ unit: string; min?: number; max?: number; minexclusive?: boolean; maxexclusive?: boolean; precision?: number }> {
+  return list.map((l: any) => {
+    const opt: any = { unit: l.value };
+    if (l.validation) {
+      if (l.validation.range) {
+        if (l.validation.range.min !== undefined) opt.min = l.validation.range.min;
+        if (l.validation.range.max !== undefined) opt.max = l.validation.range.max;
+        if (l.validation.range.minOp === '>') opt.minexclusive = true;
+        if (l.validation.range.maxOp === '<') opt.maxexclusive = true;
+      }
+      if (l.validation.precision) {
+        if (l.validation.precision.max !== undefined) opt.precision = l.validation.precision.max;
+        else if (l.validation.precision.min !== undefined) opt.precision = l.validation.precision.min;
+      }
+    }
+    return opt;
+  });
+}
+
 function isRepeatable(node: any): boolean {
   const max = typeof node.max === 'number' ? node.max : 1;
   return max === -1 || max > 1;
@@ -148,6 +173,15 @@ function getRepeatMeta(node: any): { repeatMin: number; repeatMax: number; repea
   return { repeatMin: min, repeatMax: max, repeatable };
 }
 function getDataType(rmType: string): string {
+  // DV_INTERVAL<X> - the WebTemplate reports the full generic instantiation
+  // as one string (e.g. "DV_INTERVAL<DV_QUANTITY>"), not a bare "DV_INTERVAL"
+  // - confirmed against the real, published "Medikationsabgleich" form's
+  // dose-range fields (P0.1 audit, 2026-09-05). Only DV_QUANTITY is
+  // implemented as a real interval widget so far; every other inner type
+  // still falls through to the generic 'string' default below rather than
+  // rendering something half-correct - see FormElementLayout.intervalValueType's
+  // doc comment for the explicit follow-up scope.
+  if (rmType === 'DV_INTERVAL<DV_QUANTITY>') return 'interval-quantity';
   switch (rmType) {
     case 'DV_QUANTITY': return 'quantity';
     case 'DV_CODED_TEXT':
@@ -171,6 +205,7 @@ function getInputType(dataType: string): string {
   switch (dataType) {
     case 'quantity': return 'input-quantity';
     case 'proportion': return 'input-proportion';
+    case 'interval-quantity': return 'input-interval';
     case 'select':
     case 'ordinal':
     case 'boolean': return 'input-select';
@@ -297,25 +332,41 @@ export function parseWebTemplate(webTemplate: any): {
           const constraints: FieldConstraint = {};
           if (unitInput && unitInput.list && unitInput.list.length > 0) {
             constraints.units = unitInput.list.map((l: any) => l.value);
-            
-            constraints.unitOptions = unitInput.list.map((l: any) => {
-              const opt: any = { unit: l.value };
-              if (l.validation) {
-                if (l.validation.range) {
-                  if (l.validation.range.min !== undefined) opt.min = l.validation.range.min;
-                  if (l.validation.range.max !== undefined) opt.max = l.validation.range.max;
-                  if (l.validation.range.minOp === '>') opt.minexclusive = true;
-                  if (l.validation.range.maxOp === '<') opt.maxexclusive = true;
-                }
-                if (l.validation.precision) {
-                  if (l.validation.precision.max !== undefined) opt.precision = l.validation.precision.max;
-                  else if (l.validation.precision.min !== undefined) opt.precision = l.validation.precision.min;
-                }
-              }
-              return opt;
-            });
+            constraints.unitOptions = unitOptionsFromList(unitInput.list);
           }
           field.constraints = constraints;
+        }
+
+        // DV_INTERVAL<DV_QUANTITY>: the WebTemplate never puts a `units`
+        // input on the interval node itself - the magnitude/unit
+        // constraints live on its `lower`/`upper` children instead (each a
+        // full DV_QUANTITY node with its own `inputs`), confirmed against
+        // the real, published "Medikationsabgleich" form's "Dose"/at0144
+        // field (P0.1 audit, 2026-09-05: DV_INTERVAL was a total gap before
+        // this - registered in the flat field catalog but never buildable
+        // into an actual layout field, so nobody could wire a dose range
+        // in without falling back to free text). `lower` and `upper`
+        // usually constrain identically (the same physical unit bounding
+        // both ends of one range) but aren't guaranteed to - union rather
+        // than pick one arbitrarily, so a unit either child allows is
+        // offered, and if both children happen to give the exact same unit
+        // different range/precision (a real archetype could do this,
+        // however unusual), the child seen first wins for that unit -
+        // deterministic, not a spec violation either way since this is a
+        // designer-time default a form author can still override.
+        if (node.rmType === 'DV_INTERVAL<DV_QUANTITY>' && Array.isArray(node.children)) {
+          const seen = new Map<string, ReturnType<typeof unitOptionsFromList>[number]>();
+          for (const boundId of ['lower', 'upper']) {
+            const child = node.children.find((c: any) => c.id === boundId);
+            const unitInput = child?.inputs?.find((i: any) => i.suffix === 'units' || i.suffix === 'unit' || i.suffix === 'unit_code');
+            if (!unitInput?.list?.length) continue;
+            for (const opt of unitOptionsFromList(unitInput.list)) {
+              if (!seen.has(opt.unit)) seen.set(opt.unit, opt);
+            }
+          }
+          if (seen.size > 0) {
+            field.constraints = { ...(field.constraints || {}), intervalUnitOptions: [...seen.values()] };
+          }
         }
 
         // DV_PROPORTION's archetype-constrained PROPORTION_KIND ('ratio' /
@@ -600,6 +651,16 @@ export function parseWebTemplate(webTemplate: any): {
       }
       if (inputType === 'input-proportion' && matchedField.constraints?.proportionType) {
         layoutNode.proportionType = matchedField.constraints.proportionType;
+      }
+      if (inputType === 'input-interval') {
+        // Only DV_QUANTITY intervals are supported so far - getDataType()
+        // only ever returns 'interval-quantity' (never a bare 'interval')
+        // for exactly this reason, so intervalValueType is always
+        // 'DV_QUANTITY' whenever inputType reaches this branch at all.
+        layoutNode.intervalValueType = 'DV_QUANTITY';
+        if (matchedField.constraints?.intervalUnitOptions) {
+          layoutNode.unitOptions = matchedField.constraints.intervalUnitOptions;
+        }
       }
 
       if (matchedField.options) {

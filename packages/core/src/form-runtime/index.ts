@@ -56,7 +56,7 @@ export interface RuntimeGroupDescriptor {
 }
 export interface RuntimeValidationIssue extends ValidationIssue {
   path: string;
-  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required' | 'mapping-invalid' | 'quantity-range' | 'quantity-precision' | 'proportion-denominator' | 'proportion-type' | 'duration-format' | 'script';
+  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required' | 'mapping-invalid' | 'quantity-range' | 'quantity-precision' | 'proportion-denominator' | 'proportion-type' | 'duration-format' | 'interval-order' | 'interval-unit-mismatch' | 'script';
 }
 export interface RuntimeValidationResult { valid: boolean; issues: RuntimeValidationIssue[]; }
 
@@ -357,6 +357,57 @@ function unwrapCodeMappedValue(field: RuntimeFieldDescriptor, value: RuntimeValu
  * signed form, so that's not asserted here without a spec citation. */
 const DV_DURATION_PATTERN = /^P(?!$)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+(\.\d+)?S)?)?$/;
 
+/** One bound (`lower` or `upper`) of an 'input-interval' field's
+ * {lower?, upper?} value - each bound is itself exactly a DV_QUANTITY's own
+ * {magnitude, unit} shape, so this deliberately mirrors validateOne's
+ * 'input-quantity' branch's unit/range/precision checks rather than
+ * inventing a different rule set for the same underlying RM type. Returns
+ * the parsed {magnitude, unit} when the bound is present and valid, or
+ * undefined when the bound is simply absent (not itself an error - an
+ * open-ended interval is valid RM, see the 'input-interval' branch below) -
+ * callers distinguish "absent" from "present but invalid" by checking
+ * whether any issues were pushed. */
+function validateIntervalBound(field: RuntimeFieldDescriptor, bound: unknown, path: string, issues: RuntimeValidationIssue[], boundLabel: 'lower' | 'upper'): { magnitude: number; unit?: string } | undefined {
+  if (empty(bound as RuntimeValue)) return undefined;
+  // A bound that only ever picked up a unit (the shared unit selector - see
+  // FormRuntime.tsx's 'input-interval' widget - writes {unit} onto both
+  // bounds unconditionally, even one whose magnitude is still blank, so
+  // "pick the unit first, then type the numbers" doesn't feel broken) is
+  // not yet worth validating - not an error, just genuinely incomplete.
+  // `required`'s own check (in the 'input-interval' branch below) already
+  // catches "neither bound has a magnitude at all" for a required field;
+  // a magnitude-less bound with only a unit set is treated the same as a
+  // completely untouched one here.
+  if (isRecord(bound) && empty(bound.magnitude as RuntimeValue)) return undefined;
+  if (!isRecord(bound) || typeof asNumber(bound.magnitude) !== 'number' || !Number.isFinite(asNumber(bound.magnitude))) {
+    issue(issues, path, 'type', `${field.label}: the ${boundLabel} bound requires a numeric quantity.`);
+    return undefined;
+  }
+  const magnitude = asNumber(bound.magnitude) as number;
+  const unit = bound.unit;
+  if (field.unitOptions.length > 0 && (typeof unit !== 'string' || !unit)) {
+    issue(issues, path, 'unit', `${field.label}: the ${boundLabel} bound requires a unit.`);
+  } else if (field.unitOptions.length > 0 && typeof unit === 'string' && !field.unitOptions.some((option) => option.unit === unit)) {
+    issue(issues, path, 'unit', `${field.label}: the ${boundLabel} bound has an unsupported unit.`);
+  } else if (typeof unit === 'string') {
+    const option = field.unitOptions.find((candidate) => candidate.unit === unit);
+    if (option) {
+      if (option.min !== undefined) {
+        const belowMin = option.minexclusive ? magnitude <= option.min : magnitude < option.min;
+        if (belowMin) issue(issues, path, 'quantity-range', `${field.label}: the ${boundLabel} bound ${magnitude} ${unit} is below the archetype's allowed minimum (${option.minexclusive ? '>' : '>='} ${option.min}).`, { severity: 'error' });
+      }
+      if (option.max !== undefined) {
+        const aboveMax = option.maxexclusive ? magnitude >= option.max : magnitude > option.max;
+        if (aboveMax) issue(issues, path, 'quantity-range', `${field.label}: the ${boundLabel} bound ${magnitude} ${unit} is above the archetype's allowed maximum (${option.maxexclusive ? '<' : '<='} ${option.max}).`, { severity: 'error' });
+      }
+      if (option.precision !== undefined && fractionalDigits(magnitude) > option.precision) {
+        issue(issues, path, 'quantity-precision', `${field.label}: the ${boundLabel} bound's unit ${unit} allows at most ${option.precision} decimal place(s), got ${magnitude}.`, { severity: 'error' });
+      }
+    }
+  }
+  return { magnitude, ...(typeof unit === 'string' ? { unit } : {}) };
+}
+
 function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path: string, issues: RuntimeValidationIssue[]): void {
   const value = unwrapCodeMappedValue(field, rawValue);
   if (empty(value)) { if (field.required) issue(issues, path, 'required', `${field.label} is required.`); return; }
@@ -442,6 +493,30 @@ function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path
     } else if ((field.proportionType === 'fraction' || field.proportionType === 'integer_fraction') && (!Number.isInteger(numerator) || !Number.isInteger(denominator))) {
       issue(issues, path, 'proportion-type', `${field.label}: type '${field.proportionType}' requires both numerator and denominator to be whole numbers.`, { severity: 'error' });
     }
+  }
+  if (field.type === 'input-interval') {
+    // DV_INTERVAL<DV_QUANTITY> - see canonical/index.ts's intervalValueType
+    // doc comment (P0.1 audit, 2026-09-05: this rmType was a total gap
+    // before, confirmed on the real "Medikationsabgleich" form's dose-range
+    // fields). A genuinely open-ended interval (only one bound given) is
+    // valid RM - lower_unbounded/upper_unbounded, see canonicalComposition.ts's
+    // buildLeafDvValue - so "only one bound present" is not itself an
+    // error; only "neither bound present" trips `required` (via the
+    // generic empty() check above, since {} alone isn't caught by it -
+    // hence the explicit check here).
+    if (!isRecord(value)) { issue(issues, path, 'type', `${field.label} requires a range.`); return; }
+    const lower = validateIntervalBound(field, value.lower, `${path}/lower`, issues, 'lower');
+    const upper = validateIntervalBound(field, value.upper, `${path}/upper`, issues, 'upper');
+    if (field.required && lower === undefined && upper === undefined) {
+      issue(issues, path, 'required', `${field.label} is required.`);
+    } else if (lower && upper) {
+      if (lower.unit && upper.unit && lower.unit !== upper.unit) {
+        issue(issues, path, 'interval-unit-mismatch', `${field.label}: the lower and upper bound use different units (${lower.unit} vs ${upper.unit}).`, { severity: 'error' });
+      } else if (lower.magnitude > upper.magnitude) {
+        issue(issues, path, 'interval-order', `${field.label}: the lower bound (${lower.magnitude}) must not be greater than the upper bound (${upper.magnitude}).`);
+      }
+    }
+    return;
   }
   // input-duration has no dedicated widget (it renders as a plain text
   // input, see FormRuntime.tsx's inputType() default case) and, until now,

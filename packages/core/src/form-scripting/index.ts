@@ -200,6 +200,15 @@ function valueType(node: FormElementLayout): string {
   if (['input-number', 'input-range'].includes(node.type)) return 'number | null';
   if (node.type === 'input-quantity') return '{ magnitude: number; unit: string } | null';
   if (node.type === 'input-proportion') return '{ numerator: number; denominator?: number } | null';
+  // DV_INTERVAL<DV_QUANTITY> support (P0.1 audit, 2026-09-05) - mirrors
+  // FormRuntime.tsx's input-interval branch and form-runtime's own
+  // validateIntervalBound: each bound is an independent, optional
+  // { magnitude, unit } (an open-ended interval only sets one side).
+  // Without this branch valueType() fell through to the generic
+  // `string | null` default below, so a Form Script writing/reading a
+  // dose-range field's actual { lower, upper } shape via
+  // form.field(id).setValue(...) would have been silently mistyped.
+  if (node.type === 'input-interval') return '{ lower?: { magnitude: number; unit?: string }; upper?: { magnitude: number; unit?: string } } | null';
   if (['input-select', 'input-ordinal'].includes(node.type)) return optionType(node);
   if (node.codeMappings?.enabled) {
     // A codeMappings-enabled text field's runtime value is either a plain

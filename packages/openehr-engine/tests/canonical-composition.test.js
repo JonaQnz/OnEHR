@@ -1140,6 +1140,97 @@ test('DV_PROPORTION serializes as a genuine {numerator, denominator, type} struc
   assert.equal(fio2El.value.type, 1);
 });
 
+// DV_INTERVAL<DV_QUANTITY> had NO branch in buildLeafDvValue at all before
+// this (P0.1 openEHR Constraint Completeness audit, 2026-09-05) - it wasn't
+// even representable as a Designer field yet (getDataType had no case for
+// the full generic WebTemplate string "DV_INTERVAL<DV_QUANTITY>"), confirmed
+// live on the real, published "Medikationsabgleich" form's dose-range
+// fields (openEHR-EHR-CLUSTER.dosage.v2, at0144/at0176) - registered in the
+// flat field catalog but silently unbuildable, so nobody could enter a
+// dose range through the Designer at all. Same ADMIN_ENTRY/vitals fixture
+// shape as the DV_PROPORTION test above, swapping the leaf's rmType.
+test('DV_INTERVAL<DV_QUANTITY> serializes as a genuine {lower, upper} DV_INTERVAL structure, not a generic passthrough', () => {
+  const intervalTree = {
+    id: 'vitals', name: 'Vitals', rmType: 'COMPOSITION', nodeId: 'openEHR-EHR-COMPOSITION.encounter.v1',
+    children: [
+      { id: 'category', name: 'category', rmType: 'DV_CODED_TEXT', min: 1, max: 1, aqlPath: '/category', inputs: [{ suffix: 'code', type: 'CODED_TEXT', list: [{ value: '433', label: 'event' }] }] },
+      { id: 'context', name: 'context', rmType: 'EVENT_CONTEXT', min: 1, max: 1, children: [
+        { id: 'start_time', name: 'start_time', rmType: 'DV_DATE_TIME', min: 1, max: 1, aqlPath: '/context/start_time' },
+        { id: 'setting', name: 'setting', rmType: 'DV_CODED_TEXT', min: 1, max: 1, aqlPath: '/context/setting' },
+      ] },
+      {
+        id: 'vitals_entry', name: 'Vitals', rmType: 'ADMIN_ENTRY', min: 0, max: 1,
+        nodeId: 'openEHR-EHR-ADMIN_ENTRY.vitals.v1', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]',
+        children: [
+          { id: 'dose_range', name: 'Dose', rmType: 'DV_INTERVAL<DV_QUANTITY>', min: 0, max: 1, nodeId: 'at0002', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0002]' },
+        ],
+      },
+    ],
+  };
+  const intervalDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [
+        { id: 'setting', type: 'select', binding: { path: '/context/setting', rmType: 'DV_CODED_TEXT' }, options: [{ value: '238', text: 'other care' }] },
+        { id: 'dose_range', type: 'input-interval', binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0002]', rmType: 'DV_INTERVAL<DV_QUANTITY>' } },
+      ],
+    },
+  };
+  const composition = buildCanonicalComposition(intervalDefinition, { dose_range: { lower: { magnitude: 1, unit: 'mg' }, upper: { magnitude: 2, unit: 'mg' } } }, intervalTree, { time: '2026-08-26T10:00:00.000Z' });
+  const doseEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0002');
+  assert.equal(doseEl.value._type, 'DV_INTERVAL');
+  assert.equal(doseEl.value.lower._type, 'DV_QUANTITY');
+  assert.equal(doseEl.value.lower.magnitude, 1);
+  assert.equal(doseEl.value.lower.units, 'mg', 'the nested DV_QUANTITY bound must use the RM-mandatory `units` (plural) attribute, not `unit`');
+  assert.equal(doseEl.value.upper.magnitude, 2);
+  assert.equal(doseEl.value.upper.units, 'mg');
+  // lower_unbounded/upper_unbounded are RM-mandatory (1..1) - both bounds
+  // present means both are explicitly false, never omitted.
+  assert.equal(doseEl.value.lower_unbounded, false);
+  assert.equal(doseEl.value.upper_unbounded, false);
+  assert.equal(doseEl.value.lower_included, true);
+  assert.equal(doseEl.value.upper_included, true);
+});
+
+test('DV_INTERVAL<DV_QUANTITY> with only one bound given sets the other side\'s *_unbounded flag true and omits that bound entirely', () => {
+  const intervalTree = {
+    id: 'vitals', name: 'Vitals', rmType: 'COMPOSITION', nodeId: 'openEHR-EHR-COMPOSITION.encounter.v1',
+    children: [
+      { id: 'category', name: 'category', rmType: 'DV_CODED_TEXT', min: 1, max: 1, aqlPath: '/category', inputs: [{ suffix: 'code', type: 'CODED_TEXT', list: [{ value: '433', label: 'event' }] }] },
+      { id: 'context', name: 'context', rmType: 'EVENT_CONTEXT', min: 1, max: 1, children: [
+        { id: 'start_time', name: 'start_time', rmType: 'DV_DATE_TIME', min: 1, max: 1, aqlPath: '/context/start_time' },
+        { id: 'setting', name: 'setting', rmType: 'DV_CODED_TEXT', min: 1, max: 1, aqlPath: '/context/setting' },
+      ] },
+      {
+        id: 'vitals_entry', name: 'Vitals', rmType: 'ADMIN_ENTRY', min: 0, max: 1,
+        nodeId: 'openEHR-EHR-ADMIN_ENTRY.vitals.v1', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]',
+        children: [
+          { id: 'dose_range', name: 'Dose', rmType: 'DV_INTERVAL<DV_QUANTITY>', min: 0, max: 1, nodeId: 'at0002', aqlPath: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0002]' },
+        ],
+      },
+    ],
+  };
+  const intervalDefinition = {
+    ...definition,
+    layout: {
+      type: 'form',
+      children: [
+        { id: 'setting', type: 'select', binding: { path: '/context/setting', rmType: 'DV_CODED_TEXT' }, options: [{ value: '238', text: 'other care' }] },
+        { id: 'dose_range', type: 'input-interval', binding: { path: '/content[openEHR-EHR-ADMIN_ENTRY.vitals.v1]/data[at0001]/items[at0002]', rmType: 'DV_INTERVAL<DV_QUANTITY>' } },
+      ],
+    },
+  };
+  const composition = buildCanonicalComposition(intervalDefinition, { dose_range: { upper: { magnitude: 5, unit: 'mg' } } }, intervalTree, { time: '2026-08-26T10:00:00.000Z' });
+  const doseEl = composition.content[0].data.items.find((item) => item.archetype_node_id === 'at0002');
+  assert.equal(doseEl.value._type, 'DV_INTERVAL');
+  assert.equal(doseEl.value.lower, undefined);
+  assert.equal(doseEl.value.lower_unbounded, true);
+  assert.equal(doseEl.value.lower_included, undefined);
+  assert.equal(doseEl.value.upper.magnitude, 5);
+  assert.equal(doseEl.value.upper_unbounded, false);
+});
+
 // DV_ORDINAL had no branch in buildLeafDvValue at all before 2026-09-02 -
 // fell through to the generic passthrough ({_type: 'DV_ORDINAL', value:
 // <raw runtime code>}), missing the RM-mandatory `symbol` entirely and
