@@ -505,6 +505,27 @@ function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path
       issue(issues, path, 'proportion-type', `${field.label}: type '${field.proportionType}' requires both numerator and denominator to be whole numbers.`, { severity: 'error' });
     }
   }
+  if (field.type === 'input-identifier') {
+    // DV_IDENTIFIER (P0.1 audit, 2026-09-05) - id is RM-mandatory (1..1,
+    // invariant "not id.is_empty") whenever the identifier is present at
+    // all, independent of the field's own `required` flag (which only
+    // governs whether the WHOLE field may be left untouched - already
+    // handled by the generic empty(value) early-return above). issuer/
+    // assigner/type are each 0..1, always optional free text - see
+    // openehr-engine's setFlatValue/buildLeafDvValue/readFlatValue, which
+    // already fully supported this compound shape before any field ever
+    // actually produced it. A bare string is accepted the same as
+    // `{id: string}` - readFlatValue's own DV_IDENTIFIER branch returns a
+    // plain string whenever issuer/assigner/type are all empty (see its
+    // comment for why: this rmType is also used, unchanged, by a
+    // pre-existing plain input-text field), so a reloaded id-only value
+    // must validate cleanly here too, not just a freshly-typed one.
+    const id = typeof value === 'string' ? value : (isRecord(value) ? value.id : undefined);
+    if (typeof id !== 'string' || !id.trim()) {
+      issue(issues, path, 'type', `${field.label} requires an identifier.`);
+    }
+    return;
+  }
   if (field.type === 'input-interval') {
     // DV_INTERVAL<DV_QUANTITY> - see canonical/index.ts's intervalValueType
     // doc comment (P0.1 audit, 2026-09-05: this rmType was a total gap

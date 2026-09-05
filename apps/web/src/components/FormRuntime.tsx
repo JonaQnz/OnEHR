@@ -1057,6 +1057,35 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
         </div>
       );
     }
+    if (node.type === 'input-identifier') {
+      // DV_IDENTIFIER runtime value: {id, issuer?, assigner?, type?} - id is
+      // the only RM-mandatory attribute (1..1, "not id.is_empty"), the rest
+      // are each 0..1 free text. A reloaded id-only value comes back as a
+      // bare string, not `{id: ...}` (see openehr-engine's readFlatValue -
+      // this same rmType is also used, unchanged, by a pre-existing plain
+      // input-text field elsewhere, so the wire format only grows an object
+      // shape once issuer/assigner/type actually have content), so both
+      // shapes are normalized here on read. Was a total Designer gap before
+      // this (P0.1 audit, 2026-09-05) - a DV_IDENTIFIER field could only
+      // ever be entered as bare free text, with no way to supply issuer/
+      // assigner/type even though the write/read pipeline already fully
+      // supported them.
+      const identifier = typeof value === 'string' ? { id: value } : (value && typeof value === 'object' ? value as Record<string, unknown> : {});
+      const setPart = (part: 'id' | 'issuer' | 'assigner' | 'type', partValue: string) => {
+        const next = { ...identifier, [part]: partValue === '' ? undefined : partValue };
+        onChange(next);
+      };
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+          <input style={style} type="text" placeholder="ID" disabled={disabled} value={String(identifier.id ?? '')} onChange={(event) => setPart('id', event.target.value)} />
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input style={{ ...style, flex: 1 }} type="text" placeholder="Aussteller (issuer)" disabled={disabled} value={String(identifier.issuer ?? '')} onChange={(event) => setPart('issuer', event.target.value)} />
+            <input style={{ ...style, flex: 1 }} type="text" placeholder="Vergebende Stelle (assigner)" disabled={disabled} value={String(identifier.assigner ?? '')} onChange={(event) => setPart('assigner', event.target.value)} />
+            <input style={{ ...style, flex: 1 }} type="text" placeholder="Typ" disabled={disabled} value={String(identifier.type ?? '')} onChange={(event) => setPart('type', event.target.value)} />
+          </div>
+        </div>
+      );
+    }
     if (node.uiElement === 'Range' || node.type === 'input-range') return <input style={style} type="range" disabled={disabled} min={node.min_value ?? field.validation?.min ?? 0} max={node.max_value ?? field.validation?.max ?? 100} step={node.step ?? 1} value={Number(value ?? node.min_value ?? 0)} onChange={(event) => onChange(Number(event.target.value))} />;
     if (field.codeMappings?.enabled) {
       // {value, mappings?} (core.CodeMappedTextValue) instead of a plain

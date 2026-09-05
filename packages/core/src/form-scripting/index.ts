@@ -209,6 +209,13 @@ function valueType(node: FormElementLayout): string {
   // dose-range field's actual { lower, upper } shape via
   // form.field(id).setValue(...) would have been silently mistyped.
   if (node.type === 'input-interval') return '{ lower?: { magnitude: number; unit?: string }; upper?: { magnitude: number; unit?: string } } | null';
+  // DV_IDENTIFIER support (P0.1 audit, 2026-09-05) - mirrors FormRuntime.tsx's
+  // input-identifier branch. A bare string is also valid (readFlatValue
+  // returns one whenever issuer/assigner/type are all empty - see its own
+  // comment for why this rmType is shared with a pre-existing plain
+  // input-text field), so both shapes are accepted here, matching the
+  // codeMappings branch below's own "string | { ... }" convention.
+  if (node.type === 'input-identifier') return 'string | { id: string; issuer?: string; assigner?: string; type?: string } | null';
   if (['input-select', 'input-ordinal'].includes(node.type)) return optionType(node);
   if (node.codeMappings?.enabled) {
     // A codeMappings-enabled text field's runtime value is either a plain

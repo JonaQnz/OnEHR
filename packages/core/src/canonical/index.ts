@@ -26,7 +26,7 @@ export interface ValidationIssue extends FormIssue {
 }
 
 export interface FormElementLayout {
-  type: 'form' | 'container' | 'row' | 'column' | 'input-text' | 'input-select' | 'input-quantity' | 'input-proportion' | 'input-interval' | string;
+  type: 'form' | 'container' | 'row' | 'column' | 'input-text' | 'input-select' | 'input-quantity' | 'input-proportion' | 'input-interval' | 'input-identifier' | string;
   name?: string;
   children?: FormElementLayout[];
   spanLarge?: number;

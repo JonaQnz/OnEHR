@@ -912,15 +912,36 @@ function readFlatValue(flat: Record<string, unknown>, path: string, rmType?: str
       const denominator = flat[key.replace('|numerator', '|denominator')];
       value = isEmpty(denominator) ? { numerator: flat[key] } : { numerator: flat[key], denominator };
     } else if (rmType === 'DV_IDENTIFIER') {
-      // Counterpart read for setFlatValue's DV_IDENTIFIER branch - `id` is
-      // the only attribute any field currently exposes (a plain input-text
-      // widget, see the write-side comment), so this returns the bare id
-      // string, not a compound {id, issuer, ...} object - matching exactly
-      // what that widget reads/writes today. |issuer/|assigner/|type are
-      // read back into runtime values only if a future field ever
-      // round-trips them structurally; skipped here deliberately.
+      // Counterpart read for setFlatValue's DV_IDENTIFIER branch. Updated
+      // 2026-09-05 (P0.1 audit) alongside adding the real input-identifier
+      // widget, which reads/writes the full {id, issuer?, assigner?, type?}
+      // shape - but this rmType-keyed dispatch has no way to tell "a field
+      // rendered as the new input-identifier widget" apart from "the
+      // pre-existing 'Verordnungs-ID' field on 'Medikamentengabe
+      // (eMAR-Eintrag)', which is bound to this same DV_IDENTIFIER rmType
+      // but rendered as plain input-text and has always read/written a bare
+      // id string" (see setFlatValue's own DV_IDENTIFIER comment - both
+      // fields share this ONE read function purely by rmType). Returning an
+      // object unconditionally would silently break that existing field's
+      // reload (String({id:'x'}) renders "[object Object]" in a plain text
+      // input). Only build the richer object when issuer/assigner/type
+      // actually carry data - the id-only case (both fields' actual
+      // real-world usage today) stays a bare string either way, so neither
+      // field's contract changes; input-identifier's own validateOne/widget
+      // code normalizes a bare string the same as `{id: string}`.
       if (!key.endsWith('|id')) continue;
-      value = flat[key];
+      const base = key.slice(0, -'|id'.length);
+      const issuer = flat[`${base}|issuer`];
+      const assigner = flat[`${base}|assigner`];
+      const type = flat[`${base}|type`];
+      value = (isEmpty(issuer) && isEmpty(assigner) && isEmpty(type))
+        ? flat[key]
+        : {
+          id: flat[key],
+          ...(isEmpty(issuer) ? {} : { issuer }),
+          ...(isEmpty(assigner) ? {} : { assigner }),
+          ...(isEmpty(type) ? {} : { type }),
+        };
     } else if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE' || rmType === 'DV_ORDINAL') {
       // A fixed-options DV_CODED_TEXT select's runtime value IS the code
       // (matched against field.options[].value), so |code correctly wins

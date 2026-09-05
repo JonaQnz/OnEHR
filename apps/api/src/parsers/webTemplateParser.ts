@@ -197,6 +197,16 @@ function getDataType(rmType: string): string {
     case 'DV_INTEGER':
     case 'DV_DECIMAL': return 'number';
     case 'DV_URI': return 'uri';
+    // DV_IDENTIFIER (P0.1 audit, 2026-09-05): id 1..1, issuer/assigner/type
+    // each 0..1 - see FormRuntime.tsx's input-identifier widget and
+    // openehr-engine's setFlatValue/buildLeafDvValue/readFlatValue, all of
+    // which already fully supported the compound {id, issuer, assigner,
+    // type} shape (the write side even had a comment noting "no form binds
+    // this rmType to anything richer than a single free-text id field
+    // today" - this is that field). Was falling through to the generic
+    // 'string' default, rendering as a bare input-text with no way to ever
+    // enter issuer/assigner/type through the Designer/Runtime at all.
+    case 'DV_IDENTIFIER': return 'identifier';
     default: return 'string';
   }
 }
@@ -206,6 +216,7 @@ function getInputType(dataType: string): string {
     case 'quantity': return 'input-quantity';
     case 'proportion': return 'input-proportion';
     case 'interval-quantity': return 'input-interval';
+    case 'identifier': return 'input-identifier';
     case 'select':
     case 'ordinal':
     case 'boolean': return 'input-select';
