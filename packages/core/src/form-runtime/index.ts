@@ -47,6 +47,16 @@ export interface RuntimeFieldDescriptor {
   allowFreeText: boolean;
   /** See ProportionKind - only meaningful for field.type === 'input-proportion'. */
   proportionType?: ProportionKind | undefined;
+  /** See FormElementLayout.numberRange - a DV_COUNT/DV_INTEGER/DV_DECIMAL
+   * field's own archetype-derived magnitude range/precision (P0.1 audit,
+   * 2026-09-05). Deliberately separate from `validation.min/max` above:
+   * that pair is a designer-configured Block-1 rule (regex-editor family),
+   * while this is read-only, straight from the WebTemplate's own
+   * constraint - conflating the two would make a hand-set designer rule
+   * indistinguishable from (and silently overridable by) the archetype's
+   * own limit, and `validation` has no precision/exclusive-bound concept
+   * at all. Only meaningful for field.type === 'input-number'. */
+  numberRange?: { min?: number; max?: number; minexclusive?: boolean; maxexclusive?: boolean; precision?: number } | undefined;
 }
 export interface RuntimeGroupDescriptor {
   id: string;
@@ -56,7 +66,7 @@ export interface RuntimeGroupDescriptor {
 }
 export interface RuntimeValidationIssue extends ValidationIssue {
   path: string;
-  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required' | 'mapping-invalid' | 'quantity-range' | 'quantity-precision' | 'proportion-denominator' | 'proportion-type' | 'duration-format' | 'interval-order' | 'interval-unit-mismatch' | 'script';
+  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required' | 'mapping-invalid' | 'quantity-range' | 'quantity-precision' | 'number-range' | 'number-precision' | 'proportion-denominator' | 'proportion-type' | 'duration-format' | 'interval-order' | 'interval-unit-mismatch' | 'script';
 }
 export interface RuntimeValidationResult { valid: boolean; issues: RuntimeValidationIssue[]; }
 
@@ -115,6 +125,7 @@ function toDescriptor(node: FormElementLayout, locales: RuntimeLocales, repeatab
     allowFreeText: node.allowFreeText === true,
     unitOptions: (node.unitOptions || []).map((option) => typeof option === 'string' ? { unit: option } : { ...option }),
     ...(node.proportionType ? { proportionType: node.proportionType } : {}),
+    ...(node.numberRange ? { numberRange: node.numberRange } : {}),
     validation: node.validation, visibility: node.visibility ?? node.enableWhen,
     repeatable: node.repeatable === true, repeatMin: node.repeatMin ?? 0, repeatMax: node.repeatMax ?? -1,
     ...(repeatableGroupId ? { repeatableGroupId } : {}),
@@ -530,6 +541,30 @@ function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path
     return;
   }
   if (['input-number', 'input-range'].includes(field.type) && !Number.isFinite(numericValue(field, value))) { issue(issues, path, 'type', `${field.label} requires a number.`); return; }
+  // DV_COUNT/DV_INTEGER/DV_DECIMAL's own archetype range/precision (P0.1
+  // audit, 2026-09-05) - see FormElementLayout.numberRange's doc comment
+  // for why this is kept separate from the generic field.validation.min/max
+  // check further below (a designer-configured rule, not an archetype one).
+  // Same blocking severity ('error') as input-quantity's own quantity-range/
+  // quantity-precision checks - the archetype's own stated constraint, not
+  // an optional nicety.
+  if (field.type === 'input-number' && field.numberRange) {
+    const number = numericValue(field, value);
+    if (typeof number === 'number' && Number.isFinite(number)) {
+      const { min, max, minexclusive, maxexclusive, precision } = field.numberRange;
+      if (min !== undefined) {
+        const belowMin = minexclusive ? number <= min : number < min;
+        if (belowMin) issue(issues, path, 'number-range', `${field.label}: ${number} is below the archetype's allowed minimum (${minexclusive ? '>' : '>='} ${min}).`, { severity: 'error' });
+      }
+      if (max !== undefined) {
+        const aboveMax = maxexclusive ? number >= max : number > max;
+        if (aboveMax) issue(issues, path, 'number-range', `${field.label}: ${number} is above the archetype's allowed maximum (${maxexclusive ? '<' : '<='} ${max}).`, { severity: 'error' });
+      }
+      if (precision !== undefined && fractionalDigits(number) > precision) {
+        issue(issues, path, 'number-precision', `${field.label} allows at most ${precision} decimal place(s), got ${number}.`, { severity: 'error' });
+      }
+    }
+  }
   if (field.type === 'input-boolean' && typeof value !== 'boolean') issue(issues, path, 'type', `${field.label} requires a boolean.`);
   if (['input-select', 'input-ordinal'].includes(field.type) && typeof value !== 'string' && !Array.isArray(value)) issue(issues, path, 'type', `${field.label} requires a selected option.`);
   // A DV_CODED_TEXT|DV_TEXT union field (field.allowFreeText, from the OPT

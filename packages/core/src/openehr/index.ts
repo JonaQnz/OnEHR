@@ -20,9 +20,25 @@ export interface QuantityUnitOption {
 export type ProportionKind = 'ratio' | 'unitary' | 'percent' | 'fraction' | 'integer_fraction';
 
 export interface FieldConstraint {
+  /** DV_COUNT/DV_INTEGER/DV_DECIMAL's own archetype-derived magnitude range
+   * and precision (P0.1 audit, 2026-09-05) - these three fields existed on
+   * this interface already but were completely unused anywhere in the
+   * codebase before this; a plain numeric field's archetype `validation.
+   * range`/`.precision` (confirmed real via "Dosierungsreihenfolge"/at0164
+   * on vg_MedicationStatement.v1.1.0: `min: 1, minOp: '>='`) was silently
+   * dropped, unlike DV_QUANTITY's equivalent (see unitOptions below) - a
+   * Designer had to hand-configure a field.validation.min/max rule
+   * (Block 1's Regex-Regel-Editor) to get ANY range check at all, with no
+   * indication the archetype itself already constrains it. See
+   * webTemplateParser.ts's new DV_COUNT/DV_INTEGER/DV_DECIMAL branch and
+   * FormElementLayout.numberRange for where this actually flows through. */
   min?: number;
   max?: number;
   precision?: number;
+  /** minOp === '>' / maxOp === '<' on the archetype's own range constraint -
+   * see QuantityUnitOption's identical fields for the established meaning. */
+  minexclusive?: boolean;
+  maxexclusive?: boolean;
   units?: string[];
   unitOptions?: QuantityUnitOption[];
   /** Best-effort - see webTemplateParser.ts's DV_PROPORTION branch for why

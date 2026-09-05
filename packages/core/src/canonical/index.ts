@@ -66,6 +66,22 @@ export interface FormElementLayout {
    * string widget exactly as before, rather than half-rendering something
    * wrong. */
   intervalValueType?: 'DV_QUANTITY';
+  /** An 'input-number' field's archetype-derived magnitude range/precision
+   * (DV_COUNT/DV_INTEGER/DV_DECIMAL - P0.1 audit, 2026-09-05). Unlike
+   * DV_QUANTITY's `unitOptions` this has no unit dimension to key off of -
+   * a plain number's `validation.range`/`.precision` sits directly on the
+   * WebTemplate node's own `inputs[0]`, not per-unit in a `list`. Was a
+   * total gap before this: confirmed live on "Dosierungsreihenfolge"
+   * (at0164, vg_MedicationStatement.v1.1.0, `min: 1, minOp: '>='`) - the
+   * archetype's own constraint was silently unenforced, indistinguishable
+   * from a genuinely unconstrained field. */
+  numberRange?: {
+    min?: number;
+    max?: number;
+    minexclusive?: boolean;
+    maxexclusive?: boolean;
+    precision?: number;
+  };
   options?: Array<{
     value: string;
     /** Display text, in the UI's preferred language (German-first - see

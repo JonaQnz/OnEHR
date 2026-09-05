@@ -337,6 +337,35 @@ export function parseWebTemplate(webTemplate: any): {
           field.constraints = constraints;
         }
 
+        // DV_COUNT/DV_INTEGER/DV_DECIMAL (P0.1 audit, 2026-09-05): unlike
+        // DV_QUANTITY, a plain number has no unit dimension, so its
+        // validation.range/.precision sits directly on the node's own
+        // `inputs[0]`, never inside a per-unit `list` - confirmed real
+        // against "Dosierungsreihenfolge" (at0164,
+        // vg_MedicationStatement.v1.1.0): `inputs: [{type: 'INTEGER',
+        // validation: {range: {min: 1, minOp: '>='}}}]`. This was a total
+        // validation gap before this - see FieldConstraint's doc comment on
+        // min/max/precision/minexclusive/maxexclusive for why those fields
+        // existed but were never actually populated by anything.
+        if (['DV_COUNT', 'DV_INTEGER', 'DV_DECIMAL'].includes(node.rmType) && node.inputs?.length) {
+          const numberInput = node.inputs.find((i: any) => i.validation);
+          if (numberInput?.validation) {
+            const constraints: FieldConstraint = { ...(field.constraints || {}) };
+            if (numberInput.validation.range) {
+              const range = numberInput.validation.range;
+              if (range.min !== undefined) constraints.min = range.min;
+              if (range.max !== undefined) constraints.max = range.max;
+              if (range.minOp === '>') constraints.minexclusive = true;
+              if (range.maxOp === '<') constraints.maxexclusive = true;
+            }
+            if (numberInput.validation.precision) {
+              const precision = numberInput.validation.precision;
+              constraints.precision = precision.max !== undefined ? precision.max : precision.min;
+            }
+            field.constraints = constraints;
+          }
+        }
+
         // DV_INTERVAL<DV_QUANTITY>: the WebTemplate never puts a `units`
         // input on the interval node itself - the magnitude/unit
         // constraints live on its `lower`/`upper` children instead (each a
@@ -651,6 +680,17 @@ export function parseWebTemplate(webTemplate: any): {
       }
       if (inputType === 'input-proportion' && matchedField.constraints?.proportionType) {
         layoutNode.proportionType = matchedField.constraints.proportionType;
+      }
+      if (inputType === 'input-number' && matchedField.constraints
+        && (matchedField.constraints.min !== undefined || matchedField.constraints.max !== undefined || matchedField.constraints.precision !== undefined)) {
+        const { min, max, minexclusive, maxexclusive, precision } = matchedField.constraints;
+        layoutNode.numberRange = {
+          ...(min !== undefined ? { min } : {}),
+          ...(max !== undefined ? { max } : {}),
+          ...(minexclusive ? { minexclusive } : {}),
+          ...(maxexclusive ? { maxexclusive } : {}),
+          ...(precision !== undefined ? { precision } : {}),
+        };
       }
       if (inputType === 'input-interval') {
         // Only DV_QUANTITY intervals are supported so far - getDataType()
