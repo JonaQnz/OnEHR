@@ -53,27 +53,28 @@ test('type "percent" implies denominator 100 - a bare numerator alone is valid',
   assert.deepEqual(result.issues, []);
 });
 
-test('type "percent" with an explicit denominator that disagrees with 100 is a warning, not a hard block', () => {
+test('type "percent" with an explicit denominator that disagrees with 100 is a blocking, template-sourced issue', () => {
   const result = validateRuntimeValues(form('percent'), { ratio_field: { numerator: 45.2, denominator: 50 } });
   assert.equal(result.issues.length, 1);
   assert.equal(result.issues[0].code, 'proportion-type');
-  assert.equal(result.issues[0].severity, 'warning');
-  assert.equal(result.valid, true, 'a proportion-type warning must never block validity');
+  assert.equal(result.issues[0].severity, 'error');
+  assert.equal(result.issues[0].source, 'template');
+  assert.equal(result.valid, false, 'PROPORTION_KIND is an archetype constraint and must block, like quantity-range/precision');
 });
 
-test('type "unitary" with an explicit denominator that disagrees with 1 is a warning too', () => {
+test('type "unitary" with an explicit denominator that disagrees with 1 blocks too', () => {
   const result = validateRuntimeValues(form('unitary'), { ratio_field: { numerator: 0.5, denominator: 2 } });
   assert.equal(result.issues.length, 1);
   assert.equal(result.issues[0].code, 'proportion-type');
-  assert.equal(result.valid, true);
+  assert.equal(result.valid, false);
 });
 
-test('type "fraction" requires both numerator and denominator to be whole numbers - a warning when violated', () => {
+test('type "fraction" requires both numerator and denominator to be whole numbers - blocks when violated', () => {
   const result = validateRuntimeValues(form('fraction'), { ratio_field: { numerator: 1.5, denominator: 4 } });
   assert.equal(result.issues.length, 1);
   assert.equal(result.issues[0].code, 'proportion-type');
-  assert.equal(result.issues[0].severity, 'warning');
-  assert.equal(result.valid, true);
+  assert.equal(result.issues[0].severity, 'error');
+  assert.equal(result.valid, false);
 });
 
 test('type "integer_fraction" enforces the same whole-number rule as "fraction"', () => {

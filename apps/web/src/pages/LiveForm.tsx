@@ -12,7 +12,7 @@ import {
   Undo2,
   XCircle,
 } from 'lucide-react';
-import { FORM_LAUNCH_PROTOCOL_VERSION, summarizeRuntimeValues, type FormDefinitionV1, type FormEmbedEventName, type RuntimeValues, type FormSessionRuntimeContext, type FormSessionLifecycleState, type FormSessionChangeType, type SaveState, type CompositionVersion } from 'core';
+import { FORM_LAUNCH_PROTOCOL_VERSION, summarizeRuntimeValues, isBlockingIssue, type FormDefinitionV1, type FormEmbedEventName, type RuntimeValues, type FormSessionRuntimeContext, type FormSessionLifecycleState, type FormSessionChangeType, type SaveState, type CompositionVersion } from 'core';
 import FormRuntime, { type FormRuntimeHandle } from '../components/FormRuntime';
 import PluginHost from '../components/PluginHost';
 import CompositionHistoryPanel from '../components/CompositionHistoryPanel';
@@ -751,13 +751,27 @@ export default function LiveForm() {
             </AlertCard>
           )}
 
-          {validationIssues && validationIssues.length > 0 && (
-            <AlertCard tone="warning" title={`${validationIssues.length} Angabe(n) verhindern das Finalisieren`}>
-              <ul style={{ margin: '0.25rem 0 0 1.1rem', padding: 0 }}>
-                {validationIssues.map((issue, index) => <li key={index}>{issue.path ? `${issue.path}: ` : ''}{issue.message}</li>)}
-              </ul>
-            </AlertCard>
-          )}
+          {validationIssues && validationIssues.length > 0 && (() => {
+            const blocking = validationIssues.filter(isBlockingIssue);
+            // The card's own tone reflects the worst issue present - a pure
+            // warning list (nothing actually blocking) reads as "warning",
+            // any real blocker escalates the whole card to "error".
+            const tone: Tone = blocking.length > 0 ? 'error' : 'warning';
+            const title = blocking.length > 0
+              ? `${blocking.length} Fehler verhindern das Finalisieren${validationIssues.length > blocking.length ? ` (+ ${validationIssues.length - blocking.length} Warnung(en))` : ''}`
+              : `${validationIssues.length} Warnung(en)`;
+            return (
+              <AlertCard tone={tone} title={title}>
+                <ul style={{ margin: '0.25rem 0 0 1.1rem', padding: 0 }}>
+                  {validationIssues.map((issue, index) => (
+                    <li key={index} style={{ color: !isBlockingIssue(issue) ? '#b45309' : undefined }}>
+                      {issue.path ? `${issue.path}: ` : ''}{issue.message}
+                    </li>
+                  ))}
+                </ul>
+              </AlertCard>
+            );
+          })()}
 
           {isWithdrawn && (
             <AlertCard tone="warning" title="Dieses Dokument wurde zurückgezogen." />

@@ -17,6 +17,8 @@ const { toOpenEhrFlatComposition, fromOpenEhrFlatComposition } = require('../dis
 // surfaced a second one on the very next live submission attempt: the
 // `mappings/N` group itself was being written as `_mappings/N` (a guessed,
 // unverified convention) - EHRbase rejected that too. Both are fixed here.
+// (`mappings/N` was itself superseded 2026-09-05 by `_mapping:N` - see
+// code-mappings-flat.test.js's header comment for that live evidence.)
 const PATH = '/content/data/items[at0002]';
 
 function definition() {
@@ -39,9 +41,9 @@ test('a DV_CODED_TEXT-bound codeMappings.enabled field writes the bare-path/mapp
     diagnose_name: { value: 'Pneumonie, nicht näher bezeichnet', mappings: [{ terminologyId: 'http://fhir.de/CodeSystem/dimdi/icd-10-gm', code: 'J18.9' }] },
   });
   assert.equal(flat[PATH], 'Pneumonie, nicht näher bezeichnet');
-  assert.equal(flat[`${PATH}/mappings/0/target|code`], 'J18.9');
-  assert.equal(flat[`${PATH}/mappings/0/target|terminology`], 'http://fhir.de/CodeSystem/dimdi/icd-10-gm');
-  assert.equal(flat[`${PATH}/mappings/0|match`], '=');
+  assert.equal(flat[`${PATH}/_mapping:0/target|code`], 'J18.9');
+  assert.equal(flat[`${PATH}/_mapping:0/target|terminology`], 'http://fhir.de/CodeSystem/dimdi/icd-10-gm');
+  assert.equal(flat[`${PATH}/_mapping:0|match`], '=');
   // The bug's exact symptom: free text must never land in a CODE_PHRASE key.
   assert.equal(flat[`${PATH}|code`], undefined);
   assert.equal(flat[`${PATH}|value`], undefined);

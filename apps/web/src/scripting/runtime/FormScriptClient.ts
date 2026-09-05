@@ -25,6 +25,16 @@ export interface FormScriptLifecycleResult {
   message?: string;
 }
 
+/** A field('id').validate() result, normalized in the worker - a bare
+ * string return is always `severity: 'error'`, unchanged from before this
+ * became an object; only the object form can be a non-blocking 'warning'. */
+export interface FormScriptFieldMessage {
+  message: string;
+  severity: 'error' | 'warning';
+  /** Always 'script' - see RuntimeValidationIssue.source (packages/core/form-runtime). */
+  source: 'script';
+}
+
 /** A field's current value came from an AQL prefill run, not a clinician's
  * own entry - see formScript.worker.ts's `provenance` map. Carried
  * alongside `form:set-value` so the host can render a small "aus AQL ·
@@ -59,7 +69,7 @@ interface FormScriptClientOptions {
   runtimeFunctions?: Array<{ packageName: string; name: string; source: string }>;
   onSetValue(id: string, value: unknown, persist: boolean, provenance: FormScriptFieldProvenance | null): void;
   onUpdateValues(values: RuntimeValues, persist: boolean): void;
-  onValidationErrors(errors: Record<string, string>): void;
+  onValidationErrors(errors: Record<string, FormScriptFieldMessage>): void;
   onUiState(kind: string, id: string, state: FormScriptUiState): void;
   onToast(level: string, message: string): void;
   onPrefillConflict(conflict: FormScriptPrefillConflict): void;
@@ -166,7 +176,7 @@ export class FormScriptClient {
       return;
     }
     if (message.type === 'validation:errors') {
-      this.options.onValidationErrors(message.errors as Record<string, string>);
+      this.options.onValidationErrors(message.errors as Record<string, FormScriptFieldMessage>);
       return;
     }
     if (message.type === 'api:call') {
@@ -341,20 +351,20 @@ export class FormScriptClient {
     });
   }
 
-  async validate(values: RuntimeValues): Promise<Record<string, string>> {
+  async validate(values: RuntimeValues): Promise<Record<string, FormScriptFieldMessage>> {
     if (this.terminated) return {};
     await this.ready();
     const requestId = `script-request-${++this.requestSequence}`;
-    return new Promise<Record<string, string>>((resolve, reject) => {
+    return new Promise<Record<string, FormScriptFieldMessage>>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);
         const error = new Error('Die Script-Validierung hat das Zeitlimit von 5 Sekunden überschritten.');
         this.addHostLog('error', error.message);
-        resolve({ __script: error.message });
+        resolve({ __script: { message: error.message, severity: 'error', source: 'script' } });
       }, 5_000);
       this.pending.set(requestId, {
         resolve: (result) => {
-          const response = result as { errors?: Record<string, string> };
+          const response = result as { errors?: Record<string, FormScriptFieldMessage> };
           resolve(response.errors || {});
         },
         reject,

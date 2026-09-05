@@ -89,8 +89,17 @@ type HostMessage =
 
 type Handler<T = unknown> = (event: T) => void | Promise<void>;
 type LifecycleHandler = Handler<{ cancel(message?: string): void }>;
-type Validator = (value: unknown, context: { form: unknown }) =>
-  string | null | undefined | Promise<string | null | undefined>;
+// A validator's return value - a plain string (or throw) is always a
+// blocking error, unchanged from before; the object form is new, for a
+// non-blocking warning shown at the field without preventing submit. Mirrors
+// packages/core/src/form-scripting's generated-types `FieldValidatorResult`.
+type ValidatorResult = string | { message: string; severity?: 'error' | 'warning' } | null | undefined;
+type Validator = (value: unknown, context: { form: unknown }) => ValidatorResult | Promise<ValidatorResult>;
+// source is always 'script' here - every FieldMessage this worker produces
+// comes from a Form Script validator or form.setErrors(). Fixed rather than
+// a plain string so it can't drift from RuntimeValidationIssue.source's
+// literal union (packages/core/form-runtime).
+interface FieldMessage { message: string; severity: 'error' | 'warning'; source: 'script'; }
 interface ComputedDefinition {
   id: string;
   dependsOn: string[];
@@ -157,7 +166,7 @@ const lifecycleHandlers = new Map<LifecycleName, LifecycleHandler[]>();
 const validators = new Map<string, Validator[]>();
 const computedDefinitions = new Map<string, ComputedDefinition>();
 const manualErrors = new Map<string, string>();
-const validatorErrors = new Map<string, string>();
+const validatorErrors = new Map<string, FieldMessage>();
 const pendingChanges: ChangePayload[] = [];
 const pendingApiRequests = new Map<string, PendingApiRequest>();
 const apiButtonPending = new Map<string, number>();
@@ -253,8 +262,14 @@ function groupForField(id: string): string | undefined {
   return Object.entries(knownIds.groupFields).find(([, fieldIds]) => fieldIds.includes(id))?.[0];
 }
 
-function allErrors(): Record<string, string> {
-  return { ...Object.fromEntries(manualErrors), ...Object.fromEntries(validatorErrors) };
+function allErrors(): Record<string, FieldMessage> {
+  // form.setErrors() (manualErrors) has no severity concept in its own SDK
+  // signature - Partial<Record<FieldId, string|null|undefined>> - so every
+  // entry it sets is, as before, always a blocking error.
+  const fromManual: Record<string, FieldMessage> = Object.fromEntries(
+    [...manualErrors.entries()].map(([path, message]) => [path, { message, severity: 'error' as const, source: 'script' as const }]),
+  );
+  return { ...fromManual, ...Object.fromEntries(validatorErrors) };
 }
 
 function postErrors(): void {
@@ -384,13 +399,24 @@ async function runValidatorHandlers(path: string, value: unknown, fieldId: strin
   for (const validator of fieldValidators) {
     try {
       const result = await validator(value, { form: createSdk().form });
-      if (typeof result === 'string' && result.trim()) {
-        validatorErrors.set(path, result);
-        break;
+      // A bare string is always an error, exactly as before this feature -
+      // the object form is the only new shape, and only there is a
+      // 'warning' severity possible.
+      const normalized: FieldMessage | undefined = typeof result === 'string' && result.trim()
+        ? { message: result, severity: 'error', source: 'script' }
+        : (result && typeof result === 'object' && typeof result.message === 'string' && result.message.trim())
+          ? { message: result.message, severity: result.severity === 'warning' ? 'warning' : 'error', source: 'script' }
+          : undefined;
+      if (normalized) {
+        validatorErrors.set(path, normalized);
+        // A warning never masks a later validator's error for the same
+        // field - keep checking the rest; an error still short-circuits,
+        // same as before.
+        if (normalized.severity === 'error') break;
       }
     } catch (error) {
       log('error', `Validierung für "${path}" fehlgeschlagen.`, error);
-      validatorErrors.set(path, 'Die Script-Validierung konnte nicht ausgeführt werden.');
+      validatorErrors.set(path, { message: 'Die Script-Validierung konnte nicht ausgeführt werden.', severity: 'error', source: 'script' });
       break;
     }
   }
@@ -412,7 +438,7 @@ async function runValidatorsForField(fieldId: string): Promise<void> {
   postErrors();
 }
 
-async function runAllValidators(): Promise<Record<string, string>> {
+async function runAllValidators(): Promise<Record<string, FieldMessage>> {
   for (const fieldId of validators.keys()) await runValidatorsForField(fieldId);
   postErrors();
   return allErrors();

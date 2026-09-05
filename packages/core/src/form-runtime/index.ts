@@ -34,7 +34,7 @@ const PROPORTION_KIND_DENOMINATOR: Partial<Record<ProportionKind, number>> = { u
 export interface RuntimeFieldDescriptor {
   id: string; name: string; type: string; label: string; description?: string | undefined;
   required: boolean; readOnly: boolean; options: RuntimeOption[]; unitOptions: RuntimeUnitOption[];
-  validation?: { min?: number; max?: number; regex?: string } | undefined; visibility?: unknown;
+  validation?: { min?: number; max?: number; regex?: string; regexSeverity?: 'error' | 'warning' | 'info'; regexMessage?: string } | undefined; visibility?: unknown;
   repeatable: boolean; repeatMin: number; repeatMax: number; defaultValue?: RuntimeJsonValue | undefined;
   repeatableGroupId?: string | undefined;
   aqlPath?: string | undefined; binding?: unknown; semanticType?: string | undefined; archetypeNodeId?: string | undefined;
@@ -56,7 +56,7 @@ export interface RuntimeGroupDescriptor {
 }
 export interface RuntimeValidationIssue extends ValidationIssue {
   path: string;
-  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required' | 'quantity-range' | 'quantity-precision' | 'proportion-denominator' | 'proportion-type' | 'duration-format';
+  code: 'required' | 'type' | 'min' | 'max' | 'option' | 'unit' | 'pattern' | 'repeat-min' | 'repeat-max' | 'mapping-required' | 'mapping-invalid' | 'quantity-range' | 'quantity-precision' | 'proportion-denominator' | 'proportion-type' | 'duration-format' | 'script';
 }
 export interface RuntimeValidationResult { valid: boolean; issues: RuntimeValidationIssue[]; }
 
@@ -302,8 +302,15 @@ function proportionDenominator(field: RuntimeFieldDescriptor, value: RuntimeValu
   return field.proportionType ? PROPORTION_KIND_DENOMINATOR[field.proportionType] : undefined;
 }
 
-function issue(issues: RuntimeValidationIssue[], path: string, code: RuntimeValidationIssue['code'], message: string, severity?: RuntimeValidationIssue['severity']): void {
-  issues.push({ path, code, message, ...(severity ? { severity } : {}) });
+/** Every issue validateOne/the repeat-group checks below produce is derived
+ * from the openEHR archetype/template (RM type shape, DV_QUANTITY
+ * range/precision, PROPORTION_KIND, repeat cardinality, ...) and so
+ * defaults to `source: 'template'` - the one exception is the designer-
+ * authored regex pattern check, which passes its own `source: 'regex'`
+ * explicitly. See ValidationIssue.source's doc comment (canonical) for why
+ * this distinction matters: only regex/script issues may be non-blocking. */
+function issue(issues: RuntimeValidationIssue[], path: string, code: RuntimeValidationIssue['code'], message: string, opts?: { severity?: RuntimeValidationIssue['severity']; source?: RuntimeValidationIssue['source'] }): void {
+  issues.push({ path, code, message, source: opts?.source ?? 'template', ...(opts?.severity ? { severity: opts.severity } : {}) });
 }
 
 /** Number of fractional digits `n` was actually written with - used to
@@ -379,14 +386,14 @@ function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path
       if (option) {
         if (option.min !== undefined) {
           const belowMin = option.minexclusive ? magnitude <= option.min : magnitude < option.min;
-          if (belowMin) issue(issues, path, 'quantity-range', `${field.label}: ${magnitude} ${unit} is below the archetype's allowed minimum (${option.minexclusive ? '>' : '>='} ${option.min}).`, 'warning');
+          if (belowMin) issue(issues, path, 'quantity-range', `${field.label}: ${magnitude} ${unit} is below the archetype's allowed minimum (${option.minexclusive ? '>' : '>='} ${option.min}).`, { severity: 'error' });
         }
         if (option.max !== undefined) {
           const aboveMax = option.maxexclusive ? magnitude >= option.max : magnitude > option.max;
-          if (aboveMax) issue(issues, path, 'quantity-range', `${field.label}: ${magnitude} ${unit} is above the archetype's allowed maximum (${option.maxexclusive ? '<' : '<='} ${option.max}).`, 'warning');
+          if (aboveMax) issue(issues, path, 'quantity-range', `${field.label}: ${magnitude} ${unit} is above the archetype's allowed maximum (${option.maxexclusive ? '<' : '<='} ${option.max}).`, { severity: 'error' });
         }
         if (option.precision !== undefined && fractionalDigits(magnitude) > option.precision) {
-          issue(issues, path, 'quantity-precision', `${field.label}: ${unit} allows at most ${option.precision} decimal place(s), got ${magnitude}.`, 'warning');
+          issue(issues, path, 'quantity-precision', `${field.label}: ${unit} allows at most ${option.precision} decimal place(s), got ${magnitude}.`, { severity: 'error' });
         }
       }
     }
@@ -429,11 +436,11 @@ function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path
     // clinician mid-entry may legitimately have an inconsistent
     // intermediate state before finishing the field.
     if (field.proportionType === 'percent' && denominator !== 100) {
-      issue(issues, path, 'proportion-type', `${field.label}: type 'percent' requires a denominator of 100, got ${denominator}.`, 'warning');
+      issue(issues, path, 'proportion-type', `${field.label}: type 'percent' requires a denominator of 100, got ${denominator}.`, { severity: 'error' });
     } else if (field.proportionType === 'unitary' && denominator !== 1) {
-      issue(issues, path, 'proportion-type', `${field.label}: type 'unitary' requires a denominator of 1, got ${denominator}.`, 'warning');
+      issue(issues, path, 'proportion-type', `${field.label}: type 'unitary' requires a denominator of 1, got ${denominator}.`, { severity: 'error' });
     } else if ((field.proportionType === 'fraction' || field.proportionType === 'integer_fraction') && (!Number.isInteger(numerator) || !Number.isInteger(denominator))) {
-      issue(issues, path, 'proportion-type', `${field.label}: type '${field.proportionType}' requires both numerator and denominator to be whole numbers.`, 'warning');
+      issue(issues, path, 'proportion-type', `${field.label}: type '${field.proportionType}' requires both numerator and denominator to be whole numbers.`, { severity: 'error' });
     }
   }
   // input-duration has no dedicated widget (it renders as a plain text
@@ -471,9 +478,41 @@ function validateOne(field: RuntimeFieldDescriptor, rawValue: RuntimeValue, path
   if (number !== undefined && field.validation?.min !== undefined && number < field.validation.min) issue(issues, path, 'min', `${field.label} must be at least ${field.validation.min}.`);
   if (number !== undefined && field.validation?.max !== undefined && number > field.validation.max) issue(issues, path, 'max', `${field.label} must be at most ${field.validation.max}.`);
   if (field.validation?.regex && typeof value === 'string') {
-    let matches = true; try { matches = new RegExp(field.validation.regex).test(value); } catch { matches = false; }
-    if (!matches) issue(issues, path, 'pattern', `${field.label} has an invalid format.`);
+    const compiled = compileValidationPattern(field.validation.regex);
+    // A broken pattern (designer typo) fails open - the value is simply not
+    // checked against it, rather than blocking every clinician who happens
+    // to fill in this field with a fake "invalid format" error. The real
+    // configuration error is surfaced to the designer instead, in
+    // FormBuilder's RegexRuleTester (which calls this same function).
+    if ('regex' in compiled && !compiled.regex.test(value)) {
+      // No severity set defaults to 'error' (blocking) - unchanged behavior
+      // for every regex already configured before this field existed.
+      issue(issues, path, 'pattern', field.validation.regexMessage || `${field.label} has an invalid format.`, { severity: field.validation.regexSeverity, source: 'regex' });
+    }
   }
+}
+
+/** Single place `new RegExp()` is called for a `field.validation.regex`
+ * pattern - shared between this module's own runtime check just above and
+ * FormBuilder's RegexRuleTester (Designer live-test UI), so the two can
+ * never silently diverge on what counts as a match. An invalid pattern is
+ * reported as a `configError`, not thrown - the caller decides how to
+ * react (runtime: skip the check; Designer: show a config-error hint). */
+export function compileValidationPattern(pattern: string): { regex: RegExp } | { configError: string } {
+  try {
+    return { regex: new RegExp(pattern) };
+  } catch (error) {
+    return { configError: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** Whether an issue actually blocks submission. Missing severity still
+ * blocks (unchanged behavior for every issue producer that predates the
+ * severity field). Only 'warning'/'info' are non-blocking - use this
+ * everywhere instead of ad-hoc `severity !== 'warning'` comparisons, which
+ * would incorrectly treat a future 'info'-severity issue as blocking. */
+export function isBlockingIssue(issue: Pick<RuntimeValidationIssue, 'severity'>): boolean {
+  return !issue.severity || issue.severity === 'error';
 }
 
 export interface RuntimeValidationOptions {
@@ -543,12 +582,10 @@ export function validateRuntimeValues(form: Pick<CanonicalForm, 'layout' | 'loca
     repeated.forEach((item, index) => validateOne(field, item, `${field.id}[${index}]`, issues));
   });
   const filtered = options?.mode === 'draft' ? issues.filter((entry) => !DRAFT_EXEMPT_ISSUE_CODES.has(entry.code)) : issues;
-  // A 'warning'-severity issue (currently: quantity-range/quantity-precision
-  // drift against the archetype - see validateOne) is surfaced for review
-  // but never blocks `valid`, unlike every other issue here (severity
-  // omitted, the pre-existing default meaning "blocking"). Existing
-  // clinical data submitted before these checks existed must never be
-  // retroactively treated as invalid just because a range/precision limit
-  // is now known.
-  return { valid: filtered.every((entry) => entry.severity === 'warning'), issues: filtered };
+  // A 'warning'/'info'-severity issue (only ever regex/script-sourced now -
+  // see validateOne and isBlockingIssue's own doc comment) is surfaced for
+  // review but never blocks `valid`. Template-derived issues (quantity-
+  // range/precision, RM-type shape, ...) have no severity set and so
+  // always block, same as before severity existed at all.
+  return { valid: !filtered.some(isBlockingIssue), issues: filtered };
 }

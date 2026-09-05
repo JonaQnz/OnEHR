@@ -227,6 +227,17 @@ export function canonicalToFormBuilder(form: CanonicalForm): any[] {
     item.max_value = node.max_value ?? (isNumberOrRange ? 100 : undefined);
     item.default_value = node.default_value ?? (isNumberOrRange ? 0 : undefined);
 
+    // formBuilderToCanonical (below) already reads item.regex/regexSeverity/
+    // regexMessage back out into node.validation - without this reverse
+    // assignment, a regex rule saved once would vanish from the Designer's
+    // own Field Config panel the next time the form is opened (item.regex
+    // would come back undefined even though node.validation.regex is set).
+    if (node.validation?.regex) {
+      item.regex = node.validation.regex;
+      item.regexSeverity = node.validation.regexSeverity || 'error';
+      item.regexMessage = node.validation.regexMessage || '';
+    }
+
     if (node.props) {
       item.props = node.props;
       if (node.props.hideDefaultProperties) {
@@ -494,7 +505,8 @@ export function formBuilderToCanonical(items: any[], originalForm: CanonicalForm
       validation: {
         min: item.min_value,
         max: item.max_value,
-        regex: item.regex
+        regex: item.regex,
+        ...(item.regex ? { regexSeverity: item.regexSeverity || 'error', ...(item.regexMessage ? { regexMessage: item.regexMessage } : {}) } : {}),
       }
     };
 

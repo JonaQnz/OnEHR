@@ -18,6 +18,7 @@ import auditRoutes from './routes/auditRoutes';
 import ehrbaseAdminRoutes from './routes/ehrbaseAdminRoutes';
 import compositionSessionRoutes from './routes/compositionSessionRoutes';
 import dataWidgetRoutes from './routes/dataWidgetRoutes';
+import terminologyRoutes from './routes/terminologyRoutes';
 
 /**
  * Pure Express app construction - every route, in the exact same order
@@ -56,6 +57,7 @@ export function createApp(): Express {
   app.use('/api/script-connectors', scriptConnectorRoutes);
   app.use('/api/functions', functionRoutes);
   app.use('/api/widgets', dataWidgetRoutes);
+  app.use('/api/terminology', terminologyRoutes);
   app.use('/api/admin', userAdminRoutes);
   app.use('/api/admin/audit', auditRoutes);
   app.use('/api/admin/ehrbase', ehrbaseAdminRoutes);

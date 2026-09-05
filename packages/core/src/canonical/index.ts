@@ -9,6 +9,16 @@ export interface FormIssue {
   message: string;
   path?: string;
   severity?: ValidationSeverity;
+  /** Where this issue's constraint comes from - determines whether it's
+   * allowed to be non-blocking. 'template' issues are derived from the
+   * openEHR archetype/template itself (e.g. DV_QUANTITY range/precision)
+   * and describe genuinely valid data, so they're always error-severity in
+   * practice; 'regex' and 'script' issues come from designer- or
+   * script-authored rules and may freely be error/warning/info; 'server'
+   * is reserved for terminology-server validation results (see
+   * isBlockingIssue, packages/core/form-runtime). Absent for older/unknown
+   * issue producers - treated the same as before this field existed. */
+  source?: 'template' | 'regex' | 'script' | 'server';
 }
 
 export interface ValidationIssue extends FormIssue {
@@ -111,6 +121,16 @@ export interface FormElementLayout {
     min?: number;
     max?: number;
     regex?: string;
+    /** How a `regex` mismatch is reported - defaults to 'error' (blocking,
+     * unchanged behavior) when unset, so every regex already set before
+     * this field existed keeps working exactly as before. 'warning'/'info'
+     * make it non-blocking - shown at the field but doesn't prevent submit.
+     * Named `regex*` (not the more generic `severity`/`message`) because
+     * `validation` may later carry other kinds of constraints (required,
+     * range, ...) whose severity this must not be confused with. */
+    regexSeverity?: ValidationSeverity;
+    /** Shown instead of the generic pattern-mismatch message when set. */
+    regexMessage?: string;
   };
   unit?: string;
   /** The single per-node source of truth for this element's openEHR
@@ -167,6 +187,29 @@ export interface CodeMappingTerminologyOption {
   /** TERM_MAPPING.match - '>' broader, '=' equivalent, '<' narrower, '?'
    * unknown (ISO 2788/5964). Defaults to '=' when unset. */
   match?: '>' | '=' | '<' | '?';
+  /** Which registered TerminologyProvider (packages/core/terminology) backs
+   * this option, e.g. "hapi-terminology". Absent (the default for every
+   * option that already existed before this field was added) means this
+   * option keeps today's behavior exactly: a plain, unvalidated free-text
+   * code entry against `id`/`label` alone - no search, no server-side
+   * validation, no dependency on any terminology plugin being installed. */
+  providerId?: string;
+  /** The provider-neutral binding (e.g. a ValueSet, in a FHIR-backed
+   * provider's own translation) this option searches/validates against -
+   * see TerminologySearchInput/TerminologyValidateInput. Only meaningful
+   * alongside `providerId`. */
+  bindingId?: string;
+  bindingVersion?: string;
+  /** Set instead of/alongside `bindingId` when only a bare namespace (a
+   * CodeSystem, in FHIR terms) is known, with no specific curated binding -
+   * see TerminologySearchInput. */
+  namespace?: string;
+  namespaceVersion?: string;
+  /** How a provider-backed code is enforced at submission - see
+   * TerminologyValidationPolicy's own doc comment for the three levels.
+   * Only meaningful alongside `providerId`; defaults to 'required' for a
+   * newly configured binding. */
+  validationPolicy?: 'required' | 'best-effort' | 'none';
 }
 
 export interface CodeMappingConfig {
@@ -199,6 +242,20 @@ export interface CodeMappingValue {
   terminologyId: string;
   code: string;
   match?: '>' | '=' | '<' | '?';
+  /** Set when this code came from a versioned terminology binding (an
+   * ICD-10-GM/OPS year version, a published custom-terminology version) -
+   * see packages/core/terminology's TerminologyProvider doc comment for why
+   * this must be threaded through consistently: a later change to the
+   * terminology server must never silently change the meaning of an
+   * already-stored coding. Absent for the pre-existing, unversioned
+   * free-text case. */
+  version?: string;
+  /** A snapshot of the display text shown at selection time - kept even if
+   * the terminology server later becomes unreachable or the concept's
+   * display text changes upstream. Absent for the pre-existing, plain
+   * free-text case (where the parent field's own text already carries the
+   * human-readable rendition, per this type's own top-level doc comment). */
+  display?: string;
 }
 
 /** A DV_TEXT field's runtime value once codeMappings.enabled - the plain
@@ -273,10 +330,15 @@ export interface OpenEhrBinding {
   templateVersion?: string;
 }
 
-export interface FormError extends ValidationIssue {
+export interface FormError extends Omit<ValidationIssue, 'source'> {
   fieldId?: string;
   openEhrPath?: string;
-  source: 'runtime' | 'validation' | 'script' | 'plugin' | 'openehr' | 'provider' | 'host';
+  /** Which subsystem raised this error - a different, unrelated concept
+   * from ValidationIssue.source (which distinguishes template/regex/
+   * script/server-derived *validation* issues); named `errorSource` here
+   * to avoid colliding with that field now that both live under
+   * ValidationIssue. */
+  errorSource: 'runtime' | 'validation' | 'script' | 'plugin' | 'openehr' | 'provider' | 'host';
   cause?: unknown;
 }
 /**

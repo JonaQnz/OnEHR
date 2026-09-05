@@ -13,10 +13,10 @@ COPY packages/react-form-builder2/package.json ./packages/react-form-builder2/
 COPY packages/plugin-api/package.json ./packages/plugin-api/
 COPY packages/example-vitals-plugin/package.json ./packages/example-vitals-plugin/
 COPY packages/example-n8n-plugin/package.json ./packages/example-n8n-plugin/
-COPY packages/aql-prefill-plugin/package.json ./packages/aql-prefill-plugin/
 COPY packages/formbuilder-plugin-iframe/package.json ./packages/formbuilder-plugin-iframe/
 COPY packages/postal-lookup-plugin/package.json ./packages/postal-lookup-plugin/
 COPY packages/formbuilder-plugin-clinical-scores/package.json ./packages/formbuilder-plugin-clinical-scores/
+COPY packages/formbuilder-plugin-hapi-terminology/package.json ./packages/formbuilder-plugin-hapi-terminology/
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 
@@ -51,10 +51,10 @@ COPY --from=build /app/apps/api ./apps/api
 COPY --from=build /app/packages/plugin-api ./packages/plugin-api
 COPY --from=build /app/packages/example-vitals-plugin ./packages/example-vitals-plugin
 COPY --from=build /app/packages/example-n8n-plugin ./packages/example-n8n-plugin
-COPY --from=build /app/packages/aql-prefill-plugin ./packages/aql-prefill-plugin
 COPY --from=build /app/packages/formbuilder-plugin-iframe ./packages/formbuilder-plugin-iframe
 COPY --from=build /app/packages/postal-lookup-plugin ./packages/postal-lookup-plugin
 COPY --from=build /app/packages/formbuilder-plugin-clinical-scores ./packages/formbuilder-plugin-clinical-scores
+COPY --from=build /app/packages/formbuilder-plugin-hapi-terminology ./packages/formbuilder-plugin-hapi-terminology
 COPY --from=build /app/package.json ./
 
 EXPOSE 3001

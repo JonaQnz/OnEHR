@@ -5,10 +5,11 @@ import type {
   FormIssue as CoreFormIssue,
   ValidationIssue as CoreValidationIssue,
   FormDataProvider,
+  TerminologyProvider,
 } from 'core';
 import type { Principal } from 'core';
 
-export type { FormDataProvider } from 'core';
+export type { FormDataProvider, TerminologyProvider } from 'core';
 
 export type JsonPrimitive = CoreJsonPrimitive;
 export type JsonValue = CoreJsonValue;
@@ -26,6 +27,7 @@ export const PLUGIN_EXTENSION_POINTS = [
   'runtime',
   'scripting',
   'dataProvider',
+  'terminology',
   'workflow',
   'lifecycle',
   'ui',
@@ -171,6 +173,14 @@ export interface DataProviderContribution {
   capabilities: readonly ('load' | 'submit')[];
 }
 
+export interface TerminologyProviderContribution {
+  extensionPoint: 'terminology';
+  key: string;
+  providerId: string;
+  label: string;
+  capabilities: readonly ('search' | 'lookup' | 'validate' | 'discover' | 'manage')[];
+}
+
 export interface WorkflowContribution {
   extensionPoint: 'workflow';
   key: string;
@@ -200,6 +210,7 @@ export type PluginContribution =
   | RuntimeActionContribution
   | ScriptingOperationContribution
   | DataProviderContribution
+  | TerminologyProviderContribution
   | WorkflowContribution
   | UIExtensionContribution
   | WidgetPackageContribution;
@@ -334,6 +345,16 @@ export interface PluginActivationContext {
    * this same plugin's own settings panel.
    */
   registerFormDataProvider(provider: FormDataProvider): void;
+  /**
+   * Registers a live, callable `TerminologyProvider` implementation -
+   * exactly the same shape/purpose as `registerFormDataProvider` above,
+   * mirrored for terminology search/lookup/validate/discover/manage. Core
+   * and `apps/api`'s generic terminology routes know only the neutral
+   * `TerminologyProvider` contract (packages/core/terminology) - never a
+   * concrete backend like HAPI/FHIR. See the HAPI terminology plugin for
+   * the reference implementation.
+   */
+  registerTerminologyProvider(provider: TerminologyProvider): void;
   registerWidgetPackage(contribution: Omit<WidgetPackageContribution, 'extensionPoint'>): void;
   registerWorkflow(contribution: Omit<WorkflowContribution, 'extensionPoint'>): void;
   registerUIExtension(contribution: Omit<UIExtensionContribution, 'extensionPoint'>): void;
@@ -460,6 +481,7 @@ export class PluginRegistry {
   private readonly hooks = new Map<PluginHookName, Array<{ pluginId: string; handler: PluginHook }>>();
   private readonly actions = new Map<string, { pluginId: string; handler: PluginAction }>();
   private readonly dataProviders = new Map<string, { pluginId: string; provider: FormDataProvider }>();
+  private readonly terminologyProviders = new Map<string, { pluginId: string; provider: TerminologyProvider }>();
 
   public constructor(
     private readonly logger: PluginLogger = console,
@@ -480,6 +502,7 @@ export class PluginRegistry {
     const pendingHooks: Array<{ name: PluginHookName; handler: PluginHook }> = [];
     const pendingActions: Array<{ actionId: string; handler: PluginAction }> = [];
     const pendingDataProviders: FormDataProvider[] = [];
+    const pendingTerminologyProviders: TerminologyProvider[] = [];
     const context: PluginActivationContext = {
       manifest: plugin.manifest,
       host: PLUGIN_HOST_INFO,
@@ -541,6 +564,25 @@ export class PluginRegistry {
         });
         pendingDataProviders.push(provider);
       },
+      registerTerminologyProvider: (provider) => {
+        if (!provider || typeof provider.id !== 'string' || !provider.id) throw new Error(`Plugin ${plugin.manifest.id} registered a terminology provider with no id`);
+        if (typeof provider.search !== 'function' || typeof provider.lookup !== 'function' || typeof provider.validate !== 'function') {
+          throw new Error(`Plugin ${plugin.manifest.id} terminology provider ${provider.id} must implement search(), lookup() and validate()`);
+        }
+        if (this.terminologyProviders.has(provider.id)) throw new Error(`Terminology provider ${provider.id} is already registered`);
+        if (pendingTerminologyProviders.some((existing) => existing.id === provider.id)) throw new Error(`Terminology provider ${provider.id} is already registered`);
+        // Same derive-the-metadata-from-the-provider pattern as
+        // registerFormDataProvider just above - a plugin author never
+        // declares id/displayName/capabilities twice.
+        context.registerContribution({
+          extensionPoint: 'terminology',
+          key: provider.id,
+          providerId: provider.id,
+          label: provider.displayName,
+          capabilities: provider.capabilities,
+        });
+        pendingTerminologyProviders.push(provider);
+      },
       registerWidgetPackage: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'widget' }),
       registerWorkflow: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'workflow' }),
       registerUIExtension: (contribution) => context.registerContribution({ ...contribution, extensionPoint: 'ui' }),
@@ -592,6 +634,9 @@ export class PluginRegistry {
     for (const provider of pendingDataProviders) {
       this.dataProviders.set(provider.id, { pluginId: plugin.manifest.id, provider });
     }
+    for (const provider of pendingTerminologyProviders) {
+      this.terminologyProviders.set(provider.id, { pluginId: plugin.manifest.id, provider });
+    }
   }
 
   public getDataProvider(id: string): FormDataProvider | undefined {
@@ -602,10 +647,21 @@ export class PluginRegistry {
     return Array.from(this.dataProviders.values(), (entry) => entry.provider);
   }
 
+  public getTerminologyProvider(id: string): TerminologyProvider | undefined {
+    return this.terminologyProviders.get(id)?.provider;
+  }
+
+  public listTerminologyProviders(): TerminologyProvider[] {
+    return Array.from(this.terminologyProviders.values(), (entry) => entry.provider);
+  }
+
   public unregister(pluginId: string): boolean {
     if (!this.plugins.delete(pluginId)) return false;
     for (const [id, entry] of this.dataProviders.entries()) {
       if (entry.pluginId === pluginId) this.dataProviders.delete(id);
+    }
+    for (const [id, entry] of this.terminologyProviders.entries()) {
+      if (entry.pluginId === pluginId) this.terminologyProviders.delete(id);
     }
     for (const [key, contribution] of this.contributions.entries()) {
       if (contribution.pluginId === pluginId) this.contributions.delete(key);

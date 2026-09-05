@@ -21,6 +21,7 @@ import {
   type UserAuthMode,
   getFormFolderMapping,
   resolveFolderPath,
+  isBlockingIssue,
 } from 'core';
 import { HttpError } from '../middleware/errorHandler';
 import { migrateCanonicalFormToV1 } from 'core';
@@ -776,8 +777,13 @@ export async function autosaveFormSessionDraft(id: string, providerId: string, a
   const draftValues = beforeSave.data;
   const draftValidation = validateRuntimeValues(form as any, draftValues as any, { mode: 'draft' });
   if (!draftValidation.valid) {
-    const messages = draftValidation.issues.map((item) => ({ severity: 'error' as const, code: item.code, path: item.path, message: item.message }));
-    throw new HttpError(422, `${draftValidation.issues.length} Formular-Validierungsfehler verhindern das Speichern des Entwurfs`, { messages });
+    // Preserve each issue's real severity instead of forcing every one to
+    // 'error' - draftValidation.issues can legitimately mix a genuine
+    // blocker with an unrelated non-blocking warning (e.g. a DV_QUANTITY
+    // precision hint), and the warning must stay a warning on the wire too.
+    const messages = draftValidation.issues.map((item) => ({ severity: item.severity || ('error' as const), code: item.code, path: item.path, message: item.message }));
+    const blockingIssues = draftValidation.issues.filter(isBlockingIssue);
+    throw new HttpError(422, `${blockingIssues.length} Formular-Validierungsfehler verhindern das Speichern des Entwurfs`, { messages });
   }
   const status = transitionStatus(persistedStatus(input.session.status), 'in_progress');
   let updated = await prisma.formSession.update({ where: { id: input.session.id }, data: {
@@ -926,12 +932,16 @@ export async function submitFormSessionToProvider(
   const canReuseValidation = options.validatedRevision !== undefined
     && options.validatedRevision === input.session.revision
     && persistedStatus(input.session.status) === 'ready';
+  const reusedIssues = (Array.isArray(input.session.validation) ? input.session.validation : []) as unknown as SessionValidationIssue[];
   const validation = canReuseValidation
-    ? { session: publicSession(input.session, undefined, input.patient), valid: !Array.isArray(input.session.validation) || input.session.validation.length === 0, issues: (Array.isArray(input.session.validation) ? input.session.validation : []) as unknown as SessionValidationIssue[] }
+    ? { session: publicSession(input.session, undefined, input.patient), valid: !reusedIssues.some(isBlockingIssue), issues: reusedIssues }
     : await validateFormSession(id, actor);
   if (!validation.valid) {
-    const messages = (validation.issues || []).map((item) => ({ severity: 'error' as const, code: item.code, path: item.path, message: item.message }));
-    throw new HttpError(422, `${validation.issues.length} Formular-Validierungsfehler verhindern das Absenden`, { messages });
+    // Preserve each issue's real severity - see the identical note on
+    // autosaveFormSessionDraft above.
+    const messages = (validation.issues || []).map((item) => ({ severity: item.severity || ('error' as const), code: item.code, path: item.path, message: item.message }));
+    const blockingIssues = (validation.issues || []).filter(isBlockingIssue);
+    throw new HttpError(422, `${blockingIssues.length} Formular-Validierungsfehler verhindern das Absenden`, { messages });
   }
   transitionStatus(validation.session.status, 'submitted');
   const form = input.form.definition as unknown as Record<string, unknown>;
