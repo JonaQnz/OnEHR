@@ -63,6 +63,20 @@ export interface RuntimeGroupDescriptor {
   label: string;
   repeatMin: number;
   repeatMax: number;
+  /** The immediately-enclosing repeatable group's own id, when this group
+   * is nested inside another one - undefined for a top-level group (P0.2
+   * audit, 2026-09-05: nested repeats - "Repeat innerhalb Repeat" - were a
+   * confirmed total gap before this; see
+   * [[p02-repeatables-audit-and-first-fixes]]). A NESTED group's own rows
+   * live inside each of its parent's row objects (`parentRow[group.id]`),
+   * never at `values[group.id]` directly - this is what lets
+   * createInitialRuntimeValues/validateRuntimeValues walk the group
+   * hierarchy correctly instead of always looking at the top level, which
+   * is exactly the bug this fixes. `walk()`'s own `repeatableGroupId`
+   * parameter, read BEFORE it gets overwritten for this node's own
+   * children, already carries exactly this value - collectRuntimeGroups
+   * just needed to keep it instead of discarding it. */
+  parentGroupId?: string;
 }
 export interface RuntimeValidationIssue extends ValidationIssue {
   path: string;
@@ -209,7 +223,12 @@ export function summarizeRuntimeValues(
 
 export function collectRuntimeGroups(form: Pick<CanonicalForm, 'layout' | 'locales'>): RuntimeGroupDescriptor[] {
   const groups: RuntimeGroupDescriptor[] = [];
-  walk(form.layout, (node) => {
+  // The `parentGroupId` parameter here is `walk()`'s own repeatableGroupId
+  // AS PASSED IN for this node - i.e. whichever group (if any) already
+  // enclosed this node BEFORE walk() computes childGroupId for this node's
+  // OWN descendants. Exactly the enclosing group's id when this node is
+  // itself a nested repeatable container.
+  walk(form.layout, (node, parentGroupId) => {
     const id = nodeId(node);
     if (node.type === 'container' && node.repeatable === true && id) {
       groups.push({
@@ -217,6 +236,7 @@ export function collectRuntimeGroups(form: Pick<CanonicalForm, 'layout' | 'local
         label: resolveLabel(node, id, form.locales),
         repeatMin: node.repeatMin ?? 0,
         repeatMax: node.repeatMax ?? -1,
+        ...(parentGroupId ? { parentGroupId } : {}),
       });
     }
   });
@@ -226,23 +246,45 @@ export function collectRuntimeGroups(form: Pick<CanonicalForm, 'layout' | 'local
 export function createInitialRuntimeValues(form: Pick<CanonicalForm, 'layout' | 'locales'>): RuntimeValues {
   const values: RuntimeValues = {};
   const fields = collectRuntimeFields(form);
-  collectRuntimeGroups(form).forEach((group) => {
-    const itemDefaults: Record<string, RuntimeJsonValue> = {};
-    fields.filter((field) => field.repeatableGroupId === group.id && field.defaultValue !== undefined).forEach((field) => {
-      itemDefaults[field.id] = field.repeatable ? [field.defaultValue as RuntimeJsonValue] : field.defaultValue as RuntimeJsonValue;
-    });
-    // `{ ...itemDefaults }` alone only shallow-copies - a repeatable
-    // sub-field's default is an array (`[field.defaultValue]` above), and
-    // a shallow copy of an object copies an array-typed property's
-    // *reference*, not its contents. With repeatMin > 1 every generated
-    // row ended up sharing that exact same array instance, so editing one
-    // row's repeatable sub-field silently mutated every other row's too.
-    // Cloning any array-typed default per row (scalars are fine to share -
-    // they're copied by value regardless) fixes it.
-    values[group.id] = Array.from({ length: group.repeatMin }, () => Object.fromEntries(
-      Object.entries(itemDefaults).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]),
-    ));
+  const groups = collectRuntimeGroups(form);
+  // Keyed by parentGroupId (undefined = top-level) / repeatableGroupId
+  // (undefined = not inside any group) - lets a NESTED group's own default
+  // rows be generated inside each of its parent's freshly-created rows,
+  // recursively, instead of always at the top level regardless of nesting
+  // (P0.2 audit, 2026-09-05 - see RuntimeGroupDescriptor.parentGroupId's
+  // doc comment for the full writeup of the bug this fixes).
+  const groupsByParent = new Map<string | undefined, RuntimeGroupDescriptor[]>();
+  groups.forEach((group) => {
+    const list = groupsByParent.get(group.parentGroupId);
+    if (list) list.push(group); else groupsByParent.set(group.parentGroupId, [group]);
   });
+  const fieldsByGroup = new Map<string | undefined, RuntimeFieldDescriptor[]>();
+  fields.forEach((field) => {
+    const list = fieldsByGroup.get(field.repeatableGroupId);
+    if (list) list.push(field); else fieldsByGroup.set(field.repeatableGroupId, [field]);
+  });
+  // Builds `group.repeatMin` fresh rows into `scope[group.id]` - each row
+  // is a brand-new object literal, so an array-typed default
+  // (`[field.defaultValue]` for a repeatable sub-field) is naturally a
+  // fresh array per row with no further cloning needed (the previous
+  // version built one shared `itemDefaults` object first and had to
+  // defensively re-clone its array-valued entries per row - functionally
+  // the same outcome, this just never creates the shared reference in the
+  // first place). Recurses into any group nested directly inside this one.
+  function populateGroup(group: RuntimeGroupDescriptor, scope: Record<string, RuntimeValue>): void {
+    const directFields = fieldsByGroup.get(group.id) || [];
+    const nestedGroups = groupsByParent.get(group.id) || [];
+    scope[group.id] = Array.from({ length: group.repeatMin }, () => {
+      const row: Record<string, RuntimeValue> = {};
+      directFields.forEach((field) => {
+        if (field.defaultValue === undefined) return;
+        row[field.id] = field.repeatable ? [field.defaultValue] : field.defaultValue;
+      });
+      nestedGroups.forEach((nested) => populateGroup(nested, row));
+      return row;
+    }) as RuntimeValue;
+  }
+  (groupsByParent.get(undefined) || []).forEach((group) => populateGroup(group, values));
   fields.forEach((field) => {
     if (field.repeatableGroupId || field.defaultValue === undefined) return;
     values[field.id] = field.repeatable ? [field.defaultValue] : field.defaultValue;
@@ -667,28 +709,57 @@ const DRAFT_EXEMPT_ISSUE_CODES: ReadonlySet<RuntimeValidationIssue['code']> = ne
 
 export function validateRuntimeValues(form: Pick<CanonicalForm, 'layout' | 'locales'>, values: RuntimeValues, options?: RuntimeValidationOptions): RuntimeValidationResult {
   const issues: RuntimeValidationIssue[] = [];
-  const groups = new Map(collectRuntimeGroups(form).map((group) => [group.id, group]));
-  groups.forEach((group) => {
-    const repeated = values[group.id] === undefined ? [] : values[group.id];
+  const allGroups = collectRuntimeGroups(form);
+  const allFields = collectRuntimeFields(form);
+  // Recursive group-tree validation (P0.2 audit, 2026-09-05) - replaces two
+  // separate flat passes (one over every group checking `values[group.id]`,
+  // one over every field checking `values[field.repeatableGroupId]`) that
+  // both always looked at the TOP level regardless of nesting. A NESTED
+  // group's own rows live inside each of its parent's row objects, never
+  // at the top level - see RuntimeGroupDescriptor.parentGroupId's doc
+  // comment for the full writeup. Grouped the same way as
+  // createInitialRuntimeValues' own groupsByParent/fieldsByGroup maps, and
+  // deliberately built the same way so the two never drift apart.
+  const groupsByParent = new Map<string | undefined, RuntimeGroupDescriptor[]>();
+  allGroups.forEach((group) => {
+    const list = groupsByParent.get(group.parentGroupId);
+    if (list) list.push(group); else groupsByParent.set(group.parentGroupId, [group]);
+  });
+  const fieldsByGroup = new Map<string | undefined, RuntimeFieldDescriptor[]>();
+  allFields.forEach((field) => {
+    const list = fieldsByGroup.get(field.repeatableGroupId);
+    if (list) list.push(field); else fieldsByGroup.set(field.repeatableGroupId, [field]);
+  });
+  // `scope` is `values` for a top-level group, or one specific parent row
+  // object for a nested one; `pathPrefix` is that same row's own already-
+  // built path (undefined at the top level, where the group's bare id is
+  // the whole path). Field-visibility (isRuntimeFieldVisible) deliberately
+  // still checks the TOP-LEVEL `values` object regardless of nesting depth,
+  // matching this function's own pre-existing behavior for single-level
+  // groups (an enableWhen condition has never been able to reference a
+  // sibling within the same repeatable row) - unchanged by this refactor,
+  // not a new limitation introduced by it.
+  function validateGroup(group: RuntimeGroupDescriptor, scope: Record<string, RuntimeValue>, pathPrefix: string | undefined): void {
+    const groupPath = pathPrefix ? `${pathPrefix}.${group.id}` : group.id;
+    const repeated = scope[group.id] === undefined ? [] : scope[group.id];
     if (!Array.isArray(repeated)) {
-      issue(issues, group.id, 'type', `${group.label} requires repeated group entries.`);
+      issue(issues, groupPath, 'type', `${group.label} requires repeated group entries.`);
       return;
     }
-    if (repeated.length < group.repeatMin) issue(issues, group.id, 'repeat-min', `${group.label} requires at least ${group.repeatMin} entries.`);
-    if (group.repeatMax !== -1 && repeated.length > group.repeatMax) issue(issues, group.id, 'repeat-max', `${group.label} allows at most ${group.repeatMax} entries.`);
-  });
-  collectRuntimeFields(form).forEach((field) => {
-    if (!isRuntimeFieldVisible(field, values)) return;
-    if (field.repeatableGroupId) {
-      const repeated = values[field.repeatableGroupId];
-      if (!Array.isArray(repeated)) return;
-      repeated.forEach((item, index) => {
-        if (!isRecord(item)) {
-          issue(issues, `${field.repeatableGroupId}[${index}]`, 'type', `${groups.get(field.repeatableGroupId as string)?.label || field.repeatableGroupId} requires object entries.`);
-          return;
-        }
-        const value = item[field.id] as RuntimeValue;
-        const path = `${field.repeatableGroupId}[${index}].${field.id}`;
+    if (repeated.length < group.repeatMin) issue(issues, groupPath, 'repeat-min', `${group.label} requires at least ${group.repeatMin} entries.`);
+    if (group.repeatMax !== -1 && repeated.length > group.repeatMax) issue(issues, groupPath, 'repeat-max', `${group.label} allows at most ${group.repeatMax} entries.`);
+    const directFields = fieldsByGroup.get(group.id) || [];
+    const nestedGroups = groupsByParent.get(group.id) || [];
+    repeated.forEach((row, index) => {
+      const rowPath = `${groupPath}[${index}]`;
+      if (!isRecord(row)) {
+        issue(issues, rowPath, 'type', `${group.label} requires object entries.`);
+        return;
+      }
+      directFields.forEach((field) => {
+        if (!isRuntimeFieldVisible(field, values)) return;
+        const value = row[field.id] as RuntimeValue;
+        const path = `${rowPath}.${field.id}`;
         if (!field.repeatable) {
           validateOne(field, value, path, issues);
           return;
@@ -702,8 +773,13 @@ export function validateRuntimeValues(form: Pick<CanonicalForm, 'layout' | 'loca
         if (field.repeatMax !== -1 && fieldRepeated.length > field.repeatMax) issue(issues, path, 'repeat-max', `${field.label} allows at most ${field.repeatMax} entries.`);
         fieldRepeated.forEach((entry, entryIndex) => validateOne(field, entry, `${path}[${entryIndex}]`, issues));
       });
-      return;
-    }
+      nestedGroups.forEach((nested) => validateGroup(nested, row, rowPath));
+    });
+  }
+  (groupsByParent.get(undefined) || []).forEach((group) => validateGroup(group, values, undefined));
+  allFields.forEach((field) => {
+    if (field.repeatableGroupId) return;
+    if (!isRuntimeFieldVisible(field, values)) return;
     const value = values[field.id];
     if (!field.repeatable) { validateOne(field, value, field.id, issues); return; }
     const repeated = value === undefined ? [] : value;
