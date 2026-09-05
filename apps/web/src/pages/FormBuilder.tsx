@@ -2558,6 +2558,29 @@ function FormBuilderContent() {
                                         <span className="inspector-checkbox-label">Initially Collapsed</span>
                                       </label>
                                     )}
+                                    {activeEditElement.custom_metadata?.repeatable === true && (
+                                      <div className="inspector-field-group" style={{ marginTop: '0.4rem' }}>
+                                        <label>Anzeigemodus</label>
+                                        <select
+                                          className="inspector-input"
+                                          value={activeEditElement.custom_metadata?.displayMode || 'cards'}
+                                          onChange={(e) => {
+                                            const updated = {
+                                              ...activeEditElement,
+                                              custom_metadata: {
+                                                ...(activeEditElement.custom_metadata || {}),
+                                                displayMode: e.target.value === 'table' ? 'table' : 'cards'
+                                              }
+                                            };
+                                            updateElementFnRef.current?.(updated);
+                                            setActiveEditElement(updated);
+                                          }}
+                                        >
+                                          <option value="cards">Karten (eine pro Eintrag)</option>
+                                          <option value="table">Tabelle (kompakt)</option>
+                                        </select>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
 

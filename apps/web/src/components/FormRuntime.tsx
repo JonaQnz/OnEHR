@@ -121,6 +121,27 @@ function idOf(node: FormElementLayout): string | undefined {
   return node.id || node.name;
 }
 
+/** Flattens a repeatable container's own children down to its actual LEAF
+ * fields, descending through any 'row'/'column'/plain-container structural
+ * wrapper (see NON_FIELD_LAYOUT_TYPES) - used for a 'table' displayMode
+ * group's own column set (P0.2 audit, 2026-09-05). A real archetype-driven
+ * layout always nests a field at least one row/column deep (container >
+ * row > column > field), so without this flattening step, table mode would
+ * never find any columns at all on a real form. Does NOT descend into a
+ * nested repeatable container - one table cell rendering another whole
+ * repeatable group makes no sense, and nested repeats aren't even
+ * supported yet (see [[p02-repeatables-audit-and-first-fixes]]). */
+function collectTableColumns(node: FormElementLayout): FormElementLayout[] {
+  const columns: FormElementLayout[] = [];
+  const walk = (current: FormElementLayout) => {
+    if (current !== node && current.type === 'container' && current.repeatable === true) return;
+    if (!CoreRuntime.NON_FIELD_LAYOUT_TYPES.has(current.type)) { columns.push(current); return; }
+    current.children?.forEach(walk);
+  };
+  node.children?.forEach(walk);
+  return columns;
+}
+
 function inputType(node: FormElementLayout): string {
   if (node.type === 'input-date-time') return 'datetime-local';
   if (node.type === 'input-time') return 'time';
@@ -1203,7 +1224,14 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     return <input style={style} type={inputType(node)} autoComplete="off" disabled={disabled} value={String(value ?? '')} placeholder={node.placeholder || ''} onChange={eventValue} />;
   };
 
-  const renderField = (node: FormElementLayout, groupContext?: GroupContext): ReactNode => {
+  // `compact`: table display mode's own cell rendering (P0.2 audit,
+  // 2026-09-05) - the label/help-text block is dropped (the column header
+  // already carries the label) and the whole field gets a tight wrapper
+  // instead of the card layout's `marginBottom: '1.15rem'` block. Every
+  // other behavior (repeatable sub-fields, issues, provenance) is
+  // unchanged - a table cell is still a full field, just without its own
+  // heading.
+  const renderField = (node: FormElementLayout, groupContext?: GroupContext, compact = false): ReactNode => {
     const id = idOf(node);
     if (!id) return null;
     const field = fieldById.get(id);
@@ -1278,26 +1306,8 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
       : repeated;
 
     const thisFieldProvenance = groupContext ? undefined : fieldProvenance[id];
-    return (
-      <div key={basePath} style={{ marginBottom: '1.15rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-          <label style={{ fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>
-              {effectiveField.label}
-              {effectiveField.required && <span style={{ color: '#dc2626' }}> *</span>}
-            </span>
-            {thisFieldProvenance && (
-              <span
-                title={thisFieldProvenance.timestamp ? `Aus AQL geladen: ${new Date(thisFieldProvenance.timestamp).toLocaleString('de-DE')}` : 'Aus AQL geladen'}
-                style={{ fontSize: '0.72rem', fontWeight: 500, color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '999px', padding: '0.05rem 0.55rem' }}
-              >
-                ⤓ {thisFieldProvenance.source}{thisFieldProvenance.timestamp ? ` · ${new Date(thisFieldProvenance.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : ''}
-              </span>
-            )}
-          </label>
-          <ExtensionSlot name="form:field:actions" context={{ fieldId: id, groupId: groupContext?.groupId, rowIndex: groupContext?.index, readOnly }} />
-        </div>
-        {effectiveField.description && <div style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '0.4rem' }}>{effectiveField.description}</div>}
+    const body = (
+      <>
         {effectiveField.repeatable ? <>{displayValues.map((item, index) => renderSingle(item, index))}<button type="button" disabled={readOnly || groupContext?.disabled || (effectiveField.repeatMax !== -1 && repeated.length >= effectiveField.repeatMax)} onClick={() => commit([...repeated, undefined])} style={{ border: '1px dashed #94a3b8', background: 'transparent', borderRadius: '6px', padding: '0.45rem 0.75rem', color: '#475569', cursor: 'pointer' }}>+ {effectiveField.label}</button></> : renderSingle(fieldValue)}
         {visibleIssues.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.35rem' }}>
@@ -1319,6 +1329,30 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
             })}
           </div>
         )}
+      </>
+    );
+    if (compact) return <div key={basePath}>{body}</div>;
+    return (
+      <div key={basePath} style={{ marginBottom: '1.15rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+          <label style={{ fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>
+              {effectiveField.label}
+              {effectiveField.required && <span style={{ color: '#dc2626' }}> *</span>}
+            </span>
+            {thisFieldProvenance && (
+              <span
+                title={thisFieldProvenance.timestamp ? `Aus AQL geladen: ${new Date(thisFieldProvenance.timestamp).toLocaleString('de-DE')}` : 'Aus AQL geladen'}
+                style={{ fontSize: '0.72rem', fontWeight: 500, color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '999px', padding: '0.05rem 0.55rem' }}
+              >
+                ⤓ {thisFieldProvenance.source}{thisFieldProvenance.timestamp ? ` · ${new Date(thisFieldProvenance.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : ''}
+              </span>
+            )}
+          </label>
+          <ExtensionSlot name="form:field:actions" context={{ fieldId: id, groupId: groupContext?.groupId, rowIndex: groupContext?.index, readOnly }} />
+        </div>
+        {effectiveField.description && <div style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '0.4rem' }}>{effectiveField.description}</div>}
+        {body}
       </div>
     );
   };
@@ -1391,6 +1425,124 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
           swapRowKeys(id, index, target);
           replaceGroupRows(id, nextRows);
         };
+        const rowActions = (index: number, row: GroupRow) => (
+          <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+            <button
+              type="button"
+              title="Nach oben verschieben"
+              aria-label="Nach oben verschieben"
+              disabled={groupDisabled || index === 0}
+              onClick={() => moveRow(index, -1)}
+              style={{ border: 0, background: 'transparent', color: '#475569', cursor: 'pointer', padding: '0.15rem 0.4rem' }}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              title="Nach unten verschieben"
+              aria-label="Nach unten verschieben"
+              disabled={groupDisabled || index === rows.length - 1}
+              onClick={() => moveRow(index, 1)}
+              style={{ border: 0, background: 'transparent', color: '#475569', cursor: 'pointer', padding: '0.15rem 0.4rem' }}
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              disabled={groupDisabled || maximumReached}
+              onClick={() => duplicateRow(index)}
+              style={{ border: 0, background: 'transparent', color: '#475569', cursor: 'pointer' }}
+            >
+              Duplizieren
+            </button>
+            <button
+              type="button"
+              disabled={groupDisabled || rows.length <= (descriptor?.repeatMin || 0)}
+              onClick={() => {
+                markChanged(id);
+                removeRowKey(id, index);
+                replaceGroupRows(
+                  id,
+                  rows.filter((_item, itemIndex) => itemIndex !== index),
+                  { type: 'remove', index, item: row },
+                );
+              }}
+              style={{ border: 0, background: 'transparent', color: '#b91c1c', cursor: 'pointer' }}
+            >
+              Entfernen
+            </button>
+          </div>
+        );
+        const addRowButton = <button type="button" disabled={groupDisabled || maximumReached} onClick={addRow} style={{ border: '1px dashed #94a3b8', background: 'transparent', borderRadius: '6px', padding: '0.45rem 0.75rem', color: '#475569', cursor: 'pointer' }}>+ Eintrag hinzufügen</button>;
+        const groupIssuesFooter = validation.issues.filter((issue) => issue.path === id && (alwaysShowValidation || (isBlockingIssue(issue) ? submitted : touchedFields[id] !== undefined))).map((issue, index) => {
+          const warning = !isBlockingIssue(issue);
+          return (
+            <div
+              key={`${id}-group-issue-${index}`}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: '0.35rem', marginTop: '0.35rem',
+                fontSize: '0.8rem', color: warning ? '#b45309' : '#b91c1c', background: warning ? '#fef3c7' : '#fee2e2',
+                border: `1px solid ${warning ? '#fde68a' : '#fecaca'}`, borderRadius: '5px', padding: '0.3rem 0.55rem',
+              }}
+            >
+              <span aria-hidden="true">{warning ? '⚠' : '⨯'}</span>
+              <span>{issue.message}</span>
+            </div>
+          );
+        });
+
+        // Table mode (P0.2 audit, 2026-09-05): one column per LEAF field,
+        // flattening through any row/column/plain-container wrappers (see
+        // collectTableColumns) - a repeatable CLUSTER of short, simple
+        // fields (a medication list, a lab-result panel) is often more
+        // naturally scanned as a table than scrolled through as N separate
+        // cards. Falls back to the existing card layout below whenever
+        // displayMode isn't explicitly 'table' - fully opt-in, no visual
+        // change for any existing form.
+        if (node.displayMode === 'table') {
+          const columns = collectTableColumns(node);
+          return (
+            <section key={key} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <h3 style={{ margin: 0 }}>{node.label || id}</h3>
+                <ExtensionSlot name="form:group:actions" context={{ groupId: id, label: node.label, readOnly: groupDisabled }} />
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      {columns.map((column, columnIndex) => {
+                        const columnField = fieldById.get(idOf(column) || '');
+                        return (
+                          <th key={idOf(column) || columnIndex} style={{ textAlign: 'left', padding: '0.4rem 0.5rem', borderBottom: '2px solid #e2e8f0', fontSize: '0.85rem', color: '#475569' }}>
+                            {columnField?.label || column.label || idOf(column)}
+                            {columnField?.required && <span style={{ color: '#dc2626' }}> *</span>}
+                          </th>
+                        );
+                      })}
+                      <th style={{ borderBottom: '2px solid #e2e8f0' }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, index) => (
+                      <tr key={rowKeys[index]} style={{ background: index % 2 === 1 ? '#f8fafc' : undefined }}>
+                        {columns.map((column, columnIndex) => (
+                          <td key={idOf(column) || columnIndex} style={{ padding: '0.4rem 0.5rem', borderBottom: '1px solid #e2e8f0', verticalAlign: 'top' }}>
+                            {renderField(column, { groupId: id, index, row, disabled: groupDisabled }, true)}
+                          </td>
+                        ))}
+                        <td style={{ padding: '0.4rem 0.5rem', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>{rowActions(index, row)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ marginTop: '0.75rem' }}>{addRowButton}</div>
+              {groupIssuesFooter}
+            </section>
+          );
+        }
+
         return (
           <section key={key} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
@@ -1401,52 +1553,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
               <div key={rowKeys[index]} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '0.75rem', background: '#f8fafc' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                   <strong>{node.label || id} {index + 1}</strong>
-                  <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
-                    <button
-                      type="button"
-                      title="Nach oben verschieben"
-                      aria-label="Nach oben verschieben"
-                      disabled={groupDisabled || index === 0}
-                      onClick={() => moveRow(index, -1)}
-                      style={{ border: 0, background: 'transparent', color: '#475569', cursor: 'pointer', padding: '0.15rem 0.4rem' }}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      title="Nach unten verschieben"
-                      aria-label="Nach unten verschieben"
-                      disabled={groupDisabled || index === rows.length - 1}
-                      onClick={() => moveRow(index, 1)}
-                      style={{ border: 0, background: 'transparent', color: '#475569', cursor: 'pointer', padding: '0.15rem 0.4rem' }}
-                    >
-                      ↓
-                    </button>
-                    <button
-                      type="button"
-                      disabled={groupDisabled || maximumReached}
-                      onClick={() => duplicateRow(index)}
-                      style={{ border: 0, background: 'transparent', color: '#475569', cursor: 'pointer' }}
-                    >
-                      Duplizieren
-                    </button>
-                    <button
-                      type="button"
-                      disabled={groupDisabled || rows.length <= (descriptor?.repeatMin || 0)}
-                      onClick={() => {
-                        markChanged(id);
-                        removeRowKey(id, index);
-                        replaceGroupRows(
-                          id,
-                          rows.filter((_item, itemIndex) => itemIndex !== index),
-                          { type: 'remove', index, item: row },
-                        );
-                      }}
-                      style={{ border: 0, background: 'transparent', color: '#b91c1c', cursor: 'pointer' }}
-                    >
-                      Entfernen
-                    </button>
-                  </div>
+                  {rowActions(index, row)}
                 </div>
                 {node.children?.map((child, childIndex) => renderNode(child, `${key}-${index}-${childIndex}`, {
                   groupId: id,
@@ -1456,23 +1563,8 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
                 }))}
               </div>
             ))}
-            <button type="button" disabled={groupDisabled || maximumReached} onClick={addRow} style={{ border: '1px dashed #94a3b8', background: 'transparent', borderRadius: '6px', padding: '0.45rem 0.75rem', color: '#475569', cursor: 'pointer' }}>+ Eintrag hinzufügen</button>
-            {validation.issues.filter((issue) => issue.path === id && (alwaysShowValidation || (isBlockingIssue(issue) ? submitted : touchedFields[id] !== undefined))).map((issue, index) => {
-              const warning = !isBlockingIssue(issue);
-              return (
-                <div
-                  key={`${id}-group-issue-${index}`}
-                  style={{
-                    display: 'flex', alignItems: 'flex-start', gap: '0.35rem', marginTop: '0.35rem',
-                    fontSize: '0.8rem', color: warning ? '#b45309' : '#b91c1c', background: warning ? '#fef3c7' : '#fee2e2',
-                    border: `1px solid ${warning ? '#fde68a' : '#fecaca'}`, borderRadius: '5px', padding: '0.3rem 0.55rem',
-                  }}
-                >
-                  <span aria-hidden="true">{warning ? '⚠' : '⨯'}</span>
-                  <span>{issue.message}</span>
-                </div>
-              );
-            })}
+            {addRowButton}
+            {groupIssuesFooter}
           </section>
         );
       }

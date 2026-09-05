@@ -285,7 +285,8 @@ export function canonicalToFormBuilder(form: CanonicalForm): any[] {
           repeatMax: node.repeatMax,
           repeatable: node.repeatable || false,
           collapsible: (node as any).collapsible,
-          initiallyCollapsed: (node as any).initiallyCollapsed
+          initiallyCollapsed: (node as any).initiallyCollapsed,
+          displayMode: node.displayMode
         }
       };
       if (parentId) {
@@ -587,6 +588,9 @@ export function formBuilderToCanonical(items: any[], originalForm: CanonicalForm
       }
       if (meta.initiallyCollapsed !== undefined) {
         (result as any).initiallyCollapsed = meta.initiallyCollapsed;
+      }
+      if (meta.displayMode !== undefined) {
+        result.displayMode = meta.displayMode;
       }
       return result;
     }

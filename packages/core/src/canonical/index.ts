@@ -179,6 +179,18 @@ export interface FormElementLayout {
   repeatMin?: number;
   repeatMax?: number;
   repeatable?: boolean;
+  /** A repeatable container's own display mode (P0.2 audit, 2026-09-05) -
+   * only ever consulted when `repeatable` is true. Absent/'cards' (the
+   * only mode that existed before this) stacks each instance as its own
+   * bordered card, unchanged default. 'table' instead renders one row per
+   * instance and one column per LEAF field found by flattening through any
+   * row/column/plain-container wrappers (see FormRuntime.tsx's
+   * collectTableColumns) - a real archetype's repeatable CLUSTER (a
+   * medication list, a lab-result panel) is often naturally tabular, and
+   * the card layout wastes a lot of vertical space scrolling through many
+   * short instances. A field that's itself repeatable still renders its
+   * own add/remove sub-list inside that one cell, unchanged. */
+  displayMode?: 'cards' | 'table';
   /** Never rendered to the user, in any mode - the field only carries a
    * fixed/derived value (defaultValue) straight through to submission.
    * For administrative/structural fields a clinician should never need to
