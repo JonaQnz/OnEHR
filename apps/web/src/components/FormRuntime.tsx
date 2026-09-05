@@ -621,6 +621,63 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   const [pendingPrefillConflicts, setPendingPrefillConflicts] = useState<PrefillConflictItem[]>([]);
   const valuesRef = useRef(values);
   const nonPersistedIdsRef = useRef(new Set<string>());
+  // Stable per-row React keys for repeatable groups (P0.2 audit, 2026-09-05).
+  // Rows themselves carry no identity beyond array position (neither
+  // openEHR's own repeating-structural-node RM shape nor this app's
+  // `values[groupId] = GroupRow[]` convention has one, and adding a real
+  // `_id` field onto GroupRow would need stripping everywhere it's ever
+  // serialized or exposed to Form Scripts). Keying each rendered row by
+  // `${groupId}-${index}` (the previous approach) meant removing/reordering
+  // any row but the last one reassigns every following row's React key to a
+  // DIFFERENT row's data - React then reuses that DOM subtree's internal
+  // state (any uncontrolled input's cursor position, an expanded/collapsed
+  // accordion, in-flight terminology-search dropdown state, ...) for what
+  // is now a different clinical entry. Purely a rendering-identity concern,
+  // never touches `values` or goes anywhere near serialization - a parallel
+  // array of generated keys, index-aligned with the CURRENT rows array and
+  // kept in sync by every mutation (add/remove/duplicate/reorder) below.
+  const rowKeysRef = useRef<Record<string, string[]>>({});
+  const newRowKey = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2, 12));
+  /** Lazily grows/shrinks a group's key array to match `count`, generating
+   * a fresh key for any brand-new index (initial load/prefill/edit-mode
+   * reload never goes through addRow/duplicateRow, so this is the only
+   * place a group's very first key set gets created). Never shrinks by
+   * removing from the middle itself - callers that remove/reorder a
+   * specific row splice/move this array explicitly, in lockstep with the
+   * matching `rows` mutation, before this ever gets a chance to just
+   * truncate the tail. */
+  const rowKeysFor = (groupId: string, count: number): string[] => {
+    const current = rowKeysRef.current[groupId] || [];
+    if (current.length === count) return current;
+    const next = current.slice(0, count);
+    while (next.length < count) next.push(newRowKey());
+    rowKeysRef.current[groupId] = next;
+    return next;
+  };
+  /** Splices out the key at `index` - must run before the next render's
+   * `rowKeysFor` call for a row removal, or that call's own naive
+   * length-mismatch handling (truncate the tail) would drop the wrong
+   * row's key instead of the removed one's. */
+  const removeRowKey = (groupId: string, index: number) => {
+    const current = rowKeysRef.current[groupId] || [];
+    rowKeysRef.current[groupId] = current.filter((_key, i) => i !== index);
+  };
+  /** Inserts a fresh key right after `index` - for a duplicated row landing
+   * immediately below its source. */
+  const insertRowKeyAfter = (groupId: string, index: number) => {
+    const current = rowKeysRef.current[groupId] || [];
+    const next = current.slice();
+    next.splice(index + 1, 0, newRowKey());
+    rowKeysRef.current[groupId] = next;
+  };
+  /** Swaps the keys at two indices - keeps each row's identity attached to
+   * its own data when reordering, rather than a row's key silently
+   * following its old array slot. */
+  const swapRowKeys = (groupId: string, indexA: number, indexB: number) => {
+    const current = (rowKeysRef.current[groupId] || []).slice();
+    [current[indexA], current[indexB]] = [current[indexB], current[indexA]];
+    rowKeysRef.current[groupId] = current;
+  };
   const scriptClientRef = useRef<FormScriptClient | null>(null);
   const formScript = 'formScript' in definition ? definition.formScript : undefined;
   const scriptIds = useMemo(() => CoreRuntime.collectFormScriptSchemaIds(definition), [definition]);
@@ -1293,6 +1350,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
       if (node.type === 'container' && node.repeatable === true && id) {
         const descriptor = groupById.get(id);
         const rows = rowsOf(values[id]);
+        const rowKeys = rowKeysFor(id, rows.length);
         const maximumReached = descriptor?.repeatMax !== -1
           && descriptor?.repeatMax !== undefined
           && rows.length >= descriptor.repeatMax;
@@ -1305,6 +1363,34 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
           });
           replaceGroupRows(id, [...rows, row], { type: 'add', index: rows.length, item: row });
         };
+        // Duplicate: a deep-ish copy (repeatable sub-fields' own arrays
+        // still need their own new array, same reasoning as
+        // buildRepeatableDefaults' shallow-copy fix elsewhere) so editing
+        // the copy never mutates the source row through a shared reference.
+        const duplicateRow = (index: number) => {
+          markChanged(id);
+          const source = rows[index];
+          const copy: GroupRow = {};
+          Object.entries(source).forEach(([fieldId, fieldValue]) => {
+            copy[fieldId] = Array.isArray(fieldValue) ? [...fieldValue] : fieldValue;
+          });
+          const nextRows = rows.slice();
+          nextRows.splice(index + 1, 0, copy);
+          insertRowKeyAfter(id, index);
+          replaceGroupRows(id, nextRows, { type: 'add', index: index + 1, item: copy });
+        };
+        // Reorder: swaps two adjacent rows in place - no add/remove Form
+        // Script event fires (nothing was added or removed, see
+        // replaceGroupRows' own `!action` branch), just a plain values sync.
+        const moveRow = (index: number, direction: -1 | 1) => {
+          const target = index + direction;
+          if (target < 0 || target >= rows.length) return;
+          markChanged(id);
+          const nextRows = rows.slice();
+          [nextRows[index], nextRows[target]] = [nextRows[target], nextRows[index]];
+          swapRowKeys(id, index, target);
+          replaceGroupRows(id, nextRows);
+        };
         return (
           <section key={key} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
@@ -1312,24 +1398,55 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
               <ExtensionSlot name="form:group:actions" context={{ groupId: id, label: node.label, readOnly: groupDisabled }} />
             </div>
             {rows.map((row, index) => (
-              <div key={`${id}-${index}`} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '0.75rem', background: '#f8fafc' }}>
+              <div key={rowKeys[index]} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '0.75rem', background: '#f8fafc' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                   <strong>{node.label || id} {index + 1}</strong>
-                  <button
-                    type="button"
-                    disabled={groupDisabled || rows.length <= (descriptor?.repeatMin || 0)}
-                    onClick={() => {
-                      markChanged(id);
-                      replaceGroupRows(
-                        id,
-                        rows.filter((_item, itemIndex) => itemIndex !== index),
-                        { type: 'remove', index, item: row },
-                      );
-                    }}
-                    style={{ border: 0, background: 'transparent', color: '#b91c1c', cursor: 'pointer' }}
-                  >
-                    Entfernen
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      title="Nach oben verschieben"
+                      aria-label="Nach oben verschieben"
+                      disabled={groupDisabled || index === 0}
+                      onClick={() => moveRow(index, -1)}
+                      style={{ border: 0, background: 'transparent', color: '#475569', cursor: 'pointer', padding: '0.15rem 0.4rem' }}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      title="Nach unten verschieben"
+                      aria-label="Nach unten verschieben"
+                      disabled={groupDisabled || index === rows.length - 1}
+                      onClick={() => moveRow(index, 1)}
+                      style={{ border: 0, background: 'transparent', color: '#475569', cursor: 'pointer', padding: '0.15rem 0.4rem' }}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      disabled={groupDisabled || maximumReached}
+                      onClick={() => duplicateRow(index)}
+                      style={{ border: 0, background: 'transparent', color: '#475569', cursor: 'pointer' }}
+                    >
+                      Duplizieren
+                    </button>
+                    <button
+                      type="button"
+                      disabled={groupDisabled || rows.length <= (descriptor?.repeatMin || 0)}
+                      onClick={() => {
+                        markChanged(id);
+                        removeRowKey(id, index);
+                        replaceGroupRows(
+                          id,
+                          rows.filter((_item, itemIndex) => itemIndex !== index),
+                          { type: 'remove', index, item: row },
+                        );
+                      }}
+                      style={{ border: 0, background: 'transparent', color: '#b91c1c', cursor: 'pointer' }}
+                    >
+                      Entfernen
+                    </button>
+                  </div>
                 </div>
                 {node.children?.map((child, childIndex) => renderNode(child, `${key}-${index}-${childIndex}`, {
                   groupId: id,
