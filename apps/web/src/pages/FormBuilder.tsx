@@ -3407,7 +3407,21 @@ function FormBuilderContent() {
                           <div className="inspector-read-only-box">
                             <div className="inspector-read-only-row">
                               <span className="inspector-read-only-label">Aktueller Modus:</span>
-                              <span className="inspector-read-only-value">{form.canonical_json.settings?.submission?.mode === 'workflow' ? `Workflow (${form.canonical_json.settings.submission.workflow?.engine || 'unbekannt'})` : 'Direkt EHRbase'}</span>
+                              <span className="inspector-read-only-value">
+                                {form.canonical_json.settings?.submission?.mode === 'workflow'
+                                  ? `Workflow (${form.canonical_json.settings.submission.workflow?.engine || 'unbekannt'})`
+                                  // A form's submission ROUTE (mode/providerId) and its lifecycle
+                                  // hooks are independent - a form can submit straight to EHRbase
+                                  // while beforeSave/afterSave/etc. still fire through n8n (see
+                                  // registerHook's own `workflow.engine !== 'n8n'` gate, decoupled
+                                  // from mode/providerId on purpose). Showing plain "Direkt EHRbase"
+                                  // here for that case hid real, active integration behavior -
+                                  // confirmed live on "Diagnose (Basis)" (submit off, 4 lifecycle
+                                  // hooks on).
+                                  : form.canonical_json.settings?.submission?.workflow?.engine === 'n8n'
+                                    ? 'Direkt EHRbase (+ n8n Lifecycle-Hooks aktiv)'
+                                    : 'Direkt EHRbase'}
+                              </span>
                             </div>
                             {(form.canonical_json.settings?.submission?.workflow?.publicWebhookUrl || form.canonical_json.settings?.submission?.workflow?.webhookUrl) && <div className="inspector-read-only-row"><span className="inspector-read-only-label">Webhook:</span><span className="inspector-read-only-value" style={{ wordBreak: 'break-all' }}>{form.canonical_json.settings.submission.workflow.publicWebhookUrl || form.canonical_json.settings.submission.workflow.webhookUrl}</span></div>}
                           </div>

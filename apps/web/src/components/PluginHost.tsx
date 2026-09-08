@@ -129,8 +129,6 @@ export default function PluginHost({ slot, context = {}, title, scope, onResult,
     return () => { active = false; };
   }, [snapshot, slot, scope]);
   const contributions = useMemo(() => (snapshot?.contributions || []).filter((item) => item.extensionPoint === slot && item.placement !== 'hidden' && (!scope || item.scope === scope || (scope === 'form' && !item.scope))), [snapshot, slot, scope]);
-  const submission = objectValue(readPath(context.form || {}, 'settings.submission'));
-  const isN8nForm = submission.mode === 'workflow' && submission.providerId === 'n8n';
 
   const execute = async (contribution: PluginContribution) => {
     if (!contribution.actionId) return;
@@ -172,7 +170,19 @@ export default function PluginHost({ slot, context = {}, title, scope, onResult,
         {contributions.map((contribution) => {
           const action = Boolean(contribution.actionId) && ['settings', 'runtime', 'form'].includes(slot);
           return <div key={contribution.key} style={{ flex: '1 1 100%' }}>
-            {slot === 'settings' && contribution.scope === 'form' && contribution.formSettingsPath && isN8nForm && <FormSettingsEditor context={context} contribution={contribution} visibleKeys={globalWebhookKeys} onResult={onResult} disabled={disabled || Boolean(busy)} />}
+            {/* Real, live-reported bug fixed here (2026-09-08): was also
+                gated on `submission.mode === 'workflow' && submission.
+                providerId === 'n8n'` ("isN8nForm") - a circular dependency,
+                since that state is only ever REACHED by using the "submit"
+                toggle that lives INSIDE this very panel. A form with only
+                lifecycle hooks active (submit off, providerId back to
+                'ehrbase') also lost access to its own already-configured
+                switches entirely. This contribution is already n8n's own
+                form-scoped settings panel (filtered by `contribution.scope
+                === 'form'` above) - nothing more to gate it behind; a
+                brand-new form with nothing provisioned yet must be able to
+                see it too, to turn anything on in the first place. */}
+            {slot === 'settings' && contribution.scope === 'form' && contribution.formSettingsPath && <FormSettingsEditor context={context} contribution={contribution} visibleKeys={globalWebhookKeys} onResult={onResult} disabled={disabled || Boolean(busy)} />}
             {action ? <button className="btn btn-secondary" type="button" disabled={Boolean(busy) || disabled} onClick={() => void execute(contribution)}>
               {busy === contribution.key ? 'Wird ausgeführt…' : contribution.label || contribution.key}
             </button> : <span className="badge badge-draft" title={contribution.propertySchema ? JSON.stringify(contribution.propertySchema) : contribution.key}>

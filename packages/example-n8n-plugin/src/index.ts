@@ -193,7 +193,7 @@ function submissionSettings(form: JsonObject, workflowId: string, urls: { intern
 const plugin: FormBuilderPlugin = {
   manifest: {
     id: 'org.example.n8n',
-    version: '1.4.0',
+    version: '1.4.1',
     apiVersion: '1.0',
     name: 'Example n8n Workflow',
     description: 'Provisioniert pro Formular einen sicheren Webhook-Workflow mit standardisiertem Ergebnisvertrag.',
@@ -264,12 +264,15 @@ const plugin: FormBuilderPlugin = {
       context.registerHook(hook as PluginHookName, async (hookContext) => {
         const settings = hookContext.form.settings && typeof hookContext.form.settings === 'object' && !Array.isArray(hookContext.form.settings) ? hookContext.form.settings as JsonObject : {};
         const submission = settings.submission && typeof settings.submission === 'object' && !Array.isArray(settings.submission) ? settings.submission as JsonObject : {};
-        if (submission.mode !== 'workflow' || submission.providerId !== 'n8n') return {};
+        const workflow = submission.workflow && typeof submission.workflow === 'object' && !Array.isArray(submission.workflow) ? submission.workflow as JsonObject : {};
+        // Lifecycle webhooks are independent of the submission provider. A
+        // form may keep submitting to EHRbase while n8n handles before/after
+        // hooks, so mode/providerId must not gate lifecycle dispatch.
+        if (workflow.engine !== 'n8n') return {};
         context.requirePermission('network:request');
         const pluginSettings = context.getSettings() as JsonObject;
         const apiKey = pluginSetting(pluginSettings, 'apiKey') || environment('N8N_API_KEY');
         if (!apiKey) return { errors: [{ path: 'n8n.apiKey', message: 'N8N_API_KEY ist nicht konfiguriert.' }] };
-        const workflow = submission.workflow && typeof submission.workflow === 'object' && !Array.isArray(submission.workflow) ? submission.workflow as JsonObject : {};
         if (!workflow.hooks || typeof workflow.hooks !== 'object' || Array.isArray(workflow.hooks)) return {};
         const hooks = workflow.hooks as JsonObject;
         const endpoint = text(hooks[hook]);
