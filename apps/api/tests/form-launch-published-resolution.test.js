@@ -93,6 +93,29 @@ test('launching an archived formId resolves to the latest published sibling unde
   } finally { store.restore(); }
 });
 
+// Real bug, live-reported ("Die gestartete Session gehört nicht zu diesem
+// Formular", recurring on Diagnose/Prozedur - both republished often): the
+// session correctly resolved to the latest published sibling above, but
+// `launchUrl` kept embedding the raw, unresolved (possibly-archived)
+// `formId` instead - LiveForm.tsx then re-fetched THAT archived record by
+// its own exact id, compared the session's real (resolved) formId against
+// it, and never matched, so the "session doesn't belong to this form"
+// guard fired on every launch through an archived block reference, not
+// just a genuine race. Fixed by using the resolved `form.id`, matching
+// what the session itself already used.
+test('launchUrl embeds the RESOLVED published sibling\'s id, not the raw (possibly archived) formId the request came in with', async () => {
+  const forms = [
+    formRow({ id: 'person-v1', parentId: 'person-v1', status: 'archived', createdAt: new Date('2026-08-31T19:13:01.000Z') }),
+    formRow({ id: 'person-v1-1', parentId: 'person-v1', status: 'published', createdAt: new Date('2026-09-02T07:03:32.000Z') }),
+  ];
+  const store = installStore(forms);
+  try {
+    const result = await launch.launchForm({ formId: 'person-v1', patient: { id: 'patient-1' }, mode: 'create' }, actor);
+    assert.match(result.launchUrl, /^\/embed\/forms\/person-v1-1\?/);
+    assert.doesNotMatch(result.launchUrl, /^\/embed\/forms\/person-v1\?/, 'must not embed the stale, archived formId');
+  } finally { store.restore(); }
+});
+
 test('launching an already-published formId is unaffected - resolves to itself, not some other sibling', async () => {
   const forms = [
     formRow({ id: 'person-v1-1', parentId: 'person-v1', status: 'published', createdAt: new Date('2026-09-02T07:03:32.000Z') }),

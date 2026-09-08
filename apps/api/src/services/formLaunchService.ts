@@ -115,6 +115,22 @@ export async function launchForm(input: FormLaunchRequest, actor: SessionActor):
   return {
     protocolVersion: FORM_LAUNCH_PROTOCOL_VERSION,
     session,
-    launchUrl: `/embed/forms/${encodeURIComponent(formId)}?${query.toString()}`,
+    // Real bug, live-reported ("Die gestartete Session gehört nicht zu
+    // diesem Formular", recurring on Diagnose/Prozedur - both republished
+    // often): must be `form.id` (the resolved, currently-published row the
+    // session was actually created against), not the raw `formId` this
+    // request came in with. Whenever a Composition block's own configured
+    // formId is an archived sibling (the exact scenario the resolution
+    // block above exists to handle), `form.id` differs from `formId` - the
+    // session already correctly used `form.id`, but the URL kept pointing
+    // at the stale, unresolved one. LiveForm.tsx then re-fetched that
+    // ARCHIVED form by its exact id (its own `/forms/parent/:id/latest-
+    // published` lookup fails first, since an archived version's own id is
+    // not a real parent_id, then falls back to the exact-id fetch) and
+    // compared the session's real formId against that archived record's
+    // own id/parent_id - neither of which is the currently-published
+    // sibling the session actually points to, so the mismatch guard fired
+    // on every such launch, not just on a genuine race.
+    launchUrl: `/embed/forms/${encodeURIComponent(form.id)}?${query.toString()}`,
   };
 }
