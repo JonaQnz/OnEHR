@@ -43,7 +43,9 @@ Designing at the Form Section level keeps clinical building blocks small, testab
 - **openEHR WebTemplate Integration** — Import openEHR WebTemplates and automatically generate structured, editable form models while preserving clinical semantics.
 - **Mapping Inspector** — Inspect and customize openEHR paths, RM types, metadata, and field mappings directly within the designer.
 - **Portable Form Definitions** — Create reusable, versioned form packages that can be shared, embedded, and deployed across different applications.
-- **Repeatable Groups** — Model fixed or variable-length repeating structures (e.g. a lab panel's analyte rows) with `repeatMin`/`repeatMax` and script-driven pre-fill.
+- **Repeatable Groups** — Model fixed or variable-length repeating structures (e.g. a lab panel's analyte rows) with `repeatMin`/`repeatMax`, script-driven pre-fill, add/duplicate/remove/reorder controls, and a per-group card or compact table display mode.
+- **openEHR Constraint Completeness** — Broad, archetype-driven RM Data Type coverage (DV_QUANTITY, DV_PROPORTION, DV_ORDINAL, DV_CODED_TEXT unions, DV_INTERVAL, DV_IDENTIFIER, and more) with real magnitude range/precision validation pulled straight from the WebTemplate, not just a generic text box.
+- **Terminology Binding** — Bind a field to a codeable terminology (ICD-10-GM, OPS, SNOMED, or your own custom code lists) with live search/autocomplete, server-side code validation, and versioned custom terminology authoring — all through a provider-neutral core contract, decoupled from any specific terminology server.
 
 ### Runtime
 
@@ -67,6 +69,8 @@ Designing at the Form Section level keeps clinical building blocks small, testab
 - **Clinical Data Widgets** — Build read-only "show me patient data" cards (`DataWidget`) driven by AQL functions, independent of any single form.
 - **EHRbase-Native Drafts** — Drafts persist as real EHRbase versions, not just rows in the local database.
 - **Patient Discovery** — Discover every EHR in a connected EHRbase instance as a patient, flagging native vs. imported records.
+- **EHR_STATUS & FOLDER Management** — Admin-configurable `is_queryable`/`is_modifiable` EHR_STATUS toggles and per-Form FOLDER filing on submit.
+- **FHIR Debug View** — A per-form "FHIR Debug" tab mapping a form's fields to FHIR resources, with live verification against a real FHIR CDR and call-log history, auto-firing after every submit.
 
 ### Platform
 
@@ -99,11 +103,11 @@ Plugins are ordinary TypeScript/JavaScript npm packages using the shared `plugin
 
 ### Included plugins
 
-- **`formbuilder-plugin-aql-prefill`** — Query EHRbase via AQL to automatically prefill form data, configurable on a form, group, or field level directly via the designer.
+- **`formbuilder-plugin-hapi-terminology`** — A full `TerminologyProvider` implementation backed by a HAPI FHIR terminology server: search/autocomplete, code validation, and versioned custom-terminology authoring. AQL prefill and per-field terminology binding are core platform capabilities (see the Form Scripting Engine and Terminology Binding sections above) rather than plugins — this is the one provider plugin that backs the latter.
 - **`formbuilder-plugin-iframe`** — A frontend custom field plugin that embeds an iframe anywhere in a form; demonstrates custom layout fields and runtime renderers.
 - **`formbuilder-plugin-clinical-scores`** — Ships reusable clinical calculation functions (e.g. BMI, NEWS2) usable from any form's scripting engine.
 - **`formbuilder-plugin-postal-lookup`** — Looks up city/state from a German/Austrian/Swiss/Liechtenstein postal code via the open-source OpenPLZ API.
-- **`formbuilder-example-n8n-plugin`** — Demonstrates integration with [n8n](https://n8n.io/) to trigger external orchestration workflows on form events (e.g. `afterSubmit`).
+- **`formbuilder-example-n8n-plugin`** — Demonstrates integration with [n8n](https://n8n.io/) to trigger external orchestration workflows on form events (e.g. `afterSubmit`), and provides the n8n `FormDataProvider`.
 - **`formbuilder-example-vitals-plugin`** — Small example plugin for testing the plugin system itself.
 
 ### Extending the SDK (Frontend Custom Fields)
@@ -115,7 +119,7 @@ The SDK supports powerful UI injections:
 To enable plugins, install them in the repository and list them in your environment variables or local `data/config.json`:
 ```json
 "pluginPackages": [
-  "formbuilder-plugin-aql-prefill",
+  "formbuilder-plugin-hapi-terminology",
   "formbuilder-plugin-iframe",
   "formbuilder-plugin-clinical-scores",
   "formbuilder-plugin-postal-lookup",
@@ -156,7 +160,7 @@ onehr/
 │   ├── react-form-builder2/             # Drag-and-drop UI component library for form editing
 │   ├── mcp-server/                      # formbuilder-mcp-server (Forms app as MCP tools)
 │   ├── openehr-architect-mcp/           # Direct EHRbase Definitions API as MCP tools
-│   ├── aql-prefill-plugin/              # AQL Prefill plugin implementation
+│   ├── formbuilder-plugin-hapi-terminology/ # HAPI FHIR-backed TerminologyProvider
 │   ├── formbuilder-plugin-iframe/       # Custom iframe field implementation
 │   ├── formbuilder-plugin-clinical-scores/ # Clinical calculation functions (BMI, NEWS2, ...)
 │   ├── postal-lookup-plugin/            # Postal code lookup plugin
@@ -271,6 +275,7 @@ The system uses PostgreSQL with Prisma ORM. Key tables, grouped by area:
 **Integration & Widgets**
 - `AqlFunction` / `CodeFunction` — reusable, versioned AQL queries and sandboxed JS functions.
 - `DataWidget` — read-only clinical data cards driven by AQL functions.
+- `IntegrationCallLog` — call-log history for outbound integration calls (e.g. FHIR Debug View verification).
 
 **Auth & Audit**
 - `ApplicationUser` / `RoleAssignment` / `IdentityLink` — accounts, permissions, and linked external identities (e.g. HIP/Keycloak).
