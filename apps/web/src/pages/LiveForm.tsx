@@ -349,24 +349,43 @@ export default function LiveForm() {
     setLoading(true);
 
     const exactVersion = searchParams.get('exactVersion') === 'true';
-    const formPromise = exactVersion
-      ? request<FormResponse>(`/forms/${encodeURIComponent(parentId)}`)
-      : request<FormResponse>(`/forms/parent/${encodeURIComponent(parentId)}/latest-published`)
-          .catch(() => request<FormResponse>(`/forms/${encodeURIComponent(parentId)}`));
+    const launchSessionId = searchParams.get('sessionId');
+
+    // When a sessionId is given, the SESSION is the authoritative source of
+    // which form it belongs to - resolve the form from the session's own
+    // (fixed-at-creation) formId, never from the URL's :parentId route
+    // segment. That segment is only a routing convenience the caller
+    // happened to know when constructing the link - a Composition block's
+    // own configured formId, for instance, which drifts stale the moment
+    // its Form Section gets republished (create_form_draft/publish_form
+    // archives that exact row and mints a new one under the same
+    // parent_id) - and cross-checking it against the session afterwards is
+    // exactly the "Die gestartete Session gehört nicht zu diesem Formular"
+    // false-positive this replaces. Confirmed live, recurring on Diagnose/
+    // Prozedur (both republished often): CompositionRuntime.tsx's
+    // resume-an-already-attached-block paths build this very URL straight
+    // from `block.formId` with zero resolution, unlike a fresh launch
+    // (formLaunchService.ts, fixed separately) - re-deriving the form from
+    // the session itself here fixes every such caller at once, present and
+    // future, instead of chasing each one individually.
+    const formPromise = launchSessionId
+      ? request<SessionRecord>(`/form-sessions/${encodeURIComponent(launchSessionId)}`)
+          .then((current) => (exactVersion
+            ? request<FormResponse>(`/forms/${encodeURIComponent(current.formId)}`)
+            : request<FormResponse>(`/forms/parent/${encodeURIComponent(current.formId)}/latest-published`)
+                .catch(() => request<FormResponse>(`/forms/${encodeURIComponent(current.formId)}`)))
+            .then((formData) => ({ formData, current })))
+      : (exactVersion
+          ? request<FormResponse>(`/forms/${encodeURIComponent(parentId)}`)
+          : request<FormResponse>(`/forms/parent/${encodeURIComponent(parentId)}/latest-published`)
+              .catch(() => request<FormResponse>(`/forms/${encodeURIComponent(parentId)}`)))
+          .then((formData) => ({ formData, current: undefined as SessionRecord | undefined }));
 
     formPromise
-      .then(async (formData) => {
+      .then(async ({ formData, current }) => {
         setForm(formData);
 
-        const launchSessionId = searchParams.get('sessionId');
-        if (launchSessionId) {
-          const current = await request<SessionRecord>(`/form-sessions/${encodeURIComponent(launchSessionId)}`);
-          // A session's formId is fixed at attach time; latest-published can
-          // start resolving to a newer sibling version (different id, same
-          // parent_id) the moment someone re-publishes from the Designer -
-          // still the same form, so also accept a session pinned to that
-          // shared lineage anchor, not just an exact id match.
-          if (current.formId !== formData.id && current.formId !== formData.parent_id) throw new Error('Die gestartete Session gehört nicht zu diesem Formular.');
+        if (current) {
           baselinePendingRef.current = true;
           setSession(current);
           setDraftValues(current.values || {});
