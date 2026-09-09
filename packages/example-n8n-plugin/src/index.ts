@@ -1,4 +1,5 @@
 import type { FormBuilderPlugin, JsonObject, PluginHookName } from 'plugin-api';
+import { collectRuntimeFields, collectRuntimeGroups, type CanonicalForm } from 'core';
 import { createN8nDataProvider } from './dataProvider';
 
 /** The result contract every n8n workflow this plugin provisions must
@@ -33,6 +34,39 @@ function publicBase(configuredApi?: string, configuredPublic?: string): string {
 
 function formObject(form: JsonObject | undefined): JsonObject {
   return form && typeof form === 'object' && !Array.isArray(form) ? form : {};
+}
+
+/** The hook payload sent OVER THE WIRE to n8n only, never `hookContext.data`
+ * itself (that stays exactly as the host gave it - see registerHook below,
+ * where the "n8n sent back no data of its own" fallback still echoes the
+ * original, unpadded `hookContext.data`, not this). Requested live
+ * (2026-09-09): a clinician hadn't typed anything into "Kommentar" yet, so
+ * the field's key was simply absent from `data` - n8n had no way to even
+ * know the field exists, let alone offer to fill it. Every top-level,
+ * non-repeated field the form defines now gets a `null` placeholder here
+ * when the session doesn't already have a value for it; a top-level
+ * repeatable group defaults to `[]`. Real values (including a value a
+ * plugin itself explicitly set to null/[]) always win over the placeholder.
+ * Deliberately scoped to padding the OUTGOING payload rather than the
+ * generic host-level hook data: `beforeSave`/`beforeValidate`/
+ * `beforeSubmit`'s returned `data` gets PERSISTED as the session's values
+ * when n8n doesn't send its own `data` back (see the fallback at line
+ * ~366) - padding `hookContext.data` itself would have silently written a
+ * null for every untouched field into the database on every save. Fields
+ * nested inside a repeatable group are left exactly as-is (inside each row
+ * object) - there's no single "the value" to default to outside of an
+ * actual row. */
+function withCompleteFieldDefaults(form: JsonObject, data: JsonObject | undefined): JsonObject {
+  const definition = form as unknown as Pick<CanonicalForm, 'layout' | 'locales'>;
+  if (!definition?.layout) return data || {};
+  const defaults: JsonObject = {};
+  for (const field of collectRuntimeFields(definition)) {
+    if (!field.repeatableGroupId) defaults[field.id] = null;
+  }
+  for (const group of collectRuntimeGroups(definition)) {
+    if (!group.parentGroupId) defaults[group.id] = [];
+  }
+  return { ...defaults, ...(data || {}) };
 }
 
 function logHookResult(hook: string, status: number, body: JsonObject): void {
@@ -336,7 +370,7 @@ const plugin: FormBuilderPlugin = {
         const hooks = workflow.hooks as JsonObject;
         const endpoint = text(hooks[hook]);
         if (!endpoint) return {};
-        const payload = { protocol: HOOK_RESULT_PROTOCOL, hook, form: hookContext.form, data: hookContext.data || {}, patient: { id: hookContext.patientId }, session: { id: hookContext.sessionId, userId: hookContext.userId }, metadata: hookContext.metadata || {} } as unknown as JsonObject;
+        const payload = { protocol: HOOK_RESULT_PROTOCOL, hook, form: hookContext.form, data: withCompleteFieldDefaults(hookContext.form, hookContext.data), patient: { id: hookContext.patientId }, session: { id: hookContext.sessionId, userId: hookContext.userId }, metadata: hookContext.metadata || {} } as unknown as JsonObject;
         let response: Response;
         try {
           response = await fetch(endpoint, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-N8N-API-KEY': apiKey, 'X-Formbuilder-Protocol': HOOK_RESULT_PROTOCOL }, signal: AbortSignal.timeout(15000), body: JSON.stringify(payload) });
