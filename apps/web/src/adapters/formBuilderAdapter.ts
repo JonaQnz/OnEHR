@@ -515,9 +515,25 @@ export function formBuilderToCanonical(items: any[], originalForm: CanonicalForm
       layoutNode.unitOptions = meta.unitOptions;
     }
     if (item.options) {
+      // Spread the whole option first, not just {value, text} - an option
+      // can carry archetype-sourced sidecar fields the canvas library
+      // itself knows nothing about and never round-trips on its own:
+      // rmValue (FormElementLayout.options[].rmValue - the archetype's
+      // original-language term text EHRbase's FLAT validator checks
+      // DV_CODED_TEXT.value against, regardless of UI language),
+      // terminology (the option's external terminology_id), and
+      // ordinalValue (DV_ORDINAL's fixed integer). canonicalToFormBuilder
+      // (above) already spreads `...opt` on load for exactly this reason -
+      // this was the missing mirror on save, so simply opening and saving
+      // a Dropdown/Checkboxes/RadioButtons/Tags field (even with zero
+      // edits) silently stripped rmValue/terminology/ordinalValue from
+      // every option, and EHRbase then rejected the next submission with
+      // "DV_CODED_TEXT/value does not match. expected: Working; found: In
+      // Bearbeitung" (the German canvas-display text used as the wire
+      // value with no rmValue left to prefer it over). Confirmed live
+      // (2026-09-09) on "Diagnose (Basis)" v1.13.0.
       layoutNode.options = item.options.map((opt: any, index: number) => ({
-        value: opt.value,
-        text: opt.text,
+        ...opt,
         key: opt.key || `${item.id}_option_${index}`
       }));
     }
