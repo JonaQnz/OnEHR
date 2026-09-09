@@ -25,6 +25,11 @@ interface PluginContribution {
   propertySchema?: Record<string, unknown>;
   scope?: 'global' | 'form';
   formSettingsPath?: string;
+  /** See SettingsContribution.statusActionId (plugin-api) - when present,
+   * `actionId`'s button renders as a live toggle reflecting whether the
+   * provisioned resource still genuinely exists, instead of a static
+   * "configure" button. */
+  statusActionId?: string;
 }
 
 interface PluginSnapshot {
@@ -130,6 +135,41 @@ export default function PluginHost({ slot, context = {}, title, scope, onResult,
   }, [snapshot, slot, scope]);
   const contributions = useMemo(() => (snapshot?.contributions || []).filter((item) => item.extensionPoint === slot && item.placement !== 'hidden' && (!scope || item.scope === scope || (scope === 'form' && !item.scope))), [snapshot, slot, scope]);
 
+  // Live-reported bug (2026-09-09): a workflow deleted directly on the n8n
+  // side left the "Als n8n Form konfigurieren" button claiming it was
+  // still configured - clicking it then failed trying to update a
+  // now-gone workflow, instead of transparently creating a fresh one. See
+  // SettingsContribution.statusActionId's own doc comment (plugin-api).
+  // `undefined` = not yet checked (or no statusActionId at all); a real
+  // { active, checkError? } once the check completes.
+  const [actionStatus, setActionStatus] = useState<Record<string, { active: boolean; checkError?: string } | undefined>>({});
+  const [statusChecking, setStatusChecking] = useState<Record<string, boolean>>({});
+  const checkStatus = async (contribution: PluginContribution) => {
+    if (!contribution.statusActionId) return;
+    setStatusChecking((current) => ({ ...current, [contribution.key]: true }));
+    try {
+      const response = await fetch(`${API}/actions/${encodeURIComponent(contribution.pluginId)}/${encodeURIComponent(contribution.statusActionId)}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(context),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) return; // best-effort - the button just stays in its last-known/unchecked state
+      const data = objectValue(result.data);
+      setActionStatus((current) => ({ ...current, [contribution.key]: { active: data.active === true, ...(typeof data.checkError === 'string' ? { checkError: data.checkError } : {}) } }));
+    } catch {
+      // best-effort - a failed status check must never block using the
+      // action button itself, only leaves the toggle in its prior state.
+    } finally {
+      setStatusChecking((current) => ({ ...current, [contribution.key]: false }));
+    }
+  };
+  useEffect(() => {
+    contributions.filter((contribution) => contribution.statusActionId).forEach((contribution) => { void checkStatus(contribution); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contributions]);
+
   const execute = async (contribution: PluginContribution) => {
     if (!contribution.actionId) return;
     setBusy(contribution.key);
@@ -148,6 +188,13 @@ export default function PluginHost({ slot, context = {}, title, scope, onResult,
       if (result.stop === true && !messages.some((item: { severity: string }) => item.severity === 'error')) messages.push({ severity: 'error', message: result.stopMessage || 'Plugin hat den Vorgang angehalten.' });
       if (result.data || messages.length > 0 || result.message) onResult?.({ data: result.data, message: result.message, messages, stop: result.stop === true });
       setMessage(result.message || 'Plugin-Aktion ausgeführt.');
+      // A successful actionId run just (re-)provisioned the resource -
+      // reflect that immediately rather than waiting for a second
+      // statusActionId round-trip against `context`, which may still hold
+      // the pre-update form for a render cycle (onResult's effect on the
+      // parent's own state hasn't necessarily landed back in this
+      // component's `context` prop yet).
+      if (contribution.statusActionId) setActionStatus((current) => ({ ...current, [contribution.key]: { active: true } }));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Plugin-Aktion fehlgeschlagen.');
     } finally {
@@ -183,7 +230,38 @@ export default function PluginHost({ slot, context = {}, title, scope, onResult,
                 brand-new form with nothing provisioned yet must be able to
                 see it too, to turn anything on in the first place. */}
             {slot === 'settings' && contribution.scope === 'form' && contribution.formSettingsPath && <FormSettingsEditor context={context} contribution={contribution} visibleKeys={globalWebhookKeys} onResult={onResult} disabled={disabled || Boolean(busy)} />}
-            {action ? <button className="btn btn-secondary" type="button" disabled={Boolean(busy) || disabled} onClick={() => void execute(contribution)}>
+            {action && contribution.statusActionId ? (() => {
+              const status = actionStatus[contribution.key];
+              const checking = Boolean(statusChecking[contribution.key]);
+              const running = busy === contribution.key;
+              // Toggle click always re-runs the SAME actionId (the plugin's
+              // own action decides what that means - for n8n's provision
+              // action, "off" -> create fresh, "on" -> update in place,
+              // including transparently re-creating when the stored
+              // workflowId turned out to be deleted server-side). This is a
+              // status-reflecting affordance, not yet a symmetric on/off
+              // control - there's no "tear down the integration" action to
+              // switch to when already on, only re-provisioning either way.
+              return (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: running || disabled ? 'default' : 'pointer' }}>
+                  <span style={{ position: 'relative', width: 42, height: 24, display: 'inline-flex', flexShrink: 0 }}>
+                    <input type="checkbox" checked={status?.active === true} disabled={running || disabled} onChange={() => void execute(contribution)} style={{ opacity: 0, width: 0, height: 0 }} />
+                    <span aria-hidden="true" style={{ position: 'absolute', inset: 0, borderRadius: 999, background: running || checking ? '#93c5fd' : status?.active === true ? '#2563eb' : '#cbd5e1', transition: 'background 0.15s ease' }}>
+                      <span style={{ position: 'absolute', top: 3, left: status?.active === true ? 21 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.15s ease' }} />
+                    </span>
+                  </span>
+                  <span style={{ fontSize: '0.8rem', color: '#1e293b' }}>
+                    {running ? 'Wird ausgeführt…' : contribution.label || contribution.key}
+                    {!running && status !== undefined && (
+                      <span style={{ marginLeft: '0.4rem', color: status.active ? '#15803d' : '#64748b' }}>
+                        {status.active ? '(aktiv)' : '(nicht konfiguriert)'}
+                      </span>
+                    )}
+                  </span>
+                  {status?.checkError && <span title={status.checkError} style={{ color: '#b45309', fontSize: '0.75rem' }}>⚠</span>}
+                </label>
+              );
+            })() : action ? <button className="btn btn-secondary" type="button" disabled={Boolean(busy) || disabled} onClick={() => void execute(contribution)}>
               {busy === contribution.key ? 'Wird ausgeführt…' : contribution.label || contribution.key}
             </button> : <span className="badge badge-draft" title={contribution.propertySchema ? JSON.stringify(contribution.propertySchema) : contribution.key}>
               {contribution.label || contribution.panelId || contribution.providerId || contribution.key}

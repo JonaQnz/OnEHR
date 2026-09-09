@@ -119,6 +119,19 @@ export interface SettingsContribution {
   scope?: 'global' | 'form';
   secretKeys?: readonly string[];
   formSettingsPath?: string;
+  /** Optional read-only action (typically a hidden `registerRuntimeAction`,
+   * so it's dispatchable via POST /plugins/actions but never rendered as
+   * its own button) whose `{ data: { active: boolean } }` result reflects
+   * whether `actionId`'s own provisioned resource still genuinely exists on
+   * the remote side - not just whether this form's settings still
+   * *reference* one. Lets the host render `actionId`'s button as a live
+   * toggle instead of a static "configure" button (P0.x, 2026-09-09):
+   * without this, deleting a provisioned resource out-of-band (e.g. an
+   * n8n workflow removed directly in n8n) left the Form Builder side none
+   * the wiser - the button still claimed the integration was configured,
+   * and re-running `actionId` failed trying to update a resource that no
+   * longer existed, instead of transparently provisioning a fresh one. */
+  statusActionId?: string;
 }
 
 export interface FormContribution {

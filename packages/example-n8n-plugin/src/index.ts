@@ -110,6 +110,33 @@ async function verifyWorkflowPublished(configuredApiUrl: string | undefined, api
   return undefined;
 }
 
+/** Whether a previously-provisioned workflow still genuinely exists on the
+ * n8n side (2026-09-09, real live-reported bug: deleting a workflow
+ * directly in n8n left the Form Builder side unaware - "Als n8n Form
+ * konfigurieren" kept trying to PUT/update that now-gone id and n8n
+ * answered with a confusing "You do not have permission to update this
+ * workflow. Ask the owner to share it with you." 404, rather than
+ * transparently provisioning a fresh one). Only a genuine 404 counts as
+ * "gone" - any other failure (network error, a real permission issue, a
+ * transient n8n outage) is reported back via `checkError` but `exists`
+ * stays `true`, so a merely-unreachable n8n never gets treated as "the
+ * workflow was deleted" and silently loses its real, still-valid
+ * workflowId. */
+async function workflowExists(configuredApiUrl: string | undefined, apiKey: string, workflowId: string): Promise<{ exists: boolean; checkError?: string }> {
+  let response: Response;
+  try {
+    response = await fetch(`${apiBase(configuredApiUrl)}/workflows/${encodeURIComponent(workflowId)}`, { headers: { Accept: 'application/json', 'X-N8N-API-KEY': apiKey }, signal: AbortSignal.timeout(8000) });
+  } catch (error) {
+    return { exists: true, checkError: `n8n Workflow-Status konnte nicht geprüft werden: ${error instanceof Error ? error.message : String(error)}` };
+  }
+  if (response.status === 404) return { exists: false };
+  if (!response.ok) {
+    const bodyText = await response.text().catch(() => '');
+    return { exists: true, checkError: `n8n Workflow-Prüfung antwortete mit HTTP ${response.status}: ${bodyText.slice(0, 240)}` };
+  }
+  return { exists: true };
+}
+
 function emptyWorkflowPayload(form: JsonObject, workflowSlug: string, hooks: readonly string[]): JsonObject {
   const formId = text(form.id) || 'form';
   const responseCode = [
@@ -193,11 +220,11 @@ function submissionSettings(form: JsonObject, workflowId: string, urls: { intern
 const plugin: FormBuilderPlugin = {
   manifest: {
     id: 'org.example.n8n',
-    version: '1.4.1',
+    version: '1.5.0',
     apiVersion: '1.0',
     name: 'Example n8n Workflow',
     description: 'Provisioniert pro Formular einen sicheren Webhook-Workflow mit standardisiertem Ergebnisvertrag.',
-    extensionPoints: ['settings', 'workflow', 'lifecycle', 'dataProvider'],
+    extensionPoints: ['settings', 'workflow', 'lifecycle', 'dataProvider', 'runtime'],
     permissions: ['form:read', 'form:write', 'network:request'],
   },
   activate(context) {
@@ -238,6 +265,7 @@ const plugin: FormBuilderPlugin = {
       scope: 'form',
       label: 'Als n8n Form konfigurieren',
       actionId: 'org.example.n8n.provision',
+      statusActionId: 'org.example.n8n.status',
       formSettingsPath: 'settings.submission.workflow.enabledHooks',
       propertySchema: {
         type: 'object',
@@ -253,6 +281,37 @@ const plugin: FormBuilderPlugin = {
           submit: { type: 'boolean', title: 'Absenden-Webhook aktivieren', default: false },
         },
       },
+    });
+    // Hidden runtime action, never rendered as its own button (placement:
+    // 'hidden') - purely so POST /plugins/actions/org.example.n8n/
+    // org.example.n8n.status is a *declared*, dispatchable action at all
+    // (the route rejects any actionId no contribution references). Backs
+    // the submission panel's statusActionId above, which lets the host
+    // render "Als n8n Form konfigurieren" as a live toggle instead of a
+    // static button.
+    context.registerRuntimeAction({
+      key: 'org.example.n8n.status',
+      actionId: 'org.example.n8n.status',
+      label: 'n8n Workflow-Status',
+      placement: 'hidden',
+    });
+    context.registerAction('org.example.n8n.status', async ({ form: inputForm }) => {
+      context.requirePermission('form:read');
+      const settings = context.getSettings() as JsonObject;
+      const apiKey = pluginSetting(settings, 'apiKey') || environment('N8N_API_KEY');
+      const form = formObject(inputForm);
+      const currentSettings = form.settings && typeof form.settings === 'object' && !Array.isArray(form.settings) ? form.settings as JsonObject : {};
+      const currentSubmission = currentSettings.submission && typeof currentSettings.submission === 'object' && !Array.isArray(currentSettings.submission) ? currentSettings.submission as JsonObject : {};
+      const currentWorkflow = currentSubmission.workflow && typeof currentSubmission.workflow === 'object' && !Array.isArray(currentSubmission.workflow) ? currentSubmission.workflow as JsonObject : {};
+      const workflowId = text(currentWorkflow.workflowId);
+      // Nothing provisioned yet for this form at all - a real, honest
+      // "off", not an error (this is the everyday case for any form that
+      // has never been configured for n8n).
+      if (!workflowId) return { data: { active: false } };
+      if (!apiKey) return { data: { active: true, checkError: 'N8N_API_KEY ist nicht konfiguriert - Status kann nicht geprüft werden.' } };
+      const configuredApiUrl = pluginSetting(settings, 'apiUrl');
+      const check = await workflowExists(configuredApiUrl, apiKey, workflowId);
+      return { data: { active: check.exists, ...(check.checkError ? { checkError: check.checkError } : {}) } };
     });
     for (const hook of LIFECYCLE_HOOKS) {
       context.registerWorkflow({
@@ -328,7 +387,21 @@ const plugin: FormBuilderPlugin = {
       const currentWorkflow = currentSubmission.workflow && typeof currentSubmission.workflow === 'object' && !Array.isArray(currentSubmission.workflow) ? currentSubmission.workflow as JsonObject : {};
       const activeHooks = enabledHooks(settings, currentWorkflow);
       if (activeHooks.length === 0) return { errors: [{ path: 'n8n.webhooks', message: 'Mindestens ein global aktivierter n8n Webhook muss für dieses Formular ausgewählt sein.' }] };
-      const workflowId = text(currentWorkflow.workflowId);
+      const storedWorkflowId = text(currentWorkflow.workflowId);
+      // If a workflow id is stored, confirm it still genuinely exists on
+      // the n8n side before trying to update it - a workflow deleted
+      // directly in n8n otherwise made every "Als n8n Form konfigurieren"
+      // click fail with n8n's own confusing "You do not have permission to
+      // update this workflow. Ask the owner to share it with you." 404,
+      // instead of transparently provisioning a fresh one (confirmed live,
+      // 2026-09-09). A transient check failure (network/other error) must
+      // never wipe a real, still-valid workflowId - only a genuine 404
+      // does.
+      let workflowId = storedWorkflowId;
+      if (storedWorkflowId) {
+        const check = await workflowExists(configuredApiUrl, apiKey, storedWorkflowId);
+        if (!check.exists) workflowId = undefined;
+      }
       const configuredPath = text(currentWorkflow.webhookUrl) || (currentWorkflow.hooks && typeof currentWorkflow.hooks === 'object' && !Array.isArray(currentWorkflow.hooks) ? text((currentWorkflow.hooks as JsonObject).submit) : undefined);
       const workflowSlug = configuredPath?.split('/webhook/')[1]?.split('/')[0] || `formbuilder-${slug(formId)}`;
       const workflow = emptyWorkflowPayload(form, workflowSlug, activeHooks);
