@@ -41,3 +41,12 @@ pnpm-debug.log*
 
 # Claude Code agent worktree scratch state
 .claude/worktrees/
+# AI Dev Home: secrets and runtime files stay out of Git
+.env.*
+!.env.example
+*.pem
+*.key
+__pycache__/
+.venv/
+.omc/
+.pytest_cache/

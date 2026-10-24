@@ -1,0 +1,16 @@
+# Created by AI Dev Home project init - review type, test command and docs.
+schema_version: 1
+id: OnEHR
+name: OnEHR
+description: ''
+type: library
+repository:
+  default_branch: main
+  integration_branch: develop
+stack:
+- node
+test:
+  unit: npm ci --no-audit --no-fund --loglevel=error && npm test
+docs:
+  readme: README.md
+  agents: AGENTS.md
