@@ -53,6 +53,16 @@ export function registerEhrbaseAdminTools(server: McpServer, api: FormbuilderApi
     },
   }, ({ resourceType, resource }) => toResult(() => api.post(`/api/admin/ehrbase/fhir-cdr/${encodeURIComponent(resourceType)}`, resource)));
 
+  server.registerTool('update_fhir_resource', {
+    title: 'Update a FHIR resource on the FHIR CDR',
+    description: 'PUTs a FHIR resource to the FHIR CDR connector, replacing it in place (id-preserving). `resource` must carry the same `id` as the URL - FHIR\'s own PUT contract. Returns the server\'s representation, including its bumped meta.versionId. Use for a genuine edit (e.g. rescheduling an Appointment) rather than create_fhir_resource, which would mint a new resource instead of updating the existing one.',
+    inputSchema: {
+      resourceType: z.string().describe('The FHIR resource type, e.g. "Appointment" - must match resource.resourceType.'),
+      id: z.string().describe('The resource\'s existing id - must match resource.id.'),
+      resource: z.record(z.string(), z.unknown()).describe('The complete, updated FHIR resource body.'),
+    },
+  }, ({ resourceType, id, resource }) => toResult(() => api.put(`/api/admin/ehrbase/fhir-cdr/${encodeURIComponent(resourceType)}/${encodeURIComponent(id)}`, resource)));
+
   server.registerTool('get_fhir_resource', {
     title: 'Get a FHIR resource by id from the FHIR CDR',
     description: 'Fetches one FHIR resource by type and id from the FHIR CDR connector.',

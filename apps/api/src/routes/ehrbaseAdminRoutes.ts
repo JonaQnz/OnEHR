@@ -3,7 +3,7 @@ import { requirePermission } from '../middleware/auth';
 import { asyncHandler, HttpError } from '../middleware/errorHandler';
 import { executeAqlQuery } from '../services/aqlFunctionService';
 import { getRemoteTemplateOpt, getRemoteWebTemplate } from '../services/ehrbaseService';
-import { createFhirResource, getFhirCdrMetadata, getFhirResource, searchFhirResource } from '../services/fhirCdrService';
+import { createFhirResource, getFhirCdrMetadata, getFhirResource, searchFhirResource, updateFhirResource } from '../services/fhirCdrService';
 import { deleteIntegrationCallLog, getIntegrationCallLog, listIntegrationCallLogs, listIntegrationCallLogsForExport, type IntegrationProtocol } from '../services/integrationCallLogService';
 import { streamBrunoExport } from '../services/brunoExportService';
 
@@ -60,6 +60,14 @@ router.get('/fhir-cdr/:resourceType/:id', asyncHandler(async (req, res) => {
   const id = String(req.params.id || '').trim();
   if (!resourceType || !id) throw new HttpError(400, 'resourceType and id are required');
   res.json(await getFhirResource(resourceType, id));
+}));
+
+router.put('/fhir-cdr/:resourceType/:id', asyncHandler(async (req, res) => {
+  const resourceType = String(req.params.resourceType || '').trim();
+  const id = String(req.params.id || '').trim();
+  if (!resourceType || !id) throw new HttpError(400, 'resourceType and id are required');
+  if (!req.body || typeof req.body !== 'object') throw new HttpError(400, 'A FHIR resource body is required');
+  res.json(await updateFhirResource(resourceType, id, req.body));
 }));
 
 router.get('/fhir-cdr/:resourceType', asyncHandler(async (req, res) => {

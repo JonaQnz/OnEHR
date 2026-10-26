@@ -145,6 +145,38 @@ export async function createFhirResource(resourceType: string, resource: Record<
   }
 }
 
+/** Updates a FHIR resource in place (PUT /{resourceType}/{id}), id-preserving -
+ * the caller's `resource` body must already carry the correct `id` (FHIR's own
+ * PUT contract). Returns the server's representation, including its bumped
+ * `meta.versionId`. Logged the same way createFhirResource is. */
+export async function updateFhirResource(resourceType: string, id: string, resource: Record<string, unknown>): Promise<any> {
+  const { baseUrl, headers, auth } = await fhirRequestConfig();
+  const url = `${baseUrl}/${encodeURIComponent(resourceType)}/${encodeURIComponent(id)}`;
+  const fhirPatientId = extractFhirPatientId(resourceType, resource);
+  try {
+    const response = await axios.put(url, resource, { headers, auth, timeout: 20_000 });
+    resolveLocalPatientIds(fhirPatientId).then(({ ehrId, patientId }) => {
+      logIntegrationCall({
+        protocol: 'fhir', resourceType, operation: 'update', method: 'PUT', url,
+        requestBody: resource, responseBody: response.data, statusCode: response.status, success: true,
+        fhirPatientId, ehrId, patientId,
+      });
+    });
+    return response.data;
+  } catch (error: any) {
+    resolveLocalPatientIds(fhirPatientId).then(({ ehrId, patientId }) => {
+      logIntegrationCall({
+        protocol: 'fhir', resourceType, operation: 'update', method: 'PUT', url,
+        requestBody: resource, responseBody: error?.response?.data, statusCode: error?.response?.status,
+        success: false, errorMessage: describeError(error),
+        fhirPatientId, ehrId, patientId,
+      });
+    });
+    console.error(`[fhirCdrService] Failed to update ${resourceType}/${id}:`, describeError(error));
+    throw new Error(`Failed to update ${resourceType}/${id} on FHIR CDR: ${describeError(error)}`);
+  }
+}
+
 export async function getFhirResource(resourceType: string, id: string): Promise<any> {
   const { baseUrl, headers, auth } = await fhirRequestConfig();
   try {
