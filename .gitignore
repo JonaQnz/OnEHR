@@ -41,3 +41,6 @@ pnpm-debug.log*
 
 # Claude Code agent worktree scratch state
 .claude/worktrees/
+
+# TypeScript incremental build info
+*.tsbuildinfo
