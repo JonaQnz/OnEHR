@@ -1,0 +1,26 @@
+{
+  "name": "formbuilder-plugin-aql-prefill",
+  "version": "1.0.0",
+  "description": "Extensible AQL Prefill Plugin for openEHR Form Builder",
+  "main": "dist/index.js",
+  "module": "src/index.ts",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "plugin-api": "*",
+    "core": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
