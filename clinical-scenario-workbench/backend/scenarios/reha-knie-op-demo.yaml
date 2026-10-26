@@ -1,0 +1,159 @@
+# Second Rehazentrum case (user's own follow-up ask: "ein Reha Fall nach
+# einer Knie-OP mit ein paar Ereignissen zwischendurch") - AHB after a total
+# knee replacement, with a real mid-stay complication worked up and resolved
+# (calf swelling/pain -> DVT concern -> D-Dimer ordered -> nursing executes
+# -> doctor reviews the REAL result and reassures), not just a straight-line
+# recovery. Same facility as reha-anschlussheilbehandlung-demo.yaml
+# (Rehazentrum must already be open).
+scenarioId: reha-knie-op-demo
+facilityId: rehazentrum
+
+patient:
+  key: patient-neumann
+  firstName: Ingrid
+  lastName: Neumann
+  sex: female
+  age: 71
+
+events:
+  - id: arrival
+    type: patient-arrival
+    at: 0h
+    data:
+      location:
+        key: location-reha-station-b
+        name: Reha-Station B
+        description: Rehazentrum Sonnenberg · Orthopädische Anschlussheilbehandlung
+        kind: rehabilitation
+      staff:
+        scenarioKey: practitioner-reha-aufnahme-2
+        family: Krause
+        given: Michael
+        qualification: Facharzt für Physikalische und Rehabilitative Medizin
+      classSystem: http://terminology.hl7.org/CodeSystem/v3-ActCode
+      classCode: IMP
+      encounterStatus: arrived
+
+  - id: aufnahmegespraech
+    type: patient-conversation
+    at: 15m
+    data:
+      actorRole: doctor
+      topic: Aufnahmegespräch AHB
+      question: Wie geht es Ihnen nach der Knie-OP, und wie belastbar fühlt sich das Bein an?
+      patientSays: Das Knie ist noch dick und warm, aber ich komme mit den Unterarmgehstützen schon ganz gut zurecht. Vollbelastung tut noch weh.
+      newInfoLearned: Z.n. Knie-TEP links vor 6 Tagen (auswärtige Klinik), aktuell Teilbelastung an Unterarmgehstützen, Ziel der AHB ist Wiedererlangung der Vollbelastung und Beugefähigkeit.
+
+  - id: vitals-aufnahme
+    type: vital-signs
+    at: 30m
+    data:
+      heartRate: 78
+      spo2: 97
+      respRate: 15
+      temperature: 36.7
+
+  - id: pflege-tag2
+    type: nursing-round
+    at: 48h
+    data:
+      note: Physiotherapie und Lymphdrainage gut toleriert, Wundverhältnisse reizlos, Beugung im Knie langsam zunehmend.
+
+  # Real mid-stay complication - the "ein paar Ereignisse zwischendurch" ask.
+  - id: schwellung-gespraech
+    type: patient-conversation
+    at: 96h
+    data:
+      actorRole: nurse
+      topic: Zunehmende Schwellung/Schmerz Unterschenkel
+      question: Sie klingelten wegen des Beins - was genau bemerken Sie?
+      patientSays: Seit heute Morgen ist die Wade unterhalb vom operierten Knie stärker geschwollen und schmerzt beim Auftreten, das war vorher nicht so.
+      newInfoLearned: Neu aufgetretene Schwellung und Druckschmerz der Wade unterhalb des operierten Knies - differentialdiagnostisch an eine tiefe Beinvenenthrombose zu denken, ärztliche Abklärung veranlasst.
+
+  - id: ddimer-order
+    type: order-basis
+    at: 97h
+    data:
+      serviceName: 'Labor: D-Dimer bei V.a. TVT'
+      serviceCode: '48065-7'
+      urgency: at0137
+      requestStatus: active
+      clinicalIndication: Neu aufgetretene Wadenschwellung/-schmerz nach Knie-TEP - Ausschluss tiefe Beinvenenthrombose.
+      pendingResult:
+        kind: lab-value
+        description: D-Dimer-Ergebnis eintragen
+        payload:
+          analyteName: D-Dimer
+          analyteCode: '48065-7'
+          value: 0.3
+          unit: mg/L FEU
+          referenceRange: < 0.5 mg/L FEU
+          interpretation: N
+          comment: D-Dimer im Normbereich - spricht gegen eine akute Thrombose.
+
+  - id: pflege-blutabnahme
+    type: nursing-round
+    at: 100h
+    data:
+      note: Pflege kommt zur Blutabnahme, arbeitet die D-Dimer-Anordnung ab. Wadenumfang beidseits dokumentiert, Bein hochgelagert.
+
+  - id: arzt-visite-dvt
+    type: doctor-round
+    at: 102h
+    data: {}
+
+  - id: physio-fortschritt
+    type: patient-conversation
+    at: 168h
+    data:
+      actorRole: nurse
+      topic: Verlauf nach Thrombose-Abklärung
+      question: Wie geht es dem Bein jetzt, ist die Schwellung besser geworden?
+      patientSays: Ja, seit der Kompressionsstrumpf da ist und ich das Bein öfter hochlege, ist die Wade fast wieder normal. Die Physiotherapie mache ich jetzt auch wieder mit voller Kraft.
+
+  - id: pflege-tag10
+    type: nursing-round
+    at: 240h
+    data:
+      note: Wadenschwellung vollständig rückläufig, Vollbelastung des operierten Beins schmerzarm möglich, Kniebeugung deutlich verbessert.
+
+  - id: arzt-entlassvisite
+    type: doctor-round
+    at: 312h
+    data:
+      serviceName: Reha-Abschlussvisite
+      serviceType: Visite
+      urgency: at0138
+      clinicalIndication: Abschließende ärztliche Beurteilung vor Entlassung aus der Anschlussheilbehandlung.
+      comment: Rehabilitationsziel erreicht - Vollbelastung und gute Beugefähigkeit, Thromboseverdacht laborchemisch entkräftet und klinisch vollständig rückläufig. Entlassung nach Hause vorgesehen.
+
+  - id: entlassbrief
+    type: discharge-letter
+    at: 336h
+    data:
+      topic: Entlassung nach orthopädischer Anschlussheilbehandlung
+      synopsis: 71-jährige Patientin, Aufnahme zur AHB 6 Tage nach Knie-TEP-Implantation links (auswärtige Klinik). Im Verlauf vorübergehende Wadenschwellung mit Verdacht auf tiefe Beinvenenthrombose, laborchemisch (D-Dimer im Normbereich) sowie klinisch unter Kompressionstherapie vollständig rückläufig - kein Hinweis auf Thrombose. Physiotherapeutische Mobilisation mit Erreichen der Vollbelastung und guter Kniebeugung.
+      recommendation: Fortführung der Eigenübungen entsprechend Therapieplan, ambulante Physiotherapie 2x/Woche für weitere 4 Wochen, Kompressionsstrumpf noch 2 Wochen tragen, Wiedervorstellung beim Operateur zur Verlaufskontrolle nach 6 Wochen. Bei erneuter Wadenschwellung/-schmerz sofortige Wiedervorstellung.
+      rationale: Rehabilitationsziel (Vollbelastung, ausreichende Beugefähigkeit) erreicht; der zwischenzeitliche Thromboseverdacht wurde leitliniengerecht laborchemisch abgeklärt und war nicht bestätigt, kein erhöhtes Risiko für die ambulante Weiterbehandlung.
+
+  - id: entlassmedikation
+    type: discharge-medication
+    at: 337h
+    data:
+      medicationName: Rivaroxaban 10mg
+      status: at0011
+      doseAndTiming: 10mg oral, 1x täglich, für weitere 2 Wochen postoperativ
+      route: oral
+      clinicalIndication: Fortführung der medikamentösen Thromboseprophylaxe nach Knie-TEP.
+      therapeuticIntent: Ambulante Thromboseprophylaxe bis zum Abschluss der empfohlenen Prophylaxedauer nach Knie-TEP.
+
+  - id: nachsorge-termin
+    type: request-imaging
+    at: 338h
+    data:
+      serviceKey: service-reha-nachsorge-knie
+      scheduleKey: schedule-reha-nachsorge-knie
+      capabilityKey: reha-nachsorge-knie
+      serviceName: Orthopädische Ambulanz - Verlaufskontrolle nach Knie-TEP
+      comment: Verlaufskontrolle beim Operateur, 6 Wochen postoperativ.
+      isFollowUp: true

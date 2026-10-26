@@ -1,0 +1,8 @@
+{
+  "ctpa-request": {
+    "healthcareServiceName": "Radiologie Notfallzentrum – CT-Diagnostik",
+    "slotStart": "2026-09-15T21:15:00.000Z",
+    "slotEnd": "2026-09-15T21:45:00.000Z",
+    "appointmentComment": "Dringende CT-Pulmonalisangiographie bei klinischem Verdacht auf Lungenembolie (Tachykardie 108/min, SpO2 91%). Vorrang vor elektiven Untersuchungen."
+  }
+}

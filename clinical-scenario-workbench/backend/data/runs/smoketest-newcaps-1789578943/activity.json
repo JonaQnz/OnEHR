@@ -1,0 +1,102 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-bauer\"",
+    "action": "create Patient",
+    "tool": "create_patient",
+    "result": "success",
+    "message": "Patient 36bd2fd6-0a81-4d68-8cd1-ab6be5aa1b0b created (ehrId 99c05179-596d-4f62-9ef8-8d19a32e341a)",
+    "id": "d09920a8-a381-4d5f-9aae-bd63f482227b",
+    "scenarioRunId": "smoketest-newcaps-1789578943",
+    "timestamp": "2026-09-16T17:15:45.128Z"
+  },
+  {
+    "reason": "Encounter required for scenario entity \"encounter-arrival\"",
+    "action": "create Encounter",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Encounter/ccf4d1f1-d391-47ee-befa-00c516c4b2e2 created",
+    "id": "e25e1067-4091-429a-a5b0-1d139e4771cc",
+    "scenarioRunId": "smoketest-newcaps-1789578943",
+    "timestamp": "2026-09-16T17:15:45.765Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"arrival\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "id": "a3b9766e-d97d-4932-b2b6-5a290f35c136",
+    "scenarioRunId": "smoketest-newcaps-1789578943",
+    "timestamp": "2026-09-16T17:15:45.768Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition eb8821b0-9bfe-4c4c-ad28-1a14aad732aa submitted",
+    "id": "bfb7fcf5-472e-40ee-81a2-1294d310b591",
+    "scenarioRunId": "smoketest-newcaps-1789578943",
+    "timestamp": "2026-09-16T17:15:46.446Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein Arztbrief/Entlassungsbrief zur Entlassung erstellt.",
+    "id": "89dbcd22-3c30-4d92-9b35-af7d083821a2",
+    "scenarioRunId": "smoketest-newcaps-1789578943",
+    "timestamp": "2026-09-16T17:15:46.448Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein Nachsorgetermin nach der Entlassung vereinbart.",
+    "id": "782c0043-2a52-4f1b-b6a2-3db2386cf779",
+    "scenarioRunId": "smoketest-newcaps-1789578943",
+    "timestamp": "2026-09-16T17:15:46.450Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine Entlassmedikation dokumentiert.",
+    "id": "c29983f7-12b1-46e5-9a83-351607efe797",
+    "scenarioRunId": "smoketest-newcaps-1789578943",
+    "timestamp": "2026-09-16T17:15:46.451Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine formal kodierte (ICD-10-GM) Diagnose im Verlauf dokumentiert.",
+    "id": "2b7ec9b7-d6ef-47eb-9049-5359d2b7e904",
+    "scenarioRunId": "smoketest-newcaps-1789578943",
+    "timestamp": "2026-09-16T17:15:46.453Z"
+  },
+  {
+    "reason": "openEHR capability \"coded-diagnosis\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 8ba012c9-acd8-443f-98e3-8c0ae6336bfd into 802dbbec-30c8-4806-9694-a51df6cfada0",
+    "tool": "ensure_capability",
+    "result": "error",
+    "message": "EHRbase request failed (400): /content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.problem_qualifier.v2]/items[at0004]/value: DV_CODED_TEXT/value does not match. expected: Working; found: Arbeitsdiagnose, /content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.problem_qualifier.v2]/items[at0003]/value: DV_CODED_TEXT/value does not match. expected: Active; found: Aktiv, /content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.problem_qualifier.v2]/items[at0063]/value: DV_CODED_TEXT/value does not match. expected: Principal diagnosis; found: Hauptdiagnose, /content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0073]/value: DV_CODED_TEXT/value does not match. expected: Confirmed; found: Bestätigt",
+    "id": "b00142b4-a638-40fd-9250-5ceb0f4c8d6c",
+    "scenarioRunId": "smoketest-newcaps-1789578943",
+    "timestamp": "2026-09-16T17:15:56.505Z"
+  },
+  {
+    "reason": "openEHR capability \"coded-diagnosis\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 8ba012c9-acd8-443f-98e3-8c0ae6336bfd into 802dbbec-30c8-4806-9694-a51df6cfada0",
+    "tool": "ensure_capability",
+    "result": "error",
+    "message": "EHRbase request failed (400): /content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.problem_qualifier.v2]/items[at0004]/value: DV_CODED_TEXT/value does not match. expected: Working; found: Arbeitsdiagnose, /content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.problem_qualifier.v2]/items[at0003]/value: DV_CODED_TEXT/value does not match. expected: Active; found: Aktiv, /content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[openEHR-EHR-CLUSTER.problem_qualifier.v2]/items[at0063]/value: DV_CODED_TEXT/value does not match. expected: Principal diagnosis; found: Hauptdiagnose, /content[openEHR-EHR-EVALUATION.problem_diagnosis.v1 and name/value='primary diagnosis']/data[at0001]/items[at0073]/value: DV_CODED_TEXT/value does not match. expected: Confirmed; found: Bestätigt",
+    "id": "de75b189-4ddc-4314-98d7-cd637ac312f2",
+    "scenarioRunId": "smoketest-newcaps-1789578943",
+    "timestamp": "2026-09-16T17:16:21.662Z"
+  }
+]

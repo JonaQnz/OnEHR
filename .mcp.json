@@ -10,6 +10,13 @@
     "openehr-architect": {
       "command": "node",
       "args": ["packages/openehr-architect-mcp/dist/index.js"]
+    },
+    "clinical-scenario-workbench": {
+      "command": "node",
+      "args": ["clinical-scenario-workbench/backend/dist/mcp/index.js"],
+      "env": {
+        "FORMBUILDER_API_URL": "http://localhost:3001"
+      }
     }
   }
 }

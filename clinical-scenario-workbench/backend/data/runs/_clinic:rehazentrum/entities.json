@@ -1,0 +1,146 @@
+{
+  "practitioner-reha-aufnahme-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "b1032f43-62b7-494f-b670-17ef0b8523b3",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-reha-aufnahme-1",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "createdAt": "2026-09-17T12:36:23.363Z",
+    "updatedAt": "2026-09-17T12:36:23.363Z"
+  },
+  "service-reha-nachsorge": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "e20fc90e-b0eb-4c3d-b24e-13ec8ab08251",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-reha-nachsorge",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "createdAt": "2026-09-17T12:36:29.677Z",
+    "updatedAt": "2026-09-17T12:36:29.677Z"
+  },
+  "schedule-reha-nachsorge": {
+    "resourceType": "Schedule",
+    "hipResourceId": "4e3ede74-832e-49fb-8cc0-072e946e4c4e",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-reha-nachsorge",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "createdAt": "2026-09-17T12:36:30.000Z",
+    "updatedAt": "2026-09-17T12:36:30.000Z"
+  },
+  "practitioner-radiologie-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "7e5ee314-28fe-4a6f-a532-7dcfe5bbb95b",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-radiologie-1",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "createdAt": "2026-09-17T12:36:31.163Z",
+    "updatedAt": "2026-09-17T12:36:31.163Z"
+  },
+  "practitioner-reha-aufnahme-2": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "61749c6e-3d1f-4a8d-bfc4-2388723ac0e9",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-reha-aufnahme-2",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "createdAt": "2026-09-17T12:43:52.209Z",
+    "updatedAt": "2026-09-17T12:43:52.209Z"
+  },
+  "service-reha-nachsorge-knie": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "28538969-d117-440a-81a1-978089bbb499",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-reha-nachsorge-knie",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "createdAt": "2026-09-17T12:44:02.884Z",
+    "updatedAt": "2026-09-17T12:44:02.884Z"
+  },
+  "schedule-reha-nachsorge-knie": {
+    "resourceType": "Schedule",
+    "hipResourceId": "11266104-7f86-4d91-b921-6f429215b99a",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-reha-nachsorge-knie",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "createdAt": "2026-09-17T12:44:03.430Z",
+    "updatedAt": "2026-09-17T12:44:03.430Z"
+  },
+  "practitioner-reha-aufnahme-3": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "b550b0c3-dd6c-4a49-943b-d96d5bf321f7",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-reha-aufnahme-3",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "createdAt": "2026-09-17T12:56:22.725Z",
+    "updatedAt": "2026-09-17T12:56:22.725Z"
+  },
+  "service-reha-nachsorge-knie-tep": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "b12b9f44-4371-410f-9020-994297968a93",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-reha-nachsorge-knie-tep",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "createdAt": "2026-09-17T13:43:26.340Z",
+    "updatedAt": "2026-09-17T13:43:26.340Z"
+  },
+  "schedule-reha-nachsorge-knie-tep": {
+    "resourceType": "Schedule",
+    "hipResourceId": "1937fd90-eae8-40e5-90f2-a272ed537604",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-reha-nachsorge-knie-tep",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "createdAt": "2026-09-17T13:43:26.754Z",
+    "updatedAt": "2026-09-17T13:43:26.754Z"
+  }
+}

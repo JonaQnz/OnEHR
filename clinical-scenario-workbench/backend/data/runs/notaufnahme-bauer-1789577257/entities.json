@@ -1,0 +1,72 @@
+{
+  "patient-bauer": {
+    "resourceType": "Patient",
+    "hipResourceId": "65f84cb5-97ae-4680-954d-03e02881e447",
+    "ehrId": "a1062047-9896-4527-be06-5b819457c8b3",
+    "formsPatientId": "582bbaa4-181f-4fd6-a4ea-c2473115bd95",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-bauer",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "createdAt": "2026-09-16T16:47:39.652Z",
+    "updatedAt": "2026-09-16T16:47:39.652Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "d06685db-cf6f-4eb1-840b-5dfe8695fec8",
+    "fhirVersionId": "2",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "createdAt": "2026-09-16T16:47:40.441Z",
+    "updatedAt": "2026-09-16T16:49:17.781Z"
+  },
+  "slot-followup-urologie": {
+    "resourceType": "Slot",
+    "hipResourceId": "caba4d18-f743-4b8b-8c23-49fbce50fe4b",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-followup-urologie",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "createdAt": "2026-09-16T17:50:41.758Z",
+    "updatedAt": "2026-09-16T17:50:41.758Z"
+  },
+  "appointment-followup-urologie": {
+    "resourceType": "Appointment",
+    "hipResourceId": "477f14a8-3219-44bf-86e7-e11de601ce90",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-followup-urologie",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "createdAt": "2026-09-16T17:50:42.139Z",
+    "updatedAt": "2026-09-16T17:50:42.139Z"
+  }
+}

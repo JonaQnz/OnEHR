@@ -1,0 +1,72 @@
+{
+  "patient-brandt": {
+    "resourceType": "Patient",
+    "hipResourceId": "d0adc560-0e17-4ca0-99f0-38786feff342",
+    "ehrId": "f318b7b1-744f-401d-bbc5-8eb2b06a159f",
+    "formsPatientId": "0836a339-39e5-4a21-ac3f-9e0a9a8f5792",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-brandt",
+    "scenarioRunId": "reha-knie-brandt-retry-2026-09-17",
+    "createdAt": "2026-09-17T13:42:35.034Z",
+    "updatedAt": "2026-09-17T13:42:35.034Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "fd61dc29-d22a-461f-863c-eab0bc2d4902",
+    "fhirVersionId": "2",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "reha-knie-brandt-retry-2026-09-17",
+    "createdAt": "2026-09-17T13:42:35.876Z",
+    "updatedAt": "2026-09-17T13:43:28.686Z"
+  },
+  "slot-nachsorge-termin": {
+    "resourceType": "Slot",
+    "hipResourceId": "29916dde-33c1-4abe-a9b1-4c176d2cc678",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-nachsorge-termin",
+    "scenarioRunId": "reha-knie-brandt-retry-2026-09-17",
+    "createdAt": "2026-09-17T13:43:27.191Z",
+    "updatedAt": "2026-09-17T13:43:27.191Z"
+  },
+  "appointment-nachsorge-termin": {
+    "resourceType": "Appointment",
+    "hipResourceId": "58d66289-cf8a-467b-80cc-c16735cf2fd6",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-nachsorge-termin",
+    "scenarioRunId": "reha-knie-brandt-retry-2026-09-17",
+    "createdAt": "2026-09-17T13:43:27.683Z",
+    "updatedAt": "2026-09-17T13:43:27.683Z"
+  }
+}

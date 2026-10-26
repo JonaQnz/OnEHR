@@ -1,0 +1,14 @@
+{
+  "scenarioId": "notaufnahme-offen-bauer",
+  "completedEventIds": [
+    "arrival",
+    "chief-complaint",
+    "smoke-procedure"
+  ],
+  "patientScenarioKey": "patient-bauer",
+  "completedAt": {
+    "arrival": "2026-09-16T17:19:52.581Z",
+    "chief-complaint": "2026-09-16T17:19:54.127Z",
+    "smoke-procedure": "2026-09-16T17:20:04.584Z"
+  }
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-notaufnahme-allgemein",
+    "timestamp": "2026-09-17T09:33:55.669Z"
+  },
+  {
+    "eventId": "order-sono",
+    "locationScenarioKey": "location-radiologie",
+    "timestamp": "2026-09-17T09:35:08.133Z"
+  },
+  {
+    "eventId": "verlegung-chirurgie",
+    "locationScenarioKey": "location-chirurgie-station",
+    "timestamp": "2026-09-17T09:36:51.209Z"
+  },
+  {
+    "eventId": "verlegung-op",
+    "locationScenarioKey": "location-op-saal",
+    "timestamp": "2026-09-17T09:42:33.776Z"
+  },
+  {
+    "eventId": "verlegung-station-postop",
+    "locationScenarioKey": "location-chirurgie-station",
+    "timestamp": "2026-09-17T11:38:33.526Z"
+  },
+  {
+    "eventId": "wundkontrolle-termin",
+    "locationScenarioKey": "location-radiologie",
+    "timestamp": "2026-09-17T11:39:27.984Z"
+  }
+]

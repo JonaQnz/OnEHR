@@ -1,0 +1,37 @@
+{
+  "patient-bauer": {
+    "resourceType": "Patient",
+    "hipResourceId": "a6ba5154-d942-48f0-8a83-92c9ac996b3f",
+    "ehrId": "ef199672-dcde-4818-b4fa-5b0ba76cff8d",
+    "formsPatientId": "2f83ef9c-8b64-4b2f-9449-d48bf0bbf882",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-bauer",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "createdAt": "2026-09-16T17:19:51.760Z",
+    "updatedAt": "2026-09-16T17:19:51.760Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "f9ab2c8e-f9c7-4165-b5e9-fa164b525599",
+    "fhirVersionId": "1",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "createdAt": "2026-09-16T17:19:52.553Z",
+    "updatedAt": "2026-09-16T17:19:52.553Z"
+  }
+}

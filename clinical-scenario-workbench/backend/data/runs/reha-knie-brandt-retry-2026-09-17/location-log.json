@@ -1,0 +1,12 @@
+[
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-reha-station-c",
+    "timestamp": "2026-09-17T13:42:35.037Z"
+  },
+  {
+    "eventId": "nachsorge-termin",
+    "locationScenarioKey": "location-radiologie",
+    "timestamp": "2026-09-17T13:43:27.686Z"
+  }
+]

@@ -1,0 +1,171 @@
+# A more severe pregnancy case than schwangerschaft-anc-demo.yaml (user's
+# own explicit follow-up ask: "etwas schwerwiegender, aber keine OP
+# notwendig") - moderate preeclampsia at 32 weeks, admitted for monitoring
+# and antihypertensive treatment, stabilized and discharged, no delivery/
+# surgery needed. Real inpatient encounter (classCode IMP, not AMB) - the
+# discharge-time critic checks correctly still apply here, unlike the
+# ambulatory ANC-visit case.
+scenarioId: schwangerschaft-praeeklampsie-demo
+
+patient:
+  key: patient-lena
+  firstName: Lena
+  lastName: Vogt
+  sex: female
+  age: 34
+
+events:
+  - id: arrival
+    type: patient-arrival
+    at: 0m
+    data:
+      location:
+        key: location-kreisssaal-ueberwachung
+        name: Kreißsaal-Überwachung / Schwangerenstation
+        description: Geburtshilfliche Überwachungsstation · antenatales Monitoring bei Risikoschwangerschaften
+        kind: general-ward
+      staff:
+        scenarioKey: practitioner-geburtshilfe-1
+        family: Brandt
+        given: Katharina
+        qualification: Fachärztin für Geburtshilfe und Perinatalmedizin
+      classSystem: http://terminology.hl7.org/CodeSystem/v3-ActCode
+      classCode: IMP
+      encounterStatus: arrived
+
+  - id: talk-symptoms
+    type: patient-conversation
+    at: 10m
+    data:
+      topic: Aufnahmegespräch - neu aufgetretene Symptome
+      question: Was genau bemerken Sie seit wann?
+      patientSays: Seit heute Morgen starke Kopfschmerzen, die nicht auf Paracetamol angesprochen haben, dazu Augenflimmern und ein drückendes Gefühl im rechten Oberbauch.
+      newInfoLearned: Akut aufgetretene starke Kopfschmerzen (paracetamolrefraktär), Augenflimmern und rechtsseitiger Oberbauchdruck seit den Morgenstunden - klassische Warnzeichen einer Präeklampsie.
+
+  - id: vitals-admission
+    type: vital-signs
+    at: 20m
+    data:
+      systolic: 162
+      diastolic: 108
+      heartRate: 92
+      spo2: 97
+      temperature: 36.8
+
+  - id: platelets
+    type: lab-value
+    at: 30m
+    data:
+      analyteName: Thrombozyten
+      analyteCode: '777-3'
+      value: 145
+      unit: 10*9/L
+      referenceRange: '150-400 x10^9/L'
+      interpretation: L
+      comment: Grenzwertig erniedrigt - Kontrolle im Verlauf zum Ausschluss einer Progression Richtung HELLP-Syndrom.
+
+  - id: liver-enzymes
+    type: lab-value
+    at: 35m
+    data:
+      analyteName: ASAT (GOT)
+      analyteCode: '1920-8'
+      value: 52
+      unit: U/L
+      referenceRange: '< 35 U/L'
+      interpretation: H
+      comment: Leicht erhöht - passend zu hepatischer Beteiligung bei Präeklampsie, aktuell kein Vollbild eines HELLP-Syndroms.
+
+  - id: urine-protein-order
+    type: order-basis
+    at: 40m
+    data:
+      serviceName: 24h-Sammelurin auf Protein (Proteinurie-Quantifizierung)
+      serviceCode: '275812003'
+      urgency: at0137
+      requestStatus: active
+      clinicalIndication: Abklärung Präeklampsie - Quantifizierung der Proteinurie.
+
+  - id: antihypertensive-order
+    type: medication-order
+    at: 45m
+    data:
+      medicationName: Nifedipin retard 20mg
+      medicationCode: '324252006'
+      medicationDisplay: Nifedipine 20mg modified-release oral tablet
+      status: at0011
+      doseAndTiming: 20mg oral, 2x täglich
+      route: oral
+      clinicalIndication: Schwere Hypertonie bei Präeklampsie (RR 162/108 mmHg).
+
+  - id: antihypertensive-administration
+    type: medication-administration
+    at: 50m
+    data:
+      arzneimittel: Nifedipin retard 20mg
+      medicationCode: '324252006'
+      dosisbeschreibung: 20mg oral
+      verabreichungsweg: oral
+      klinischeIndikation: Akuttherapie der schweren Hypertonie bei Präeklampsie.
+      nachkontrolliert: 'true'
+
+  - id: vitals-after-treatment
+    type: vital-signs
+    at: 3h
+    data:
+      systolic: 138
+      diastolic: 88
+      heartRate: 84
+      spo2: 98
+      temperature: 36.7
+
+  - id: pregnancy-status
+    type: pregnancy-status
+    at: 3h30m
+    data:
+      gestationalAgeWeeks: 32
+      gestationalAgeDays: 0
+      estimatedDueDate: '2026-11-15'
+      gravida: 1
+      para: 0
+      fetalHeartRate: 145
+      comment: Unter antihypertensiver Therapie rückläufiger Blutdruck. Reassuring fetal status, kein sonografischer Hinweis auf fetale Wachstumsrestriktion oder Notlage in dieser Untersuchung. Keine Indikation zur Entbindung.
+
+  - id: confirmed-diagnosis
+    type: coded-diagnosis
+    at: 4h
+    data:
+      diagnosisName: Mäßige Präeklampsie bei Erstschwangerschaft, 32. Schwangerschaftswoche
+      icdCode: O14.0
+      icdDisplay: Mäßige Präeklampsie
+
+  - id: discharge-letter
+    type: discharge-letter
+    at: 6h
+    data:
+      topic: Stationäre Überwachung bei mäßiger Präeklampsie
+      synopsis: Aufnahme bei neu aufgetretener schwerer Hypertonie (162/108 mmHg) mit Kopfschmerzen, Augenflimmern und Oberbauchdruck in der 32. SSW. Labor mit grenzwertiger Thrombozytopenie und leicht erhöhten Transaminasen, kein Vollbild eines HELLP-Syndroms. Unter Nifedipin retard rückläufiger Blutdruck (zuletzt 138/88 mmHg), reassuring fetal status.
+      recommendation: Fortführung der antihypertensiven Therapie, engmaschige ambulante Kontrolle von Blutdruck und Labor, sofortige Wiedervorstellung bei erneuten Warnzeichen (Kopfschmerzen, Sehstörungen, Oberbauchschmerz).
+      rationale: Klinische und laborchemische Stabilisierung unter Therapie, aktuell keine Indikation zur Entbindung.
+
+  - id: discharge-medication
+    type: discharge-medication
+    at: 6h5m
+    data:
+      medicationName: Nifedipin retard 20mg
+      status: at0011
+      doseAndTiming: 20mg oral, 2x täglich
+      route: oral
+      clinicalIndication: Fortführung der antihypertensiven Therapie bei Präeklampsie nach stationärer Stabilisierung.
+      therapeuticIntent: Ambulante Weiterbehandlung nach stationärer Überwachung bei Präeklampsie.
+
+  - id: followup-appointment
+    type: request-imaging
+    at: 6h10m
+    data:
+      serviceKey: service-praeeklampsie-kontrolle
+      scheduleKey: schedule-praeeklampsie-kontrolle
+      capabilityKey: praeeklampsie-kontrolle
+      serviceName: Schwangerenambulanz - Präeklampsie-Kontrolle
+      comment: Kontrolle von Blutdruck und Labor in 3-4 Tagen.
+      isFollowUp: true

@@ -1,0 +1,54 @@
+{
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-maria",
+    "compositionSessionId": "763885bb-8b19-4ce4-ae0a-53aa7a0d6a40",
+    "formSessionId": "9f16789e-8ede-410e-a378-843b76c1dfbf",
+    "capability": "anamnesis",
+    "scenarioRunId": "lae-live-step-1789489125",
+    "createdAt": "2026-09-15T16:18:56.469Z",
+    "updatedAt": "2026-09-15T16:18:56.469Z"
+  },
+  "vital-signs": {
+    "kind": "openEHR",
+    "formId": "61730ea9-284d-458f-b173-47902d0a7c90",
+    "compositionFormId": "b82c488f-688a-49d2-8031-447a0440d098",
+    "blockId": "vitals_block",
+    "patientScenarioKey": "patient-maria",
+    "compositionSessionId": "5ece81f6-6be2-480b-add0-58115abb58de",
+    "formSessionId": "8ba623ea-e333-4038-a5ee-0bd85b0a96e5",
+    "capability": "vital-signs",
+    "scenarioRunId": "lae-live-step-1789489125",
+    "createdAt": "2026-09-15T16:18:56.871Z",
+    "updatedAt": "2026-09-15T16:18:56.871Z"
+  },
+  "ct-imaging": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-ct-imaging",
+      "schedule": "schedule-ct-today",
+      "slot": "slot-ctpa-request",
+      "appointment": "appointment-ctpa-request"
+    },
+    "capability": "ct-imaging",
+    "scenarioRunId": "lae-live-step-1789489125",
+    "createdAt": "2026-09-15T16:18:58.173Z",
+    "updatedAt": "2026-09-15T16:18:58.173Z"
+  },
+  "coded-diagnosis": {
+    "kind": "openEHR",
+    "formId": "2e06e44e-1b9a-40c4-bc5b-d7efc139abe1",
+    "compositionFormId": "eda16486-e4c3-4d84-859e-87e7f6c505cf",
+    "blockId": "block-1",
+    "patientScenarioKey": "patient-maria",
+    "compositionSessionId": "505bcd83-456e-4902-b695-56e9b3fbf0ea",
+    "formSessionId": "0d96cd82-956f-4e12-aaa9-f292816c3aaa",
+    "capability": "coded-diagnosis",
+    "scenarioRunId": "lae-live-step-1789489125",
+    "createdAt": "2026-09-17T15:02:38.869Z",
+    "updatedAt": "2026-09-17T15:02:38.869Z"
+  }
+}

@@ -1,0 +1,41 @@
+[
+  {
+    "id": "smoke-procedure",
+    "type": "procedure",
+    "at": "2h",
+    "data": {
+      "procedureName": "Perkutane transluminale Koronarangioplastie (PTCA) mit Stentimplantation",
+      "opsCode": "8-837.00",
+      "opsDisplay": "PTCA mit Implantation von 1 medikamentenfreisetzendem Stent",
+      "status": "532",
+      "indication": "Akuter Vorderwandinfarkt (STEMI)",
+      "method": "Perkutan-transluminal, transradialer Zugang",
+      "bodySite": "Koronararterie, Ramus interventricularis anterior (RIVA/LAD)",
+      "outcome": "Erfolgreiche Rekanalisation, TIMI-3-Fluss, ein medikamentenfreisetzender Stent implantiert."
+    }
+  },
+  {
+    "id": "smoke-medorder",
+    "type": "medication-order",
+    "at": "2h5m",
+    "data": {
+      "medicationName": "Acetylsalicylsäure 300mg",
+      "status": "Active",
+      "doseAndTiming": "300mg einmalig, Aufsättigungsdosis",
+      "route": "oral (zerkaut)",
+      "clinicalIndication": "Akuter Myokardinfarkt (STEMI) - Thrombozytenaggregationshemmung"
+    }
+  },
+  {
+    "id": "smoke-medorder-2",
+    "type": "medication-order",
+    "at": "2h6m",
+    "data": {
+      "medicationName": "Acetylsalicylsäure 300mg",
+      "status": "at0011",
+      "doseAndTiming": "300mg einmalig, Aufsättigungsdosis",
+      "route": "oral (zerkaut)",
+      "clinicalIndication": "Akuter Myokardinfarkt (STEMI) - Thrombozytenaggregationshemmung"
+    }
+  }
+]

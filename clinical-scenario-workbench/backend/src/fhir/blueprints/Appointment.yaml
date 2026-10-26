@@ -1,0 +1,96 @@
+# Matches spec section 13's own worked example for this exact resource type.
+resourceType: Appointment
+
+simulationRequired:
+  - status
+  - start
+  - end
+  - participant.0.actor.reference
+  - participant.0.status
+  - slot.0.reference
+
+recommended:
+  - comment
+
+references:
+  participant.0.actor.reference:
+    target:
+      - Patient
+  slot.0.reference:
+    target:
+      - Slot
+
+llmMayGenerate:
+  - start
+  - end
+  - comment
+# A patient is never something the agent may invent or reassign - spec
+# section 13's own example names exactly this field.
+llmMayNotGenerate:
+  - participant.0.actor.reference
+
+dependencies:
+  - Patient
+  - Slot
+mayTrigger: []
+
+fields:
+  - path: status
+    label: Status
+    type: select
+    required: true
+    editable: true
+    sourcePolicy: derived
+    options:
+      - { value: proposed, label: Vorgeschlagen }
+      - { value: pending, label: Ausstehend }
+      - { value: booked, label: Gebucht }
+      - { value: arrived, label: Patient anwesend }
+      - { value: fulfilled, label: Durchgeführt }
+      - { value: cancelled, label: Storniert }
+      - { value: noshow, label: Nicht erschienen }
+  - path: start
+    label: Beginn
+    type: datetime
+    required: true
+    editable: true
+    sourcePolicy: generated
+  - path: end
+    label: Ende
+    type: datetime
+    required: true
+    editable: true
+    sourcePolicy: generated
+  - path: participant.0.actor.reference
+    label: Patient
+    type: reference
+    required: true
+    editable: true
+    sourcePolicy: scenario
+    referenceResourceTypes:
+      - Patient
+  - path: participant.0.status
+    label: Teilnahmestatus
+    type: select
+    required: true
+    editable: true
+    sourcePolicy: derived
+    options:
+      - { value: accepted, label: Angenommen }
+      - { value: declined, label: Abgelehnt }
+      - { value: tentative, label: Vorläufig }
+      - { value: needs-action, label: Rückmeldung ausstehend }
+  - path: slot.0.reference
+    label: Slot
+    type: reference
+    required: true
+    editable: true
+    sourcePolicy: derived
+    referenceResourceTypes:
+      - Slot
+  - path: comment
+    label: Beschreibung
+    type: text
+    required: false
+    editable: true
+    sourcePolicy: generated

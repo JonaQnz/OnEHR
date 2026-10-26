@@ -1,0 +1,107 @@
+{
+  "patient-emil": {
+    "resourceType": "Patient",
+    "hipResourceId": "6b7c76d6-5552-41b1-a153-d6af3521ca5f",
+    "ehrId": "b5aa6588-d3d2-4867-bc15-ceea91c29343",
+    "formsPatientId": "b47741ac-5c01-48fc-8dcc-a63bd7732aeb",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-emil",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "createdAt": "2026-09-16T11:47:30.737Z",
+    "updatedAt": "2026-09-16T11:47:30.737Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "f5a61fd6-f2cd-47bc-832d-28f9c59551b5",
+    "fhirVersionId": "7",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "createdAt": "2026-09-16T11:47:31.241Z",
+    "updatedAt": "2026-09-16T11:47:50.656Z"
+  },
+  "slot-ct-scan": {
+    "resourceType": "Slot",
+    "hipResourceId": "e57bfa11-46f3-40e3-a437-49ff1b58555e",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-ct-scan",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "createdAt": "2026-09-16T11:47:36.948Z",
+    "updatedAt": "2026-09-16T11:47:36.948Z"
+  },
+  "appointment-ct-scan": {
+    "resourceType": "Appointment",
+    "hipResourceId": "6a89fe4a-8d45-4211-8331-37fd5813ed3f",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-ct-scan",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "createdAt": "2026-09-16T11:47:37.221Z",
+    "updatedAt": "2026-09-16T11:47:37.221Z"
+  },
+  "slot-op2-scheduling": {
+    "resourceType": "Slot",
+    "hipResourceId": "5dabeba4-9b40-489f-897c-eb2db25e4b58",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-op2-scheduling",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "createdAt": "2026-09-16T11:47:44.346Z",
+    "updatedAt": "2026-09-16T11:47:44.346Z"
+  },
+  "appointment-op2-scheduling": {
+    "resourceType": "Appointment",
+    "hipResourceId": "31b081b2-44a0-4b07-8543-d94b8dcd0934",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-op2-scheduling",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "createdAt": "2026-09-16T11:47:44.777Z",
+    "updatedAt": "2026-09-16T11:47:44.777Z"
+  }
+}

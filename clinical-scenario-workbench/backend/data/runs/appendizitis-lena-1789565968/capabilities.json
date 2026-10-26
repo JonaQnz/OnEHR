@@ -1,0 +1,119 @@
+{
+  "vital-signs": {
+    "kind": "openEHR",
+    "formId": "61730ea9-284d-458f-b173-47902d0a7c90",
+    "compositionFormId": "b82c488f-688a-49d2-8031-447a0440d098",
+    "blockId": "vitals_block",
+    "patientScenarioKey": "patient-lena",
+    "compositionSessionId": "2ec3a809-5fbd-4ba5-997e-f6af1718fa98",
+    "formSessionId": "c8f6f5fa-d9db-4c72-8cd8-5b516c54923d",
+    "capability": "vital-signs",
+    "scenarioRunId": "appendizitis-lena-1789565968",
+    "createdAt": "2026-09-16T13:39:51.593Z",
+    "updatedAt": "2026-09-16T13:40:20.004Z"
+  },
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-lena",
+    "compositionSessionId": "181cf8c4-d71c-4e4c-abeb-7798391d1e89",
+    "formSessionId": "ffac113c-3755-41aa-853d-b61246667f93",
+    "capability": "anamnesis",
+    "scenarioRunId": "appendizitis-lena-1789565968",
+    "createdAt": "2026-09-16T13:39:52.780Z",
+    "updatedAt": "2026-09-16T13:40:03.372Z"
+  },
+  "abdominal-ultrasound": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-abdominal-ultrasound",
+      "schedule": "schedule-ultrasound-today",
+      "slot": "slot-ultrasound",
+      "appointment": "appointment-ultrasound"
+    },
+    "capability": "abdominal-ultrasound",
+    "scenarioRunId": "appendizitis-lena-1789565968",
+    "createdAt": "2026-09-16T13:39:59.884Z",
+    "updatedAt": "2026-09-16T13:39:59.884Z"
+  },
+  "lab-result": {
+    "kind": "openEHR",
+    "formId": "3d3adbcd-c3b5-4eae-a496-d0e9ab3fd609",
+    "compositionFormId": "eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "blockId": "block-lab",
+    "patientScenarioKey": "patient-lena",
+    "compositionSessionId": "e6c1a992-b5b6-458f-b4ad-a5e8f2083a10",
+    "formSessionId": "24896c26-d579-45bc-a196-b7e3c3518808",
+    "capability": "lab-result",
+    "scenarioRunId": "appendizitis-lena-1789565968",
+    "createdAt": "2026-09-16T13:40:05.986Z",
+    "updatedAt": "2026-09-16T13:40:05.986Z"
+  },
+  "nursing-round": {
+    "kind": "openEHR",
+    "formId": "6f1449d1-bd94-4ab4-ac40-d3cbc8412847",
+    "compositionFormId": "5f70143f-bb4d-4d44-8553-0103b597c246",
+    "blockId": "block-nursing",
+    "patientScenarioKey": "patient-lena",
+    "compositionSessionId": "401a3212-a567-4de3-9bef-83a45e6e7272",
+    "formSessionId": "b3cc84ba-47b9-4a3f-826b-49a0964552a3",
+    "capability": "nursing-round",
+    "scenarioRunId": "appendizitis-lena-1789565968",
+    "createdAt": "2026-09-16T13:40:07.585Z",
+    "updatedAt": "2026-09-16T13:40:18.117Z"
+  },
+  "doctor-round": {
+    "kind": "openEHR",
+    "formId": "fe7c41d6-32e8-4840-9974-effb9354fe54",
+    "compositionFormId": "eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "blockId": "block-order",
+    "patientScenarioKey": "patient-lena",
+    "compositionSessionId": "bc3d6eac-4606-4c9f-9e8a-922d273eb0b5",
+    "formSessionId": "92f2af9d-a148-4f6e-abaa-86969ddd1a41",
+    "capability": "doctor-round",
+    "scenarioRunId": "appendizitis-lena-1789565968",
+    "createdAt": "2026-09-16T13:40:08.383Z",
+    "updatedAt": "2026-09-16T13:40:18.954Z"
+  },
+  "diagnostic-report": {
+    "kind": "openEHR",
+    "formId": "b99eeb54-ec79-4713-8725-2c936ee0e9c7",
+    "compositionFormId": "eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "blockId": "block-imaging",
+    "patientScenarioKey": "patient-lena",
+    "compositionSessionId": "d556b4e9-8d17-4540-a6ea-e06bdcaf92e7",
+    "formSessionId": "7d2013e7-645f-4496-a0a5-902c66c8bc97",
+    "capability": "diagnostic-report",
+    "scenarioRunId": "appendizitis-lena-1789565968",
+    "createdAt": "2026-09-16T16:37:04.841Z",
+    "updatedAt": "2026-09-16T16:37:04.841Z"
+  },
+  "op-scheduling": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-op-appendektomie",
+      "schedule": "schedule-op-appendektomie-today",
+      "slot": "slot-op-scheduling",
+      "appointment": "appointment-op-scheduling"
+    },
+    "capability": "op-scheduling",
+    "scenarioRunId": "appendizitis-lena-1789565968",
+    "createdAt": "2026-09-16T16:37:06.513Z",
+    "updatedAt": "2026-09-16T16:37:06.513Z"
+  },
+  "procedure": {
+    "kind": "openEHR",
+    "formId": "88156aa7-4a18-4427-8710-c6c0b56da936",
+    "compositionFormId": "5f70143f-bb4d-4d44-8553-0103b597c246",
+    "blockId": "block-procedure",
+    "patientScenarioKey": "patient-lena",
+    "compositionSessionId": "6532ce28-e819-4136-b3a2-11b9e4a7e138",
+    "formSessionId": "370ac273-e403-4245-a4ea-24f8e79bade0",
+    "capability": "procedure",
+    "scenarioRunId": "appendizitis-lena-1789565968",
+    "createdAt": "2026-09-16T16:37:07.131Z",
+    "updatedAt": "2026-09-16T16:37:07.131Z"
+  }
+}

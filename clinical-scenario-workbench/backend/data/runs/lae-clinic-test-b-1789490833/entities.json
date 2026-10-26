@@ -1,0 +1,72 @@
+{
+  "patient-maria": {
+    "resourceType": "Patient",
+    "hipResourceId": "49b5739c-f878-4792-a19b-a85129d9300c",
+    "ehrId": "a787374a-3a07-4909-94f3-9e78545e0792",
+    "formsPatientId": "7685b098-45e7-49d0-aea7-fc5743afbad2",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-maria",
+    "scenarioRunId": "lae-clinic-test-b-1789490833",
+    "createdAt": "2026-09-17T15:02:34.032Z",
+    "updatedAt": "2026-09-17T15:02:34.032Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "e47f91de-25d4-47b6-98d9-d073b86ffe75",
+    "fhirVersionId": "2",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "lae-clinic-test-b-1789490833",
+    "createdAt": "2026-09-17T15:02:35.857Z",
+    "updatedAt": "2026-09-17T15:02:55.193Z"
+  },
+  "slot-ctpa-request": {
+    "resourceType": "Slot",
+    "hipResourceId": "c928f1cc-1cba-430d-ba89-805117ebbd6f",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-ctpa-request",
+    "scenarioRunId": "lae-clinic-test-b-1789490833",
+    "createdAt": "2026-09-17T15:02:53.519Z",
+    "updatedAt": "2026-09-17T15:02:53.519Z"
+  },
+  "appointment-ctpa-request": {
+    "resourceType": "Appointment",
+    "hipResourceId": "50acba8b-7a76-4d44-87b9-45e100e2832c",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-ctpa-request",
+    "scenarioRunId": "lae-clinic-test-b-1789490833",
+    "createdAt": "2026-09-17T15:02:54.147Z",
+    "updatedAt": "2026-09-17T15:02:54.147Z"
+  }
+}

@@ -1,0 +1,402 @@
+[
+  {
+    "reason": "HealthcareService required for scenario entity \"service-ct-imaging\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/f941520e-8a09-4d30-9337-16a9f8e59e8a created",
+    "id": "1547587c-8940-4dd9-b19e-3dce866ecc7c",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-15T16:49:48.321Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-ct-today\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/5854ab12-33ea-4498-ba8c-f95a769e5f76 created",
+    "id": "46360b87-b3bd-4897-a2c0-2c71f667eb79",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-15T16:49:48.608Z"
+  },
+  {
+    "reason": "Location required for scenario entity \"location-notaufnahme\"",
+    "action": "create Location",
+    "tool": "create_fhir_resource",
+    "result": "error",
+    "message": "Unexpected server error",
+    "id": "eba4bad5-8fd8-41da-948e-93b6b699c325",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T08:15:36.270Z"
+  },
+  {
+    "reason": "Location required for scenario entity \"location-notaufnahme\"",
+    "action": "create Location",
+    "tool": "create_fhir_resource",
+    "result": "error",
+    "message": "Unexpected server error",
+    "id": "709231f4-f510-4481-a807-4b9163372bae",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T08:19:49.597Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-notaufnahme-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/0b28fed3-8540-4e30-bad0-ea0724508216 created",
+    "id": "5ede0cb2-6129-4d68-93a2-622074a87d74",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T10:18:41.830Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-radiologie-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/612872c5-4aa5-426f-9933-91d419c606cc created",
+    "id": "d5ce76cf-e36f-492e-899c-7d84cafb75dd",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T10:19:30.671Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-praeklinik-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/9410ecc4-e30e-4e4c-abc7-1d706bdfc853 created",
+    "id": "990b58ff-ecc0-49e3-8e2c-eda63986b5bc",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T11:01:44.776Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-schockraum-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/ab73ef2a-8cb6-443a-af14-6012921a11d2 created",
+    "id": "4d8487d7-2b27-4d61-9753-a046d8305b4c",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T11:01:54.072Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-op-damage-control-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/7129859c-454e-4455-a458-b2df3aafa59e created",
+    "id": "da88408a-371a-4b54-9ba4-2c6eac8ffa23",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T11:01:57.109Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-icu-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/8249fc5a-17c1-4767-9822-c9df45d8cfa4 created",
+    "id": "1ed083ae-d05a-4af5-9bdc-31eacda52f9b",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T11:01:58.018Z"
+  },
+  {
+    "reason": "HealthcareService required for scenario entity \"service-op-planning\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/24ccca56-3941-4201-a02a-14aab907a268 created",
+    "id": "34f38cf3-d8d2-437d-aae8-3e20b42a0fff",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T11:01:59.691Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-op-planning\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/7313c391-28ea-489c-bf47-dcbe4f2339d6 created",
+    "id": "1793bc67-efe5-4a24-a7cc-518dac9b0319",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T11:02:00.084Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-op-definitive-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/f730e402-15e5-4a4a-a7e8-87a5be6c64fa created",
+    "id": "4ee980af-6f82-4c54-a882-6a2e4e58f93b",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T11:02:01.540Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-normalstation-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/95abf68a-9e0a-4271-94b5-58c136597598 created",
+    "id": "e1d87ee6-54c8-4928-a4c7-9c78e3f87884",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T11:02:02.424Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-reha-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/16107bfb-01fb-4987-917e-dccc27f0513d created",
+    "id": "34127aa6-5145-427f-b5f9-3fa868a4a9fb",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T11:02:03.603Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-chirurgie-diensthabend-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/fb664b32-a0ee-48f5-b87f-fe02c9ad3784 created",
+    "id": "ac018ddd-bc40-4ac6-96af-f0263fca1e92",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T13:39:50.114Z"
+  },
+  {
+    "reason": "HealthcareService required for scenario entity \"service-abdominal-ultrasound\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/2cc8995d-2faa-4283-a276-5d394c650ce0 created",
+    "id": "f4a5a1d5-b8f3-41fc-b5a1-9c3a9b160d9e",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T13:39:58.306Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-ultrasound-today\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/2735b1e6-8376-4c29-bc2d-9f64a4f92bbd created",
+    "id": "47baba07-7c5c-433c-baa4-ab2a95303396",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T13:39:58.670Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-chirurgie-op-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/178edfe4-b9be-42ad-a1d6-19f660c43422 created",
+    "id": "5c406593-0a01-406d-9df2-f1190189b5fc",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T13:40:00.219Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-chirurgie-station-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/f31b4b2d-b4b7-4ccc-92fa-1f56aac04c30 created",
+    "id": "e146e0ad-8fa3-47f7-bd32-a72dd9853aea",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T13:40:04.071Z"
+  },
+  {
+    "reason": "HealthcareService required for scenario entity \"service-op-appendektomie\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/cd9913de-f5c7-42fb-996e-2560ab700450 created",
+    "id": "4a162aae-23a7-4e42-9002-24d782552797",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T13:59:48.825Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-op-appendektomie-today\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/ad1b223c-92d9-46de-b7cf-3a9167f9848d created",
+    "id": "86341357-f0a9-4cf3-a8fe-4a0971b9dafc",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T13:59:49.270Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-notaufnahme-triage-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/6bfbc5d7-8e4d-45d8-89c6-ad8582456244 created",
+    "id": "d14f437d-f772-4d94-88f3-5ee7396ef251",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T16:47:40.038Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-kardiologie-interventionell-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/099b95a1-4e08-4b05-88a9-c7b1237377b5 created",
+    "id": "03a9db31-1750-4804-8443-945d6453250e",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T17:25:05.640Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-icu-kardiologie-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/5e41362a-4a60-4ff5-90c3-969bf0801662 created",
+    "id": "243835ce-34e3-475b-9142-05ffb2dc1ac5",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T17:26:43.670Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-normalstation-kardiologie-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/583db0d3-ce74-467f-a0c4-93d84fb3092a created",
+    "id": "a5a7d2be-582c-46ff-8e90-72e156a303c9",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T17:28:22.784Z"
+  },
+  {
+    "reason": "HealthcareService required for scenario entity \"service-urologie-nachsorge\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/af67eb9b-7f07-4504-ad75-1ee86f04f8c2 created",
+    "id": "aa681cb2-eb24-4312-9dc1-2152a59b0ef7",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T17:50:41.005Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-urologie-nachsorge\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/1b228522-af37-4531-9661-8f3613e62fd3 created",
+    "id": "041847a7-d9a9-4ba3-908d-aa2508646930",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T17:50:41.420Z"
+  },
+  {
+    "reason": "HealthcareService required for scenario entity \"service-kardiologie-nachsorge\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/492e529f-eb64-4479-874e-1c3f464685eb created",
+    "id": "48aa0834-0974-493e-94ca-9e0d06f2ac17",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T17:50:56.069Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-kardiologie-nachsorge\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/332f9d8f-6fc5-4aea-8ca4-d1ed6bd4e338 created",
+    "id": "9419e98d-4bf1-4f0e-bcb6-fd0a44dc4d70",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-16T17:50:56.435Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-gynaekologie-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/0b88a522-32ea-49d7-9e97-965358a3e091 created",
+    "id": "600da133-324f-4dca-beab-2082b5787894",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-17T07:45:12.265Z"
+  },
+  {
+    "reason": "HealthcareService required for scenario entity \"service-obstetric-ultrasound\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/189191c4-eaff-4de1-a02b-764e9f837494 created",
+    "id": "cfff32d7-87a7-4e9a-b0d5-3d1d25550365",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-17T07:45:14.524Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-obstetric-ultrasound\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/dc4991a9-ba10-4a7e-b4e0-f151a164b396 created",
+    "id": "ba83bedc-e96d-412e-bf2e-607a422c2166",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-17T07:45:15.005Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-geburtshilfe-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/3ccc4279-77ac-4eae-b4e8-829176ad0ec6 created",
+    "id": "4d5ac217-78cc-4e86-add6-ce8fd6f77809",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-17T08:59:40.802Z"
+  },
+  {
+    "reason": "HealthcareService required for scenario entity \"service-praeeklampsie-kontrolle\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/bbc5c104-a47d-4acb-afce-ac4b0b697683 created",
+    "id": "a4deed68-41b0-492b-9d09-717d41f8b1fd",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-17T09:02:02.479Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-praeeklampsie-kontrolle\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/300fe2e8-9fda-4120-9f8d-99d29e2f91ff created",
+    "id": "a6393aba-c9e7-4d1c-9dac-5c8eed35abab",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-17T09:02:03.995Z"
+  },
+  {
+    "reason": "HealthcareService required for scenario entity \"service-abdomen-sono\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/074c852d-7c32-4ef7-a164-4543763b3306 created",
+    "id": "ff10e3ab-0feb-460b-bf3d-5edfda9fc79d",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-17T09:35:06.772Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-abdomen-sono\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/734f1a17-c818-4b9d-bc18-05897101ed5d created",
+    "id": "0969cd8a-883e-4609-af64-ba5335d21cab",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-17T09:35:07.125Z"
+  },
+  {
+    "reason": "HealthcareService required for scenario entity \"service-chirurgie-wundkontrolle\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/e621bff5-1283-470f-8ef9-0b99e1fe764c created",
+    "id": "f0b16e3e-fbc4-4142-9cab-ebc66bfabd8a",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-17T11:39:26.579Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-chirurgie-wundkontrolle\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/5c1dca18-7dcf-4b19-b38b-000204cf9e14 created",
+    "id": "57a9babc-a6b9-41fc-bf60-3058cd8db4a9",
+    "scenarioRunId": "_clinic",
+    "timestamp": "2026-09-17T11:39:27.070Z"
+  }
+]

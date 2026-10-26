@@ -1,0 +1,15 @@
+{
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-bauer",
+    "compositionSessionId": "eb8821b0-9bfe-4c4c-ad28-1a14aad732aa",
+    "formSessionId": "21889d22-2251-455c-996f-a055891baa22",
+    "capability": "anamnesis",
+    "scenarioRunId": "smoketest-newcaps-1789578943",
+    "createdAt": "2026-09-16T17:15:46.445Z",
+    "updatedAt": "2026-09-16T17:15:46.445Z"
+  }
+}

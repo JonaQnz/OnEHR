@@ -1,0 +1,72 @@
+{
+  "patient-maria": {
+    "resourceType": "Patient",
+    "hipResourceId": "a1a8d114-223e-4401-a34d-29a827eda552",
+    "ehrId": "1b5f8d38-65b2-42fc-8293-00693ea7bd3b",
+    "formsPatientId": "9c3ca933-fa91-4178-b7bc-32abd53b37a0",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-maria",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "createdAt": "2026-09-16T10:19:27.663Z",
+    "updatedAt": "2026-09-16T10:19:27.663Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "90ea4d4a-6192-4854-a1bd-d40164cbb577",
+    "fhirVersionId": "2",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "createdAt": "2026-09-16T10:19:28.173Z",
+    "updatedAt": "2026-09-16T10:19:31.220Z"
+  },
+  "slot-ctpa-request": {
+    "resourceType": "Slot",
+    "hipResourceId": "0d7ba3da-1e35-452d-928d-9e7bba24d9d1",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-ctpa-request",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "createdAt": "2026-09-16T10:19:29.838Z",
+    "updatedAt": "2026-09-16T10:19:29.838Z"
+  },
+  "appointment-ctpa-request": {
+    "resourceType": "Appointment",
+    "hipResourceId": "30a18d2e-8446-490e-945f-005ffc4b2f1d",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-ctpa-request",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "createdAt": "2026-09-16T10:19:30.169Z",
+    "updatedAt": "2026-09-16T10:19:30.169Z"
+  }
+}

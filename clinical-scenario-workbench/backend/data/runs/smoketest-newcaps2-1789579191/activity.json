@@ -1,0 +1,112 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-bauer\"",
+    "action": "create Patient",
+    "tool": "create_patient",
+    "result": "success",
+    "message": "Patient 2f83ef9c-8b64-4b2f-9449-d48bf0bbf882 created (ehrId ef199672-dcde-4818-b4fa-5b0ba76cff8d)",
+    "id": "d580085c-09a1-4f86-9b97-1d3cffb58c11",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "timestamp": "2026-09-16T17:19:51.762Z"
+  },
+  {
+    "reason": "Encounter required for scenario entity \"encounter-arrival\"",
+    "action": "create Encounter",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Encounter/f9ab2c8e-f9c7-4165-b5e9-fa164b525599 created",
+    "id": "5aa9f4b9-da7a-42e4-a611-e4b0255301ef",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "timestamp": "2026-09-16T17:19:52.575Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"arrival\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "id": "1288c292-d98d-4094-87b8-564d8009dec3",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "timestamp": "2026-09-16T17:19:52.580Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 621e3000-f7bc-40e5-b610-26320725aaa7 submitted",
+    "id": "b4ba3e63-6b51-4e06-95dd-11045fcb71e5",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "timestamp": "2026-09-16T17:19:54.100Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein Arztbrief/Entlassungsbrief zur Entlassung erstellt.",
+    "id": "722b33a2-f60c-41fc-b056-4e2463b102f8",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "timestamp": "2026-09-16T17:19:54.101Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein Nachsorgetermin nach der Entlassung vereinbart.",
+    "id": "11f562b0-4911-4968-93e4-cfae992b2b8c",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "timestamp": "2026-09-16T17:19:54.106Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine Entlassmedikation dokumentiert.",
+    "id": "8139468c-2054-4d17-958d-528e8ffa6614",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "timestamp": "2026-09-16T17:19:54.121Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine formal kodierte (ICD-10-GM) Diagnose im Verlauf dokumentiert.",
+    "id": "c4c9427f-07c5-4a66-ad8b-8c3068bcd3df",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "timestamp": "2026-09-16T17:19:54.126Z"
+  },
+  {
+    "reason": "openEHR capability \"procedure\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 1d7db2e8-f483-431f-94aa-d9d49115bfd8 into 573656a0-e52d-4564-a559-47ec8d3cbbf3",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition e71ad78e-5e54-46d8-9f29-a543aa94f485 submitted",
+    "id": "54e29261-65b5-45d6-b25d-4f71eb22ab76",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "timestamp": "2026-09-16T17:20:04.582Z"
+  },
+  {
+    "reason": "openEHR capability \"medication-order\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 226ee58f-0d8e-4309-b744-4098580f469f into 6e2c3a61-df64-4771-8507-0ee30cddd055",
+    "tool": "ensure_capability",
+    "result": "error",
+    "message": "1 Formular-Validierungsfehler verhindern das Absenden",
+    "id": "ff810de6-a2b4-45a7-9998-f8e7925dc318",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "timestamp": "2026-09-16T17:20:14.463Z"
+  },
+  {
+    "reason": "openEHR capability \"medication-order\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 226ee58f-0d8e-4309-b744-4098580f469f into 6e2c3a61-df64-4771-8507-0ee30cddd055",
+    "tool": "ensure_capability",
+    "result": "error",
+    "message": "1 Formular-Validierungsfehler verhindern das Absenden",
+    "id": "4beca89f-d9f9-436b-88b6-2a5a171bcae0",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "timestamp": "2026-09-16T17:20:35.580Z"
+  }
+]

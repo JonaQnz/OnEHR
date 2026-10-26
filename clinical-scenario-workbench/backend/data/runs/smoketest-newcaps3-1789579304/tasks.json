@@ -1,0 +1,43 @@
+{
+  "missing-allergy-history": {
+    "id": "missing-allergy-history",
+    "code": "missing-allergy-history",
+    "description": "Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "anchorEventId": "arrival",
+    "status": "open",
+    "createdAt": "2026-09-16T17:21:46.345Z"
+  },
+  "missing-discharge-letter": {
+    "id": "missing-discharge-letter",
+    "code": "missing-discharge-letter",
+    "description": "Kein Arztbrief/Entlassungsbrief zur Entlassung erstellt.",
+    "anchorEventId": "chief-complaint",
+    "status": "open",
+    "createdAt": "2026-09-16T17:21:46.969Z"
+  },
+  "missing-followup-appointment": {
+    "id": "missing-followup-appointment",
+    "code": "missing-followup-appointment",
+    "description": "Kein Nachsorgetermin nach der Entlassung vereinbart.",
+    "anchorEventId": "chief-complaint",
+    "status": "open",
+    "createdAt": "2026-09-16T17:21:46.971Z"
+  },
+  "missing-discharge-medication": {
+    "id": "missing-discharge-medication",
+    "code": "missing-discharge-medication",
+    "description": "Keine Entlassmedikation dokumentiert.",
+    "anchorEventId": "chief-complaint",
+    "status": "resolved",
+    "createdAt": "2026-09-16T17:21:46.973Z",
+    "resolvedAt": "2026-09-16T17:22:07.849Z"
+  },
+  "missing-coded-diagnosis": {
+    "id": "missing-coded-diagnosis",
+    "code": "missing-coded-diagnosis",
+    "description": "Keine formal kodierte (ICD-10-GM) Diagnose im Verlauf dokumentiert.",
+    "anchorEventId": "chief-complaint",
+    "status": "open",
+    "createdAt": "2026-09-16T17:21:46.974Z"
+  }
+}

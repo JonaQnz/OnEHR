@@ -1,0 +1,72 @@
+{
+  "patient-nina": {
+    "resourceType": "Patient",
+    "hipResourceId": "197108fe-e24e-40e3-9408-6650275ea262",
+    "ehrId": "df2beee3-ce96-461a-a9f7-967d33b87a7a",
+    "formsPatientId": "2167884a-409d-403b-a7e0-b2bb711f255a",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-nina",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "createdAt": "2026-09-17T07:45:11.868Z",
+    "updatedAt": "2026-09-17T07:45:11.868Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "96215a6a-07cf-4b7b-b639-b96652b051ad",
+    "fhirVersionId": "2",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "createdAt": "2026-09-17T07:45:12.741Z",
+    "updatedAt": "2026-09-17T07:45:16.505Z"
+  },
+  "slot-ultrasound": {
+    "resourceType": "Slot",
+    "hipResourceId": "abf24783-6a87-4f63-be29-c6f0badd7774",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-ultrasound",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "createdAt": "2026-09-17T07:45:15.407Z",
+    "updatedAt": "2026-09-17T07:45:15.407Z"
+  },
+  "appointment-ultrasound": {
+    "resourceType": "Appointment",
+    "hipResourceId": "ba92ff9c-53db-428b-80ad-9fc262a6d3b4",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-ultrasound",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "createdAt": "2026-09-17T07:45:15.776Z",
+    "updatedAt": "2026-09-17T07:45:15.776Z"
+  }
+}

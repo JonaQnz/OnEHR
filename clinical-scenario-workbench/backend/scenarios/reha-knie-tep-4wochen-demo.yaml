@@ -1,0 +1,477 @@
+# Third Rehazentrum case (user's own follow-up ask: "einen zweiten etwas
+# größeren" - a genuinely bigger, denser 4-week AHB case after a right knee
+# TEP, following a detailed data-density brief the user provided as a table
+# (data category / cadence / expected record count over 4 weeks).
+#
+# HONEST LIMITATION, checked against the real system before writing this
+# (get_ehrbase_template_webtemplate on vg_pflegebericht.0.1.0): several rows
+# of that brief - Schmerz-NRS, Kniebeweglichkeit (ROM), Gehstrecke,
+# Hilfsmittel/Mobilitätsstatus, Treppensteigen, Physiotherapie/Therapie-
+# ergebnis, and Barthel-Index/Timed-Up-and-Go - have NO backing openEHR
+# archetype/Form Section anywhere in this Forms instance today. Pflegebericht
+# is genuinely just ONE free-text `progress_note` field, nothing more
+# structured. Rather than fabricating fake "structured" capabilities that
+# don't really exist (this session's own standards-first principle), those
+# rows are folded as real clinical narrative INTO real, existing nursing-
+# round/doctor-round/patient-conversation entries, at the cadence the brief
+# asked for - genuinely written to EHRbase, just as prose, not as discrete
+# coded fields. A system-critique is filed once this run executes, flagging
+# the gap for real (same pattern as missing-allergy-history/missing-consent).
+# Rows that DO have a real capability (Diagnosen, Vitalwerte, Medikation,
+# Ärztlicher Verlauf/doctor-round, Entlassungsbefund) use it directly, at
+# the brief's own cadence:
+#   Diagnosen            -> coded-diagnosis           x3  (brief: 2-4)
+#   Vitalwerte            -> vital-signs                x8  (brief: ~8, 2x/Woche)
+#   Medikation            -> medication-order/-medication x4 (brief: 3-5)
+#   Ärztlicher Verlauf    -> doctor-round               x4 weekly + 1 discharge
+#   Physio/Schmerz/ROM/Gehstrecke/Hilfsmittel/Treppe/Wundstatus
+#                         -> nursing-round (Pflegebericht free text) x20
+#                            workdays, each entry combining that day's real
+#                            values (pain NRS, and on their own designated
+#                            sub-cadence: ROM, gait distance, mobility aid,
+#                            stairs, wound status) - exactly mirroring how a
+#                            real Pflegebericht entry would read today.
+scenarioId: reha-knie-tep-4wochen-demo
+facilityId: rehazentrum
+
+patient:
+  key: patient-brandt
+  firstName: Helga
+  lastName: Brandt
+  sex: female
+  age: 74
+
+events:
+  - id: arrival
+    type: patient-arrival
+    at: 0h
+    data:
+      location:
+        key: location-reha-station-c
+        name: Reha-Station C
+        description: Rehazentrum Sonnenberg · Orthopädische Anschlussheilbehandlung
+        kind: rehabilitation
+      staff:
+        scenarioKey: practitioner-reha-aufnahme-3
+        family: Voigt
+        given: Anke
+        qualification: Fachärztin für Physikalische und Rehabilitative Medizin
+      classSystem: http://terminology.hl7.org/CodeSystem/v3-ActCode
+      classCode: IMP
+      encounterStatus: arrived
+
+  - id: aufnahmegespraech
+    type: patient-conversation
+    at: 15m
+    data:
+      actorRole: doctor
+      topic: Aufnahmegespräch AHB nach Knie-TEP rechts
+      question: Wie geht es Ihnen nach der Knie-OP, und was sind Ihre Ziele für die Reha?
+      patientSays: Das Knie ist noch dick, ich komme mit dem Rollator zurecht, schaffe aber kaum mehr als ein paar Schritte. Ich möchte wieder alleine einkaufen gehen können und die Treppe zu meiner Wohnung schaffen.
+      newInfoLearned: >-
+        Z.n. Knie-TEP rechts vor 7 Tagen (auswärtige Klinik). Aufnahmebefund: reduzierter Allgemeinzustand,
+        Knie deutlich geschwollen, aktuell Mobilisation ausschließlich mit Rollator, Gehstrecke ca. 30m.
+        Rehaziele: freie Gehfähigkeit, selbstständiges Treppensteigen, Alltagsselbstständigkeit (Einkaufen).
+        Assessment bei Aufnahme: Barthel-Index 60/100, Timed-Up-and-Go 26 Sekunden.
+
+  - id: vitals-aufnahme
+    type: vital-signs
+    at: 30m
+    data:
+      heartRate: 80
+      systolic: 148
+      diastolic: 88
+      temperature: 36.8
+
+  - id: diagnose-gonarthrose
+    type: coded-diagnosis
+    at: 45m
+    data:
+      diagnosisName: Sonstige primäre Gonarthrose, rechts
+      icdCode: M17.11
+      icdDisplay: 'Sonstige primäre Gonarthrose: Rechts'
+
+  - id: diagnose-zn-knie-tep
+    type: coded-diagnosis
+    at: 50m
+    data:
+      diagnosisName: Vorhandensein einer Kniegelenk-Totalendoprothese rechts
+      icdCode: Z96.65
+      icdDisplay: Vorhandensein von funktionellem Implantat des Kniegelenkes
+
+  - id: diagnose-hypertonie
+    type: coded-diagnosis
+    at: 55m
+    data:
+      diagnosisName: Arterielle Hypertonie
+      icdCode: I10.90
+      icdDisplay: Essentielle Hypertonie, ohne Angabe einer hypertensiven Krise
+
+  - id: medikation-analgetikum
+    type: medication-order
+    at: 60m
+    data:
+      medicationName: Ibuprofen 400mg
+      doseAndTiming: 400mg oral, 3x täglich
+      route: oral
+      clinicalIndication: Postoperativer Wund-/Belastungsschmerz nach Knie-TEP.
+
+  - id: medikation-thromboseprophylaxe
+    type: medication-order
+    at: 65m
+    data:
+      medicationName: Rivaroxaban 10mg
+      doseAndTiming: 10mg oral, 1x täglich
+      route: oral
+      clinicalIndication: Fortführung der medikamentösen Thromboseprophylaxe nach Knie-TEP.
+
+  # ---- Woche 1 (Tag 1-5) - Rollator, hohe Schmerzintensität, kurze Strecken ----
+  - id: pflege-tag1
+    type: nursing-round
+    at: 24h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 3/10, Belastung 6/10. Physiotherapie: erste Mobilisation mit Rollator gut toleriert,
+        Gehstrecke 50m. Hilfsmittel: Rollator (unverändert). Wundverhältnisse reizlos, Knie noch deutlich
+        geschwollen.
+
+  - id: pflege-tag2
+    type: nursing-round
+    at: 48h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 3/10, Belastung 5/10. Physiotherapie: Bewegungsübungen gut toleriert, Kniebeweglichkeit
+        Extension/Flexion 0-5-60°. Wundverhältnisse reizlos.
+
+  - id: pflege-tag3
+    type: nursing-round
+    at: 72h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 2/10, Belastung 5/10. Physiotherapie: Gangschule mit Rollator, Gehstrecke 80m.
+        Wundverhältnisse reizlos, Schwellung leicht rückläufig.
+
+  - id: arzt-visite-woche1
+    type: doctor-round
+    at: 76h
+    data:
+      serviceName: Reha-Verlaufskontrolle
+      serviceType: Visite
+      urgency: at0138
+      clinicalIndication: Regelhafte ärztliche Verlaufsbeurteilung im Rahmen der Anschlussheilbehandlung.
+      comment: >-
+        Erwartungsgemäßer Verlauf in Woche 1, Schwellung rückläufig, Schmerzintensität abnehmend.
+        Fortführung von Physiotherapie und Analgesie nach Plan.
+
+  - id: pflege-tag4
+    type: nursing-round
+    at: 96h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 2/10, Belastung 4/10. Physiotherapie: Kraft- und Bewegungsübungen, Kniebeweglichkeit
+        0-0-70°.
+
+  - id: vitals-tag4
+    type: vital-signs
+    at: 97h
+    data:
+      heartRate: 76
+      systolic: 142
+      diastolic: 85
+      temperature: 36.7
+
+  - id: pflege-tag5
+    type: nursing-round
+    at: 120h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 2/10, Belastung 4/10. Physiotherapie: Gangtraining, Gehstrecke 100m mit Rollator.
+        Treppensteigen: 5 Stufen mit Begleitung und Handlauf erstmals versucht, gut toleriert.
+
+  # ---- Woche 2 (Tag 8-12) - Umstieg auf Unterarmgehstützen ----
+  - id: pflege-tag8
+    type: nursing-round
+    at: 192h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 1/10, Belastung 4/10. Physiotherapie: Wechsel auf zwei Unterarmgehstützen, gut
+        toleriert, Gehstrecke 150m.
+
+  - id: vitals-tag8
+    type: vital-signs
+    at: 193h
+    data:
+      heartRate: 74
+      systolic: 138
+      diastolic: 84
+      temperature: 36.6
+
+  - id: pflege-tag9
+    type: nursing-round
+    at: 216h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 1/10, Belastung 3/10. Physiotherapie: Kniebeweglichkeit 0-0-85°, Kraftübungen
+        gesteigert. Narbe reizlos verheilt.
+
+  - id: pflege-tag10
+    type: nursing-round
+    at: 240h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 1/10, Belastung 3/10. Physiotherapie: Gangtraining an Unterarmgehstützen,
+        Gehstrecke 200m.
+
+  - id: arzt-visite-woche2
+    type: doctor-round
+    at: 244h
+    data:
+      serviceName: Reha-Verlaufskontrolle
+      serviceType: Visite
+      urgency: at0138
+      clinicalIndication: Regelhafte ärztliche Verlaufsbeurteilung im Rahmen der Anschlussheilbehandlung.
+      comment: >-
+        Guter Verlauf in Woche 2 - Umstieg auf Unterarmgehstützen erfolgreich, Beweglichkeit und Gehstrecke
+        deutlich gesteigert. Fortführung des Therapieplans, Belastungssteigerung wie toleriert.
+
+  - id: pflege-tag11
+    type: nursing-round
+    at: 264h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 1/10, Belastung 3/10. Physiotherapie: Bewegungsübungen, Kniebeweglichkeit 0-0-95°.
+
+  - id: vitals-tag11
+    type: vital-signs
+    at: 265h
+    data:
+      heartRate: 74
+      systolic: 136
+      diastolic: 82
+      temperature: 36.6
+
+  - id: pflege-tag12
+    type: nursing-round
+    at: 288h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 0/10, Belastung 3/10. Physiotherapie: Gangtraining, Gehstrecke 250m an
+        Unterarmgehstützen. Treppensteigen: 10 Stufen mit einer Gehstütze unter Aufsicht.
+
+  # ---- Woche 3 (Tag 15-19) - Umstieg auf eine Gehstütze, größere Strecken ----
+  - id: assessment-zwischenstand
+    type: patient-conversation
+    at: 336h
+    data:
+      actorRole: doctor
+      topic: Zwischenstand Rehaziele und Assessment
+      question: Wie schätzen Sie Ihren Fortschritt inzwischen ein, und wie geht es dem Knie beim Alltag?
+      patientSays: Deutlich besser, ich traue mich inzwischen auch mal ohne Rollator ein paar Schritte, und die Treppe zu Hause macht mir keine Angst mehr.
+      newInfoLearned: 'Zwischenstand Assessment (Tag 14): Barthel-Index 85/100, Timed-Up-and-Go 14 Sekunden - deutliche Verbesserung gegenüber Aufnahme.'
+
+  - id: pflege-tag15
+    type: nursing-round
+    at: 360h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 0/10, Belastung 2/10. Physiotherapie: Wechsel auf eine Gehstütze, gut toleriert,
+        Gehstrecke 350m. Kniebeweglichkeit 0-0-105°.
+
+  - id: vitals-tag15
+    type: vital-signs
+    at: 361h
+    data:
+      heartRate: 72
+      systolic: 134
+      diastolic: 82
+      temperature: 36.6
+
+  - id: pflege-tag16
+    type: nursing-round
+    at: 384h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 0/10, Belastung 2/10. Physiotherapie: Kraft- und Koordinationstraining gut
+        toleriert. Narbe reizlos, keine Auffälligkeiten.
+
+  - id: pflege-tag17
+    type: nursing-round
+    at: 408h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 0/10, Belastung 2/10. Physiotherapie: Gangtraining an einer Gehstütze,
+        Gehstrecke 450m, Kniebeweglichkeit 0-0-110°.
+
+  - id: arzt-visite-woche3
+    type: doctor-round
+    at: 412h
+    data:
+      serviceName: Reha-Verlaufskontrolle
+      serviceType: Visite
+      urgency: at0138
+      clinicalIndication: Regelhafte ärztliche Verlaufsbeurteilung im Rahmen der Anschlussheilbehandlung.
+      comment: >-
+        Sehr guter Verlauf in Woche 3 - nur noch eine Gehstütze nötig, Schmerzen fast vollständig
+        rückläufig. Reduktion der Analgetikadosis vertretbar.
+
+  - id: medikation-dosisreduktion
+    type: medication-order
+    at: 413h
+    data:
+      medicationName: Ibuprofen 400mg
+      doseAndTiming: 400mg oral, bei Bedarf bis 2x täglich (Dosisreduktion)
+      route: oral
+      clinicalIndication: Rückläufiger Belastungsschmerz - Dosisreduktion gemäß ärztlicher Visite.
+
+  - id: pflege-tag18
+    type: nursing-round
+    at: 432h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 0/10, Belastung 2/10. Physiotherapie: Bewegungsübungen, Kniebeweglichkeit 0-0-110°.
+
+  - id: vitals-tag18
+    type: vital-signs
+    at: 433h
+    data:
+      heartRate: 72
+      systolic: 132
+      diastolic: 80
+      temperature: 36.5
+
+  - id: pflege-tag19
+    type: nursing-round
+    at: 456h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 0/10, Belastung 1/10. Physiotherapie: Gangtraining, Gehstrecke 500m an einer
+        Gehstütze. Treppensteigen: ganzes Stockwerk (ca. 15 Stufen) mit einer Gehstütze, selbstständig.
+
+  # ---- Woche 4 (Tag 22-26) - freies Gehen, nahezu Rehaziel erreicht ----
+  - id: pflege-tag22
+    type: nursing-round
+    at: 528h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 0/10, Belastung 1/10. Physiotherapie: erste Gehversuche frei ohne Hilfsmittel
+        in der Therapie, gut toleriert, Gehstrecke 700m.
+
+  - id: vitals-tag22
+    type: vital-signs
+    at: 529h
+    data:
+      heartRate: 70
+      systolic: 130
+      diastolic: 80
+      temperature: 36.5
+
+  - id: pflege-tag23
+    type: nursing-round
+    at: 552h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 0/10, Belastung 1/10. Physiotherapie: Kraft- und Koordinationstraining,
+        Kniebeweglichkeit 0-0-115°.
+
+  - id: arzt-visite-woche4
+    type: doctor-round
+    at: 556h
+    data:
+      serviceName: Reha-Verlaufskontrolle
+      serviceType: Visite
+      urgency: at0138
+      clinicalIndication: Regelhafte ärztliche Verlaufsbeurteilung im Rahmen der Anschlussheilbehandlung.
+      comment: >-
+        Freies Gehen im Alltag inzwischen möglich, Rehaziele nahezu vollständig erreicht. Vorbereitung
+        der Entlassung in der kommenden Woche.
+
+  - id: pflege-tag24
+    type: nursing-round
+    at: 576h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 0/10, Belastung 1/10. Physiotherapie: Gangtraining, Gehstrecke 850m frei ohne
+        Hilfsmittel. Hilfsmittel: kein Hilfsmittel mehr erforderlich.
+
+  - id: vitals-tag25
+    type: vital-signs
+    at: 601h
+    data:
+      heartRate: 70
+      systolic: 128
+      diastolic: 78
+      temperature: 36.5
+
+  - id: pflege-tag25
+    type: nursing-round
+    at: 600h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 0/10, Belastung 0-1/10. Physiotherapie: Bewegungsübungen, Kniebeweglichkeit
+        0-0-120°, alltagstaugliche Beugefähigkeit erreicht.
+
+  - id: pflege-tag26
+    type: nursing-round
+    at: 624h
+    data:
+      note: >-
+        Schmerz NRS Ruhe 0/10, Belastung 0/10. Physiotherapie: Gangtraining, Gehstrecke 1000m frei ohne
+        Hilfsmittel - Rehaziel Gehstrecke erreicht. Treppensteigen: mehrere Stockwerke frei ohne
+        Hilfsmittel, selbstständig.
+
+  - id: arzt-entlassvisite
+    type: doctor-round
+    at: 648h
+    data:
+      serviceName: Reha-Abschlussvisite
+      serviceType: Visite
+      urgency: at0138
+      clinicalIndication: Abschließende ärztliche Beurteilung vor Entlassung aus der Anschlussheilbehandlung.
+      comment: >-
+        Rehabilitationsziele vollständig erreicht - freies Gehen, freies Treppensteigen, Kniebeweglichkeit
+        0-0-120°, Schmerzfreiheit in Ruhe. Assessment bei Entlassung: Barthel-Index 100/100,
+        Timed-Up-and-Go 9 Sekunden. Entlassung nach Hause vorgesehen.
+
+  - id: entlassbrief
+    type: discharge-letter
+    at: 672h
+    data:
+      topic: Entlassung nach orthopädischer Anschlussheilbehandlung
+      synopsis: >-
+        74-jährige Patientin, Aufnahme zur AHB 7 Tage nach Knie-TEP-Implantation rechts (auswärtige Klinik)
+        bei zugrundeliegender Gonarthrose. Aufnahmebefund: Mobilisation ausschließlich mit Rollator,
+        Gehstrecke ca. 30m, Barthel-Index 60/100, Timed-Up-and-Go 26 Sekunden. Im 4-wöchigen
+        Rehabilitationsverlauf kontinuierliche Verbesserung von Schmerz, Beweglichkeit (Extension/Flexion
+        von 0-5-60° auf 0-0-120°), Gehstrecke (von 30m auf 1000m) und Hilfsmittelbedarf (Rollator ->
+        zwei Unterarmgehstützen -> eine Gehstütze -> frei). Wundverhältnisse durchgehend reizlos.
+      recommendation: >-
+        Fortführung der Eigenübungen entsprechend Therapieplan, ambulante Physiotherapie 2x/Woche für
+        weitere 4 Wochen, Fortführung der Thromboseprophylaxe (Rivaroxaban) bis zum Abschluss der
+        empfohlenen Prophylaxedauer, Wiedervorstellung beim Operateur zur Verlaufskontrolle nach 6 Wochen.
+      rationale: >-
+        Rehabilitationsziele (freie Gehfähigkeit, selbstständiges Treppensteigen, Alltagsselbstständigkeit)
+        vollständig erreicht - Barthel-Index 100/100, Timed-Up-and-Go 9 Sekunden bei Entlassung,
+        komplikationsloser Reha-Verlauf ohne Hinweise auf Wundheilungsstörung oder Prothesenkomplikation.
+
+  - id: entlassmedikation
+    type: discharge-medication
+    at: 673h
+    data:
+      medicationName: Ibuprofen 400mg
+      status: at0011
+      doseAndTiming: 400mg oral, bei Bedarf bis 2x täglich
+      route: oral
+      clinicalIndication: Gelegentlicher Restbelastungsschmerz nach Knie-TEP und Mobilisation.
+      therapeuticIntent: Ambulante Bedarfsanalgesie nach Entlassung aus der AHB.
+      comment: Thromboseprophylaxe (Rivaroxaban) wird gemäß Arztbrief bis zum Abschluss der empfohlenen Dauer fortgeführt.
+
+  - id: nachsorge-termin
+    type: request-imaging
+    at: 674h
+    data:
+      serviceKey: service-reha-nachsorge-knie-tep
+      scheduleKey: schedule-reha-nachsorge-knie-tep
+      capabilityKey: reha-nachsorge-knie-tep
+      serviceName: Orthopädische Ambulanz - Verlaufskontrolle nach Knie-TEP
+      comment: Verlaufskontrolle beim Operateur, 6 Wochen postoperativ.
+      isFollowUp: true

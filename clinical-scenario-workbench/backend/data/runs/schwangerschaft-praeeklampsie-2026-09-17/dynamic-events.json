@@ -1,0 +1,48 @@
+[
+  {
+    "id": "followup-magnesium-order",
+    "type": "medication-order",
+    "at": "7h",
+    "data": {
+      "medicationName": "Magnesiumsulfat 10mmol",
+      "doseAndTiming": "10mmol oral, 1x taeglich",
+      "route": "oral",
+      "clinicalIndication": "Ergaenzende Magnesiumsubstitution bei Praeeklampsie.",
+      "pendingResult": {
+        "kind": "medication-administration",
+        "description": "Magnesiumsulfat verabreichen",
+        "payload": {
+          "arzneimittel": "Magnesiumsulfat 10mmol",
+          "dosisbeschreibung": "10mmol oral",
+          "verabreichungsweg": "oral",
+          "klinischeIndikation": "Praeeklampsie - Magnesiumsubstitution"
+        }
+      }
+    }
+  },
+  {
+    "id": "nursing-visits",
+    "type": "nursing-round",
+    "at": "7h30m",
+    "data": {
+      "note": "Pflege kommt zur Visite, arbeitet offene Anordnungen ab."
+    }
+  },
+  {
+    "id": "doctor-review",
+    "type": "doctor-round",
+    "at": "8h",
+    "data": {}
+  },
+  {
+    "id": "nurse-smalltalk",
+    "type": "patient-conversation",
+    "at": "8h5m",
+    "data": {
+      "actorRole": "nurse",
+      "topic": "Wohlbefinden",
+      "question": "Wie geht es Ihnen gerade?",
+      "patientSays": "Danke, der Kopfschmerz ist deutlich besser, ich bin nur muede."
+    }
+  }
+]

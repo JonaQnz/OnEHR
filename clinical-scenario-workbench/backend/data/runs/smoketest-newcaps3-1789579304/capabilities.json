@@ -1,0 +1,54 @@
+{
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-bauer",
+    "compositionSessionId": "81081a95-4599-466b-b7f9-7469380296cf",
+    "formSessionId": "81cbb507-a18d-4f18-a725-c7068a5287e1",
+    "capability": "anamnesis",
+    "scenarioRunId": "smoketest-newcaps3-1789579304",
+    "createdAt": "2026-09-16T17:21:46.966Z",
+    "updatedAt": "2026-09-16T17:21:46.966Z"
+  },
+  "medication-order": {
+    "kind": "openEHR",
+    "formId": "226ee58f-0d8e-4309-b744-4098580f469f",
+    "compositionFormId": "6e2c3a61-df64-4771-8507-0ee30cddd055",
+    "blockId": "block-1",
+    "patientScenarioKey": "patient-bauer",
+    "compositionSessionId": "0fce2d11-5df1-4031-8ce4-9ddeaaeab9ad",
+    "formSessionId": "8d8c3501-ab5e-4b35-80ca-f31f5742cd1d",
+    "capability": "medication-order",
+    "scenarioRunId": "smoketest-newcaps3-1789579304",
+    "createdAt": "2026-09-16T17:21:47.772Z",
+    "updatedAt": "2026-09-16T17:21:47.772Z"
+  },
+  "medication-administration": {
+    "kind": "openEHR",
+    "formId": "2c2724c9-59a4-4b44-908a-556f4a771de4",
+    "compositionFormId": "5bc67710-d0e3-4301-ba43-cc93a8f29bec",
+    "blockId": "block-1",
+    "patientScenarioKey": "patient-bauer",
+    "compositionSessionId": "8064b893-597c-4e49-bd30-e1db103cd415",
+    "formSessionId": "f0b5b081-ee47-4dab-a493-3531cf7f2a16",
+    "capability": "medication-administration",
+    "scenarioRunId": "smoketest-newcaps3-1789579304",
+    "createdAt": "2026-09-16T17:21:58.106Z",
+    "updatedAt": "2026-09-16T17:21:58.106Z"
+  },
+  "discharge-medication": {
+    "kind": "openEHR",
+    "formId": "dddee1ff-3b22-4316-b985-06938694da66",
+    "compositionFormId": "2a88d34b-541d-4085-ab7a-23c713346928",
+    "blockId": "med-form",
+    "patientScenarioKey": "patient-bauer",
+    "compositionSessionId": "c3a849ae-5968-4396-8c6c-8c66bf42f560",
+    "formSessionId": "75f8ddfc-5188-42aa-a49e-87cfa91bcf64",
+    "capability": "discharge-medication",
+    "scenarioRunId": "smoketest-newcaps3-1789579304",
+    "createdAt": "2026-09-16T17:22:07.845Z",
+    "updatedAt": "2026-09-16T17:22:07.845Z"
+  }
+}

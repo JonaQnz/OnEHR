@@ -1,0 +1,72 @@
+{
+  "patient-schmidt": {
+    "resourceType": "Patient",
+    "hipResourceId": "03d6a8c2-1da1-4434-8e92-b42e2d5d47f0",
+    "ehrId": "d29c1e93-5852-48da-a812-622bad37e5e4",
+    "formsPatientId": "70804ac1-a533-4c0b-b54d-7cdf7052c12e",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-schmidt",
+    "scenarioRunId": "reha-schmidt-demo-2026-09-17",
+    "createdAt": "2026-09-17T12:36:22.795Z",
+    "updatedAt": "2026-09-17T12:36:22.795Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "b1754bd6-4bd0-49fb-8645-84b18dc17e4f",
+    "fhirVersionId": "2",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "reha-schmidt-demo-2026-09-17",
+    "createdAt": "2026-09-17T12:36:23.778Z",
+    "updatedAt": "2026-09-17T12:36:31.743Z"
+  },
+  "slot-nachsorge-termin": {
+    "resourceType": "Slot",
+    "hipResourceId": "584b1afc-debe-4795-8ffe-87036cab6055",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-nachsorge-termin",
+    "scenarioRunId": "reha-schmidt-demo-2026-09-17",
+    "createdAt": "2026-09-17T12:36:30.327Z",
+    "updatedAt": "2026-09-17T12:36:30.327Z"
+  },
+  "appointment-nachsorge-termin": {
+    "resourceType": "Appointment",
+    "hipResourceId": "8c6ed977-ae06-47ad-be4e-abd2efb3ce62",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-nachsorge-termin",
+    "scenarioRunId": "reha-schmidt-demo-2026-09-17",
+    "createdAt": "2026-09-17T12:36:30.828Z",
+    "updatedAt": "2026-09-17T12:36:30.828Z"
+  }
+}

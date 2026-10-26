@@ -1,0 +1,86 @@
+{
+  "4cb83efc-e7f6-41d8-980b-2373756c739c": {
+    "kind": "lab-value",
+    "description": "Leukozyten-Ergebnis eintragen",
+    "orderedByRole": "doctor",
+    "orderEventId": "order-labor",
+    "patientScenarioKey": "patient-anna",
+    "payload": {
+      "analyteName": "Leukozyten",
+      "analyteCode": "6690-2",
+      "value": 13.4,
+      "unit": "G/L",
+      "referenceRange": "4.0-10.0 G/L",
+      "interpretation": "H",
+      "comment": "Leukozytose - passend zur Verdachtsdiagnose."
+    },
+    "id": "4cb83efc-e7f6-41d8-980b-2373756c739c",
+    "status": "done",
+    "createdAt": "2026-09-17T09:35:05.570Z",
+    "reviewedByDoctor": true,
+    "completedAt": "2026-09-17T09:35:37.498Z",
+    "completedByEventId": "pflege-blutabnahme-executes-4cb83efc-e7f6-41d8-980b-2373756c739c"
+  },
+  "9db88e67-1729-4365-9399-115d784eab0f": {
+    "kind": "lab-value",
+    "description": "CRP-Ergebnis eintragen",
+    "orderedByRole": "doctor",
+    "orderEventId": "order-crp",
+    "patientScenarioKey": "patient-anna",
+    "payload": {
+      "analyteName": "CRP",
+      "analyteCode": "1988-5",
+      "value": 42,
+      "unit": "mg/L",
+      "referenceRange": "< 5 mg/L",
+      "interpretation": "H",
+      "comment": "Deutlich erhoeht - passend zu akut-entzuendlichem Geschehen."
+    },
+    "id": "9db88e67-1729-4365-9399-115d784eab0f",
+    "status": "done",
+    "createdAt": "2026-09-17T09:35:06.323Z",
+    "reviewedByDoctor": true,
+    "completedAt": "2026-09-17T09:35:38.144Z",
+    "completedByEventId": "pflege-blutabnahme-executes-9db88e67-1729-4365-9399-115d784eab0f"
+  },
+  "7622399c-6d2e-4529-a3fc-447facbc26ed": {
+    "kind": "medication-administration",
+    "description": "Cefuroxim-Prophylaxe verabreichen",
+    "orderedByRole": "doctor",
+    "orderEventId": "prophylaxe-order",
+    "patientScenarioKey": "patient-anna",
+    "payload": {
+      "arzneimittel": "Cefuroxim 1.5g i.v.",
+      "medicationCode": "372733002",
+      "dosisbeschreibung": "1.5g i.v. Einmalgabe",
+      "verabreichungsweg": "intravenoes",
+      "klinischeIndikation": "Perioperative Antibiotikaprophylaxe"
+    },
+    "id": "7622399c-6d2e-4529-a3fc-447facbc26ed",
+    "status": "done",
+    "createdAt": "2026-09-17T09:42:13.389Z",
+    "reviewedByDoctor": true,
+    "completedAt": "2026-09-17T09:42:23.845Z",
+    "completedByEventId": "pflege-praeop-executes-7622399c-6d2e-4529-a3fc-447facbc26ed"
+  },
+  "37263cbb-ee02-426e-9054-a148c452c762": {
+    "kind": "medication-administration",
+    "description": "Novaminsulfon 1g i.v. verabreichen",
+    "orderedByRole": "doctor",
+    "orderEventId": "schmerzmittel-order",
+    "patientScenarioKey": "patient-anna",
+    "payload": {
+      "arzneimittel": "Novaminsulfon (Metamizol) 1g",
+      "medicationCode": "387584000",
+      "dosisbeschreibung": "1g i.v. als Kurzinfusion",
+      "verabreichungsweg": "intravenoes",
+      "klinischeIndikation": "Postoperativer Wundschmerz NRS 6/10"
+    },
+    "id": "37263cbb-ee02-426e-9054-a148c452c762",
+    "status": "done",
+    "createdAt": "2026-09-17T11:36:32.849Z",
+    "reviewedByDoctor": true,
+    "completedAt": "2026-09-17T11:36:42.449Z",
+    "completedByEventId": "pflege-postop-1-executes-37263cbb-ee02-426e-9054-a148c452c762"
+  }
+}

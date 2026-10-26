@@ -1,0 +1,54 @@
+{
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-maria",
+    "compositionSessionId": "8b2491cb-3ab5-4acb-a682-c158f8f95f94",
+    "formSessionId": "9232b337-2011-4a1d-bb93-e4eefd4d46c1",
+    "capability": "anamnesis",
+    "scenarioRunId": "lae-clinic-test-a-1789490833",
+    "createdAt": "2026-09-16T10:56:01.070Z",
+    "updatedAt": "2026-09-16T10:56:01.070Z"
+  },
+  "vital-signs": {
+    "kind": "openEHR",
+    "formId": "61730ea9-284d-458f-b173-47902d0a7c90",
+    "compositionFormId": "b82c488f-688a-49d2-8031-447a0440d098",
+    "blockId": "vitals_block",
+    "patientScenarioKey": "patient-maria",
+    "compositionSessionId": "ff3be831-ac2c-4c78-978e-7de1c6592cc4",
+    "formSessionId": "434d2c49-761e-48fc-a2b9-c3f6e5f31ff9",
+    "capability": "vital-signs",
+    "scenarioRunId": "lae-clinic-test-a-1789490833",
+    "createdAt": "2026-09-16T10:56:02.498Z",
+    "updatedAt": "2026-09-16T10:56:02.498Z"
+  },
+  "ct-imaging": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-ct-imaging",
+      "schedule": "schedule-ct-today",
+      "slot": "slot-ctpa-request",
+      "appointment": "appointment-ctpa-request"
+    },
+    "capability": "ct-imaging",
+    "scenarioRunId": "lae-clinic-test-a-1789490833",
+    "createdAt": "2026-09-17T15:02:40.936Z",
+    "updatedAt": "2026-09-17T15:02:40.936Z"
+  },
+  "coded-diagnosis": {
+    "kind": "openEHR",
+    "formId": "2e06e44e-1b9a-40c4-bc5b-d7efc139abe1",
+    "compositionFormId": "eda16486-e4c3-4d84-859e-87e7f6c505cf",
+    "blockId": "block-1",
+    "patientScenarioKey": "patient-maria",
+    "compositionSessionId": "830b7762-e797-4771-9ae8-75b876ff4275",
+    "formSessionId": "329d1e61-41df-45f5-8fd7-0f0c0a2c78b5",
+    "capability": "coded-diagnosis",
+    "scenarioRunId": "lae-clinic-test-a-1789490833",
+    "createdAt": "2026-09-17T15:02:49.016Z",
+    "updatedAt": "2026-09-17T15:02:49.016Z"
+  }
+}

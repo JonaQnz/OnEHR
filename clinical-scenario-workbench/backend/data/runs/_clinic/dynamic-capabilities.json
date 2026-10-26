@@ -1,0 +1,18 @@
+{
+  "pregnancy-status": {
+    "role": "basis",
+    "description": "Schwangerschaftsstatus (Basis): Gestationsalter (Ultraschall), errechneter Entbindungstermin, Gravida/Para, fetale Herzfrequenz. Gebaut vom openehr-architect-Agenten aus drei echten openEHR-CKM-Archetypen (estimated_date_delivery/obstetric_summary/fetal_heart), live gegen EHRbase verifiziert.",
+    "compositionFormId": "00eafebe-7b94-4f2c-a104-1bc8ef7b7d3f",
+    "blockId": "block-1",
+    "formSectionFormId": "cb8213e8-751a-4c88-8671-0ab7759c1ce8",
+    "forceNewComposition": true
+  },
+  "progress-note": {
+    "role": "basis",
+    "description": "Verlaufsnotiz (Basis): unstrukturierte Gesprächs-/Verlaufsnotiz, echt in EHRbase abgelegt statt nur im internen ActivityLog. Live verifiziert.",
+    "compositionFormId": "d0fe6829-2852-4183-ada3-142abb0fb6c4",
+    "blockId": "block-1",
+    "formSectionFormId": "ff3cb87f-cc0b-4b03-87ef-991e794eca11",
+    "forceNewComposition": true
+  }
+}

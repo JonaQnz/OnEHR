@@ -1,0 +1,482 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-fischer\"",
+    "action": "create Patient",
+    "tool": "create_patient",
+    "result": "success",
+    "message": "Patient 2a4947be-d777-44a5-890f-b22c32594c6d created (ehrId 7abb63dd-ee11-4263-8ba0-e2e56576e412)",
+    "id": "4afd94f2-5b7d-4529-a955-7c86f8df9810",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:23:44.382Z"
+  },
+  {
+    "reason": "Encounter required for scenario entity \"encounter-arrival\"",
+    "action": "create Encounter",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Encounter/54df3ade-c545-43d7-9a19-04f3353384aa created",
+    "id": "6d3ca423-afd4-4f30-896d-239baabb1a64",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:23:44.861Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"arrival\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "id": "a0015f54-2bae-4faf-91b6-7fd8ead472d0",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:23:44.862Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 6868a521-bc4b-48d6-a34c-1b82d5f33e1f submitted",
+    "id": "1d044d05-cfd8-459e-94fc-beba89e75f80",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:23:45.558Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein Arztbrief/Entlassungsbrief zur Entlassung erstellt.",
+    "id": "1d297728-6a01-420e-b277-b99f7691f6cb",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:23:45.563Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein Nachsorgetermin nach der Entlassung vereinbart.",
+    "id": "08cf2d06-8812-4f41-be47-dcfa1cc29223",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:23:45.564Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine Entlassmedikation dokumentiert.",
+    "id": "c9e64415-267a-489e-8851-b39ab424d3cb",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:23:45.566Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine formal kodierte (ICD-10-GM) Diagnose im Verlauf dokumentiert.",
+    "id": "43c4e418-e2b2-44cb-a0e3-26dbe4a50edb",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:23:45.567Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 87864693-261e-47db-865a-9c2472f5b575 submitted",
+    "id": "b360df06-eef2-4d21-b8fe-c93b99e8864d",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:23:56.405Z"
+  },
+  {
+    "reason": "openEHR capability \"diagnostic-report\" required for scenario patient \"patient-fischer\"",
+    "action": "fill b99eeb54-ec79-4713-8725-2c936ee0e9c7 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 5362f80f-6740-4be3-b886-7547ac2ae88d submitted",
+    "id": "0a167d96-b611-4230-a49e-c9dfdbed99d5",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:24:10.771Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-fischer\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition ff42de4e-a7ec-4382-abae-012b56686506 submitted",
+    "id": "bc19e88b-2465-461b-9e64-79a90dd6da36",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:24:25.522Z"
+  },
+  {
+    "reason": "openEHR capability \"medication-administration\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 2c2724c9-59a4-4b44-908a-556f4a771de4 into 5bc67710-d0e3-4301-ba43-cc93a8f29bec",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition c191c217-aa1f-42b9-8e86-f7aca23aaad5 submitted",
+    "id": "4dd6395e-c0d2-48fc-80b4-1608edea96aa",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:24:41.184Z"
+  },
+  {
+    "reason": "openEHR capability \"medication-administration\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 2c2724c9-59a4-4b44-908a-556f4a771de4 into 5bc67710-d0e3-4301-ba43-cc93a8f29bec",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 4901a71e-5ffb-4eeb-afb2-16b9f6e85377 submitted",
+    "id": "efa0fc8c-8e9b-46f6-a897-07205a2dac5e",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:24:41.853Z"
+  },
+  {
+    "reason": "openEHR capability \"medication-administration\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 2c2724c9-59a4-4b44-908a-556f4a771de4 into 5bc67710-d0e3-4301-ba43-cc93a8f29bec",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 89624478-3d17-4b58-8157-fd3c752e8de2 submitted",
+    "id": "aa99ed24-b591-4e37-9e76-497ab388dc82",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:24:42.582Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/54df3ade-c545-43d7-9a19-04f3353384aa updated",
+    "id": "71f3aeea-696c-4f3c-a7aa-8405fcf7b784",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:25:07.594Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"cathlab-transfer\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine dokumentierte Aufklärung/Einwilligung vor dem Eingriff an Station \"Herzkatheterlabor\".",
+    "id": "4c7fbeb7-cbff-4798-b406-eb62ca5e3fcc",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:25:07.597Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"cathlab-transfer\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein strukturierter Prozedur-Eintrag für den Eingriff an Station \"Herzkatheterlabor\" gefunden.",
+    "id": "4425e228-cc0f-4d3f-965b-c1ba86cc0469",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:25:07.598Z"
+  },
+  {
+    "reason": "openEHR capability \"procedure\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 1d7db2e8-f483-431f-94aa-d9d49115bfd8 into 573656a0-e52d-4564-a559-47ec8d3cbbf3",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 7b0cd910-77c5-47de-ba83-216454b6a4e5 submitted",
+    "id": "63355e97-b5de-42cc-8483-92dcee49cc2a",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:26:31.294Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/54df3ade-c545-43d7-9a19-04f3353384aa updated",
+    "id": "2e92e33b-6076-461b-8925-52832ce026ae",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:26:44.270Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 22e00fad-29a2-46b9-ab2d-e31c753ca9db submitted",
+    "id": "ff1c775c-eee6-4f3c-920e-61520fa240e9",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:27:08.144Z"
+  },
+  {
+    "reason": "openEHR capability \"lab-result\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 3d3adbcd-c3b5-4eae-a496-d0e9ab3fd609 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition babd1632-6a03-49c3-9d56-1f3700b277ae submitted",
+    "id": "cb62c97d-814a-4536-9600-7d488958bb1d",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:27:09.216Z"
+  },
+  {
+    "reason": "openEHR capability \"nursing-round\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 6f1449d1-bd94-4ab4-ac40-d3cbc8412847 into 5f70143f-bb4d-4d44-8553-0103b597c246",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 3d31ad96-9607-4aec-9527-13fc73c19900 submitted",
+    "id": "10529e34-7c3d-44dc-a6c6-f8ec713ea106",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:27:09.849Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-fischer\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 92c4c409-b086-4693-a5e6-d8ee1ec31374 submitted",
+    "id": "855363ed-9eb5-4d6e-ac96-e0d3e8ec0c26",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:27:23.206Z"
+  },
+  {
+    "reason": "openEHR capability \"lab-result\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 3d3adbcd-c3b5-4eae-a496-d0e9ab3fd609 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 2db66d8e-f670-40e9-b3ec-da5a54f20b91 submitted",
+    "id": "aaee96f7-5462-495a-a52d-954eacd3d64c",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:27:24.325Z"
+  },
+  {
+    "reason": "openEHR capability \"diagnostic-report\" required for scenario patient \"patient-fischer\"",
+    "action": "fill b99eeb54-ec79-4713-8725-2c936ee0e9c7 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition e77fc3c2-0a3a-4e98-8c6c-1051f3ec9fcf submitted",
+    "id": "d364cbfe-3e8f-4986-a792-433e5ff63665",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:27:39.315Z"
+  },
+  {
+    "reason": "openEHR capability \"medication-order\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 226ee58f-0d8e-4309-b744-4098580f469f into 6e2c3a61-df64-4771-8507-0ee30cddd055",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 9b5e8420-d5e8-470c-9b96-09473a4aa0ae submitted",
+    "id": "c0052bc7-4852-41c8-9397-553daedac93f",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:27:56.105Z"
+  },
+  {
+    "reason": "openEHR capability \"medication-administration\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 2c2724c9-59a4-4b44-908a-556f4a771de4 into 5bc67710-d0e3-4301-ba43-cc93a8f29bec",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 87972072-46dc-4bf4-a949-3d03af88278d submitted",
+    "id": "c29aae90-eafc-4a49-8209-b182924efba3",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:27:56.893Z"
+  },
+  {
+    "reason": "openEHR capability \"medication-administration\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 2c2724c9-59a4-4b44-908a-556f4a771de4 into 5bc67710-d0e3-4301-ba43-cc93a8f29bec",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition e6b07c5a-9860-4afa-84a2-dd3e59b40fc4 submitted",
+    "id": "21af19b4-d633-4cd5-89ef-8c7dd4816e80",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:27:57.712Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 5309e723-cce7-4bf1-a209-492787549708 submitted",
+    "id": "30e736e1-6f7c-47f5-98f9-4c1726e4d004",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:28:11.533Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-fischer\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition c6c79ce7-1b88-4da6-81d1-5cca5e3f3fd8 submitted",
+    "id": "dfc3d4d6-16ef-4235-ad86-38cb58a89451",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:28:12.169Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/54df3ade-c545-43d7-9a19-04f3353384aa updated",
+    "id": "34b24a8f-6958-464c-b6c4-cd119346312f",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:28:23.798Z"
+  },
+  {
+    "reason": "openEHR capability \"nursing-round\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 6f1449d1-bd94-4ab4-ac40-d3cbc8412847 into 5f70143f-bb4d-4d44-8553-0103b597c246",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition e1415559-06d6-4e9a-a079-911d62b3b6de submitted",
+    "id": "5faf6839-1bc1-4ed5-8b40-4c143e493db9",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:28:42.370Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-fischer\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 67572fa9-cf9f-41c7-a3e9-d928523a0898 submitted",
+    "id": "ed69b66c-70ef-420a-ae0d-cc48576e470f",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:28:43.083Z"
+  },
+  {
+    "reason": "openEHR capability \"medication-order\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 226ee58f-0d8e-4309-b744-4098580f469f into 6e2c3a61-df64-4771-8507-0ee30cddd055",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 9e49c6ae-03a8-47ad-91fb-141f3f833910 submitted",
+    "id": "627ac5c5-50b3-44e5-81e2-9381b7997075",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:28:56.524Z"
+  },
+  {
+    "reason": "openEHR capability \"medication-administration\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 2c2724c9-59a4-4b44-908a-556f4a771de4 into 5bc67710-d0e3-4301-ba43-cc93a8f29bec",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 3181b451-68c7-4ee7-9cf6-0709705f49f2 submitted",
+    "id": "64230a65-83f5-4f4e-be2d-cf6311deefed",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:28:57.173Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 57084bd5-f450-4bad-b1a1-95f86ae1ca9f submitted",
+    "id": "b0eda74f-8170-4ab5-b256-db4734a7cb56",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:29:12.410Z"
+  },
+  {
+    "reason": "openEHR capability \"nursing-round\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 6f1449d1-bd94-4ab4-ac40-d3cbc8412847 into 5f70143f-bb4d-4d44-8553-0103b597c246",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 13e5e96d-8e9e-402a-a83c-59494005479b submitted",
+    "id": "c345af52-4dea-4b1d-b142-ff0e53be028b",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:29:13.297Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-fischer\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 225ac6a0-4b9d-4e38-ad23-7bb229aa3b38 submitted",
+    "id": "d56fe6cf-1779-4249-9832-afb2f07195c1",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:29:14.061Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 665838f0-956f-4136-9944-0c0c2ef9d1a0 submitted",
+    "id": "329d2597-bca6-4161-ab9c-3b84f4c4cd60",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:29:27.719Z"
+  },
+  {
+    "reason": "openEHR capability \"discharge-medication\" required for scenario patient \"patient-fischer\"",
+    "action": "fill dddee1ff-3b22-4316-b985-06938694da66 into 2a88d34b-541d-4085-ab7a-23c713346928",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 77c5ae7f-b145-4777-8ed8-cbae7c9715da submitted",
+    "id": "58845901-a980-415a-a251-76ccfb28e976",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:30:21.511Z"
+  },
+  {
+    "reason": "openEHR capability \"discharge-medication\" required for scenario patient \"patient-fischer\"",
+    "action": "fill dddee1ff-3b22-4316-b985-06938694da66 into 2a88d34b-541d-4085-ab7a-23c713346928",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 0acd05b4-c9bf-4ef9-bab2-b63f89736813 submitted",
+    "id": "55659991-bb1a-48a8-9d76-0ee7a2731c2b",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:30:22.372Z"
+  },
+  {
+    "reason": "openEHR capability \"discharge-medication\" required for scenario patient \"patient-fischer\"",
+    "action": "fill dddee1ff-3b22-4316-b985-06938694da66 into 2a88d34b-541d-4085-ab7a-23c713346928",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition bfa84388-6a5d-47de-8092-454dd88092a2 submitted",
+    "id": "4ab3b2fd-7bfd-4f1e-b7d7-a9f9fcfbc1ac",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:30:23.253Z"
+  },
+  {
+    "reason": "openEHR capability \"discharge-medication\" required for scenario patient \"patient-fischer\"",
+    "action": "fill dddee1ff-3b22-4316-b985-06938694da66 into 2a88d34b-541d-4085-ab7a-23c713346928",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition f36b1c0e-9385-4f34-9074-a46c698ab296 submitted",
+    "id": "f8983364-01ad-4d22-979d-fb10b838415d",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:30:24.174Z"
+  },
+  {
+    "reason": "openEHR capability \"discharge-medication\" required for scenario patient \"patient-fischer\"",
+    "action": "fill dddee1ff-3b22-4316-b985-06938694da66 into 2a88d34b-541d-4085-ab7a-23c713346928",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition a0ed13df-0784-418c-a37f-7654a4a8acd9 submitted",
+    "id": "1165f2a8-0240-4c5b-b187-a3eed24c23d9",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:30:24.787Z"
+  },
+  {
+    "reason": "openEHR capability \"discharge-letter\" required for scenario patient \"patient-fischer\"",
+    "action": "fill 42d74b75-e2fe-4238-a0a0-1f7c556938a5 into 2a88d34b-541d-4085-ab7a-23c713346928",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 76ca146b-cc0c-4e21-a95c-ff555cee8450 submitted",
+    "id": "6db23d53-520e-4f3c-8e10-431d05a42e4e",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:30:45.860Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/54df3ade-c545-43d7-9a19-04f3353384aa updated",
+    "id": "c0b20c5a-b98c-4363-9f02-1431446e4c88",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:30:59.554Z"
+  },
+  {
+    "reason": "Slot required for scenario entity \"slot-followup-kardiologie\"",
+    "action": "create Slot",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Slot/e052a0ee-1187-42cf-88a0-d33457fd22ae created",
+    "id": "c81c79e5-aaac-443f-ae6d-cbeaef149fbd",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:50:56.941Z"
+  },
+  {
+    "reason": "Appointment required for scenario entity \"appointment-followup-kardiologie\"",
+    "action": "create Appointment",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Appointment/c9f71264-510f-4cc1-a27b-ca21fb79d7ef created",
+    "id": "add93502-d3fa-4e80-9c28-f500275a71d4",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "timestamp": "2026-09-16T17:50:57.349Z"
+  }
+]

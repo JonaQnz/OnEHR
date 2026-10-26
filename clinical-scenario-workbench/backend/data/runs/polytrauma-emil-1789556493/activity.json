@@ -1,0 +1,152 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-emil\"",
+    "action": "create Patient",
+    "tool": "create_patient",
+    "result": "success",
+    "message": "Patient a3f9bbd8-4224-47b7-8763-f51eb4caaef5 created (ehrId 865c0184-2a19-45ea-a765-addc8a01ac33)",
+    "id": "a5d59c4d-294c-4495-b156-7d5c78ecefa8",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:01:44.388Z"
+  },
+  {
+    "reason": "Encounter required for scenario entity \"encounter-arrival\"",
+    "action": "create Encounter",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Encounter/c43de53b-1271-4e4f-8288-e9a6fd35e188 created",
+    "id": "030d73c6-3c79-421d-95e1-5d211c95ce80",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:01:45.214Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/c43de53b-1271-4e4f-8288-e9a6fd35e188 updated",
+    "id": "456bf72e-6ca0-48ba-95c2-a104ae26d5b2",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:01:54.705Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-emil\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 9672f7b4-1fe7-41c6-9995-8101b55158b0 submitted",
+    "id": "7361a009-638c-4cb8-8ccb-0f35bb70ed24",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:01:55.329Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 60a19648-a4d4-4a14-aa5c-1aa02685a9ae submitted",
+    "id": "fbfdfb5b-9242-4b2d-8873-093797aa8787",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:01:55.738Z"
+  },
+  {
+    "reason": "Slot required for scenario entity \"slot-ct-scan\"",
+    "action": "create Slot",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Slot/22b3b850-2ba8-450b-a635-fce19a2ca32c created",
+    "id": "d4536c17-a4d4-4932-9763-c71dc9a1e602",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:01:56.375Z"
+  },
+  {
+    "reason": "Appointment required for scenario entity \"appointment-ct-scan\"",
+    "action": "create Appointment",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Appointment/ef0e691f-1389-42c9-8e4a-ca5f284da3ae created",
+    "id": "a4f01ec9-d379-4600-a7cd-472fc134333a",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:01:56.755Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/c43de53b-1271-4e4f-8288-e9a6fd35e188 updated",
+    "id": "7f40a655-378c-4bac-acb0-52343f85f900",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:01:57.687Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/c43de53b-1271-4e4f-8288-e9a6fd35e188 updated",
+    "id": "982cab85-4e6f-4d43-a226-fce9e3a414eb",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:01:58.610Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition ab6ba338-63e1-41a0-8807-090c76c4d0b5 submitted",
+    "id": "ab1a4b54-0c60-4b7c-9385-c80bceaf5485",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:01:59.356Z"
+  },
+  {
+    "reason": "Slot required for scenario entity \"slot-op2-scheduling\"",
+    "action": "create Slot",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Slot/1b2ee272-f6a5-4ba2-bc71-37cda503b4fe created",
+    "id": "be7c031b-8260-4ccb-b792-3ca179d8295e",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:02:00.810Z"
+  },
+  {
+    "reason": "Appointment required for scenario entity \"appointment-op2-scheduling\"",
+    "action": "create Appointment",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Appointment/d59fa1b3-ace0-43a1-9759-413fe1ca5bb0 created",
+    "id": "1c951aea-d2a4-4117-9045-1aade9a24b89",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:02:01.214Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/c43de53b-1271-4e4f-8288-e9a6fd35e188 updated",
+    "id": "25b645b5-81b8-4924-a10f-05b34da8a03a",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:02:02.062Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/c43de53b-1271-4e4f-8288-e9a6fd35e188 updated",
+    "id": "320ccd73-d680-4d32-b63e-c8f7ba99b41f",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:02:03.206Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/c43de53b-1271-4e4f-8288-e9a6fd35e188 updated",
+    "id": "4f018ec4-74a7-4dd2-8594-f86cb072df05",
+    "scenarioRunId": "polytrauma-emil-1789556493",
+    "timestamp": "2026-09-16T11:02:04.169Z"
+  }
+]

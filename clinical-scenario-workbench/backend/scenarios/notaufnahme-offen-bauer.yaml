@@ -1,0 +1,49 @@
+# A genuinely OPEN-ENDED case (user's ask, 2026-09-16): the patient knows
+# only his own symptoms, not a diagnosis - "Er weiß nichts über seine
+# Beschwerden. Nur halt Beschwerden." Unlike every other scenario file in
+# this project, this one deliberately does NOT pre-author what happens
+# after arrival - there is no hidden `location.kind`-driven protocol here,
+# no pre-typed diagnosis, no fixed number of rounds. Everything from the
+# first vitals check onward is appended live, one real event at a time, via
+# `POST /api/scenario-runs/:runId/events` (scenario/dynamicEvents.ts) by
+# whoever is acting as the attending doctor for this run - reviewing only
+# what's actually been recorded in the chart so far (the real vitals/labs
+# already written), the same way a real clinician using this workbench
+# interactively would. "Der Arzt kommt nur einmal die Stunde" is honored by
+# spacing each doctor-facing event's own `at:` roughly an hour apart, even
+# though (like every other scenario here) execution itself always uses real
+# wall-clock timestamps, not this simulated clock.
+scenarioId: notaufnahme-offen-bauer
+
+patient:
+  key: patient-bauer
+  firstName: Markus
+  lastName: Bauer
+  sex: male
+  age: 45
+  birthDate: 1980-11-03
+
+events:
+  # Chief complaint only - no diagnosis, no location.kind (this station
+  # deliberately opts OUT of protocol.ts's automatic ruleset; every
+  # following action is a live decision, not an automatic one).
+  - id: arrival
+    type: patient-arrival
+    at: 0h
+    data:
+      encounterStatus: triaged
+      classCode: EMER # provisional - the real ambulant/stationär call comes at triage, once initial vitals are known
+      location:
+        key: location-notaufnahme
+        name: Notaufnahme
+      staff:
+        scenarioKey: practitioner-notaufnahme-triage-1
+        family: Yilmaz
+        given: Elif
+        qualification: Fachärztin für Innere Medizin
+
+  - id: chief-complaint
+    type: anamnesis
+    at: 5m
+    data:
+      diagnosis: "Vorstellungsgrund (Patientenangabe): Seit heute Morgen plötzlich stärkste Schmerzen in der rechten Flanke, ausstrahlend in die Leiste, Übelkeit. Kein Fieber bemerkt. Diagnose noch offen - Abklärung läuft."

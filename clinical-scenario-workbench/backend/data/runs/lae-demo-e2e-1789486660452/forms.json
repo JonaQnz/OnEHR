@@ -1,0 +1,318 @@
+{
+  "encounter": {
+    "id": "encounter",
+    "resourceType": "Encounter",
+    "version": 1,
+    "fields": [
+      {
+        "path": "status",
+        "label": "Status",
+        "type": "select",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "derived",
+        "options": [
+          {
+            "value": "planned",
+            "label": "Geplant"
+          },
+          {
+            "value": "arrived",
+            "label": "Angekommen"
+          },
+          {
+            "value": "triaged",
+            "label": "Triagiert"
+          },
+          {
+            "value": "in-progress",
+            "label": "Laufend"
+          },
+          {
+            "value": "onleave",
+            "label": "Unterbrochen"
+          },
+          {
+            "value": "finished",
+            "label": "Abgeschlossen"
+          },
+          {
+            "value": "cancelled",
+            "label": "Storniert"
+          }
+        ]
+      },
+      {
+        "path": "class.system",
+        "label": "Encounter-Klasse (System)",
+        "type": "text",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "derived"
+      },
+      {
+        "path": "class.code",
+        "label": "Encounter-Klasse (Code)",
+        "type": "code",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "derived"
+      },
+      {
+        "path": "subject.reference",
+        "label": "Patient",
+        "type": "reference",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "scenario",
+        "referenceResourceTypes": [
+          "Patient"
+        ]
+      },
+      {
+        "path": "period.start",
+        "label": "Aufnahmezeitpunkt",
+        "type": "datetime",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "scenario"
+      }
+    ],
+    "createdBy": "system",
+    "editable": true
+  },
+  "healthcareservice": {
+    "id": "healthcareservice",
+    "resourceType": "HealthcareService",
+    "version": 1,
+    "fields": [
+      {
+        "path": "name",
+        "label": "Name",
+        "type": "text",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "generated"
+      }
+    ],
+    "createdBy": "system",
+    "editable": true
+  },
+  "schedule": {
+    "id": "schedule",
+    "resourceType": "Schedule",
+    "version": 1,
+    "fields": [
+      {
+        "path": "actor.0.reference",
+        "label": "Fachabteilung / Service",
+        "type": "reference",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "derived",
+        "referenceResourceTypes": [
+          "HealthcareService"
+        ]
+      },
+      {
+        "path": "planningHorizon.start",
+        "label": "Verfügbar ab",
+        "type": "datetime",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "generated"
+      },
+      {
+        "path": "planningHorizon.end",
+        "label": "Verfügbar bis",
+        "type": "datetime",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "generated"
+      }
+    ],
+    "createdBy": "system",
+    "editable": true
+  },
+  "slot": {
+    "id": "slot",
+    "resourceType": "Slot",
+    "version": 1,
+    "fields": [
+      {
+        "path": "schedule.reference",
+        "label": "Schedule",
+        "type": "reference",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "derived",
+        "referenceResourceTypes": [
+          "Schedule"
+        ]
+      },
+      {
+        "path": "status",
+        "label": "Status",
+        "type": "select",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "derived",
+        "options": [
+          {
+            "value": "free",
+            "label": "Frei"
+          },
+          {
+            "value": "busy",
+            "label": "Belegt"
+          },
+          {
+            "value": "busy-unavailable",
+            "label": "Nicht verfügbar"
+          },
+          {
+            "value": "busy-tentative",
+            "label": "Vorläufig belegt"
+          }
+        ]
+      },
+      {
+        "path": "start",
+        "label": "Beginn",
+        "type": "datetime",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "generated"
+      },
+      {
+        "path": "end",
+        "label": "Ende",
+        "type": "datetime",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "generated"
+      }
+    ],
+    "createdBy": "system",
+    "editable": true
+  },
+  "appointment": {
+    "id": "appointment",
+    "resourceType": "Appointment",
+    "version": 1,
+    "fields": [
+      {
+        "path": "status",
+        "label": "Status",
+        "type": "select",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "derived",
+        "options": [
+          {
+            "value": "proposed",
+            "label": "Vorgeschlagen"
+          },
+          {
+            "value": "pending",
+            "label": "Ausstehend"
+          },
+          {
+            "value": "booked",
+            "label": "Gebucht"
+          },
+          {
+            "value": "arrived",
+            "label": "Patient anwesend"
+          },
+          {
+            "value": "fulfilled",
+            "label": "Durchgeführt"
+          },
+          {
+            "value": "cancelled",
+            "label": "Storniert"
+          },
+          {
+            "value": "noshow",
+            "label": "Nicht erschienen"
+          }
+        ]
+      },
+      {
+        "path": "start",
+        "label": "Beginn",
+        "type": "datetime",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "generated"
+      },
+      {
+        "path": "end",
+        "label": "Ende",
+        "type": "datetime",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "generated"
+      },
+      {
+        "path": "participant.0.actor.reference",
+        "label": "Patient",
+        "type": "reference",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "scenario",
+        "referenceResourceTypes": [
+          "Patient"
+        ]
+      },
+      {
+        "path": "participant.0.status",
+        "label": "Teilnahmestatus",
+        "type": "select",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "derived",
+        "options": [
+          {
+            "value": "accepted",
+            "label": "Angenommen"
+          },
+          {
+            "value": "declined",
+            "label": "Abgelehnt"
+          },
+          {
+            "value": "tentative",
+            "label": "Vorläufig"
+          },
+          {
+            "value": "needs-action",
+            "label": "Rückmeldung ausstehend"
+          }
+        ]
+      },
+      {
+        "path": "slot.0.reference",
+        "label": "Slot",
+        "type": "reference",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "derived",
+        "referenceResourceTypes": [
+          "Slot"
+        ]
+      },
+      {
+        "path": "comment",
+        "label": "Beschreibung",
+        "type": "text",
+        "required": false,
+        "editable": true,
+        "sourcePolicy": "generated"
+      }
+    ],
+    "createdBy": "system",
+    "editable": true
+  }
+}

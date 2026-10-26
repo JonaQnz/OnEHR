@@ -1,0 +1,174 @@
+# A second, lighter real-world case: acute appendicitis, straight ER-to-OR-
+# to-ward-to-home course (Lena Vogel, 27). Deliberately REUSES the clinic's
+# already-existing shared stations from earlier scenarios (`location-op`,
+# `location-notaufnahme`) rather than minting near-duplicate ones - a real
+# hospital has one OP suite and one ER, not a new one per case
+# (localLocations.ts's `ensure()` is idempotent: reusing a key just attaches
+# this case's own staff/patients to the same real Station, ignoring this
+# file's own description text on the second+ call). Every station below
+# names a `location.kind`; `scenario/protocol.ts`'s `expandScenario` (run
+# automatically by loader.ts on every load) fills in the real admission/
+# discharge/periodic-monitoring ruleset for each - this file only
+# hand-authors the clinically-specific facts a generic ruleset can't invent
+# (the actual diagnosis text, the ultrasound finding, the operative note).
+#
+# One invented "Termin vor Aufenthalt" per the standing instruction: a
+# same-day abdominal ultrasound booked between ER arrival and OR, confirming
+# the diagnosis before surgery - the appendicitis analogue of the polytrauma
+# case's pre-OP CT booking.
+#
+# Three gaps found live by eye (looked "OK at a glance" but not genuinely
+# real) and fixed here: the ultrasound had a finding only as a free-text
+# Appointment comment, never a structured report; the appendectomy itself
+# was only a free-text anamnesis note, never a structured Procedure record;
+# and there was no dedicated OP booking at all (straight from ultrasound to
+# the OP ward-transfer). Fixed with two new event types
+# (`diagnostic-report`, `procedure`, both real, live-verified openEHR
+# capabilities - see capability/catalog.ts) and a second `request-imaging`
+# booking for the OP slot itself. The standing critic system
+# (critic/rules.ts) checks for exactly these three gaps generically now, so
+# a future scenario that forgets them gets flagged automatically.
+scenarioId: appendizitis-lena
+
+patient:
+  key: patient-lena
+  firstName: Lena
+  lastName: Vogel
+  sex: female
+  age: 27
+  birthDate: 1999-02-14
+
+events:
+  # Notaufnahme (reuses the clinic's own shared ER) - acute right-lower-
+  # quadrant abdominal pain, migrated from periumbilical over ~12h at home.
+  # `kind: trauma-bay` is reused here for its monitoring cadence (frequent
+  # vitals pre-op), not because this is an actual trauma - the protocol only
+  # drives clinical actions/vitals ranges, never the station's own name/
+  # staff/description, which stay accurately non-trauma below.
+  - id: arrival
+    type: patient-arrival
+    at: 0h
+    data:
+      encounterStatus: triaged
+      classCode: EMER
+      location:
+        key: location-notaufnahme
+        kind: trauma-bay
+      staff:
+        scenarioKey: practitioner-chirurgie-diensthabend-1
+        family: Krüger
+        given: Sarah
+        qualification: Fachärztin für Allgemein- und Viszeralchirurgie
+
+  - id: primary-diagnosis
+    type: anamnesis
+    at: 30m
+    data:
+      diagnosis: Verdacht auf akute Appendizitis - rechtsseitiger Unterbauchschmerz mit Wanderung von periumbilikal, positives Blumberg- und Psoas-Zeichen, subfebrile Temperatur 37.9°C, leichte Leukozytose.
+
+  # Invented "Termin vor Aufenthalt": a same-day booked ultrasound confirms
+  # the diagnosis before the patient is wheeled into the OP.
+  - id: ultrasound
+    type: request-imaging
+    at: 1h30m
+    data:
+      serviceKey: service-abdominal-ultrasound
+      serviceName: Sonographie Abdomen
+      scheduleKey: schedule-ultrasound-today
+      capabilityKey: abdominal-ultrasound
+      comment: Abdomensonographie angefordert bei V.a. akute Appendizitis.
+      skipLocationTransfer: true # still in ER holding, the OP ward-transfer right after covers the physical move
+      expectsDiagnosticReport: true # the critic checks that a real diagnostic-report follows before the next station
+
+  # The structured finding itself - a real "Diagnostik-Befund" Composition,
+  # not just a comment on the Appointment above.
+  - id: ultrasound-finding
+    type: diagnostic-report
+    at: 1h45m
+    data:
+      studyName: Sonographie Abdomen
+      modality: Sonographie
+      targetBodySite: Abdomen, rechter Unterbauch
+      findings: Kokardenphänomen im rechten Unterbauch mit Wanddicke ca. 9mm, nicht komprimierbar, geringe freie Flüssigkeit periappendikulär. Kein Nachweis freier Luft.
+      impression: Sonographischer Befund vereinbar mit akuter Appendizitis, kein Perforationshinweis.
+      diagnosis: Akute Appendizitis
+      recommendation: Operative Sanierung empfohlen.
+
+  # A real, dedicated OP booking - even an urgent appendectomy goes through
+  # the hospital's own OP-Programm, not straight from ultrasound into the OR.
+  - id: op-scheduling
+    type: request-imaging
+    at: 2h
+    data:
+      serviceKey: service-op-appendektomie
+      serviceName: 'OP-Programm: Notfall-Appendektomie'
+      scheduleKey: schedule-op-appendektomie-today
+      capabilityKey: op-scheduling
+      comment: Dringliche Aufnahme in das laufende OP-Programm - Kategorie IIb (Beginn innerhalb von 6 Stunden).
+      skipLocationTransfer: true # the "op" ward-transfer right after covers the physical move
+
+  # OP (reuses the clinic's own shared OP suite) - laparoscopic appendectomy.
+  - id: op
+    type: ward-transfer
+    at: 3h
+    data:
+      encounterStatus: in-progress
+      location:
+        key: location-op
+        name: OP
+        description: Operationssaal · Allgemein- und Viszeralchirurgie
+        kind: surgery
+      staff:
+        scenarioKey: practitioner-chirurgie-op-1
+        family: Hoffmann
+        given: Michael
+        qualification: Facharzt für Allgemein- und Viszeralchirurgie
+
+  - id: op-procedure-note
+    type: anamnesis
+    at: 3h20m
+    data:
+      diagnosis: Laparoskopische Appendektomie bei akuter, phlegmonöser Appendizitis. Intraoperativ mäßig entzündlich verändertes Mesenteriolum, kein Perforationsnachweis. Komplikationsloser Verlauf, keine Drainageeinlage erforderlich.
+
+  # The structured procedure record itself - what actually happened,
+  # coded/statused, not just a free-text note.
+  - id: op-procedure
+    type: procedure
+    at: 3h25m
+    data:
+      procedureName: Laparoskopische Appendektomie
+      indication: Akute, phlegmonöse Appendizitis
+      method: Laparoskopisch
+      bodySite: Abdomen (rechter Unterbauch)
+      outcome: Komplikationsloser intraoperativer Verlauf, kein Perforationsnachweis, keine Drainageeinlage erforderlich.
+
+  # Normalstation (reuses the clinic's own shared general ward) - typical
+  # ~3-day post-appendektomie recovery: nursing/doctor rounds and periodic
+  # vitals are auto-generated by general-ward's own protocol.
+  - id: normalstation
+    type: ward-transfer
+    at: 5h
+    data:
+      location:
+        key: location-normalstation
+        name: Normalstation
+        description: Allgemeinchirurgie · postoperative Überwachung, Mobilisation
+        kind: general-ward
+      staff:
+        scenarioKey: practitioner-chirurgie-station-1
+        family: Lehmann
+        given: Julia
+        qualification: Assistenzärztin Chirurgie
+
+  # Entlassung nach Hause - a terminal, kind-less marker (no further
+  # clinical actions get auto-generated "at home") that both finishes the
+  # Encounter and gives Normalstation a real, ~3-day declared stay length
+  # for its own protocol to spread rounds/vitals across.
+  - id: discharge-home
+    type: ward-transfer
+    at: 77h
+    data:
+      encounterStatus: finished
+      location:
+        key: location-entlassen
+        name: Zuhause (entlassen)

@@ -1,0 +1,62 @@
+{
+  "missing-allergy-history": {
+    "id": "missing-allergy-history",
+    "code": "missing-allergy-history",
+    "description": "Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "anchorEventId": "arrival",
+    "status": "open",
+    "createdAt": "2026-09-16T17:23:44.861Z"
+  },
+  "missing-discharge-letter": {
+    "id": "missing-discharge-letter",
+    "code": "missing-discharge-letter",
+    "description": "Kein Arztbrief/Entlassungsbrief zur Entlassung erstellt.",
+    "anchorEventId": "chief-complaint",
+    "status": "resolved",
+    "createdAt": "2026-09-16T17:23:45.562Z",
+    "resolvedAt": "2026-09-16T17:30:45.862Z"
+  },
+  "missing-followup-appointment": {
+    "id": "missing-followup-appointment",
+    "code": "missing-followup-appointment",
+    "description": "Kein Nachsorgetermin nach der Entlassung vereinbart.",
+    "anchorEventId": "chief-complaint",
+    "status": "resolved",
+    "createdAt": "2026-09-16T17:23:45.564Z",
+    "resolvedAt": "2026-09-16T17:50:57.354Z"
+  },
+  "missing-discharge-medication": {
+    "id": "missing-discharge-medication",
+    "code": "missing-discharge-medication",
+    "description": "Keine Entlassmedikation dokumentiert.",
+    "anchorEventId": "chief-complaint",
+    "status": "resolved",
+    "createdAt": "2026-09-16T17:23:45.565Z",
+    "resolvedAt": "2026-09-16T17:30:21.514Z"
+  },
+  "missing-coded-diagnosis": {
+    "id": "missing-coded-diagnosis",
+    "code": "missing-coded-diagnosis",
+    "description": "Keine formal kodierte (ICD-10-GM) Diagnose im Verlauf dokumentiert.",
+    "anchorEventId": "chief-complaint",
+    "status": "open",
+    "createdAt": "2026-09-16T17:23:45.566Z"
+  },
+  "missing-consent:cathlab-transfer": {
+    "id": "missing-consent:cathlab-transfer",
+    "code": "missing-consent:cathlab-transfer",
+    "description": "Keine dokumentierte Aufklärung/Einwilligung vor dem Eingriff an Station \"Herzkatheterlabor\".",
+    "anchorEventId": "cathlab-transfer",
+    "status": "open",
+    "createdAt": "2026-09-16T17:25:07.595Z"
+  },
+  "missing-procedure-record:cathlab-transfer": {
+    "id": "missing-procedure-record:cathlab-transfer",
+    "code": "missing-procedure-record:cathlab-transfer",
+    "description": "Kein strukturierter Prozedur-Eintrag für den Eingriff an Station \"Herzkatheterlabor\" gefunden.",
+    "anchorEventId": "cathlab-transfer",
+    "status": "resolved",
+    "createdAt": "2026-09-16T17:25:07.598Z",
+    "resolvedAt": "2026-09-16T17:26:31.298Z"
+  }
+}

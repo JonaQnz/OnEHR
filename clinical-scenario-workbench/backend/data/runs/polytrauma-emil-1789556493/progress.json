@@ -1,0 +1,32 @@
+{
+  "scenarioId": "polytrauma-emil",
+  "completedEventIds": [
+    "arrival",
+    "schockraum",
+    "primary-diagnosis",
+    "vitals-shock",
+    "ct-scan",
+    "op-damage-control",
+    "icu",
+    "vitals-sepsis",
+    "op2-scheduling",
+    "op-definitive",
+    "normalstation",
+    "reha"
+  ],
+  "patientScenarioKey": "patient-emil",
+  "completedAt": {
+    "arrival": "2026-09-16T11:01:45.214Z",
+    "schockraum": "2026-09-16T11:01:54.709Z",
+    "primary-diagnosis": "2026-09-16T11:01:55.330Z",
+    "vitals-shock": "2026-09-16T11:01:55.742Z",
+    "ct-scan": "2026-09-16T11:01:56.757Z",
+    "op-damage-control": "2026-09-16T11:01:57.689Z",
+    "icu": "2026-09-16T11:01:58.611Z",
+    "vitals-sepsis": "2026-09-16T11:01:59.356Z",
+    "op2-scheduling": "2026-09-16T11:02:01.215Z",
+    "op-definitive": "2026-09-16T11:02:02.063Z",
+    "normalstation": "2026-09-16T11:02:03.207Z",
+    "reha": "2026-09-16T11:02:04.172Z"
+  }
+}

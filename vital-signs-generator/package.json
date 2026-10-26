@@ -1,0 +1,17 @@
+{
+  "name": "vital-signs-generator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone demo-data generator that drives the onEHR Forms HTTP API to submit synthetic vital-signs time series to EHRbase. Not an npm workspace of the main repo - talks to the Forms API purely over HTTP, like any external client would.",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "install:all": "npm install",
+    "build:backend": "npm run build --workspace=backend",
+    "test:backend": "npm run test --workspace=backend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend"
+  }
+}

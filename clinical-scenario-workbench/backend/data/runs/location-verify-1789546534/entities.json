@@ -1,0 +1,19 @@
+{
+  "patient-maria": {
+    "resourceType": "Patient",
+    "hipResourceId": "63dff89e-9bc6-440e-a68b-5a617c13d4f9",
+    "ehrId": "6d5ec8d1-121b-451e-80b7-073cb20ae3c7",
+    "formsPatientId": "ddcffe66-84d1-402c-8896-78c2757ef207",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-maria",
+    "scenarioRunId": "location-verify-1789546534",
+    "createdAt": "2026-09-16T08:15:36.157Z",
+    "updatedAt": "2026-09-16T08:15:36.157Z"
+  }
+}

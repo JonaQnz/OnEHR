@@ -1,0 +1,52 @@
+resourceType: Schedule
+
+simulationRequired:
+  - actor.0.reference
+  - planningHorizon.start
+  - planningHorizon.end
+
+recommended: []
+
+references:
+  actor.0.reference:
+    target:
+      - HealthcareService
+
+# The scenario rarely states an exact scheduling window ("CT-Diagnostik
+# heute 14:00-20:00" is illustrative, spec section 19) - the agent may pick
+# a plausible one, but never invent WHICH service it belongs to.
+llmMayGenerate:
+  - planningHorizon.start
+  - planningHorizon.end
+llmMayNotGenerate:
+  - actor.0.reference
+
+dependencies:
+  - HealthcareService
+mayTrigger:
+  - Slot
+
+fields:
+  - path: actor.0.reference
+    label: Fachabteilung / Service
+    type: reference
+    required: true
+    editable: true
+    # Not "scenario" - the scenario names a capability ("ct-imaging"), never
+    # a specific HealthcareService scenario key; the engine derives which
+    # one to reference from its own capability-resolution step.
+    sourcePolicy: derived
+    referenceResourceTypes:
+      - HealthcareService
+  - path: planningHorizon.start
+    label: Verfügbar ab
+    type: datetime
+    required: true
+    editable: true
+    sourcePolicy: generated
+  - path: planningHorizon.end
+    label: Verfügbar bis
+    type: datetime
+    required: true
+    editable: true
+    sourcePolicy: generated

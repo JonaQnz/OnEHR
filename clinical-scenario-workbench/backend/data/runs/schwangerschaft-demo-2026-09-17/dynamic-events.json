@@ -1,0 +1,13 @@
+[
+  {
+    "id": "talk-followup",
+    "type": "patient-conversation",
+    "at": "35m",
+    "data": {
+      "topic": "Eisensubstitution",
+      "question": "Vertragen Sie die Eisentabletten gut, gibt es Nebenwirkungen?",
+      "patientSays": "Anfangs etwas Übelkeit, seit ich sie zu den Mahlzeiten nehme geht es gut.",
+      "newInfoLearned": "Eisensubstitution wird bei Einnahme zu den Mahlzeiten gut vertragen, initial leichte Übelkeit."
+    }
+  }
+]

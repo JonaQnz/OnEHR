@@ -1,0 +1,12 @@
+{
+  "scenarioId": "notaufnahme-offen-bauer",
+  "completedEventIds": [
+    "arrival",
+    "chief-complaint"
+  ],
+  "patientScenarioKey": "patient-bauer",
+  "completedAt": {
+    "arrival": "2026-09-16T17:15:45.769Z",
+    "chief-complaint": "2026-09-16T17:15:46.454Z"
+  }
+}

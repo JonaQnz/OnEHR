@@ -1,0 +1,552 @@
+{
+  "service-ct-imaging": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "f941520e-8a09-4d30-9337-16a9f8e59e8a",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-ct-imaging",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-15T16:49:48.320Z",
+    "updatedAt": "2026-09-15T16:49:48.320Z"
+  },
+  "schedule-ct-today": {
+    "resourceType": "Schedule",
+    "hipResourceId": "5854ab12-33ea-4498-ba8c-f95a769e5f76",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-ct-today",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-15T16:49:48.607Z",
+    "updatedAt": "2026-09-15T16:49:48.607Z"
+  },
+  "practitioner-notaufnahme-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "0b28fed3-8540-4e30-bad0-ea0724508216",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-notaufnahme-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T10:18:41.829Z",
+    "updatedAt": "2026-09-16T10:18:41.829Z"
+  },
+  "practitioner-radiologie-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "612872c5-4aa5-426f-9933-91d419c606cc",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-radiologie-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T10:19:30.669Z",
+    "updatedAt": "2026-09-16T10:19:30.669Z"
+  },
+  "practitioner-praeklinik-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "9410ecc4-e30e-4e4c-abc7-1d706bdfc853",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-praeklinik-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T11:01:44.775Z",
+    "updatedAt": "2026-09-16T11:01:44.775Z"
+  },
+  "practitioner-schockraum-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "ab73ef2a-8cb6-443a-af14-6012921a11d2",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-schockraum-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T11:01:54.071Z",
+    "updatedAt": "2026-09-16T11:01:54.071Z"
+  },
+  "practitioner-op-damage-control-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "7129859c-454e-4455-a458-b2df3aafa59e",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-op-damage-control-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T11:01:57.108Z",
+    "updatedAt": "2026-09-16T11:01:57.108Z"
+  },
+  "practitioner-icu-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "8249fc5a-17c1-4767-9822-c9df45d8cfa4",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-icu-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T11:01:58.014Z",
+    "updatedAt": "2026-09-16T11:01:58.014Z"
+  },
+  "service-op-planning": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "24ccca56-3941-4201-a02a-14aab907a268",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-op-planning",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T11:01:59.680Z",
+    "updatedAt": "2026-09-16T11:01:59.680Z"
+  },
+  "schedule-op-planning": {
+    "resourceType": "Schedule",
+    "hipResourceId": "7313c391-28ea-489c-bf47-dcbe4f2339d6",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-op-planning",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T11:02:00.073Z",
+    "updatedAt": "2026-09-16T11:02:00.073Z"
+  },
+  "practitioner-op-definitive-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "f730e402-15e5-4a4a-a7e8-87a5be6c64fa",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-op-definitive-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T11:02:01.539Z",
+    "updatedAt": "2026-09-16T11:02:01.539Z"
+  },
+  "practitioner-normalstation-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "95abf68a-9e0a-4271-94b5-58c136597598",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-normalstation-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T11:02:02.405Z",
+    "updatedAt": "2026-09-16T11:02:02.405Z"
+  },
+  "practitioner-reha-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "16107bfb-01fb-4987-917e-dccc27f0513d",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-reha-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T11:02:03.599Z",
+    "updatedAt": "2026-09-16T11:02:03.599Z"
+  },
+  "practitioner-chirurgie-diensthabend-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "fb664b32-a0ee-48f5-b87f-fe02c9ad3784",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-chirurgie-diensthabend-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T13:39:50.112Z",
+    "updatedAt": "2026-09-16T13:39:50.112Z"
+  },
+  "service-abdominal-ultrasound": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "2cc8995d-2faa-4283-a276-5d394c650ce0",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-abdominal-ultrasound",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T13:39:58.305Z",
+    "updatedAt": "2026-09-16T13:39:58.305Z"
+  },
+  "schedule-ultrasound-today": {
+    "resourceType": "Schedule",
+    "hipResourceId": "2735b1e6-8376-4c29-bc2d-9f64a4f92bbd",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-ultrasound-today",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T13:39:58.668Z",
+    "updatedAt": "2026-09-16T13:39:58.668Z"
+  },
+  "practitioner-chirurgie-op-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "178edfe4-b9be-42ad-a1d6-19f660c43422",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-chirurgie-op-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T13:40:00.216Z",
+    "updatedAt": "2026-09-16T13:40:00.216Z"
+  },
+  "practitioner-chirurgie-station-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "f31b4b2d-b4b7-4ccc-92fa-1f56aac04c30",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-chirurgie-station-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T13:40:04.070Z",
+    "updatedAt": "2026-09-16T13:40:04.070Z"
+  },
+  "service-op-appendektomie": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "cd9913de-f5c7-42fb-996e-2560ab700450",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-op-appendektomie",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T13:59:48.824Z",
+    "updatedAt": "2026-09-16T13:59:48.824Z"
+  },
+  "schedule-op-appendektomie-today": {
+    "resourceType": "Schedule",
+    "hipResourceId": "ad1b223c-92d9-46de-b7cf-3a9167f9848d",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-op-appendektomie-today",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T13:59:49.269Z",
+    "updatedAt": "2026-09-16T13:59:49.269Z"
+  },
+  "practitioner-notaufnahme-triage-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "6bfbc5d7-8e4d-45d8-89c6-ad8582456244",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-notaufnahme-triage-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T16:47:40.029Z",
+    "updatedAt": "2026-09-16T16:47:40.029Z"
+  },
+  "practitioner-kardiologie-interventionell-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "099b95a1-4e08-4b05-88a9-c7b1237377b5",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-kardiologie-interventionell-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T17:25:05.639Z",
+    "updatedAt": "2026-09-16T17:25:05.639Z"
+  },
+  "practitioner-icu-kardiologie-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "5e41362a-4a60-4ff5-90c3-969bf0801662",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-icu-kardiologie-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T17:26:43.668Z",
+    "updatedAt": "2026-09-16T17:26:43.668Z"
+  },
+  "practitioner-normalstation-kardiologie-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "583db0d3-ce74-467f-a0c4-93d84fb3092a",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-normalstation-kardiologie-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T17:28:22.782Z",
+    "updatedAt": "2026-09-16T17:28:22.782Z"
+  },
+  "service-urologie-nachsorge": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "af67eb9b-7f07-4504-ad75-1ee86f04f8c2",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-urologie-nachsorge",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T17:50:41.001Z",
+    "updatedAt": "2026-09-16T17:50:41.001Z"
+  },
+  "schedule-urologie-nachsorge": {
+    "resourceType": "Schedule",
+    "hipResourceId": "1b228522-af37-4531-9661-8f3613e62fd3",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-urologie-nachsorge",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T17:50:41.418Z",
+    "updatedAt": "2026-09-16T17:50:41.418Z"
+  },
+  "service-kardiologie-nachsorge": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "492e529f-eb64-4479-874e-1c3f464685eb",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-kardiologie-nachsorge",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T17:50:56.063Z",
+    "updatedAt": "2026-09-16T17:50:56.063Z"
+  },
+  "schedule-kardiologie-nachsorge": {
+    "resourceType": "Schedule",
+    "hipResourceId": "332f9d8f-6fc5-4aea-8ca4-d1ed6bd4e338",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-kardiologie-nachsorge",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-16T17:50:56.433Z",
+    "updatedAt": "2026-09-16T17:50:56.433Z"
+  },
+  "practitioner-gynaekologie-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "0b88a522-32ea-49d7-9e97-965358a3e091",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-gynaekologie-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-17T07:45:12.264Z",
+    "updatedAt": "2026-09-17T07:45:12.264Z"
+  },
+  "service-obstetric-ultrasound": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "189191c4-eaff-4de1-a02b-764e9f837494",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-obstetric-ultrasound",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-17T07:45:14.523Z",
+    "updatedAt": "2026-09-17T07:45:14.523Z"
+  },
+  "schedule-obstetric-ultrasound": {
+    "resourceType": "Schedule",
+    "hipResourceId": "dc4991a9-ba10-4a7e-b4e0-f151a164b396",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-obstetric-ultrasound",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-17T07:45:15.004Z",
+    "updatedAt": "2026-09-17T07:45:15.004Z"
+  },
+  "practitioner-geburtshilfe-1": {
+    "resourceType": "Practitioner",
+    "hipResourceId": "3ccc4279-77ac-4eae-b4e8-829176ad0ec6",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name.0.family": "GENERATED",
+      "name.0.given.0": "GENERATED",
+      "qualification.0.code.text": "GENERATED"
+    },
+    "scenarioKey": "practitioner-geburtshilfe-1",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-17T08:59:40.800Z",
+    "updatedAt": "2026-09-17T08:59:40.800Z"
+  },
+  "service-praeeklampsie-kontrolle": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "bbc5c104-a47d-4acb-afce-ac4b0b697683",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-praeeklampsie-kontrolle",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-17T09:02:02.478Z",
+    "updatedAt": "2026-09-17T09:02:02.478Z"
+  },
+  "schedule-praeeklampsie-kontrolle": {
+    "resourceType": "Schedule",
+    "hipResourceId": "300fe2e8-9fda-4120-9f8d-99d29e2f91ff",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-praeeklampsie-kontrolle",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-17T09:02:03.993Z",
+    "updatedAt": "2026-09-17T09:02:03.993Z"
+  },
+  "service-abdomen-sono": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "074c852d-7c32-4ef7-a164-4543763b3306",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-abdomen-sono",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-17T09:35:06.770Z",
+    "updatedAt": "2026-09-17T09:35:06.770Z"
+  },
+  "schedule-abdomen-sono": {
+    "resourceType": "Schedule",
+    "hipResourceId": "734f1a17-c818-4b9d-bc18-05897101ed5d",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-abdomen-sono",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-17T09:35:07.119Z",
+    "updatedAt": "2026-09-17T09:35:07.119Z"
+  },
+  "service-chirurgie-wundkontrolle": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "e621bff5-1283-470f-8ef9-0b99e1fe764c",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-chirurgie-wundkontrolle",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-17T11:39:26.578Z",
+    "updatedAt": "2026-09-17T11:39:26.578Z"
+  },
+  "schedule-chirurgie-wundkontrolle": {
+    "resourceType": "Schedule",
+    "hipResourceId": "5c1dca18-7dcf-4b19-b38b-000204cf9e14",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-chirurgie-wundkontrolle",
+    "scenarioRunId": "_clinic",
+    "createdAt": "2026-09-17T11:39:27.069Z",
+    "updatedAt": "2026-09-17T11:39:27.069Z"
+  }
+}

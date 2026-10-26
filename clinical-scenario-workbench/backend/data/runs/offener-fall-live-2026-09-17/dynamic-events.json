@@ -1,0 +1,375 @@
+[
+  {
+    "id": "interview-1",
+    "type": "patient-conversation",
+    "at": "5m",
+    "data": {
+      "actorRole": "doctor",
+      "topic": "Erstanamnese - Aufnahmegespraech",
+      "question": "Was fuehrt Sie zu uns?",
+      "patientSays": "Seit gestern Abend habe ich Bauchschmerzen, die sich immer mehr auf die rechte untere Seite verlagert haben. Anfangs war es eher um den Bauchnabel herum, jetzt ist es dort unten rechts sehr druckempfindlich. Mir ist auch etwas uebel und ich hatte keinen Appetit heute.",
+      "newInfoLearned": "Seit ca. 16h bestehender, wandernder Bauchschmerz - initial periumbilikal, jetzt im rechten Unterbauch lokalisiert, Druckschmerz, begleitend Uebelkeit und Appetitlosigkeit. Verdacht auf akute Appendizitis, differentialdiagnostisch auch gynaekologische Ursache (Ovarialzyste) zu beruecksichtigen.",
+      "certainty": "suspected",
+      "status": "working"
+    }
+  },
+  {
+    "id": "vitals-1",
+    "type": "vital-signs",
+    "at": "10m",
+    "data": {
+      "heartRate": 96,
+      "spo2": 98,
+      "temperature": 37.9,
+      "respRate": 18
+    }
+  },
+  {
+    "id": "order-labor",
+    "type": "order-basis",
+    "at": "15m",
+    "data": {
+      "serviceName": "Labor: Blutbild und CRP bei V.a. Appendizitis",
+      "serviceCode": "26436-6",
+      "urgency": "at0137",
+      "requestStatus": "active",
+      "clinicalIndication": "Verdacht auf akute Appendizitis - Entzuendungsparameter.",
+      "pendingResult": {
+        "kind": "lab-value",
+        "description": "Leukozyten-Ergebnis eintragen",
+        "payload": {
+          "analyteName": "Leukozyten",
+          "analyteCode": "6690-2",
+          "value": 13.4,
+          "unit": "G/L",
+          "referenceRange": "4.0-10.0 G/L",
+          "interpretation": "H",
+          "comment": "Leukozytose - passend zur Verdachtsdiagnose."
+        }
+      }
+    }
+  },
+  {
+    "id": "order-crp",
+    "type": "order-basis",
+    "at": "15m",
+    "data": {
+      "serviceName": "Labor: CRP",
+      "serviceCode": "1988-5",
+      "urgency": "at0137",
+      "requestStatus": "active",
+      "clinicalIndication": "Verdacht auf akute Appendizitis - Entzuendungsparameter.",
+      "pendingResult": {
+        "kind": "lab-value",
+        "description": "CRP-Ergebnis eintragen",
+        "payload": {
+          "analyteName": "CRP",
+          "analyteCode": "1988-5",
+          "value": 42,
+          "unit": "mg/L",
+          "referenceRange": "< 5 mg/L",
+          "interpretation": "H",
+          "comment": "Deutlich erhoeht - passend zu akut-entzuendlichem Geschehen."
+        }
+      }
+    }
+  },
+  {
+    "id": "order-sono",
+    "type": "request-imaging",
+    "at": "15m",
+    "data": {
+      "serviceKey": "service-abdomen-sono",
+      "scheduleKey": "schedule-abdomen-sono",
+      "capabilityKey": "abdomen-sono",
+      "serviceName": "Abdomensonographie",
+      "comment": "Sonographie Abdomen bei V.a. Appendizitis - Frage nach Kokarde/freier Fluessigkeit.",
+      "expectsDiagnosticReport": true
+    }
+  },
+  {
+    "id": "smalltalk-warten",
+    "type": "patient-conversation",
+    "at": "20m",
+    "data": {
+      "actorRole": "doctor",
+      "topic": "Warten auf Befunde",
+      "question": "Wie geht es Ihnen waehrend wir auf die Ergebnisse warten?",
+      "patientSays": "Es tut immer noch weh, aber es ist auszuhalten. Ich mache mir nur Sorgen, ob das eine Operation braucht."
+    }
+  },
+  {
+    "id": "pflege-blutabnahme",
+    "type": "nursing-round",
+    "at": "45m",
+    "data": {
+      "note": "Pflege kommt zur Blutabnahme, arbeitet die offenen Laboranordnungen ab."
+    }
+  },
+  {
+    "id": "sono-befund",
+    "type": "diagnostic-report",
+    "at": "1h",
+    "data": {
+      "studyName": "Abdomensonographie",
+      "modality": "US",
+      "targetBodySite": "Abdomen, rechter Unterbauch",
+      "findings": "Im rechten Unterbauch daraestellte, nicht komprimierbare, wandverdickte tubulaere Struktur mit Kokarden-Aspekt, Durchmesser ca. 9mm. Geringe freie Fluessigkeit periappendikulaer. Keine Hinweise auf freie Luft.",
+      "impression": "Sonomorphologisch mit einer akuten Appendizitis vereinbar.",
+      "diagnosis": "V.a. akute Appendizitis",
+      "recommendation": "Chirurgisches Konsil zur weiteren Therapieentscheidung."
+    }
+  },
+  {
+    "id": "arzt-review-1",
+    "type": "doctor-round",
+    "at": "1h15m",
+    "data": {}
+  },
+  {
+    "id": "diagnose-final",
+    "type": "coded-diagnosis",
+    "at": "1h20m",
+    "data": {
+      "diagnosisName": "Akute Appendizitis",
+      "icdCode": "K35.80",
+      "icdDisplay": "Sonstige und nicht naeher bezeichnete akute Appendizitis"
+    }
+  },
+  {
+    "id": "verlegung-chirurgie",
+    "type": "ward-transfer",
+    "at": "1h30m",
+    "data": {
+      "location": {
+        "key": "location-chirurgie-station",
+        "name": "Chirurgische Station",
+        "description": "Praeoperative Vorbereitung"
+      },
+      "encounterClass": "IMP"
+    }
+  },
+  {
+    "id": "aufklaerung-gespraech",
+    "type": "patient-conversation",
+    "at": "2h",
+    "data": {
+      "actorRole": "doctor",
+      "topic": "Aufklaerungsgespraech vor Appendektomie",
+      "question": "Frau Keller, die Untersuchungen bestaetigen eine akute Blinddarmentzuendung. Wir empfehlen eine zeitnahe laparoskopische Entfernung. Haben Sie Fragen dazu?",
+      "patientSays": "Das habe ich befuerchtet. Ich habe keine Vorerkrankungen und nehme keine Medikamente. Wenn es sein muss, dann lieber jetzt. Wie lange dauert die Erholung?",
+      "newInfoLearned": "Keine bekannten Vorerkrankungen, keine Dauermedikation. Patientin willigt nach Aufklaerung in die laparoskopische Appendektomie ein."
+    }
+  },
+  {
+    "id": "prophylaxe-order",
+    "type": "medication-order",
+    "at": "2h15m",
+    "data": {
+      "medicationName": "Cefuroxim 1.5g i.v.",
+      "medicationCode": "372733002",
+      "doseAndTiming": "1.5g i.v. Einmalgabe, 30 Min vor Schnitt",
+      "route": "intravenoes",
+      "clinicalIndication": "Perioperative Antibiotikaprophylaxe vor Appendektomie.",
+      "pendingResult": {
+        "kind": "medication-administration",
+        "description": "Cefuroxim-Prophylaxe verabreichen",
+        "payload": {
+          "arzneimittel": "Cefuroxim 1.5g i.v.",
+          "medicationCode": "372733002",
+          "dosisbeschreibung": "1.5g i.v. Einmalgabe",
+          "verabreichungsweg": "intravenoes",
+          "klinischeIndikation": "Perioperative Antibiotikaprophylaxe"
+        }
+      }
+    }
+  },
+  {
+    "id": "pflege-praeop",
+    "type": "nursing-round",
+    "at": "2h30m",
+    "data": {
+      "note": "Praeoperative Vorbereitung, Antibiotikaprophylaxe wird verabreicht."
+    }
+  },
+  {
+    "id": "pflege-praeop-executes-7622399c-6d2e-4529-a3fc-447facbc26ed",
+    "type": "medication-administration",
+    "at": "2h30m",
+    "data": {
+      "arzneimittel": "Cefuroxim 1.5g i.v.",
+      "medicationCode": "372733002",
+      "dosisbeschreibung": "1.5g i.v. Einmalgabe",
+      "verabreichungsweg": "intravenoes",
+      "klinischeIndikation": "Perioperative Antibiotikaprophylaxe"
+    }
+  },
+  {
+    "id": "verlegung-op",
+    "type": "ward-transfer",
+    "at": "3h",
+    "data": {
+      "location": {
+        "key": "location-op-saal",
+        "name": "OP",
+        "description": "Operationssaal",
+        "kind": "surgery"
+      },
+      "encounterClass": "IMP"
+    }
+  },
+  {
+    "id": "appendektomie",
+    "type": "procedure",
+    "at": "3h15m",
+    "data": {
+      "procedureName": "Laparoskopische Appendektomie",
+      "opsCode": "5-470.0",
+      "opsDisplay": "Appendektomie, laparoskopisch",
+      "status": "532",
+      "category": "Chirurgischer Eingriff",
+      "indication": "Akute Appendizitis (K35.80)",
+      "method": "Laparoskopisch, 3-Trokar-Technik",
+      "bodySite": "Appendix vermiformis",
+      "outcome": "Appendix makroskopisch phlegmonoes-eitrig veraendert, unauffaellige Resektion, kein Perforationsnachweis. Regelrechter Verlauf.",
+      "performedAt": "2026-09-17T09:45:00.000Z"
+    }
+  },
+  {
+    "id": "postop-vitals-1",
+    "type": "vital-signs",
+    "at": "3h45m",
+    "data": {
+      "heartRate": 88,
+      "spo2": 97,
+      "temperature": 37.4,
+      "respRate": 16,
+      "systolic": 118,
+      "diastolic": 76
+    }
+  },
+  {
+    "id": "postop-schmerz-gespraech",
+    "type": "patient-conversation",
+    "at": "3h50m",
+    "data": {
+      "actorRole": "nurse",
+      "topic": "Postoperative Kontrolle",
+      "question": "Wie geht es Ihnen jetzt nach der OP? Haben Sie Schmerzen?",
+      "patientSays": "Ich bin noch etwas benommen von der Narkose, aber es geht. Die Bauchschnitte tun weh, so 6 von 10 wuerde ich sagen, besonders wenn ich mich bewege.",
+      "newInfoLearned": "Postoperativer Wundschmerz NRS 6/10, bewegungsabhaengig verstaerkt. Patientin noch leicht somnolent nach Narkose, ansonsten orientiert."
+    }
+  },
+  {
+    "id": "schmerzmittel-order",
+    "type": "medication-order",
+    "at": "3h55m",
+    "data": {
+      "medicationName": "Novaminsulfon (Metamizol) 1g als Kurzinfusion",
+      "medicationCode": "387584000",
+      "doseAndTiming": "1g i.v. als Kurzinfusion, bei Bedarf bis 4x/Tag",
+      "route": "intravenoes",
+      "clinicalIndication": "Postoperativer Wundschmerz NRS 6/10 nach laparoskopischer Appendektomie.",
+      "pendingResult": {
+        "kind": "medication-administration",
+        "description": "Novaminsulfon 1g i.v. verabreichen",
+        "payload": {
+          "arzneimittel": "Novaminsulfon (Metamizol) 1g",
+          "medicationCode": "387584000",
+          "dosisbeschreibung": "1g i.v. als Kurzinfusion",
+          "verabreichungsweg": "intravenoes",
+          "klinischeIndikation": "Postoperativer Wundschmerz NRS 6/10"
+        }
+      }
+    }
+  },
+  {
+    "id": "pflege-postop-1",
+    "type": "nursing-round",
+    "at": "4h",
+    "data": {
+      "note": "Pflege kommt zur postoperativen Kontrolle, verabreicht das angeordnete Schmerzmittel."
+    }
+  },
+  {
+    "id": "pflege-postop-1-executes-37263cbb-ee02-426e-9054-a148c452c762",
+    "type": "medication-administration",
+    "at": "0m",
+    "data": {
+      "arzneimittel": "Novaminsulfon (Metamizol) 1g",
+      "medicationCode": "387584000",
+      "dosisbeschreibung": "1g i.v. als Kurzinfusion",
+      "verabreichungsweg": "intravenoes",
+      "klinischeIndikation": "Postoperativer Wundschmerz NRS 6/10"
+    }
+  },
+  {
+    "id": "arzt-postop-review",
+    "type": "doctor-round",
+    "at": "4h15m",
+    "data": {}
+  },
+  {
+    "id": "verlegung-station-postop",
+    "type": "ward-transfer",
+    "at": "5h",
+    "data": {
+      "location": {
+        "key": "location-chirurgie-station",
+        "name": "Chirurgische Station",
+        "description": "Postoperative Überwachung"
+      },
+      "encounterClass": "IMP"
+    }
+  },
+  {
+    "id": "entlassgespraech",
+    "type": "patient-conversation",
+    "at": "1d",
+    "data": {
+      "actorRole": "doctor",
+      "topic": "Visite vor Entlassung",
+      "question": "Guten Morgen Frau Keller, wie fühlen Sie sich heute? Die Wunden sehen reizlos aus, Sie hatten über Nacht keine Fieberschübe mehr.",
+      "patientSays": "Danke, es geht mir deutlich besser. Der Schmerz ist erträglich, ich konnte auch schon etwas essen und war kurz auf dem Flur unterwegs.",
+      "newInfoLearned": "Postoperativer Verlauf komplikationslos, afebril, Kostaufbau toleriert, Mobilisation erfolgreich. Entlassfähig."
+    }
+  },
+  {
+    "id": "entlass-medikation",
+    "type": "discharge-medication",
+    "at": "1d1h",
+    "data": {
+      "medicationName": "Ibuprofen 400mg",
+      "status": "at0011",
+      "doseAndTiming": "400mg oral, bei Bedarf bis 3x/Tag, max. 5 Tage",
+      "route": "oral",
+      "clinicalIndication": "Postoperativer Wundschmerz nach laparoskopischer Appendektomie.",
+      "therapeuticIntent": "Ambulante Schmerztherapie nach Entlassung.",
+      "comment": "Bei anhaltenden Schmerzen über 5 Tage hinaus oder Fieber/Wundrötung sofortige Wiedervorstellung."
+    }
+  },
+  {
+    "id": "arztbrief",
+    "type": "discharge-letter",
+    "at": "1d2h",
+    "data": {
+      "topic": "Entlassung nach laparoskopischer Appendektomie",
+      "synopsis": "45-jährige Patientin, stationäre Aufnahme bei seit ca. 16h bestehendem, in den rechten Unterbauch gewandertem Bauchschmerz mit Übelkeit und Appetitlosigkeit. Labor mit Leukozytose (13.4 G/L) und erhöhtem CRP (42 mg/L), sonographisch Nachweis einer nicht komprimierbaren, wandverdickten Appendix mit Kokarden-Aspekt und geringer perityphlitischer Flüssigkeit - Diagnose akute Appendizitis (K35.80) gestellt. Nach perioperativer Antibiotikaprophylaxe (Cefuroxim 1.5g i.v.) laparoskopische Appendektomie in 3-Trokar-Technik, makroskopisch phlegmonös-eitrig veränderte Appendix, unauffällige Resektion, kein Perforationsnachweis. Postoperativer Verlauf komplikationslos, gute Schmerzkontrolle unter Novaminsulfon, Kostaufbau und Mobilisation erfolgreich.",
+      "recommendation": "Wundkontrolle in 7-10 Tagen beim Hausarzt oder in der chirurgischen Ambulanz, Fadenzug falls nicht resorbierbares Nahtmaterial verwendet. Bei Fieber, zunehmenden Schmerzen oder Wundrötung sofortige Wiedervorstellung. Körperliche Schonung für 2 Wochen, keine schweren Lasten heben.",
+      "rationale": "Komplikationslose laparoskopische Appendektomie bei akuter, nicht perforierter Appendizitis - Standardnachsorge, kein erhöhtes Risiko für Wundheilungsstörung oder intraabdominellen Abszess bei intraoperativ unauffälligem Situs."
+    }
+  },
+  {
+    "id": "wundkontrolle-termin",
+    "type": "request-imaging",
+    "at": "1d3h",
+    "data": {
+      "serviceKey": "service-chirurgie-wundkontrolle",
+      "scheduleKey": "schedule-chirurgie-wundkontrolle",
+      "capabilityKey": "chirurgie-wundkontrolle",
+      "serviceName": "Chirurgische Ambulanz - Wundkontrolle nach Appendektomie",
+      "comment": "Wundkontrolle und ggf. Fadenzug 7-10 Tage postoperativ.",
+      "isFollowUp": true
+    }
+  }
+]

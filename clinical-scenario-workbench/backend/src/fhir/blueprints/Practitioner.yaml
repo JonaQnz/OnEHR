@@ -1,0 +1,42 @@
+# A doctor/staff member, referenced from an Encounter/Appointment
+# participant (spec's own "auch Ärzte und co. aus der HIP" ask). Clinic-
+# level, same reasoning as Location/HealthcareService - a small, real staff
+# roster shared across every case, not invented per patient.
+resourceType: Practitioner
+
+simulationRequired:
+  - name.0.family
+
+recommended:
+  - name.0.given.0
+
+references: {}
+
+llmMayGenerate:
+  - name.0.family
+  - name.0.given.0
+  - qualification.0.code.text
+llmMayNotGenerate: []
+
+dependencies: []
+mayTrigger: []
+
+fields:
+  - path: name.0.family
+    label: Nachname
+    type: text
+    required: true
+    editable: true
+    sourcePolicy: generated
+  - path: name.0.given.0
+    label: Vorname
+    type: text
+    required: false
+    editable: true
+    sourcePolicy: generated
+  - path: qualification.0.code.text
+    label: Fachrichtung
+    type: text
+    required: false
+    editable: true
+    sourcePolicy: generated

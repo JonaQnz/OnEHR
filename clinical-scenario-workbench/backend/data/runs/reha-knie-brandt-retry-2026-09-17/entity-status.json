@@ -1,0 +1,8 @@
+{
+  "patient-brandt": {
+    "scenarioKey": "patient-brandt",
+    "status": "thinking",
+    "reason": "waiting for the next event to be decided/appended",
+    "updatedAt": "2026-09-17T13:43:28.689Z"
+  }
+}

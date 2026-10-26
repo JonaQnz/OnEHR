@@ -1,0 +1,72 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-maria\"",
+    "action": "create Patient",
+    "tool": "create_patient",
+    "result": "success",
+    "message": "Patient c241602c-241a-4add-a9a7-6d03a9bbff3d created (ehrId a5946455-389f-48e4-a2cc-39bd5abf0177)",
+    "id": "a5765e1e-f155-499e-a002-d5ecf134f5d9",
+    "scenarioRunId": "lae-demo-e2e-1789486660452",
+    "timestamp": "2026-09-15T15:37:41.394Z"
+  },
+  {
+    "reason": "Encounter required for scenario entity \"encounter-emergency-001\"",
+    "action": "create Encounter",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Encounter/7252c96e-950a-4770-b219-4d5781d71efd created",
+    "id": "1d8f04ee-6060-45cf-9bea-70c20000906b",
+    "scenarioRunId": "lae-demo-e2e-1789486660452",
+    "timestamp": "2026-09-15T15:37:41.702Z"
+  },
+  {
+    "reason": "HealthcareService required for scenario entity \"service-ct-imaging\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/880286c6-d7e8-469c-92a8-7461c45bfbb8 created",
+    "id": "68d594a6-68cd-4a8a-b518-e6a62e8044b3",
+    "scenarioRunId": "lae-demo-e2e-1789486660452",
+    "timestamp": "2026-09-15T15:40:28.758Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-ct-today\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/25e9fa63-5d7f-4623-a04c-a91d70fd6db1 created",
+    "id": "722ac445-b2a5-41e7-bae1-8986ed77b4f1",
+    "scenarioRunId": "lae-demo-e2e-1789486660452",
+    "timestamp": "2026-09-15T15:40:29.159Z"
+  },
+  {
+    "reason": "Slot required for scenario entity \"slot-ct-1530\"",
+    "action": "create Slot",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Slot/dfe01db6-b7af-4649-b2e7-178deec767e1 created",
+    "id": "2f428262-cbaf-42ed-bee4-cffd8a91c6bf",
+    "scenarioRunId": "lae-demo-e2e-1789486660452",
+    "timestamp": "2026-09-15T15:40:29.619Z"
+  },
+  {
+    "reason": "Appointment required for scenario entity \"appointment-ctpa-001\"",
+    "action": "create Appointment",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Appointment/4dd933aa-6022-491e-8b64-67538ad9a5a9 created",
+    "id": "6e6cf448-9749-487f-8158-eda87cf9c652",
+    "scenarioRunId": "lae-demo-e2e-1789486660452",
+    "timestamp": "2026-09-15T15:40:30.103Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-maria\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 20ea45d5-b8a9-4744-8e9a-585ccd98520a submitted",
+    "id": "71624135-314b-4b79-82a0-acd87d07ede8",
+    "scenarioRunId": "lae-demo-e2e-1789486660452",
+    "timestamp": "2026-09-15T15:52:30.140Z"
+  }
+]

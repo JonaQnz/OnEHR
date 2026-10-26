@@ -1,0 +1,71 @@
+{
+  "patient-maria": {
+    "resourceType": "Patient",
+    "hipResourceId": "4bcfdc5e-6e16-40c4-af68-2d464e198cdd",
+    "ehrId": "1c17a209-d285-4f97-a05b-645a4565d645",
+    "formsPatientId": "99d289f1-9561-4041-9fca-9f4115200547",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-maria",
+    "scenarioRunId": "lae-agent-demo-1789498443",
+    "createdAt": "2026-09-15T19:37:13.898Z",
+    "updatedAt": "2026-09-15T19:37:13.898Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "2abd2240-3dab-4ea6-9520-cc95e5a90c07",
+    "fhirVersionId": "1",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "lae-agent-demo-1789498443",
+    "createdAt": "2026-09-15T19:37:14.331Z",
+    "updatedAt": "2026-09-15T19:37:14.331Z"
+  },
+  "slot-ctpa-request": {
+    "resourceType": "Slot",
+    "hipResourceId": "9d81d7b4-b918-45d2-9b08-b65c9cd42bca",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-ctpa-request",
+    "scenarioRunId": "lae-agent-demo-1789498443",
+    "createdAt": "2026-09-15T19:37:52.458Z",
+    "updatedAt": "2026-09-15T19:37:52.458Z"
+  },
+  "appointment-ctpa-request": {
+    "resourceType": "Appointment",
+    "hipResourceId": "2a7008c5-1611-4195-ada7-40e38c38a8fe",
+    "fhirVersionId": "2",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "USER",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-ctpa-request",
+    "scenarioRunId": "lae-agent-demo-1789498443",
+    "createdAt": "2026-09-15T19:37:52.879Z",
+    "updatedAt": "2026-09-15T19:43:26.577Z"
+  }
+}

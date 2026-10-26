@@ -1,0 +1,8 @@
+{
+  "patient-lena": {
+    "scenarioKey": "patient-lena",
+    "status": "idle",
+    "reason": "nurse-smalltalk (patient-conversation) completed",
+    "updatedAt": "2026-09-17T09:25:12.930Z"
+  }
+}

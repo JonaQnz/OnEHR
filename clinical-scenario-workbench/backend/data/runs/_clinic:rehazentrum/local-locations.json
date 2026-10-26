@@ -1,0 +1,38 @@
+{
+  "location-reha-station-a": {
+    "scenarioKey": "location-reha-station-a",
+    "name": "Reha-Station A",
+    "description": "Rehazentrum Sonnenberg · Orthopädische Anschlussheilbehandlung",
+    "staffScenarioKeys": [
+      "practitioner-reha-aufnahme-1"
+    ],
+    "createdAt": "2026-09-17T12:36:22.801Z"
+  },
+  "location-radiologie": {
+    "scenarioKey": "location-radiologie",
+    "name": "Radiologie / CT",
+    "description": "2 CT-Geräte · Bildgebende Diagnostik",
+    "staffScenarioKeys": [
+      "practitioner-radiologie-1"
+    ],
+    "createdAt": "2026-09-17T12:36:30.830Z"
+  },
+  "location-reha-station-b": {
+    "scenarioKey": "location-reha-station-b",
+    "name": "Reha-Station B",
+    "description": "Rehazentrum Sonnenberg · Orthopädische Anschlussheilbehandlung",
+    "staffScenarioKeys": [
+      "practitioner-reha-aufnahme-2"
+    ],
+    "createdAt": "2026-09-17T12:43:51.706Z"
+  },
+  "location-reha-station-c": {
+    "scenarioKey": "location-reha-station-c",
+    "name": "Reha-Station C",
+    "description": "Rehazentrum Sonnenberg · Orthopädische Anschlussheilbehandlung",
+    "staffScenarioKeys": [
+      "practitioner-reha-aufnahme-3"
+    ],
+    "createdAt": "2026-09-17T12:56:15.842Z"
+  }
+}

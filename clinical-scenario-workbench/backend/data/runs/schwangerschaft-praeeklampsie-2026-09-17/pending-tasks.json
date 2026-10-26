@@ -1,0 +1,21 @@
+{
+  "25228a0c-0032-4579-8770-45701cf8ed78": {
+    "kind": "medication-administration",
+    "description": "Magnesiumsulfat verabreichen",
+    "orderedByRole": "doctor",
+    "orderEventId": "followup-magnesium-order",
+    "patientScenarioKey": "patient-lena",
+    "payload": {
+      "arzneimittel": "Magnesiumsulfat 10mmol",
+      "dosisbeschreibung": "10mmol oral",
+      "verabreichungsweg": "oral",
+      "klinischeIndikation": "Praeeklampsie - Magnesiumsubstitution"
+    },
+    "id": "25228a0c-0032-4579-8770-45701cf8ed78",
+    "status": "done",
+    "createdAt": "2026-09-17T09:23:51.579Z",
+    "reviewedByDoctor": true,
+    "completedAt": "2026-09-17T09:24:23.390Z",
+    "completedByEventId": "nursing-visits-executes-25228a0c-0032-4579-8770-45701cf8ed78"
+  }
+}

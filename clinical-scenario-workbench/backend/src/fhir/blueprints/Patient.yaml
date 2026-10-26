@@ -1,0 +1,68 @@
+# Spec section 13 - OUR requirements for a scenario-driven FHIR Patient.
+#
+# Deliberately a plain FHIR R4 Patient, not the ISiK-profiled shape the main
+# Forms app's own dedicated "Person Form -> createFhirPatient" flow builds
+# (apps/api/src/services/ehrbaseConnectionPlugins.ts's buildIsikPatientResource) -
+# that flow is coupled to a specific pre-configured Person Form + field
+# mapping and is Forms' own patient-onboarding feature, a different use case
+# from this workbench's generic, scenario-driven resource creation. This
+# blueprint goes through the generic, validated create_fhir_resource pipeline
+# instead (spec section 22), same as every other resource type here.
+resourceType: Patient
+
+simulationRequired:
+  - name.0.family
+  - name.0.given.0
+  - gender
+  - birthDate
+
+recommended: []
+
+references: {}
+
+# A patient's own identity is never something the LLM may invent - it always
+# comes straight from the scenario (spec section 6's example: name/sex/age).
+llmMayGenerate: []
+llmMayNotGenerate:
+  - name.0.family
+  - name.0.given.0
+  - gender
+  - birthDate
+
+dependencies: []
+mayTrigger:
+  - Encounter
+
+fields:
+  - path: name.0.family
+    label: Nachname
+    type: text
+    required: true
+    editable: true
+    sourcePolicy: scenario
+  - path: name.0.given.0
+    label: Vorname
+    type: text
+    required: true
+    editable: true
+    sourcePolicy: scenario
+  - path: gender
+    label: Geschlecht
+    type: select
+    required: true
+    editable: true
+    sourcePolicy: scenario
+    options:
+      - { value: male, label: Männlich }
+      - { value: female, label: Weiblich }
+      - { value: other, label: Divers }
+      - { value: unknown, label: Unbekannt }
+  - path: birthDate
+    label: Geburtsdatum
+    type: date
+    required: true
+    editable: true
+    # The scenario typically states an age, not a birth date - the scenario
+    # engine derives an approximate birthDate from age deterministically
+    # (see scenario/engine.ts), hence DERIVED rather than SOURCE.
+    sourcePolicy: derived

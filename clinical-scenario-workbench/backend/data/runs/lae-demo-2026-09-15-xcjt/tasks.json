@@ -1,0 +1,34 @@
+{
+  "missing-allergy-history": {
+    "id": "missing-allergy-history",
+    "code": "missing-allergy-history",
+    "description": "Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "anchorEventId": "arrival",
+    "status": "open",
+    "createdAt": "2026-09-17T07:00:22.957Z"
+  },
+  "missing-discharge-letter": {
+    "id": "missing-discharge-letter",
+    "code": "missing-discharge-letter",
+    "description": "Kein Arztbrief/Entlassungsbrief zur Entlassung erstellt.",
+    "anchorEventId": "confirmed-diagnosis",
+    "status": "open",
+    "createdAt": "2026-09-17T07:00:22.958Z"
+  },
+  "missing-followup-appointment": {
+    "id": "missing-followup-appointment",
+    "code": "missing-followup-appointment",
+    "description": "Kein Nachsorgetermin nach der Entlassung vereinbart.",
+    "anchorEventId": "confirmed-diagnosis",
+    "status": "open",
+    "createdAt": "2026-09-17T07:00:22.960Z"
+  },
+  "missing-discharge-medication": {
+    "id": "missing-discharge-medication",
+    "code": "missing-discharge-medication",
+    "description": "Keine Entlassmedikation dokumentiert.",
+    "anchorEventId": "confirmed-diagnosis",
+    "status": "open",
+    "createdAt": "2026-09-17T07:00:22.961Z"
+  }
+}

@@ -1,0 +1,12 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-emil\"",
+    "action": "create Patient",
+    "tool": "create_patient",
+    "result": "success",
+    "message": "Patient 9dd0c4fc-ad50-43ef-9fb0-ad937b3a7894 created (ehrId 440b7246-67ef-463b-951f-ba776d135f65)",
+    "id": "2700525a-bd03-49aa-b075-cf996f7e534d",
+    "scenarioRunId": "concurrency-test-1789564029",
+    "timestamp": "2026-09-16T13:07:11.317Z"
+  }
+]

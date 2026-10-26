@@ -1,0 +1,41 @@
+{
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-maria",
+    "compositionSessionId": "291bffd4-78ee-4f5c-9b53-8f339aca9cdb",
+    "formSessionId": "17eebdf4-30af-4621-8aaf-3f7896626687",
+    "capability": "anamnesis",
+    "scenarioRunId": "lae-clinic-live-b-1789490985",
+    "createdAt": "2026-09-15T16:49:50.852Z",
+    "updatedAt": "2026-09-15T16:49:50.852Z"
+  },
+  "vital-signs": {
+    "kind": "openEHR",
+    "formId": "61730ea9-284d-458f-b173-47902d0a7c90",
+    "compositionFormId": "b82c488f-688a-49d2-8031-447a0440d098",
+    "blockId": "vitals_block",
+    "patientScenarioKey": "patient-maria",
+    "compositionSessionId": "ea956162-d73a-4453-a5e8-d75bdc7dfb4c",
+    "formSessionId": "938ef1a0-78be-46ef-80cd-5bfcdf350f0e",
+    "capability": "vital-signs",
+    "scenarioRunId": "lae-clinic-live-b-1789490985",
+    "createdAt": "2026-09-15T16:49:51.231Z",
+    "updatedAt": "2026-09-15T16:49:51.231Z"
+  },
+  "ct-imaging": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-ct-imaging",
+      "schedule": "schedule-ct-today",
+      "slot": "slot-ctpa-request",
+      "appointment": "appointment-ctpa-request"
+    },
+    "capability": "ct-imaging",
+    "scenarioRunId": "lae-clinic-live-b-1789490985",
+    "createdAt": "2026-09-15T16:49:52.144Z",
+    "updatedAt": "2026-09-15T16:49:52.144Z"
+  }
+}

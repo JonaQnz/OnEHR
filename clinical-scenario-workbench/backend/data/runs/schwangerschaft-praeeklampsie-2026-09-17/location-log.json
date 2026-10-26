@@ -1,0 +1,12 @@
+[
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-kreisssaal-ueberwachung",
+    "timestamp": "2026-09-17T08:59:40.332Z"
+  },
+  {
+    "eventId": "followup-appointment",
+    "locationScenarioKey": "location-radiologie",
+    "timestamp": "2026-09-17T09:02:05.446Z"
+  }
+]

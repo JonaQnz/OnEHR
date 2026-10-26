@@ -1,0 +1,16 @@
+[
+  {
+    "id": "pflege-blutabnahme-executes-3b1105d7-6809-480d-ad1b-0a88dd3f6574",
+    "type": "lab-value",
+    "at": "0m",
+    "data": {
+      "analyteName": "D-Dimer",
+      "analyteCode": "48065-7",
+      "value": 0.3,
+      "unit": "mg/L FEU",
+      "referenceRange": "< 0.5 mg/L FEU",
+      "interpretation": "N",
+      "comment": "D-Dimer im Normbereich - spricht gegen eine akute Thrombose."
+    }
+  }
+]

@@ -1,0 +1,41 @@
+{
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-maria",
+    "compositionSessionId": "ae76cd8c-12ff-4d8f-8065-af46696c8a5e",
+    "formSessionId": "0ad4b828-4fd6-4409-a5a7-fceecbd2eb5a",
+    "capability": "anamnesis",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "createdAt": "2026-09-16T10:19:28.761Z",
+    "updatedAt": "2026-09-16T10:19:28.761Z"
+  },
+  "vital-signs": {
+    "kind": "openEHR",
+    "formId": "61730ea9-284d-458f-b173-47902d0a7c90",
+    "compositionFormId": "b82c488f-688a-49d2-8031-447a0440d098",
+    "blockId": "vitals_block",
+    "patientScenarioKey": "patient-maria",
+    "compositionSessionId": "592b1f85-eab5-45f3-b467-7e4b1b43884b",
+    "formSessionId": "24d059c8-11c6-46bd-9157-c055d1f76b1a",
+    "capability": "vital-signs",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "createdAt": "2026-09-16T10:19:29.256Z",
+    "updatedAt": "2026-09-16T10:19:29.256Z"
+  },
+  "ct-imaging": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-ct-imaging",
+      "schedule": "schedule-ct-today",
+      "slot": "slot-ctpa-request",
+      "appointment": "appointment-ctpa-request"
+    },
+    "capability": "ct-imaging",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "createdAt": "2026-09-16T10:19:30.173Z",
+    "updatedAt": "2026-09-16T10:19:30.173Z"
+  }
+}

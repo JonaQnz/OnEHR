@@ -1,0 +1,162 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-nina\"",
+    "action": "create Patient",
+    "tool": "create_patient",
+    "result": "success",
+    "message": "Patient 2167884a-409d-403b-a7e0-b2bb711f255a created (ehrId df2beee3-ce96-461a-a9f7-967d33b87a7a)",
+    "id": "d228feb5-7519-413a-919b-7426d3917416",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T07:45:11.870Z"
+  },
+  {
+    "reason": "Encounter required for scenario entity \"encounter-arrival\"",
+    "action": "create Encounter",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Encounter/96215a6a-07cf-4b7b-b639-b96652b051ad created",
+    "id": "088077b9-d6d9-4ba8-aedd-961bc9776458",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T07:45:12.742Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"arrival\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "id": "b310dfb4-0c97-4dbf-be2f-c0f7bf682c57",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T07:45:12.744Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-nina\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition f93d4c15-5dca-4f3c-b639-c7a75889dd1b submitted",
+    "id": "130c056c-f2d0-4124-b5e0-b8ff9564c5c4",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T07:45:13.585Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-nina\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 65449079-162f-4e37-8a9a-4ee20e6c05bb submitted",
+    "id": "a644d90e-13f7-4f73-95a4-db956d5bd3d0",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T07:45:14.208Z"
+  },
+  {
+    "reason": "Slot required for scenario entity \"slot-ultrasound\"",
+    "action": "create Slot",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Slot/abf24783-6a87-4f63-be29-c6f0badd7774 created",
+    "id": "4f821838-b1ef-4fb2-9524-4dd35ba66f57",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T07:45:15.407Z"
+  },
+  {
+    "reason": "Appointment required for scenario entity \"appointment-ultrasound\"",
+    "action": "create Appointment",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Appointment/ba92ff9c-53db-428b-80ad-9fc262a6d3b4 created",
+    "id": "9f22e4f1-96d2-4364-9586-8d5ff5d8a117",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T07:45:15.777Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/96215a6a-07cf-4b7b-b639-b96652b051ad updated",
+    "id": "fbc9f306-bd06-4564-9253-15603c40c546",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T07:45:16.506Z"
+  },
+  {
+    "reason": "openEHR capability \"lab-value\" required for scenario patient \"patient-nina\"",
+    "action": "fill 7c1210b2-39a4-4b4a-a479-62c1925fe38f into 8338ddde-26d9-49fd-8edf-095d12415edc",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 61ac21be-1040-4d25-8e4a-776be71fbebf submitted",
+    "id": "abbe9498-17c8-4337-bb04-97a872ac006a",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T07:45:17.180Z"
+  },
+  {
+    "reason": "openEHR capability \"pregnancy-status\" required for scenario patient \"patient-nina\"",
+    "action": "fill cb8213e8-751a-4c88-8671-0ab7759c1ce8 into 00eafebe-7b94-4f2c-a104-1bc8ef7b7d3f",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition e12a6ed6-682d-4bb1-a81b-7482223bb62b submitted",
+    "id": "6fdd025c-7551-40cb-9a91-fc718d3206da",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T08:07:04.190Z"
+  },
+  {
+    "reason": "openEHR capability \"coded-diagnosis\" required for scenario patient \"patient-nina\"",
+    "action": "fill 2e06e44e-1b9a-40c4-bc5b-d7efc139abe1 into eda16486-e4c3-4d84-859e-87e7f6c505cf",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 4c8c5c00-39f4-43c6-b9dd-096fdf10c938 submitted",
+    "id": "f2f2feb5-2a7b-4179-8ec4-8062e9888814",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T08:07:05.256Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"confirmed-diagnosis\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein Arztbrief/Entlassungsbrief zur Entlassung erstellt.",
+    "id": "6852ac01-63d2-4721-a5b8-d0d4383f5de3",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T08:07:05.262Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"confirmed-diagnosis\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein Nachsorgetermin nach der Entlassung vereinbart.",
+    "id": "ca5672db-b5c5-43c7-a42d-cfc7d48e68d4",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T08:07:05.265Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"confirmed-diagnosis\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine Entlassmedikation dokumentiert.",
+    "id": "d790c4a6-e9ce-4500-8149-a7b9c3f5d339",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T08:07:05.267Z"
+  },
+  {
+    "reason": "Gespräch mit Patient:in - Eisensubstitution",
+    "action": "conversation",
+    "tool": "patient-conversation",
+    "result": "success",
+    "message": "Frage: \"Vertragen Sie die Eisentabletten gut, gibt es Nebenwirkungen?\" - Antwort: \"Anfangs etwas Übelkeit, seit ich sie zu den Mahlzeiten nehme geht es gut.\"",
+    "id": "e8e9cf14-3bc9-4e16-a516-08a3f45dce84",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T08:47:14.563Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-nina\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition f93d4c15-5dca-4f3c-b639-c7a75889dd1b submitted",
+    "id": "40b4575d-f043-46d9-a175-50012bbb39e0",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "timestamp": "2026-09-17T08:47:16.014Z"
+  }
+]

@@ -1,0 +1,464 @@
+[
+  {
+    "id": "triage-vitals",
+    "type": "vital-signs",
+    "at": "5m",
+    "data": {
+      "heartRate": 108,
+      "spo2": 94,
+      "respRate": 22,
+      "temperature": 36.6
+    }
+  },
+  {
+    "id": "ekg-1",
+    "type": "diagnostic-report",
+    "at": "10m",
+    "data": {
+      "studyName": "12-Kanal-EKG",
+      "modality": "EKG",
+      "targetBodySite": "Thorax",
+      "findings": "Sinustachykardie 108/min. ST-Streckenhebungen von 3mm in V2-V4, 2mm in V1 und aVL, spiegelbildliche ST-Senkungen in II, III, aVF. Kein Vorbefund vorhanden.",
+      "impression": "ST-Hebungsinfarkt (STEMI) der Vorderwand, V.a. Verschluss des Ramus interventricularis anterior (RIVA/LAD).",
+      "diagnosis": "Akuter ST-Hebungsinfarkt (STEMI) Vorderwand",
+      "recommendation": "Sofortige Vorstellung im Herzkatheterlabor - Door-to-Balloon-Ziel <90 Minuten."
+    }
+  },
+  {
+    "id": "stemi-order",
+    "type": "doctor-round",
+    "at": "12m",
+    "data": {
+      "serviceName": "STEMI-Akutprotokoll: ASS, P2Y12-Hemmer, Heparin, sofortige PCI",
+      "serviceType": "Notfallintervention",
+      "urgency": "at0136",
+      "clinicalIndication": "Akuter ST-Hebungsinfarkt der Vorderwand (EKG 10:12 Uhr, ST-Hebung 3mm V2-V4).",
+      "comment": "ASS 300mg p.o., Ticagrelor 180mg p.o., Heparin 5000 IE i.v. als Bolus, sofortige Verlegung ins Herzkatheterlabor. Door-to-Balloon-Ziel <90 Minuten."
+    }
+  },
+  {
+    "id": "med-ass",
+    "type": "medication-administration",
+    "at": "15m",
+    "data": {
+      "arzneimittel": "Acetylsalicylsäure 300mg",
+      "dosisbeschreibung": "300mg",
+      "verabreichungsweg": "oral (zerkaut)",
+      "klinischeIndikation": "Akuter ST-Hebungsinfarkt - Thrombozytenaggregationshemmung",
+      "nachkontrolliert": "true"
+    }
+  },
+  {
+    "id": "med-ticagrelor",
+    "type": "medication-administration",
+    "at": "16m",
+    "data": {
+      "arzneimittel": "Ticagrelor 180mg",
+      "dosisbeschreibung": "180mg (Aufsättigungsdosis)",
+      "verabreichungsweg": "oral",
+      "klinischeIndikation": "Akuter ST-Hebungsinfarkt - duale Thrombozytenaggregationshemmung vor PCI",
+      "nachkontrolliert": "true"
+    }
+  },
+  {
+    "id": "med-heparin",
+    "type": "medication-administration",
+    "at": "17m",
+    "data": {
+      "arzneimittel": "Heparin 5000 IE",
+      "dosisbeschreibung": "5000 IE Bolus",
+      "verabreichungsweg": "i.v.",
+      "klinischeIndikation": "Akuter ST-Hebungsinfarkt - periinterventionelle Antikoagulation vor PCI",
+      "nachkontrolliert": "true"
+    }
+  },
+  {
+    "id": "cathlab-transfer",
+    "type": "ward-transfer",
+    "at": "40m",
+    "data": {
+      "encounterStatus": "in-progress",
+      "encounterClass": "IMP",
+      "location": {
+        "key": "location-herzkatheterlabor",
+        "name": "Herzkatheterlabor",
+        "description": "Herzkatheterlabor · Koronarangiographie und PCI",
+        "kind": "surgery"
+      },
+      "staff": {
+        "scenarioKey": "practitioner-kardiologie-interventionell-1",
+        "family": "Brandt",
+        "given": "Thomas",
+        "qualification": "Facharzt für Kardiologie, interventionelle Kardiologie"
+      }
+    }
+  },
+  {
+    "id": "pci",
+    "type": "procedure",
+    "at": "1h",
+    "data": {
+      "procedureName": "Perkutane transluminale Koronarangioplastie (PTCA) mit Stentimplantation",
+      "opsCode": "8-837.00",
+      "opsDisplay": "PTCA mit Implantation von 1 medikamentenfreisetzendem Stent, 1 Gefäß",
+      "status": "532",
+      "indication": "Akuter ST-Hebungsinfarkt der Vorderwand (STEMI)",
+      "method": "Perkutan-transluminal, transradialer Zugang",
+      "bodySite": "Koronararterie, Ramus interventricularis anterior (RIVA/LAD), proximaler Verschluss",
+      "outcome": "Erfolgreiche Rekanalisation, TIMI-3-Fluss nach Implantation eines medikamentenfreisetzenden Stents. Door-to-Balloon-Zeit 55 Minuten. Keine Komplikationen."
+    }
+  },
+  {
+    "id": "icu-transfer",
+    "type": "ward-transfer",
+    "at": "2h",
+    "data": {
+      "bed": "Überwachungsbett 3",
+      "location": {
+        "key": "location-chest-pain-unit",
+        "name": "Intensivstation / Chest Pain Unit",
+        "description": "Intensivstation · kardiologische Überwachung nach PCI"
+      },
+      "staff": {
+        "scenarioKey": "practitioner-icu-kardiologie-1",
+        "family": "Weber",
+        "given": "Sabine",
+        "qualification": "Fachärztin für Innere Medizin, Intensivmedizin"
+      }
+    }
+  },
+  {
+    "id": "icu-vitals-1",
+    "type": "vital-signs",
+    "at": "2h30m",
+    "data": {
+      "heartRate": 82,
+      "spo2": 97,
+      "respRate": 16,
+      "temperature": 36.8
+    }
+  },
+  {
+    "id": "troponin-1",
+    "type": "lab-result",
+    "at": "3h",
+    "data": {
+      "testName": "Troponin T (hs)",
+      "reportCode": "67151-1",
+      "overallTestStatus": "at0038",
+      "conclusion": "Troponin T (hs) 4850 ng/l, deutlich erhöht - passend zum Zeitverlauf nach akutem STEMI und erfolgter PCI. Erwarteter weiterer Peak in den nächsten Stunden.",
+      "testDiagnosis": "Myokardiale Nekrose nach STEMI"
+    }
+  },
+  {
+    "id": "icu-nursing-1",
+    "type": "nursing-round",
+    "at": "6h",
+    "data": {
+      "note": "Patient wach, orientiert, beschwerdefrei, keine erneute Angina. Punktionsstelle radial reizlos. Vitalparameter stabil im Monitoring."
+    }
+  },
+  {
+    "id": "icu-doctor-1",
+    "type": "doctor-round",
+    "at": "10h",
+    "data": {
+      "serviceName": "Kardiologische Visite - Verlaufsbeurteilung nach PCI",
+      "serviceType": "Visite",
+      "urgency": "at0138",
+      "clinicalIndication": "Zustand nach STEMI und primärer PCI vor 8 Stunden.",
+      "comment": "Klinisch beschwerdefrei, hämodynamisch stabil, keine Rhythmusstörung im Monitoring, Killip-Klasse I (keine Zeichen der Herzinsuffizienz). Weiter engmaschiges Monitoring auf der Chest Pain Unit."
+    }
+  },
+  {
+    "id": "troponin-2",
+    "type": "lab-result",
+    "at": "14h",
+    "data": {
+      "testName": "Troponin T (hs)",
+      "reportCode": "67151-1",
+      "overallTestStatus": "at0038",
+      "conclusion": "Troponin T (hs) 3200 ng/l - rückläufig gegenüber Vorwert (4850 ng/l), passend zum erwarteten postinterventionellen Verlauf. Kein Hinweis auf Reinfarkt."
+    }
+  },
+  {
+    "id": "echo-1",
+    "type": "diagnostic-report",
+    "at": "18h",
+    "data": {
+      "studyName": "Transthorakale Echokardiographie (TTE)",
+      "modality": "Echokardiographie",
+      "targetBodySite": "Herz",
+      "findings": "Linker Ventrikel normal groß. Regionale Wandbewegungsstörung anteroseptal und apikal (hypokinetisch) im Versorgungsgebiet der RIVA/LAD, passend zum akuten Vorderwandinfarkt. Keine relevante Klappenvitien. Kein Perikarderguss.",
+      "impression": "Mittelgradig eingeschränkte linksventrikuläre Funktion, LVEF ca. 45%, regionale Wandbewegungsstörung anteroseptal/apikal passend zum akuten STEMI. Keine mechanische Komplikation.",
+      "diagnosis": "Zustand nach STEMI Vorderwand mit mittelgradig eingeschränkter LV-Funktion (LVEF ~45%)",
+      "recommendation": "Leitliniengerechte Herzinsuffizienztherapie (ACE-Hemmer, Betablocker) einleiten, Verlaufsechokardiographie in 6-12 Wochen."
+    }
+  },
+  {
+    "id": "med-order-hf",
+    "type": "medication-order",
+    "at": "19h",
+    "data": {
+      "medicationName": "Bisoprolol 2.5mg 1-0-0, Ramipril 2.5mg 1-0-0",
+      "status": "at0011",
+      "doseAndTiming": "Bisoprolol 2.5mg morgens, Ramipril 2.5mg morgens, einschleichende Dosierung",
+      "route": "oral",
+      "clinicalIndication": "Leitliniengerechte Herzinsuffizienztherapie nach STEMI mit LVEF ~45%"
+    }
+  },
+  {
+    "id": "med-admin-bisoprolol",
+    "type": "medication-administration",
+    "at": "19h30m",
+    "data": {
+      "arzneimittel": "Bisoprolol 2.5mg",
+      "dosisbeschreibung": "2.5mg",
+      "verabreichungsweg": "oral",
+      "klinischeIndikation": "Leitliniengerechte Herzinsuffizienztherapie nach STEMI",
+      "nachkontrolliert": "true"
+    }
+  },
+  {
+    "id": "med-admin-ramipril",
+    "type": "medication-administration",
+    "at": "19h35m",
+    "data": {
+      "arzneimittel": "Ramipril 2.5mg",
+      "dosisbeschreibung": "2.5mg",
+      "verabreichungsweg": "oral",
+      "klinischeIndikation": "Leitliniengerechte Herzinsuffizienztherapie nach STEMI",
+      "nachkontrolliert": "true"
+    }
+  },
+  {
+    "id": "icu-vitals-2",
+    "type": "vital-signs",
+    "at": "24h",
+    "data": {
+      "heartRate": 74,
+      "spo2": 98,
+      "respRate": 14,
+      "temperature": 36.7
+    }
+  },
+  {
+    "id": "icu-doctor-2",
+    "type": "doctor-round",
+    "at": "24h",
+    "data": {
+      "serviceName": "Verlegungsentscheidung Normalstation",
+      "serviceType": "Visite",
+      "urgency": "at0138",
+      "clinicalIndication": "24h nach PCI: hämodynamisch stabil (HF 74/min), keine Rhythmusstörung im Monitoring, Troponin rückläufig, Killip I, Echo ohne mechanische Komplikation.",
+      "comment": "Verlegungskriterien erfüllt - Verlegung auf kardiologische Normalstation zur weiteren Mobilisation und Einstellung der Sekundärprophylaxe."
+    }
+  },
+  {
+    "id": "ward-transfer-1",
+    "type": "ward-transfer",
+    "at": "26h",
+    "data": {
+      "bed": "Zimmer 214, Bett 1",
+      "location": {
+        "key": "location-normalstation-kardiologie",
+        "name": "Normalstation Kardiologie",
+        "description": "Kardiologie · Mobilisation, Sekundärprophylaxe, Anschlussheilbehandlung"
+      },
+      "staff": {
+        "scenarioKey": "practitioner-normalstation-kardiologie-1",
+        "family": "Nowak",
+        "given": "Martin",
+        "qualification": "Assistenzarzt Innere Medizin"
+      }
+    }
+  },
+  {
+    "id": "ward-nursing-1",
+    "type": "nursing-round",
+    "at": "30h",
+    "data": {
+      "note": "Patient mobilisiert an die Bettkante, beschwerdefrei, keine Angina, Punktionsstelle reizlos. Guter Allgemeinzustand."
+    }
+  },
+  {
+    "id": "ward-doctor-1",
+    "type": "doctor-round",
+    "at": "34h",
+    "data": {
+      "serviceName": "Verlaufsvisite Normalstation",
+      "serviceType": "Visite",
+      "urgency": "at0138",
+      "clinicalIndication": "Zustand nach STEMI/PCI, Tag 2 auf Normalstation.",
+      "comment": "Weiterhin beschwerdefrei und hämodynamisch stabil. Fortführung der Sekundärprophylaxe (ASS, Ticagrelor, Statin, Betablocker, ACE-Hemmer). Mobilisation fortschreitend. Entlassung bei weiterer Stabilität in 1-2 Tagen geplant."
+    }
+  },
+  {
+    "id": "med-order-statin",
+    "type": "medication-order",
+    "at": "35h",
+    "data": {
+      "medicationName": "Atorvastatin 80mg 0-0-1",
+      "status": "at0011",
+      "doseAndTiming": "80mg abends, hochdosierte Statintherapie",
+      "route": "oral",
+      "clinicalIndication": "Sekundärprophylaxe nach STEMI - LDL-Zielwert <55mg/dl"
+    }
+  },
+  {
+    "id": "med-admin-statin",
+    "type": "medication-administration",
+    "at": "35h30m",
+    "data": {
+      "arzneimittel": "Atorvastatin 80mg",
+      "dosisbeschreibung": "80mg",
+      "verabreichungsweg": "oral",
+      "klinischeIndikation": "Sekundärprophylaxe nach STEMI",
+      "nachkontrolliert": "true"
+    }
+  },
+  {
+    "id": "ward-vitals-1",
+    "type": "vital-signs",
+    "at": "48h",
+    "data": {
+      "heartRate": 68,
+      "spo2": 98,
+      "respRate": 14,
+      "temperature": 36.6
+    }
+  },
+  {
+    "id": "ward-nursing-2",
+    "type": "nursing-round",
+    "at": "50h",
+    "data": {
+      "note": "Patient mobilisiert frei auf Station, Treppensteigen ohne Beschwerden. Patientenschulung zu Warnzeichen und Medikation durchgeführt."
+    }
+  },
+  {
+    "id": "ward-doctor-2",
+    "type": "doctor-round",
+    "at": "58h",
+    "data": {
+      "serviceName": "Verlaufsvisite Normalstation",
+      "serviceType": "Visite",
+      "urgency": "at0138",
+      "clinicalIndication": "Zustand nach STEMI/PCI, Tag 3.",
+      "comment": "Weiterhin beschwerdefrei, freie Mobilisation ohne Angina, stabile Vitalparameter seit >24h auf Normalstation. Patientenschulung erfolgt. Kardiologische Reha-Anmeldung veranlasst. Entlassung morgen geplant bei weiterer Stabilität."
+    }
+  },
+  {
+    "id": "ward-vitals-2",
+    "type": "vital-signs",
+    "at": "70h",
+    "data": {
+      "heartRate": 66,
+      "spo2": 98,
+      "respRate": 14,
+      "temperature": 36.6
+    }
+  },
+  {
+    "id": "disch-med-ass",
+    "type": "discharge-medication",
+    "at": "72h",
+    "data": {
+      "medicationName": "Acetylsalicylsäure 100mg",
+      "status": "at0011",
+      "doseAndTiming": "1-0-0, dauerhaft",
+      "route": "oral",
+      "clinicalIndication": "Sekundärprophylaxe nach STEMI, lebenslang",
+      "therapeuticIntent": "Sekundärprophylaxe nach STEMI"
+    }
+  },
+  {
+    "id": "disch-med-ticagrelor",
+    "type": "discharge-medication",
+    "at": "72h",
+    "data": {
+      "medicationName": "Ticagrelor 90mg",
+      "status": "at0011",
+      "doseAndTiming": "1-0-1, für 12 Monate",
+      "route": "oral",
+      "clinicalIndication": "Duale Thrombozytenaggregationshemmung nach PCI mit medikamentenfreisetzendem Stent",
+      "therapeuticIntent": "Sekundärprophylaxe nach STEMI"
+    }
+  },
+  {
+    "id": "disch-med-statin",
+    "type": "discharge-medication",
+    "at": "72h",
+    "data": {
+      "medicationName": "Atorvastatin 80mg",
+      "status": "at0011",
+      "doseAndTiming": "0-0-1, dauerhaft",
+      "route": "oral",
+      "clinicalIndication": "Sekundärprophylaxe, LDL-Zielwert <55mg/dl",
+      "therapeuticIntent": "Sekundärprophylaxe nach STEMI"
+    }
+  },
+  {
+    "id": "disch-med-bisoprolol",
+    "type": "discharge-medication",
+    "at": "72h",
+    "data": {
+      "medicationName": "Bisoprolol 2.5mg",
+      "status": "at0011",
+      "doseAndTiming": "1-0-0, dauerhaft, Dosisanpassung nach Herzfrequenz",
+      "route": "oral",
+      "clinicalIndication": "Herzinsuffizienztherapie nach STEMI (LVEF ~45%)",
+      "therapeuticIntent": "Sekundärprophylaxe nach STEMI"
+    }
+  },
+  {
+    "id": "disch-med-ramipril",
+    "type": "discharge-medication",
+    "at": "72h",
+    "data": {
+      "medicationName": "Ramipril 2.5mg",
+      "status": "at0011",
+      "doseAndTiming": "1-0-0, dauerhaft, Dosisanpassung nach Blutdruck/Nierenwerten",
+      "route": "oral",
+      "clinicalIndication": "Herzinsuffizienztherapie nach STEMI (LVEF ~45%)",
+      "therapeuticIntent": "Sekundärprophylaxe nach STEMI"
+    }
+  },
+  {
+    "id": "discharge-letter",
+    "type": "discharge-letter",
+    "at": "72h30m",
+    "data": {
+      "synopsis": "Aufnahme in der Notaufnahme bei akut aufgetretenen retrosternalen Schmerzen mit Ausstrahlung in den linken Arm. EKG zeigte ST-Hebungen anteroseptal passend zu einem akuten Vorderwandinfarkt (STEMI). Nach sofortiger Gabe von ASS, Ticagrelor und Heparin erfolgte die notfallmäßige Koronarangiographie mit Nachweis eines proximalen RIVA-Verschlusses; erfolgreiche PTCA mit Implantation eines medikamentenfreisetzenden Stents (Door-to-Balloon-Zeit 55 Minuten). Postinterventionell 24h Überwachung auf der Chest Pain Unit, komplikationsloser Verlauf, rückläufiges Troponin, keine Rhythmusstörungen. Echokardiographie zeigte eine mittelgradig eingeschränkte LV-Funktion (LVEF ca. 45%) bei anteroseptaler/apikaler Wandbewegungsstörung ohne mechanische Komplikation. Weitere Mobilisation und Einstellung der leitliniengerechten Sekundärprophylaxe auf der kardiologischen Normalstation, durchgehend beschwerdefrei und hämodynamisch stabil. Gesamtdauer des stationären Aufenthalts 3 Tage.",
+      "topic": "Kardiologische Anschlussheilbehandlung (Reha) und Sekundärprophylaxe nach STEMI",
+      "recommendation": "Ambulante kardiologische Anschlussheilbehandlung (Reha) ist organisiert. Fortführung der dualen Thrombozytenaggregationshemmung (ASS + Ticagrelor) für 12 Monate, hochdosiertes Statin, Betablocker und ACE-Hemmer dauerhaft mit Dosistitration durch den Hausarzt/Kardiologen. Verlaufsechokardiographie in 6-12 Wochen zur Reevaluation der LV-Funktion beim niedergelassenen Kardiologen.",
+      "rationale": "Bei relevant eingeschränkter LV-Funktion (LVEF 45%) und Zustand nach Stentimplantation ist eine engmaschige kardiologische Anbindung erforderlich. Sofortige Wiedervorstellung bei erneuten thorakalen Schmerzen, Luftnot, Palpitationen, Synkope oder Blutungszeichen unter dualer Plättchenhemmung."
+    }
+  },
+  {
+    "id": "discharge-home",
+    "type": "ward-transfer",
+    "at": "73h",
+    "data": {
+      "encounterStatus": "finished",
+      "location": {
+        "key": "location-entlassen",
+        "name": "Zuhause (entlassen)"
+      }
+    }
+  },
+  {
+    "id": "followup-kardiologie",
+    "type": "request-imaging",
+    "at": "73h30m",
+    "data": {
+      "serviceKey": "service-kardiologie-nachsorge",
+      "serviceName": "Kardiologische Nachsorge inkl. Verlaufsechokardiographie",
+      "scheduleKey": "schedule-kardiologie-nachsorge",
+      "capabilityKey": "kardiologie-nachsorge",
+      "comment": "Ambulante kardiologische Verlaufskontrolle nach STEMI/PCI mit Verlaufsechokardiographie zur Reevaluation der LV-Funktion - wie im Entlassungsbrief empfohlen (6-12 Wochen).",
+      "isFollowUp": true,
+      "skipLocationTransfer": true
+    }
+  }
+]

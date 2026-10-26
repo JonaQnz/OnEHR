@@ -1,0 +1,49 @@
+# The stations/rooms a patient physically moves through (spec's new "make
+# the journey visible on a real clinic floor plan" ask). Clinic-level, like
+# HealthcareService/Schedule - a handful of Locations exist once and every
+# case's Encounter references the same ones, rather than each case
+# inventing its own "Notaufnahme".
+resourceType: Location
+
+simulationRequired:
+  - name
+
+recommended:
+  - status
+
+references: {}
+
+# A ward's own name is a reasonable thing for the agent to generate when a
+# scenario only names a clinical need ("the patient needs to be admitted"),
+# never something scenario-authored data should invent from scratch.
+llmMayGenerate:
+  - name
+  - description
+llmMayNotGenerate: []
+
+dependencies: []
+mayTrigger: []
+
+fields:
+  - path: name
+    label: Name
+    type: text
+    required: true
+    editable: true
+    sourcePolicy: generated
+  - path: status
+    label: Status
+    type: select
+    required: false
+    editable: true
+    sourcePolicy: generated
+    options:
+      - { value: active, label: Aktiv }
+      - { value: suspended, label: Gesperrt }
+      - { value: inactive, label: Inaktiv }
+  - path: description
+    label: Beschreibung
+    type: text
+    required: false
+    editable: true
+    sourcePolicy: generated

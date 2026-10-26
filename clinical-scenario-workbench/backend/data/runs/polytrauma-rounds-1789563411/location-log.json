@@ -1,0 +1,22 @@
+[
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-praeklinik",
+    "timestamp": "2026-09-16T12:57:23.985Z"
+  },
+  {
+    "eventId": "schockraum",
+    "locationScenarioKey": "location-schockraum",
+    "timestamp": "2026-09-16T12:57:25.940Z"
+  },
+  {
+    "eventId": "op-damage-control",
+    "locationScenarioKey": "location-op",
+    "timestamp": "2026-09-16T12:57:42.437Z"
+  },
+  {
+    "eventId": "icu",
+    "locationScenarioKey": "location-intensiv",
+    "timestamp": "2026-09-16T12:57:46.030Z"
+  }
+]

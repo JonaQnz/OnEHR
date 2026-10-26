@@ -1,0 +1,72 @@
+[
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-praeklinik",
+    "timestamp": "2026-09-16T12:59:18.686Z"
+  },
+  {
+    "eventId": "schockraum",
+    "locationScenarioKey": "location-schockraum",
+    "timestamp": "2026-09-16T12:59:20.336Z"
+  },
+  {
+    "eventId": "op-damage-control",
+    "locationScenarioKey": "location-op",
+    "timestamp": "2026-09-16T13:02:32.659Z"
+  },
+  {
+    "eventId": "op-damage-control",
+    "locationScenarioKey": "location-op",
+    "timestamp": "2026-09-16T13:02:33.733Z"
+  },
+  {
+    "eventId": "icu",
+    "locationScenarioKey": "location-intensiv",
+    "timestamp": "2026-09-16T13:02:36.273Z"
+  },
+  {
+    "eventId": "icu",
+    "locationScenarioKey": "location-intensiv",
+    "timestamp": "2026-09-16T13:02:36.310Z"
+  },
+  {
+    "eventId": "op-definitive",
+    "locationScenarioKey": "location-op",
+    "timestamp": "2026-09-16T13:02:59.078Z"
+  },
+  {
+    "eventId": "op-definitive",
+    "locationScenarioKey": "location-op",
+    "timestamp": "2026-09-16T13:02:59.494Z"
+  },
+  {
+    "eventId": "normalstation",
+    "locationScenarioKey": "location-normalstation",
+    "timestamp": "2026-09-16T13:03:02.167Z"
+  },
+  {
+    "eventId": "normalstation",
+    "locationScenarioKey": "location-normalstation",
+    "timestamp": "2026-09-16T13:03:02.523Z"
+  },
+  {
+    "eventId": "normalstation-doctor-1-escalation",
+    "locationScenarioKey": "location-intensiv",
+    "timestamp": "2026-09-16T13:03:10.914Z"
+  },
+  {
+    "eventId": "normalstation-doctor-1-escalation",
+    "locationScenarioKey": "location-intensiv",
+    "timestamp": "2026-09-16T13:03:11.185Z"
+  },
+  {
+    "eventId": "reha",
+    "locationScenarioKey": "location-reha",
+    "timestamp": "2026-09-16T13:03:11.982Z"
+  },
+  {
+    "eventId": "reha",
+    "locationScenarioKey": "location-reha",
+    "timestamp": "2026-09-16T13:03:12.273Z"
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "patient-brandt": {
+    "resourceType": "Patient",
+    "hipResourceId": "ce42a4f4-c920-4772-b906-9bbf2bfca782",
+    "ehrId": "5a8aab08-c3d0-44ec-ace1-bc899174f30c",
+    "formsPatientId": "91988ea0-1140-44ea-914c-691b26406aff",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-brandt",
+    "scenarioRunId": "reha-knie-brandt-2026-09-17",
+    "createdAt": "2026-09-17T12:56:15.834Z",
+    "updatedAt": "2026-09-17T12:56:15.834Z"
+  }
+}

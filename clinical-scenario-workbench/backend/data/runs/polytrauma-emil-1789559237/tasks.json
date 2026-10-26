@@ -1,0 +1,65 @@
+{
+  "missing-allergy-history": {
+    "id": "missing-allergy-history",
+    "code": "missing-allergy-history",
+    "description": "Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "anchorEventId": "arrival",
+    "source": "critic",
+    "status": "open",
+    "createdAt": "2026-09-17T15:02:34.291Z"
+  },
+  "missing-consent:op-damage-control": {
+    "id": "missing-consent:op-damage-control",
+    "code": "missing-consent:op-damage-control",
+    "description": "Keine dokumentierte Aufklärung/Einwilligung vor dem Eingriff an Station \"OP\".",
+    "anchorEventId": "op-damage-control",
+    "source": "critic",
+    "status": "open",
+    "createdAt": "2026-09-17T15:02:34.293Z"
+  },
+  "missing-procedure-record:op-damage-control": {
+    "id": "missing-procedure-record:op-damage-control",
+    "code": "missing-procedure-record:op-damage-control",
+    "description": "Kein strukturierter Prozedur-Eintrag für den Eingriff an Station \"OP\" gefunden.",
+    "anchorEventId": "icu",
+    "source": "critic",
+    "status": "open",
+    "createdAt": "2026-09-17T15:02:34.294Z"
+  },
+  "missing-preprocedure-medication:op-damage-control": {
+    "id": "missing-preprocedure-medication:op-damage-control",
+    "code": "missing-preprocedure-medication:op-damage-control",
+    "description": "Keine periprozedurale Medikamentengabe vor dem Eingriff an Station \"OP\" dokumentiert.",
+    "anchorEventId": "op-damage-control",
+    "source": "critic",
+    "status": "open",
+    "createdAt": "2026-09-17T15:02:34.298Z"
+  },
+  "missing-consent:op-definitive": {
+    "id": "missing-consent:op-definitive",
+    "code": "missing-consent:op-definitive",
+    "description": "Keine dokumentierte Aufklärung/Einwilligung vor dem Eingriff an Station \"OP\".",
+    "anchorEventId": "op-definitive",
+    "source": "critic",
+    "status": "open",
+    "createdAt": "2026-09-17T15:02:34.299Z"
+  },
+  "missing-procedure-record:op-definitive": {
+    "id": "missing-procedure-record:op-definitive",
+    "code": "missing-procedure-record:op-definitive",
+    "description": "Kein strukturierter Prozedur-Eintrag für den Eingriff an Station \"OP\" gefunden.",
+    "anchorEventId": "normalstation",
+    "source": "critic",
+    "status": "open",
+    "createdAt": "2026-09-17T15:02:34.302Z"
+  },
+  "missing-preprocedure-medication:op-definitive": {
+    "id": "missing-preprocedure-medication:op-definitive",
+    "code": "missing-preprocedure-medication:op-definitive",
+    "description": "Keine periprozedurale Medikamentengabe vor dem Eingriff an Station \"OP\" dokumentiert.",
+    "anchorEventId": "op-definitive",
+    "source": "critic",
+    "status": "open",
+    "createdAt": "2026-09-17T15:02:34.303Z"
+  }
+}

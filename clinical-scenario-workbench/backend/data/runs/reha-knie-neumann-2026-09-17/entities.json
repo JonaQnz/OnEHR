@@ -1,0 +1,72 @@
+{
+  "patient-neumann": {
+    "resourceType": "Patient",
+    "hipResourceId": "0241416c-1acb-40a1-87ba-c5fc85084769",
+    "ehrId": "1a84a2b9-674d-4caa-bcd9-597285c2798d",
+    "formsPatientId": "8c46d7fc-e38f-48cb-8200-ccfec5dd52b1",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-neumann",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:43:51.704Z",
+    "updatedAt": "2026-09-17T12:43:51.704Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "f8ef65d0-e99c-42c5-b2c4-d79a515c6b2f",
+    "fhirVersionId": "2",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:43:52.735Z",
+    "updatedAt": "2026-09-17T12:44:05.327Z"
+  },
+  "slot-nachsorge-termin": {
+    "resourceType": "Slot",
+    "hipResourceId": "b4178731-3663-4faa-95f3-6e02dadb9ba2",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-nachsorge-termin",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:44:03.920Z",
+    "updatedAt": "2026-09-17T12:44:03.920Z"
+  },
+  "appointment-nachsorge-termin": {
+    "resourceType": "Appointment",
+    "hipResourceId": "b1db6d0a-b12f-49e9-b006-9149b5056c89",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-nachsorge-termin",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:44:04.420Z",
+    "updatedAt": "2026-09-17T12:44:04.420Z"
+  }
+}

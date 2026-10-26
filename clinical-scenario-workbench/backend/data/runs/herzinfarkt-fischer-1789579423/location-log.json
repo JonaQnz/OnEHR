@@ -1,0 +1,29 @@
+[
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-notaufnahme",
+    "timestamp": "2026-09-16T17:23:44.382Z"
+  },
+  {
+    "eventId": "cathlab-transfer",
+    "locationScenarioKey": "location-herzkatheterlabor",
+    "timestamp": "2026-09-16T17:25:04.520Z"
+  },
+  {
+    "eventId": "icu-transfer",
+    "locationScenarioKey": "location-chest-pain-unit",
+    "timestamp": "2026-09-16T17:26:43.268Z",
+    "bedLabel": "Überwachungsbett 3"
+  },
+  {
+    "eventId": "ward-transfer-1",
+    "locationScenarioKey": "location-normalstation-kardiologie",
+    "timestamp": "2026-09-16T17:28:22.406Z",
+    "bedLabel": "Zimmer 214, Bett 1"
+  },
+  {
+    "eventId": "discharge-home",
+    "locationScenarioKey": "location-entlassen",
+    "timestamp": "2026-09-16T17:30:58.794Z"
+  }
+]

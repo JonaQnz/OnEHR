@@ -1,0 +1,132 @@
+{
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-neumann",
+    "compositionSessionId": "cc73d56a-6c0c-430b-9463-2fb755a7d2d5",
+    "formSessionId": "f8e89a2d-2ee7-4e84-b004-0ae8d1da3405",
+    "capability": "anamnesis",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:43:53.363Z",
+    "updatedAt": "2026-09-17T12:43:56.708Z"
+  },
+  "progress-note": {
+    "kind": "openEHR",
+    "formId": "ff3cb87f-cc0b-4b03-87ef-991e794eca11",
+    "compositionFormId": "d0fe6829-2852-4183-ada3-142abb0fb6c4",
+    "blockId": "block-1",
+    "patientScenarioKey": "patient-neumann",
+    "compositionSessionId": "553a7550-cc7f-462e-a3d3-63bba8ac05ac",
+    "formSessionId": "a2065995-250e-4860-938e-fc0f94f692e4",
+    "capability": "progress-note",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:43:53.854Z",
+    "updatedAt": "2026-09-17T12:43:59.864Z"
+  },
+  "vital-signs": {
+    "kind": "openEHR",
+    "formId": "61730ea9-284d-458f-b173-47902d0a7c90",
+    "compositionFormId": "b82c488f-688a-49d2-8031-447a0440d098",
+    "blockId": "vitals_block",
+    "patientScenarioKey": "patient-neumann",
+    "compositionSessionId": "9d5fd77f-a710-4d6e-8ca5-e213f7c1afde",
+    "formSessionId": "1972cbed-b764-4d2f-b649-7ea7b83b31e2",
+    "capability": "vital-signs",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:43:54.929Z",
+    "updatedAt": "2026-09-17T12:43:54.929Z"
+  },
+  "nursing-round": {
+    "kind": "openEHR",
+    "formId": "6f1449d1-bd94-4ab4-ac40-d3cbc8412847",
+    "compositionFormId": "5f70143f-bb4d-4d44-8553-0103b597c246",
+    "blockId": "block-nursing",
+    "patientScenarioKey": "patient-neumann",
+    "compositionSessionId": "ba8828b7-6a5a-4b9b-8db5-267537ff3435",
+    "formSessionId": "2f3eacb9-73e6-44b0-afa0-fd79f4bc7569",
+    "capability": "nursing-round",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:43:55.555Z",
+    "updatedAt": "2026-09-17T12:44:00.599Z"
+  },
+  "order-basis": {
+    "kind": "openEHR",
+    "formId": "ee3e789e-5863-4008-9260-aa0b8f39a8d4",
+    "compositionFormId": "a78f1088-44cb-4d98-87b8-8fd4c18974fd",
+    "blockId": "block-1",
+    "patientScenarioKey": "patient-neumann",
+    "compositionSessionId": "22abf5fc-557a-4796-a631-4ee750648e5f",
+    "formSessionId": "b3225387-df82-44fc-864c-751a84ed89cc",
+    "capability": "order-basis",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:43:57.248Z",
+    "updatedAt": "2026-09-17T12:43:57.248Z"
+  },
+  "lab-value": {
+    "kind": "openEHR",
+    "formId": "7c1210b2-39a4-4b4a-a479-62c1925fe38f",
+    "compositionFormId": "8338ddde-26d9-49fd-8edf-095d12415edc",
+    "blockId": "block-1",
+    "patientScenarioKey": "patient-neumann",
+    "compositionSessionId": "b0e5d1d7-ed46-4fcc-95d8-6ce62895a7f6",
+    "formSessionId": "584cdd1e-6375-464e-bfae-a45d0078d3d7",
+    "capability": "lab-value",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:43:58.595Z",
+    "updatedAt": "2026-09-17T12:43:58.595Z"
+  },
+  "doctor-round": {
+    "kind": "openEHR",
+    "formId": "fe7c41d6-32e8-4840-9974-effb9354fe54",
+    "compositionFormId": "eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "blockId": "block-order",
+    "patientScenarioKey": "patient-neumann",
+    "compositionSessionId": "fa289b91-bdac-4653-9166-76742396617f",
+    "formSessionId": "3c0f5bbe-66b9-456f-9206-45749951ab5e",
+    "capability": "doctor-round",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:43:59.216Z",
+    "updatedAt": "2026-09-17T12:44:01.404Z"
+  },
+  "discharge-letter": {
+    "kind": "openEHR",
+    "formId": "42d74b75-e2fe-4238-a0a0-1f7c556938a5",
+    "compositionFormId": "2a88d34b-541d-4085-ab7a-23c713346928",
+    "blockId": "summary-form",
+    "patientScenarioKey": "patient-neumann",
+    "compositionSessionId": "cb21793e-6b68-441c-b887-0b29936f5b2b",
+    "formSessionId": "5024d89a-b231-4f4b-a052-51dcf7bb7b9f",
+    "capability": "discharge-letter",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:44:01.868Z",
+    "updatedAt": "2026-09-17T12:44:01.868Z"
+  },
+  "discharge-medication": {
+    "kind": "openEHR",
+    "formId": "dddee1ff-3b22-4316-b985-06938694da66",
+    "compositionFormId": "2a88d34b-541d-4085-ab7a-23c713346928",
+    "blockId": "med-form",
+    "patientScenarioKey": "patient-neumann",
+    "compositionSessionId": "e029070a-d09e-476f-9349-ec2ac07734e3",
+    "formSessionId": "0864b09c-2410-4189-a0ab-9060ef86e665",
+    "capability": "discharge-medication",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:44:02.400Z",
+    "updatedAt": "2026-09-17T12:44:02.400Z"
+  },
+  "reha-nachsorge-knie": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-reha-nachsorge-knie",
+      "schedule": "schedule-reha-nachsorge-knie",
+      "slot": "slot-nachsorge-termin",
+      "appointment": "appointment-nachsorge-termin"
+    },
+    "capability": "reha-nachsorge-knie",
+    "scenarioRunId": "reha-knie-neumann-2026-09-17",
+    "createdAt": "2026-09-17T12:44:04.430Z",
+    "updatedAt": "2026-09-17T12:44:04.430Z"
+  }
+}

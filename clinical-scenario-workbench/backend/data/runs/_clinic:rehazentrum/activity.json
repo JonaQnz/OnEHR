@@ -1,0 +1,102 @@
+[
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-reha-aufnahme-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/b1032f43-62b7-494f-b670-17ef0b8523b3 created",
+    "id": "9f3e4b6c-9f65-4488-89e9-c92e0a9d0702",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "timestamp": "2026-09-17T12:36:23.365Z"
+  },
+  {
+    "reason": "HealthcareService required for scenario entity \"service-reha-nachsorge\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/e20fc90e-b0eb-4c3d-b24e-13ec8ab08251 created",
+    "id": "24d46be6-cfcf-432b-84ad-5120bd108a01",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "timestamp": "2026-09-17T12:36:29.677Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-reha-nachsorge\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/4e3ede74-832e-49fb-8cc0-072e946e4c4e created",
+    "id": "a1f94e52-7a82-42d0-8b0c-690cec735a2f",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "timestamp": "2026-09-17T12:36:30.001Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-radiologie-1\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/7e5ee314-28fe-4a6f-a532-7dcfe5bbb95b created",
+    "id": "9c3165ee-5282-4b1c-ac07-4b675d2d59d8",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "timestamp": "2026-09-17T12:36:31.163Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-reha-aufnahme-2\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/61749c6e-3d1f-4a8d-bfc4-2388723ac0e9 created",
+    "id": "de6135e7-ca20-475d-b1d0-ef6a1d4bcae2",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "timestamp": "2026-09-17T12:43:52.210Z"
+  },
+  {
+    "reason": "HealthcareService required for scenario entity \"service-reha-nachsorge-knie\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/28538969-d117-440a-81a1-978089bbb499 created",
+    "id": "26a686cf-d760-433c-a497-2c9470c74bb3",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "timestamp": "2026-09-17T12:44:02.885Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-reha-nachsorge-knie\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/11266104-7f86-4d91-b921-6f429215b99a created",
+    "id": "a9417614-9b51-4ba4-a639-932b6baa0a43",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "timestamp": "2026-09-17T12:44:03.433Z"
+  },
+  {
+    "reason": "Practitioner required for scenario entity \"practitioner-reha-aufnahme-3\"",
+    "action": "create Practitioner",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Practitioner/b550b0c3-dd6c-4a49-943b-d96d5bf321f7 created",
+    "id": "ece1b456-54ad-49ac-92f3-d3b464cfd8e9",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "timestamp": "2026-09-17T12:56:22.727Z"
+  },
+  {
+    "reason": "HealthcareService required for scenario entity \"service-reha-nachsorge-knie-tep\"",
+    "action": "create HealthcareService",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "HealthcareService/b12b9f44-4371-410f-9020-994297968a93 created",
+    "id": "cc66abd0-de4d-4cf9-b84f-3ce48f1f4f60",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "timestamp": "2026-09-17T13:43:26.342Z"
+  },
+  {
+    "reason": "Schedule required for scenario entity \"schedule-reha-nachsorge-knie-tep\"",
+    "action": "create Schedule",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Schedule/1937fd90-eae8-40e5-90f2-a272ed537604 created",
+    "id": "0f187eb3-891c-4d64-a70a-09e16da8d557",
+    "scenarioRunId": "_clinic:rehazentrum",
+    "timestamp": "2026-09-17T13:43:26.755Z"
+  }
+]

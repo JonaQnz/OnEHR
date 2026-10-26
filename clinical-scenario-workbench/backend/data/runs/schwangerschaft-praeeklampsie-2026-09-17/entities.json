@@ -1,0 +1,72 @@
+{
+  "patient-lena": {
+    "resourceType": "Patient",
+    "hipResourceId": "5ef1d547-af85-4c0d-bce6-b889d10a2307",
+    "ehrId": "73933ebf-983e-461a-926e-8f2c10f17440",
+    "formsPatientId": "4fed9ac8-0f1b-4043-b8ba-de08676e9db1",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-lena",
+    "scenarioRunId": "schwangerschaft-praeeklampsie-2026-09-17",
+    "createdAt": "2026-09-17T08:59:40.325Z",
+    "updatedAt": "2026-09-17T08:59:40.325Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "3550b576-d98c-4074-9cfd-efddb50bfcb8",
+    "fhirVersionId": "2",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "schwangerschaft-praeeklampsie-2026-09-17",
+    "createdAt": "2026-09-17T08:59:41.231Z",
+    "updatedAt": "2026-09-17T09:02:06.805Z"
+  },
+  "slot-followup-appointment": {
+    "resourceType": "Slot",
+    "hipResourceId": "318d0870-8a4c-4cbe-967f-461d82007318",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-followup-appointment",
+    "scenarioRunId": "schwangerschaft-praeeklampsie-2026-09-17",
+    "createdAt": "2026-09-17T09:02:04.904Z",
+    "updatedAt": "2026-09-17T09:02:04.904Z"
+  },
+  "appointment-followup-appointment": {
+    "resourceType": "Appointment",
+    "hipResourceId": "1f927d70-b2f1-421b-a2d5-94c0fc2b955b",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-followup-appointment",
+    "scenarioRunId": "schwangerschaft-praeeklampsie-2026-09-17",
+    "createdAt": "2026-09-17T09:02:05.442Z",
+    "updatedAt": "2026-09-17T09:02:05.442Z"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "scenarioId": "notaufnahme-offen-bauer",
+  "completedEventIds": [
+    "arrival",
+    "chief-complaint",
+    "triage-vitals",
+    "round-1-order",
+    "round-1-labs",
+    "round-2-vitals",
+    "confirmed-diagnosis",
+    "discharge-home",
+    "discharge-letter",
+    "followup-urologie"
+  ],
+  "patientScenarioKey": "patient-bauer",
+  "completedAt": {
+    "arrival": "2026-09-16T16:47:40.445Z",
+    "chief-complaint": "2026-09-16T16:47:41.259Z",
+    "triage-vitals": "2026-09-16T16:47:54.378Z",
+    "round-1-order": "2026-09-16T16:48:22.399Z",
+    "round-1-labs": "2026-09-16T16:48:41.305Z",
+    "round-2-vitals": "2026-09-16T16:48:56.007Z",
+    "confirmed-diagnosis": "2026-09-16T16:49:07.780Z",
+    "discharge-home": "2026-09-16T16:49:17.783Z",
+    "discharge-letter": "2026-09-16T16:52:03.717Z",
+    "followup-urologie": "2026-09-16T17:50:42.151Z"
+  }
+}

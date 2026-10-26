@@ -1,0 +1,94 @@
+[
+  {
+    "id": "triage-vitals",
+    "type": "vital-signs",
+    "at": "10m",
+    "data": {
+      "heartRate": 104,
+      "spo2": 98,
+      "respRate": 20,
+      "temperature": 36.8
+    }
+  },
+  {
+    "id": "round-1-order",
+    "type": "doctor-round",
+    "at": "20m",
+    "data": {
+      "serviceName": "Notfalllabor (Blutbild, Nierenwerte, CRP) und Urinstatus, i.v. Analgesie (NSAID)",
+      "serviceType": "Labor",
+      "urgency": "at0137",
+      "clinicalIndication": "Akute rechtsseitige Flankenschmerzen mit Ausstrahlung in die Leiste, Übelkeit, afebril, hämodynamisch stabil - V.a. Urolithiasis, Ausschluss Infekt/akutes Abdomen.",
+      "comment": "Labor und Urinstatus anfordern, Schmerztherapie einleiten, Reevaluation nach Vorliegen der Befunde in ca. 1h."
+    }
+  },
+  {
+    "id": "round-1-labs",
+    "type": "lab-result",
+    "at": "1h20m",
+    "data": {
+      "testName": "Notfalllabor und Urinstatus",
+      "reportCode": "24323-8",
+      "overallTestStatus": "at0038",
+      "conclusion": "Leukozyten und Nierenwerte im Normbereich, CRP leicht erhöht (18 mg/l). Urinstatus: Mikrohämaturie positiv, Leukozyten und Nitrit im Urin negativ - kein Hinweis auf Harnwegsinfekt. Gesamtbild passend zu Urolithiasis ohne Infektzeichen.",
+      "testDiagnosis": "V.a. Urolithiasis, kein Hinweis auf Infekt"
+    }
+  },
+  {
+    "id": "round-2-vitals",
+    "type": "vital-signs",
+    "at": "1h30m",
+    "data": {
+      "heartRate": 78,
+      "spo2": 99,
+      "respRate": 16,
+      "temperature": 36.7
+    }
+  },
+  {
+    "id": "confirmed-diagnosis",
+    "type": "anamnesis",
+    "at": "1h35m",
+    "data": {
+      "diagnosis": "Urolithiasis (Nierenstein) rechts, unkompliziert - klinisch und laborchemisch kein Hinweis auf Infekt oder Obstruktion mit Funktionseinschränkung. Deutliche Besserung der Symptomatik unter Analgesie."
+    }
+  },
+  {
+    "id": "discharge-home",
+    "type": "ward-transfer",
+    "at": "1h45m",
+    "data": {
+      "encounterStatus": "finished",
+      "encounterClass": "AMB",
+      "location": {
+        "key": "location-entlassen",
+        "name": "Zuhause (entlassen)"
+      }
+    }
+  },
+  {
+    "id": "discharge-letter",
+    "type": "discharge-letter",
+    "at": "1h50m",
+    "data": {
+      "synopsis": "Vorstellung in der Notaufnahme bei akut aufgetretenen, kolikartigen rechtsseitigen Flankenschmerzen mit Ausstrahlung in die Leiste und Übelkeit. Initial Tachykardie (HF 104/min) im Rahmen der Schmerzsymptomatik, afebril, hämodynamisch stabil. Labor und Urinstatus ohne Hinweis auf Harnwegsinfekt oder relevante Nierenfunktionseinschränkung, Mikrohämaturie passend zur Verdachtsdiagnose. Unter i.v. Analgesie deutliche klinische Besserung (HF 78/min, Beschwerderückgang) innerhalb der Beobachtungszeit. Diagnose: unkomplizierte Urolithiasis rechts.",
+      "topic": "Ambulante Weiterbehandlung bei unkomplizierter Urolithiasis",
+      "recommendation": "Ambulante Analgesie mit NSAID nach Bedarf, reichliche Flüssigkeitszufuhr, Urin sieben zur Steinasservierung. Vorstellung beim niedergelassenen Urologen zur Verlaufskontrolle und ggf. Bildgebung innerhalb von 1-2 Wochen.",
+      "rationale": "Bei fehlenden Infekt- oder Obstruktionszeichen und deutlicher Besserung unter Analgesie ist eine ambulante Behandlung vertretbar. Sofortige Wiedervorstellung bei Fieber, Schüttelfrost, anhaltendem Erbrechen oder erneuter Schmerzverstärkung."
+    }
+  },
+  {
+    "id": "followup-urologie",
+    "type": "request-imaging",
+    "at": "1h55m",
+    "data": {
+      "serviceKey": "service-urologie-nachsorge",
+      "serviceName": "Urologische Nachsorge",
+      "scheduleKey": "schedule-urologie-nachsorge",
+      "capabilityKey": "urologie-nachsorge",
+      "comment": "Ambulante urologische Verlaufskontrolle bei Urolithiasis - wie im Entlassungsbrief empfohlen.",
+      "isFollowUp": true,
+      "skipLocationTransfer": true
+    }
+  }
+]

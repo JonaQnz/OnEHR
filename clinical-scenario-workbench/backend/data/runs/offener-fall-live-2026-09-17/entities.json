@@ -1,0 +1,107 @@
+{
+  "patient-anna": {
+    "resourceType": "Patient",
+    "hipResourceId": "7ce8dafa-705c-4658-9e9d-df428ee71e9e",
+    "ehrId": "eeb5648e-2c25-4f63-810c-7e5d43a6642f",
+    "formsPatientId": "56b515c5-3a30-49e6-840d-cc8f6b0c4c83",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-anna",
+    "scenarioRunId": "offener-fall-live-2026-09-17",
+    "createdAt": "2026-09-17T09:33:55.657Z",
+    "updatedAt": "2026-09-17T09:33:55.657Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "19cae1c5-e5a9-4f21-a910-db8c7613fafb",
+    "fhirVersionId": "6",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "offener-fall-live-2026-09-17",
+    "createdAt": "2026-09-17T09:33:56.328Z",
+    "updatedAt": "2026-09-17T11:39:28.811Z"
+  },
+  "slot-order-sono": {
+    "resourceType": "Slot",
+    "hipResourceId": "cc6bd782-8690-4174-a453-9c64c50c6647",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-order-sono",
+    "scenarioRunId": "offener-fall-live-2026-09-17",
+    "createdAt": "2026-09-17T09:35:07.710Z",
+    "updatedAt": "2026-09-17T09:35:07.710Z"
+  },
+  "appointment-order-sono": {
+    "resourceType": "Appointment",
+    "hipResourceId": "d484d105-b3d9-421b-9caf-256300f469d0",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-order-sono",
+    "scenarioRunId": "offener-fall-live-2026-09-17",
+    "createdAt": "2026-09-17T09:35:08.130Z",
+    "updatedAt": "2026-09-17T09:35:08.130Z"
+  },
+  "slot-wundkontrolle-termin": {
+    "resourceType": "Slot",
+    "hipResourceId": "0c1988cc-1cf5-41e4-b3aa-ae365d12d86a",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-wundkontrolle-termin",
+    "scenarioRunId": "offener-fall-live-2026-09-17",
+    "createdAt": "2026-09-17T11:39:27.494Z",
+    "updatedAt": "2026-09-17T11:39:27.494Z"
+  },
+  "appointment-wundkontrolle-termin": {
+    "resourceType": "Appointment",
+    "hipResourceId": "210aba68-1a8a-4558-87e0-a837257ae0a3",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-wundkontrolle-termin",
+    "scenarioRunId": "offener-fall-live-2026-09-17",
+    "createdAt": "2026-09-17T11:39:27.981Z",
+    "updatedAt": "2026-09-17T11:39:27.981Z"
+  }
+}

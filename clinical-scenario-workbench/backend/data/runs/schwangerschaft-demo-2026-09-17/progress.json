@@ -1,0 +1,24 @@
+{
+  "scenarioId": "schwangerschaft-anc-demo",
+  "completedEventIds": [
+    "arrival",
+    "anamnesis",
+    "vitals",
+    "ultrasound",
+    "hemoglobin",
+    "pregnancy-status",
+    "confirmed-diagnosis",
+    "talk-followup"
+  ],
+  "patientScenarioKey": "patient-nina",
+  "completedAt": {
+    "arrival": "2026-09-17T07:45:12.746Z",
+    "anamnesis": "2026-09-17T07:45:13.587Z",
+    "vitals": "2026-09-17T07:45:14.210Z",
+    "ultrasound": "2026-09-17T07:45:16.507Z",
+    "hemoglobin": "2026-09-17T07:45:17.182Z",
+    "pregnancy-status": "2026-09-17T08:07:04.193Z",
+    "confirmed-diagnosis": "2026-09-17T08:07:05.268Z",
+    "talk-followup": "2026-09-17T08:47:16.017Z"
+  }
+}

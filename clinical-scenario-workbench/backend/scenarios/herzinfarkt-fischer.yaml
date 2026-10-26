@@ -1,0 +1,49 @@
+# A genuinely OPEN-ENDED case (same mechanism as notaufnahme-offen-bauer.yaml) -
+# 3-day STEMI stay, played live via dynamicEvents.ts, one real decision at a
+# time, against explicit, documented thresholds (not vibes):
+#
+# STEMI-Erkennung: ST-Hebung >=2mm in >=2 zusammenhängenden Brustwand- (oder
+#   >=1mm in >=2 zusammenhängenden Extremitäten-)Ableitungen bei passendem
+#   Beschwerdebild - sofortige Diagnose, kein Abwarten des Troponin-Ergebnisses.
+# Sofortmaßnahmen bei STEMI: ASS 300mg + P2Y12-Hemmer-Aufsättigung + Heparin
+#   i.v., sofortige Verlegung ins Herzkatheterlabor (Door-to-Balloon-Ziel <90min).
+# Verlegung Intensiv/Chest-Pain-Unit: IMMER nach primärer PCI, unabhängig vom
+#   Ergebnis, für mindestens 24h Monitoring.
+# Verlegung Richtung Normalstation (aus der Intensivstation): hämodynamisch
+#   stabil, keine relevante Rhythmusstörung seit >=12-24h, Troponin rückläufig/
+#   Plateau, kein Hinweis auf Herzinsuffizienz (Killip I).
+# Entlassungskriterien: beschwerdefrei UND stabile Vitalwerte >=24h auf
+#   Normalstation, Echo mit ausreichender Auswurffraktion vorliegend, Medikation
+#   (ASS + P2Y12-Hemmer + Statin + Betablocker, soweit vertragen) eingestellt,
+#   ambulante kardiologische Anschlussversorgung (Reha) organisiert.
+scenarioId: herzinfarkt-fischer
+
+patient:
+  key: patient-fischer
+  firstName: Klaus
+  lastName: Fischer
+  sex: male
+  age: 62
+  birthDate: 1963-08-22
+
+events:
+  - id: arrival
+    type: patient-arrival
+    at: 0h
+    data:
+      encounterStatus: triaged
+      classCode: EMER
+      location:
+        key: location-notaufnahme
+        name: Notaufnahme
+      staff:
+        scenarioKey: practitioner-notaufnahme-triage-1
+        family: Yilmaz
+        given: Elif
+        qualification: Fachärztin für Innere Medizin
+
+  - id: chief-complaint
+    type: anamnesis
+    at: 2m
+    data:
+      diagnosis: "Vorstellungsgrund (Patientenangabe): Seit ca. 45 Minuten plötzlich stärkste retrosternale Schmerzen mit Ausstrahlung in den linken Arm, Kaltschweißigkeit, Übelkeit. Diagnose noch offen - Abklärung läuft."

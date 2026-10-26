@@ -1,0 +1,562 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-emil\"",
+    "action": "create Patient",
+    "tool": "create_patient",
+    "result": "success",
+    "message": "Patient b47741ac-5c01-48fc-8dcc-a63bd7732aeb created (ehrId b5aa6588-d3d2-4867-bc15-ceea91c29343)",
+    "id": "5ed94c0f-6c51-48b5-b5ae-b360318e5fe3",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:30.739Z"
+  },
+  {
+    "reason": "Encounter required for scenario entity \"encounter-arrival\"",
+    "action": "create Encounter",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Encounter/f5a61fd6-f2cd-47bc-832d-28f9c59551b5 created",
+    "id": "fe33db44-726f-44bf-be1c-3934441078be",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:31.242Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 4efa329b-a1e5-4a3b-a10e-8de463db99a1 submitted",
+    "id": "8cae408f-5bc2-4ae7-863a-7c7fd52b6938",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:31.725Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/f5a61fd6-f2cd-47bc-832d-28f9c59551b5 updated",
+    "id": "17a0ee1b-dcda-48f1-889f-b514f0324a2d",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:32.344Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 00dcb13d-182a-4567-b891-b247595b4278 submitted",
+    "id": "f375e29c-b909-4fd4-a62a-5bf7f6f561a2",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:32.786Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-emil\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 72e506ec-f697-43b1-91ab-7290bfa71d0e submitted",
+    "id": "c453ee43-a1a3-4723-b786-ae60a39fd3af",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:33.344Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 6e8e2a26-d0fd-4cf5-bbb5-a0b09e0a8ea5 submitted",
+    "id": "b9eecfd5-7187-40fc-a43d-74a5179b4f39",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:33.792Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 60325e28-8ba8-4ac9-95e0-2df6f54eb4b6 submitted",
+    "id": "a46a74d6-6e6c-4314-9e98-2af7f413ec5f",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:34.274Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 7d40f0b4-6c3c-4d74-baf8-67a4f714aa2c submitted",
+    "id": "467af17b-6747-4d3a-8ce3-599638bf7cd8",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:34.801Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 32679aad-2d9e-46af-bec8-c27fa45d1ecc submitted",
+    "id": "3dfc0616-ae20-45b0-a61f-751a49f23919",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:35.356Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition aef9a484-0ab2-4ab9-8209-21823a9faa1f submitted",
+    "id": "9418fcea-8367-4f49-ab76-301f17fd3b42",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:35.889Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-emil\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 72e506ec-f697-43b1-91ab-7290bfa71d0e submitted",
+    "id": "72ccb2d7-0c86-4009-a539-ffd24f3eb110",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:36.438Z"
+  },
+  {
+    "reason": "Slot required for scenario entity \"slot-ct-scan\"",
+    "action": "create Slot",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Slot/e57bfa11-46f3-40e3-a437-49ff1b58555e created",
+    "id": "66b39538-b87c-43db-9295-a3ec12880254",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:36.949Z"
+  },
+  {
+    "reason": "Appointment required for scenario entity \"appointment-ct-scan\"",
+    "action": "create Appointment",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Appointment/6a89fe4a-8d45-4211-8331-37fd5813ed3f created",
+    "id": "1ab3b5c8-18e2-46f7-9388-b8337aed8423",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:37.222Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/f5a61fd6-f2cd-47bc-832d-28f9c59551b5 updated",
+    "id": "e8b8dd79-f36a-45e5-9855-aa892a08f6e1",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:37.880Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-emil\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 72e506ec-f697-43b1-91ab-7290bfa71d0e submitted",
+    "id": "b6b04872-4bd4-4060-9787-3cf2b5c4b3b2",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:38.397Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-emil\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 72e506ec-f697-43b1-91ab-7290bfa71d0e submitted",
+    "id": "c45ff217-c792-4698-a918-c33e59967899",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:38.891Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/f5a61fd6-f2cd-47bc-832d-28f9c59551b5 updated",
+    "id": "edbbbf42-1ae5-4f16-82e7-f3fe17b665d8",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:39.583Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 7e53760f-fa51-4ab7-b45e-41159bcbf5ef submitted",
+    "id": "e2ed31c6-4f3b-4dc8-8128-f87dc82cdee6",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:40.078Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 834a5892-eebb-4ae3-a279-0be11d6f1c1a submitted",
+    "id": "3a0cb53a-7c3d-47cd-908a-93bb9e8aeba8",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:40.790Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition ae82f9ee-93f4-401d-84d3-cf6fb15c0920 submitted",
+    "id": "941707db-0657-4b6a-8853-5f9f84e2adc8",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:41.277Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition da33f276-c064-43aa-b069-1322c3443c5f submitted",
+    "id": "85a488bd-58d0-47f2-ab60-ac87b6d08b5c",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:41.762Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition a0e2d731-25a8-435a-91b7-4b26a0a10f10 submitted",
+    "id": "a2b560b2-17b6-4a5f-b295-24930b90679a",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:42.224Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 3b665b37-ca92-45d6-8e3a-35ee0ce9642b submitted",
+    "id": "86d1bc51-38f9-465f-89cd-0ada8fac3c5e",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:42.647Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition cbbd231a-991a-4776-9c3c-76fe5ad1475c submitted",
+    "id": "6eb9353c-75e1-4b7b-899a-1a6776b2d67b",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:43.153Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 5a870146-d060-4b74-8fbc-24b147164701 submitted",
+    "id": "c7c0ad5c-c29f-4693-a3b9-914046a76a69",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:43.773Z"
+  },
+  {
+    "reason": "Slot required for scenario entity \"slot-op2-scheduling\"",
+    "action": "create Slot",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Slot/5dabeba4-9b40-489f-897c-eb2db25e4b58 created",
+    "id": "25b150ab-35e3-4223-926a-c6886dcf61e5",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:44.347Z"
+  },
+  {
+    "reason": "Appointment required for scenario entity \"appointment-op2-scheduling\"",
+    "action": "create Appointment",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Appointment/31b081b2-44a0-4b07-8543-d94b8dcd0934 created",
+    "id": "8b422198-11ce-4be3-a01e-0f0400f90e63",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:44.777Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/f5a61fd6-f2cd-47bc-832d-28f9c59551b5 updated",
+    "id": "22e34351-90bf-4c05-b7b3-9d7515208945",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:45.524Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-emil\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 72e506ec-f697-43b1-91ab-7290bfa71d0e submitted",
+    "id": "c22c911b-f5ba-4a1d-b03b-7bf494443727",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:45.982Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-emil\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 72e506ec-f697-43b1-91ab-7290bfa71d0e submitted",
+    "id": "e504ed17-3fd4-4757-923f-c8061dbf9c1d",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:46.523Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/f5a61fd6-f2cd-47bc-832d-28f9c59551b5 updated",
+    "id": "b16476af-e18b-4ac2-a89e-34aa311ca714",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:47.188Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 1f3f1035-77f2-4e30-8368-5c34c332b1d0 submitted",
+    "id": "c3f99065-34e2-4bd2-948c-70ef827fc7ec",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:47.862Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 5108a331-f063-4edb-ae96-9ea0db9d41db submitted",
+    "id": "5560e90c-f422-4b37-b6be-0c73ed19b701",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:48.316Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 138388b6-c0b4-4cea-85e7-d21255a91394 submitted",
+    "id": "bc24396e-b93b-4c91-90cc-58e8287e2066",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:48.790Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 1f0924fe-3be3-4f23-b335-c8c2cef814df submitted",
+    "id": "68592457-b40d-4539-8dcd-a8ae8195d2b0",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:49.473Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 693f3b29-ae59-40c6-870a-648eec5f5916 submitted",
+    "id": "41f803dc-0f55-4d7c-afdb-7a2511da7b80",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:49.903Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/f5a61fd6-f2cd-47bc-832d-28f9c59551b5 updated",
+    "id": "c9a53ed3-b0c4-4677-9ed1-6bc0785eeca7",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:50.657Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-emil\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 72e506ec-f697-43b1-91ab-7290bfa71d0e submitted",
+    "id": "a0ec00c7-8605-4879-b0d0-01a6dbcd7126",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-16T11:47:51.192Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 2bcf3d42-5b6e-42c3-872e-acf32cc96ff3 submitted",
+    "id": "57e2ed22-c4b5-45e7-bb12-563d5958a3e5",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:02:34.289Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"arrival\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "id": "f2854aef-2b15-40c3-8ec1-1b91d3a7222b",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:02:34.292Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"op-damage-control\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine dokumentierte Aufklärung/Einwilligung vor dem Eingriff an Station \"OP\".",
+    "id": "4db09d7a-3d16-4c78-9cbf-2c91c5ed1ad6",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:02:34.294Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"icu\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein strukturierter Prozedur-Eintrag für den Eingriff an Station \"OP\" gefunden.",
+    "id": "32709cf3-6ab6-448f-a670-7814609371d2",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:02:34.297Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"op-damage-control\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine periprozedurale Medikamentengabe vor dem Eingriff an Station \"OP\" dokumentiert.",
+    "id": "9952944c-b2db-40aa-826a-03738a830cec",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:02:34.299Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"op-definitive\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine dokumentierte Aufklärung/Einwilligung vor dem Eingriff an Station \"OP\".",
+    "id": "7544198c-8985-4643-a1d8-74eba9449442",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:02:34.300Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"normalstation\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein strukturierter Prozedur-Eintrag für den Eingriff an Station \"OP\" gefunden.",
+    "id": "78dd8043-37c1-43e2-a935-2498c6efb5f6",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:02:34.302Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"op-definitive\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine periprozedurale Medikamentengabe vor dem Eingriff an Station \"OP\" dokumentiert.",
+    "id": "222a7834-4f2d-4493-b6f3-f5cd4b98fe8d",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:02:34.304Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 23172ad2-fafd-41d4-bb85-12903b22cce8 submitted",
+    "id": "9968ac9c-e156-4c7b-af6c-a8b6814e2cd1",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:02:35.569Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-emil\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 72e506ec-f697-43b1-91ab-7290bfa71d0e submitted",
+    "id": "025dd6f3-cf7a-475f-afca-c96c9d8d04c6",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:02:36.845Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 675bc2c2-5575-483f-acec-f0887193ad17 submitted",
+    "id": "99234f73-54ce-4526-9feb-fda590797310",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:05:38.614Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-emil\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 72e506ec-f697-43b1-91ab-7290bfa71d0e submitted",
+    "id": "1449a56b-fc62-4cae-b6cd-0331424011ff",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:05:39.729Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-emil\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 72e506ec-f697-43b1-91ab-7290bfa71d0e submitted",
+    "id": "0e4df41e-95ef-45bd-85c8-f1341c41f29c",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:29:42.474Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-emil\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 8a291fb2-3ca1-44a7-9da5-e61324cab91a submitted",
+    "id": "ca9cf7b1-a432-4ebc-ad20-1b58c665d744",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:29:43.683Z"
+  },
+  {
+    "reason": "openEHR capability \"lab-result\" required for scenario patient \"patient-emil\"",
+    "action": "fill 3d3adbcd-c3b5-4eae-a496-d0e9ab3fd609 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 95ae9c0c-63e3-442f-b7a3-1c1e306defe3 submitted",
+    "id": "4954a7b5-6dc9-4685-88da-d5b5aba384a0",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:29:44.472Z"
+  },
+  {
+    "reason": "openEHR capability \"nursing-round\" required for scenario patient \"patient-emil\"",
+    "action": "fill 6f1449d1-bd94-4ab4-ac40-d3cbc8412847 into 5f70143f-bb4d-4d44-8553-0103b597c246",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 13319ca7-628f-4672-8c49-79d8bf145aaa submitted",
+    "id": "a8cb829f-f563-41cb-a68e-9e4d3dd477ed",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:47:41.910Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-emil\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition dc87ef67-24ea-49b9-84d3-fed25c43ffc1 submitted",
+    "id": "1bfc8a69-f9fe-408d-b053-2998041612bd",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "timestamp": "2026-09-17T15:47:43.316Z"
+  }
+]

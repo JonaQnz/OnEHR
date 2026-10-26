@@ -1,0 +1,33 @@
+{
+  "scenarioId": "reha-anschlussheilbehandlung-demo",
+  "facilityId": "rehazentrum",
+  "completedEventIds": [
+    "arrival",
+    "arrival-discharge-note",
+    "aufnahmegespraech",
+    "vitals-aufnahme",
+    "pflege-woche1",
+    "arzt-visite-woche1",
+    "physio-gespraech",
+    "pflege-woche2",
+    "arzt-entlassvisite",
+    "entlassbrief",
+    "entlassmedikation",
+    "nachsorge-termin"
+  ],
+  "patientScenarioKey": "patient-schmidt",
+  "completedAt": {
+    "arrival": "2026-09-17T12:36:23.782Z",
+    "arrival-discharge-note": "2026-09-17T12:36:24.317Z",
+    "aufnahmegespraech": "2026-09-17T12:36:25.410Z",
+    "vitals-aufnahme": "2026-09-17T12:36:25.812Z",
+    "pflege-woche1": "2026-09-17T12:36:26.251Z",
+    "arzt-visite-woche1": "2026-09-17T12:36:26.741Z",
+    "physio-gespraech": "2026-09-17T12:36:27.224Z",
+    "pflege-woche2": "2026-09-17T12:36:27.773Z",
+    "arzt-entlassvisite": "2026-09-17T12:36:28.266Z",
+    "entlassbrief": "2026-09-17T12:36:28.668Z",
+    "entlassmedikation": "2026-09-17T12:36:29.304Z",
+    "nachsorge-termin": "2026-09-17T12:36:31.748Z"
+  }
+}

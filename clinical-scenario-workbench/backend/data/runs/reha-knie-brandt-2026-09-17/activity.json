@@ -1,0 +1,12 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-brandt\"",
+    "action": "create Patient",
+    "tool": "create_patient",
+    "result": "success",
+    "message": "Patient 91988ea0-1140-44ea-914c-691b26406aff created (ehrId 5a8aab08-c3d0-44ec-ace1-bc899174f30c)",
+    "id": "3a1cc891-348c-46f5-b06b-87129a90f257",
+    "scenarioRunId": "reha-knie-brandt-2026-09-17",
+    "timestamp": "2026-09-17T12:56:15.841Z"
+  }
+]

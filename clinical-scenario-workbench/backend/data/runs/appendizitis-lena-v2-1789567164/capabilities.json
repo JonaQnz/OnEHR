@@ -1,0 +1,67 @@
+{
+  "vital-signs": {
+    "kind": "openEHR",
+    "formId": "61730ea9-284d-458f-b173-47902d0a7c90",
+    "compositionFormId": "b82c488f-688a-49d2-8031-447a0440d098",
+    "blockId": "vitals_block",
+    "patientScenarioKey": "patient-lena",
+    "compositionSessionId": "432c7565-e2bf-43ee-8ccd-f1ce0043bfcf",
+    "formSessionId": "9c864264-a530-4eb8-83ea-6d6da841fd74",
+    "capability": "vital-signs",
+    "scenarioRunId": "appendizitis-lena-v2-1789567164",
+    "createdAt": "2026-09-16T13:59:43.211Z",
+    "updatedAt": "2026-09-16T13:59:46.563Z"
+  },
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-lena",
+    "compositionSessionId": "25e61697-367f-4abe-8ff8-f04f1817a222",
+    "formSessionId": "0b12b7d5-d2aa-43e8-a80e-d45583a58576",
+    "capability": "anamnesis",
+    "scenarioRunId": "appendizitis-lena-v2-1789567164",
+    "createdAt": "2026-09-16T13:59:43.774Z",
+    "updatedAt": "2026-09-16T13:59:52.226Z"
+  },
+  "abdominal-ultrasound": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-abdominal-ultrasound",
+      "schedule": "schedule-ultrasound-today",
+      "slot": "slot-ultrasound",
+      "appointment": "appointment-ultrasound"
+    },
+    "capability": "abdominal-ultrasound",
+    "scenarioRunId": "appendizitis-lena-v2-1789567164",
+    "createdAt": "2026-09-16T13:59:48.045Z",
+    "updatedAt": "2026-09-16T13:59:48.045Z"
+  },
+  "diagnostic-report": {
+    "kind": "openEHR",
+    "formId": "b99eeb54-ec79-4713-8725-2c936ee0e9c7",
+    "compositionFormId": "eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "blockId": "block-imaging",
+    "patientScenarioKey": "patient-lena",
+    "compositionSessionId": "679332b9-04c2-42da-9b66-a7b0e96693c6",
+    "formSessionId": "bd332c6a-adc3-45d5-b7e6-69839b79977f",
+    "capability": "diagnostic-report",
+    "scenarioRunId": "appendizitis-lena-v2-1789567164",
+    "createdAt": "2026-09-16T13:59:48.506Z",
+    "updatedAt": "2026-09-16T13:59:48.506Z"
+  },
+  "op-scheduling": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-op-appendektomie",
+      "schedule": "schedule-op-appendektomie-today",
+      "slot": "slot-op-scheduling",
+      "appointment": "appointment-op-scheduling"
+    },
+    "capability": "op-scheduling",
+    "scenarioRunId": "appendizitis-lena-v2-1789567164",
+    "createdAt": "2026-09-16T13:59:49.890Z",
+    "updatedAt": "2026-09-16T13:59:49.890Z"
+  }
+}

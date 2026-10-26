@@ -1,0 +1,154 @@
+{
+  "location-notaufnahme": {
+    "scenarioKey": "location-notaufnahme",
+    "name": "Notaufnahme",
+    "description": "12 Betten · Akut- und Notfallversorgung",
+    "staffScenarioKeys": [
+      "practitioner-notaufnahme-1",
+      "practitioner-chirurgie-diensthabend-1",
+      "practitioner-notaufnahme-triage-1"
+    ],
+    "createdAt": "2026-09-16T00:00:00.000Z"
+  },
+  "location-radiologie": {
+    "scenarioKey": "location-radiologie",
+    "name": "Radiologie / CT",
+    "description": "2 CT-Geräte · Bildgebende Diagnostik",
+    "staffScenarioKeys": [
+      "practitioner-radiologie-1"
+    ],
+    "createdAt": "2026-09-16T00:00:00.000Z"
+  },
+  "location-praeklinik": {
+    "scenarioKey": "location-praeklinik",
+    "name": "Präklinik",
+    "description": "Rettungsdienst · präklinische Versorgung nach Hochrasanztrauma",
+    "staffScenarioKeys": [
+      "practitioner-praeklinik-1"
+    ],
+    "createdAt": "2026-09-16T11:01:44.389Z"
+  },
+  "location-schockraum": {
+    "scenarioKey": "location-schockraum",
+    "name": "Schockraum / Notaufnahme",
+    "description": "Trauma-Team · Schockraumversorgung nach ATLS",
+    "staffScenarioKeys": [
+      "practitioner-schockraum-1"
+    ],
+    "createdAt": "2026-09-16T11:01:53.630Z"
+  },
+  "location-op": {
+    "scenarioKey": "location-op",
+    "name": "OP",
+    "description": "Operationssaal · Notfall- und Folgeeingriffe",
+    "staffScenarioKeys": [
+      "practitioner-op-damage-control-1",
+      "practitioner-op-definitive-1",
+      "practitioner-chirurgie-op-1"
+    ],
+    "createdAt": "2026-09-16T11:01:56.757Z"
+  },
+  "location-intensiv": {
+    "scenarioKey": "location-intensiv",
+    "name": "Intensivstation",
+    "description": "ICU · Beatmung, Kreislaufunterstützung, Organfunktionsüberwachung",
+    "staffScenarioKeys": [
+      "practitioner-icu-1"
+    ],
+    "createdAt": "2026-09-16T11:01:57.699Z"
+  },
+  "location-normalstation": {
+    "scenarioKey": "location-normalstation",
+    "name": "Normalstation",
+    "description": "Unfallchirurgie · Mobilisation, Physiotherapie, Wundverlauf",
+    "staffScenarioKeys": [
+      "practitioner-normalstation-1",
+      "practitioner-chirurgie-station-1"
+    ],
+    "createdAt": "2026-09-16T11:02:02.065Z"
+  },
+  "location-reha": {
+    "scenarioKey": "location-reha",
+    "name": "Reha",
+    "description": "Rehabilitationsklinik · Anschlussheilbehandlung nach Polytrauma",
+    "staffScenarioKeys": [
+      "practitioner-reha-1"
+    ],
+    "createdAt": "2026-09-16T11:02:03.207Z"
+  },
+  "location-entlassen": {
+    "scenarioKey": "location-entlassen",
+    "name": "Zuhause (entlassen)",
+    "description": "",
+    "staffScenarioKeys": [],
+    "createdAt": "2026-09-16T13:40:20.008Z"
+  },
+  "location-herzkatheterlabor": {
+    "scenarioKey": "location-herzkatheterlabor",
+    "name": "Herzkatheterlabor",
+    "description": "Herzkatheterlabor · Koronarangiographie und PCI",
+    "staffScenarioKeys": [
+      "practitioner-kardiologie-interventionell-1"
+    ],
+    "createdAt": "2026-09-16T17:25:04.519Z"
+  },
+  "location-chest-pain-unit": {
+    "scenarioKey": "location-chest-pain-unit",
+    "name": "Intensivstation / Chest Pain Unit",
+    "description": "Intensivstation · kardiologische Überwachung nach PCI",
+    "staffScenarioKeys": [
+      "practitioner-icu-kardiologie-1"
+    ],
+    "createdAt": "2026-09-16T17:26:43.267Z"
+  },
+  "location-normalstation-kardiologie": {
+    "scenarioKey": "location-normalstation-kardiologie",
+    "name": "Normalstation Kardiologie",
+    "description": "Kardiologie · Mobilisation, Sekundärprophylaxe, Anschlussheilbehandlung",
+    "staffScenarioKeys": [
+      "practitioner-normalstation-kardiologie-1"
+    ],
+    "createdAt": "2026-09-16T17:28:22.405Z"
+  },
+  "location-ambulanz-schwangerenvorsorge": {
+    "scenarioKey": "location-ambulanz-schwangerenvorsorge",
+    "name": "Ambulanz – Schwangerenvorsorge",
+    "description": "Ambulante Schwangerenvorsorge · Vorsorgeuntersuchungen nach Mutterschaftsrichtlinien",
+    "staffScenarioKeys": [
+      "practitioner-gynaekologie-1"
+    ],
+    "createdAt": "2026-09-17T07:45:11.871Z"
+  },
+  "location-kreisssaal-ueberwachung": {
+    "scenarioKey": "location-kreisssaal-ueberwachung",
+    "name": "Kreißsaal-Überwachung / Schwangerenstation",
+    "description": "Geburtshilfliche Überwachungsstation · antenatales Monitoring bei Risikoschwangerschaften",
+    "staffScenarioKeys": [
+      "practitioner-geburtshilfe-1"
+    ],
+    "createdAt": "2026-09-17T08:59:40.330Z"
+  },
+  "location-notaufnahme-allgemein": {
+    "scenarioKey": "location-notaufnahme-allgemein",
+    "name": "Notaufnahme",
+    "description": "Allgemeine Notaufnahme",
+    "staffScenarioKeys": [
+      "practitioner-notaufnahme-1"
+    ],
+    "createdAt": "2026-09-17T09:33:55.662Z"
+  },
+  "location-chirurgie-station": {
+    "scenarioKey": "location-chirurgie-station",
+    "name": "Chirurgische Station",
+    "description": "Praeoperative Vorbereitung",
+    "staffScenarioKeys": [],
+    "createdAt": "2026-09-17T09:36:51.208Z"
+  },
+  "location-op-saal": {
+    "scenarioKey": "location-op-saal",
+    "name": "OP",
+    "description": "Operationssaal",
+    "staffScenarioKeys": [],
+    "createdAt": "2026-09-17T09:42:33.775Z"
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "vital-signs": {
+    "kind": "openEHR",
+    "formId": "61730ea9-284d-458f-b173-47902d0a7c90",
+    "compositionFormId": "b82c488f-688a-49d2-8031-447a0440d098",
+    "blockId": "vitals_block",
+    "patientScenarioKey": "patient-emil",
+    "compositionSessionId": "8a291fb2-3ca1-44a7-9da5-e61324cab91a",
+    "formSessionId": "7024f30e-f04b-4652-bb94-d0b51a679aff",
+    "capability": "vital-signs",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "createdAt": "2026-09-16T11:47:31.725Z",
+    "updatedAt": "2026-09-17T15:29:43.682Z"
+  },
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-emil",
+    "compositionSessionId": "72e506ec-f697-43b1-91ab-7290bfa71d0e",
+    "formSessionId": "6f16cdf2-b176-4456-9f93-70bc059e2c72",
+    "capability": "anamnesis",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "createdAt": "2026-09-16T11:47:33.343Z",
+    "updatedAt": "2026-09-17T15:29:42.471Z"
+  },
+  "ct-imaging": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-ct-imaging",
+      "schedule": "schedule-ct-today",
+      "slot": "slot-ct-scan",
+      "appointment": "appointment-ct-scan"
+    },
+    "capability": "ct-imaging",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "createdAt": "2026-09-16T11:47:37.222Z",
+    "updatedAt": "2026-09-16T11:47:37.222Z"
+  },
+  "op-planning": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-op-planning",
+      "schedule": "schedule-op-planning",
+      "slot": "slot-op2-scheduling",
+      "appointment": "appointment-op2-scheduling"
+    },
+    "capability": "op-planning",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "createdAt": "2026-09-16T11:47:44.778Z",
+    "updatedAt": "2026-09-16T11:47:44.778Z"
+  },
+  "lab-result": {
+    "kind": "openEHR",
+    "formId": "3d3adbcd-c3b5-4eae-a496-d0e9ab3fd609",
+    "compositionFormId": "eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "blockId": "block-lab",
+    "patientScenarioKey": "patient-emil",
+    "compositionSessionId": "95ae9c0c-63e3-442f-b7a3-1c1e306defe3",
+    "formSessionId": "16c35896-3dd9-400e-b35d-6529d66edc69",
+    "capability": "lab-result",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "createdAt": "2026-09-17T15:29:44.470Z",
+    "updatedAt": "2026-09-17T15:29:44.470Z"
+  },
+  "nursing-round": {
+    "kind": "openEHR",
+    "formId": "6f1449d1-bd94-4ab4-ac40-d3cbc8412847",
+    "compositionFormId": "5f70143f-bb4d-4d44-8553-0103b597c246",
+    "blockId": "block-nursing",
+    "patientScenarioKey": "patient-emil",
+    "compositionSessionId": "13319ca7-628f-4672-8c49-79d8bf145aaa",
+    "formSessionId": "fa60f5c6-2060-4ffa-955b-854d7dbd229f",
+    "capability": "nursing-round",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "createdAt": "2026-09-17T15:47:41.909Z",
+    "updatedAt": "2026-09-17T15:47:41.909Z"
+  },
+  "doctor-round": {
+    "kind": "openEHR",
+    "formId": "fe7c41d6-32e8-4840-9974-effb9354fe54",
+    "compositionFormId": "eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "blockId": "block-order",
+    "patientScenarioKey": "patient-emil",
+    "compositionSessionId": "dc87ef67-24ea-49b9-84d3-fed25c43ffc1",
+    "formSessionId": "bdf89187-50ec-4a6a-b7f0-13dcb4e766d1",
+    "capability": "doctor-round",
+    "scenarioRunId": "polytrauma-emil-1789559237",
+    "createdAt": "2026-09-17T15:47:43.315Z",
+    "updatedAt": "2026-09-17T15:47:43.315Z"
+  }
+}

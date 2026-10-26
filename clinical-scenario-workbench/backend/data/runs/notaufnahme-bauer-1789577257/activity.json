@@ -1,0 +1,182 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-bauer\"",
+    "action": "create Patient",
+    "tool": "create_patient",
+    "result": "success",
+    "message": "Patient 582bbaa4-181f-4fd6-a4ea-c2473115bd95 created (ehrId a1062047-9896-4527-be06-5b819457c8b3)",
+    "id": "71bcb224-b47d-4594-96d2-258a5318ea07",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:47:39.654Z"
+  },
+  {
+    "reason": "Encounter required for scenario entity \"encounter-arrival\"",
+    "action": "create Encounter",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Encounter/d06685db-cf6f-4eb1-840b-5dfe8695fec8 created",
+    "id": "243484e2-3e76-4d7a-a6ff-f609f3957baf",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:47:40.442Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"arrival\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "id": "1321caf9-52fd-4bd1-8e8c-ec18eff20484",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:47:40.444Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 99e71a38-ece0-4001-ba38-1ff083365700 submitted",
+    "id": "1633bbfe-ceb9-4bb4-8870-6565e359c773",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:47:41.249Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein Arztbrief/Entlassungsbrief zur Entlassung erstellt.",
+    "id": "7b442792-a381-4ff3-8955-9734a4e9bbe0",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:47:41.254Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein Nachsorgetermin nach der Entlassung vereinbart.",
+    "id": "c96b128c-e6e6-4443-aa23-5bbdaa6eb94f",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:47:41.257Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"chief-complaint\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine Entlassmedikation dokumentiert.",
+    "id": "e1a5534e-293d-4934-b905-6cda0821cf3a",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:47:41.259Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 8f563806-5ccc-4b36-8f58-2f9a55b33d5d submitted",
+    "id": "7993872e-a287-4913-bdff-d1b1dfc41d50",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:47:54.377Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-bauer\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 2b2427ab-0f45-4047-8ce8-f83de3f9bad9 submitted",
+    "id": "323ba965-8597-42e7-945a-03114f5aaf97",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:48:22.394Z"
+  },
+  {
+    "reason": "openEHR capability \"lab-result\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 3d3adbcd-c3b5-4eae-a496-d0e9ab3fd609 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition c06e3f52-2378-411a-b907-e275c125d4f6 submitted",
+    "id": "41d841c8-7a71-42a7-94f1-a87f9def0d63",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:48:41.304Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 5b574e54-6353-4774-86ac-1dacb1771bd4 submitted",
+    "id": "05235996-c5c2-4c6a-93e7-41863c52da87",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:48:56.006Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 99e71a38-ece0-4001-ba38-1ff083365700 submitted",
+    "id": "6c6a52d7-e7a7-4200-99fd-5adb34e528dc",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:49:07.777Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/d06685db-cf6f-4eb1-840b-5dfe8695fec8 updated",
+    "id": "e66bf57c-161d-415e-96d7-0d55e66e6969",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:49:17.782Z"
+  },
+  {
+    "reason": "openEHR capability \"discharge-letter\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 42d74b75-e2fe-4238-a0a0-1f7c556938a5 into 2a88d34b-541d-4085-ab7a-23c713346928",
+    "tool": "ensure_capability",
+    "result": "error",
+    "message": "4 Formular-Validierungsfehler verhindern das Absenden",
+    "id": "7a30f3c6-7974-40b3-a74e-7e725ef4c98b",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:49:33.390Z"
+  },
+  {
+    "reason": "openEHR capability \"discharge-letter\" required for scenario patient \"patient-bauer\"",
+    "action": "fill 42d74b75-e2fe-4238-a0a0-1f7c556938a5 into 2a88d34b-541d-4085-ab7a-23c713346928",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition d4523e97-71ba-427f-a40f-c8d92bba3ed3 submitted",
+    "id": "846e5fc8-a4f2-4139-a6f2-fe37e4561673",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T16:52:03.714Z"
+  },
+  {
+    "reason": "Slot required for scenario entity \"slot-followup-urologie\"",
+    "action": "create Slot",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Slot/caba4d18-f743-4b8b-8c23-49fbce50fe4b created",
+    "id": "6a409ac6-563b-4bb1-b017-8e2aee25f216",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T17:50:41.759Z"
+  },
+  {
+    "reason": "Appointment required for scenario entity \"appointment-followup-urologie\"",
+    "action": "create Appointment",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Appointment/477f14a8-3219-44bf-86e7-e11de601ce90 created",
+    "id": "e522bfea-4c49-4469-8af7-48d4516a000a",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T17:50:42.140Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"followup-urologie\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine formal kodierte (ICD-10-GM) Diagnose im Verlauf dokumentiert.",
+    "id": "8b405c41-8270-48d1-a231-78ffb4332c9e",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "timestamp": "2026-09-16T17:50:42.146Z"
+  }
+]

@@ -1,0 +1,67 @@
+{
+  "vital-signs": {
+    "kind": "openEHR",
+    "formId": "61730ea9-284d-458f-b173-47902d0a7c90",
+    "compositionFormId": "b82c488f-688a-49d2-8031-447a0440d098",
+    "blockId": "vitals_block",
+    "patientScenarioKey": "patient-emil",
+    "compositionSessionId": "a23e2a05-5394-4e23-ac02-232536698c4a",
+    "formSessionId": "dd82187f-b4ec-4ad9-b0ed-e8885877485b",
+    "capability": "vital-signs",
+    "scenarioRunId": "polytrauma-rounds-1789563411",
+    "createdAt": "2026-09-16T12:57:25.936Z",
+    "updatedAt": "2026-09-16T12:57:56.024Z"
+  },
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-emil",
+    "compositionSessionId": "f54f1acf-6c94-48a6-9e1e-8aa31eeef1c8",
+    "formSessionId": "f3fe1fcb-3387-4061-89b0-44ab108a5555",
+    "capability": "anamnesis",
+    "scenarioRunId": "polytrauma-rounds-1789563411",
+    "createdAt": "2026-09-16T12:57:31.299Z",
+    "updatedAt": "2026-09-16T12:57:46.024Z"
+  },
+  "ct-imaging": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-ct-imaging",
+      "schedule": "schedule-ct-today",
+      "slot": "slot-ct-scan",
+      "appointment": "appointment-ct-scan"
+    },
+    "capability": "ct-imaging",
+    "scenarioRunId": "polytrauma-rounds-1789563411",
+    "createdAt": "2026-09-16T12:57:42.431Z",
+    "updatedAt": "2026-09-16T12:57:42.431Z"
+  },
+  "lab-result": {
+    "kind": "openEHR",
+    "formId": "3d3adbcd-c3b5-4eae-a496-d0e9ab3fd609",
+    "compositionFormId": "eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "blockId": "block-lab",
+    "patientScenarioKey": "patient-emil",
+    "compositionSessionId": "c316d2ac-3ce6-47dc-92d2-28bd3c8eed23",
+    "formSessionId": "bd500e4d-562d-432e-b12d-8b91123602d5",
+    "capability": "lab-result",
+    "scenarioRunId": "polytrauma-rounds-1789563411",
+    "createdAt": "2026-09-16T12:57:49.606Z",
+    "updatedAt": "2026-09-16T12:57:49.606Z"
+  },
+  "nursing-round": {
+    "kind": "openEHR",
+    "formId": "6f1449d1-bd94-4ab4-ac40-d3cbc8412847",
+    "compositionFormId": "5f70143f-bb4d-4d44-8553-0103b597c246",
+    "blockId": "block-nursing",
+    "patientScenarioKey": "patient-emil",
+    "compositionSessionId": "a1ba32f8-ddcf-40e8-af94-03d4f79c9781",
+    "formSessionId": "e2951532-c7d9-4e59-8491-3fcc10d70eda",
+    "capability": "nursing-round",
+    "scenarioRunId": "polytrauma-rounds-1789563411",
+    "createdAt": "2026-09-16T12:57:57.067Z",
+    "updatedAt": "2026-09-16T12:57:57.067Z"
+  }
+}

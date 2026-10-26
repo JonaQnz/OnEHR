@@ -1,0 +1,99 @@
+{
+  "patient-maria": {
+    "resourceType": "Patient",
+    "hipResourceId": "2c5630e9-70f7-4e66-8b72-6b319aa98ba8",
+    "ehrId": "e6111fa3-b088-419d-b69c-24d496625e9f",
+    "formsPatientId": "72820832-3017-40fe-bb0c-da36938b4dd7",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-maria",
+    "scenarioRunId": "lae-live-step-1789489125",
+    "createdAt": "2026-09-15T16:18:47.256Z",
+    "updatedAt": "2026-09-15T16:18:47.256Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "626de3c7-d569-4d2d-92b9-629e59dfcb6a",
+    "fhirVersionId": "1",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "lae-live-step-1789489125",
+    "createdAt": "2026-09-15T16:18:47.908Z",
+    "updatedAt": "2026-09-15T16:18:47.908Z"
+  },
+  "service-ct-imaging": {
+    "resourceType": "HealthcareService",
+    "hipResourceId": "09b92f75-5fa6-4b92-8e48-00512ddf3a4e",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "name": "GENERATED"
+    },
+    "scenarioKey": "service-ct-imaging",
+    "scenarioRunId": "lae-live-step-1789489125",
+    "createdAt": "2026-09-15T16:18:57.167Z",
+    "updatedAt": "2026-09-15T16:18:57.167Z"
+  },
+  "schedule-ct-today": {
+    "resourceType": "Schedule",
+    "hipResourceId": "30ef3113-9512-48e0-b868-73dae6e34391",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "actor.0.reference": "GENERATED",
+      "planningHorizon.start": "GENERATED",
+      "planningHorizon.end": "GENERATED"
+    },
+    "scenarioKey": "schedule-ct-today",
+    "scenarioRunId": "lae-live-step-1789489125",
+    "createdAt": "2026-09-15T16:18:57.576Z",
+    "updatedAt": "2026-09-15T16:18:57.576Z"
+  },
+  "slot-ctpa-request": {
+    "resourceType": "Slot",
+    "hipResourceId": "c467a28f-de69-4221-bc36-7614079018a4",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-ctpa-request",
+    "scenarioRunId": "lae-live-step-1789489125",
+    "createdAt": "2026-09-15T16:18:57.883Z",
+    "updatedAt": "2026-09-15T16:18:57.883Z"
+  },
+  "appointment-ctpa-request": {
+    "resourceType": "Appointment",
+    "hipResourceId": "30143908-9c25-4074-9e3f-5ae9132e9212",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-ctpa-request",
+    "scenarioRunId": "lae-live-step-1789489125",
+    "createdAt": "2026-09-15T16:18:58.171Z",
+    "updatedAt": "2026-09-15T16:18:58.171Z"
+  }
+}

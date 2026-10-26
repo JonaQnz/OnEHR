@@ -1,0 +1,35 @@
+{
+  "patient-smoketest": {
+    "resourceType": "Patient",
+    "hipResourceId": "1da7d5a9-e69c-4304-b63f-f3a9af6e99c8",
+    "fhirVersionId": "2",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "name.0.family": "USER",
+      "name.0.given.0": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-smoketest",
+    "scenarioRunId": "workbench-smoketest-1789484879732",
+    "createdAt": "2026-09-15T15:08:01.593Z",
+    "updatedAt": "2026-09-15T15:14:45.750Z"
+  },
+  "encounter-emergency-001": {
+    "resourceType": "Encounter",
+    "hipResourceId": "7ca805b7-1ff6-4b0c-b828-6dca4355e9e1",
+    "fhirVersionId": "1",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED"
+    },
+    "scenarioKey": "encounter-emergency-001",
+    "scenarioRunId": "workbench-smoketest-1789484879732",
+    "createdAt": "2026-09-15T15:16:37.095Z",
+    "updatedAt": "2026-09-15T15:16:37.095Z"
+  }
+}

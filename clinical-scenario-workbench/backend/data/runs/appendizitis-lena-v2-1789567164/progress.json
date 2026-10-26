@@ -1,0 +1,40 @@
+{
+  "scenarioId": "appendizitis-lena",
+  "completedEventIds": [
+    "arrival",
+    "arrival-admit-vitals",
+    "arrival-admit-note",
+    "arrival-interval-1",
+    "arrival-interval-2",
+    "arrival-interval-3",
+    "arrival-interval-4",
+    "arrival-discharge-vitals",
+    "primary-diagnosis",
+    "ultrasound",
+    "ultrasound-finding",
+    "op-scheduling",
+    "op",
+    "op-admit-note",
+    "op-discharge-note",
+    "op-procedure-note"
+  ],
+  "patientScenarioKey": "patient-lena",
+  "completedAt": {
+    "arrival": "2026-09-16T13:59:42.554Z",
+    "arrival-admit-vitals": "2026-09-16T13:59:43.213Z",
+    "arrival-admit-note": "2026-09-16T13:59:43.778Z",
+    "arrival-interval-1": "2026-09-16T13:59:44.322Z",
+    "arrival-interval-2": "2026-09-16T13:59:44.905Z",
+    "arrival-interval-3": "2026-09-16T13:59:45.520Z",
+    "arrival-interval-4": "2026-09-16T13:59:46.027Z",
+    "arrival-discharge-vitals": "2026-09-16T13:59:46.568Z",
+    "primary-diagnosis": "2026-09-16T13:59:47.105Z",
+    "ultrasound": "2026-09-16T13:59:48.046Z",
+    "ultrasound-finding": "2026-09-16T13:59:48.508Z",
+    "op-scheduling": "2026-09-16T13:59:49.891Z",
+    "op": "2026-09-16T13:59:50.674Z",
+    "op-admit-note": "2026-09-16T13:59:51.193Z",
+    "op-discharge-note": "2026-09-16T13:59:51.713Z",
+    "op-procedure-note": "2026-09-16T13:59:52.228Z"
+  }
+}

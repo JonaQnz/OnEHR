@@ -1,0 +1,11 @@
+{
+  "missing-allergy-history": {
+    "id": "missing-allergy-history",
+    "code": "missing-allergy-history",
+    "description": "Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "anchorEventId": "arrival",
+    "source": "critic",
+    "status": "open",
+    "createdAt": "2026-09-17T08:59:41.234Z"
+  }
+}

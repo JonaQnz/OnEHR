@@ -1,0 +1,41 @@
+{
+  "scenarioId": "reha-knie-op-demo",
+  "facilityId": "rehazentrum",
+  "completedEventIds": [
+    "arrival",
+    "arrival-discharge-note",
+    "aufnahmegespraech",
+    "vitals-aufnahme",
+    "pflege-tag2",
+    "schwellung-gespraech",
+    "ddimer-order",
+    "pflege-blutabnahme-executes-3b1105d7-6809-480d-ad1b-0a88dd3f6574",
+    "pflege-blutabnahme",
+    "arzt-visite-dvt",
+    "physio-fortschritt",
+    "pflege-tag10",
+    "arzt-entlassvisite",
+    "entlassbrief",
+    "entlassmedikation",
+    "nachsorge-termin"
+  ],
+  "patientScenarioKey": "patient-neumann",
+  "completedAt": {
+    "arrival": "2026-09-17T12:43:52.740Z",
+    "arrival-discharge-note": "2026-09-17T12:43:53.366Z",
+    "aufnahmegespraech": "2026-09-17T12:43:54.402Z",
+    "vitals-aufnahme": "2026-09-17T12:43:54.932Z",
+    "pflege-tag2": "2026-09-17T12:43:55.559Z",
+    "schwellung-gespraech": "2026-09-17T12:43:56.710Z",
+    "ddimer-order": "2026-09-17T12:43:57.253Z",
+    "pflege-blutabnahme-executes-3b1105d7-6809-480d-ad1b-0a88dd3f6574": "2026-09-17T12:43:58.599Z",
+    "pflege-blutabnahme": "2026-09-17T12:43:58.601Z",
+    "arzt-visite-dvt": "2026-09-17T12:43:59.220Z",
+    "physio-fortschritt": "2026-09-17T12:43:59.868Z",
+    "pflege-tag10": "2026-09-17T12:44:00.601Z",
+    "arzt-entlassvisite": "2026-09-17T12:44:01.407Z",
+    "entlassbrief": "2026-09-17T12:44:01.871Z",
+    "entlassmedikation": "2026-09-17T12:44:02.405Z",
+    "nachsorge-termin": "2026-09-17T12:44:05.332Z"
+  }
+}

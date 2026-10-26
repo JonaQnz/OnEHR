@@ -1,0 +1,22 @@
+[
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-reha-station-c",
+    "timestamp": "2026-09-17T12:56:15.844Z"
+  },
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-reha-station-c",
+    "timestamp": "2026-09-17T12:57:28.908Z"
+  },
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-reha-station-c",
+    "timestamp": "2026-09-17T12:58:40.437Z"
+  },
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-reha-station-c",
+    "timestamp": "2026-09-17T13:00:50.696Z"
+  }
+]

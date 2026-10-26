@@ -1,0 +1,18 @@
+{
+  "name": "clinical-scenario-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HIP Clinical Scenario Workbench - plays a clinical scenario step by step, growing a clinic (Organizations/HealthcareServices/Patients/Encounters/Appointments/openEHR documentation) around the patient dynamically and writing every FHIR resource for real into the existing HIP via the onEHR Form Builder's own APIs and MCP servers. Not an npm workspace of the main repo - talks to it purely over HTTP/MCP, like any external client would (same isolation pattern as ../vital-signs-generator).",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "install:all": "npm install",
+    "build:backend": "npm run build --workspace=backend",
+    "test:backend": "npm run test --workspace=backend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "mcp": "node backend/dist/mcp/index.js"
+  }
+}

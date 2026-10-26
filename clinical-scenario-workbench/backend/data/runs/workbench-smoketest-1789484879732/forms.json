@@ -1,0 +1,143 @@
+{
+  "patient": {
+    "id": "patient",
+    "resourceType": "Patient",
+    "version": 1,
+    "fields": [
+      {
+        "path": "name.0.family",
+        "label": "Nachname",
+        "type": "text",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "scenario"
+      },
+      {
+        "path": "name.0.given.0",
+        "label": "Vorname",
+        "type": "text",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "scenario"
+      },
+      {
+        "path": "gender",
+        "label": "Geschlecht",
+        "type": "select",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "scenario",
+        "options": [
+          {
+            "value": "male",
+            "label": "Männlich"
+          },
+          {
+            "value": "female",
+            "label": "Weiblich"
+          },
+          {
+            "value": "other",
+            "label": "Divers"
+          },
+          {
+            "value": "unknown",
+            "label": "Unbekannt"
+          }
+        ]
+      },
+      {
+        "path": "birthDate",
+        "label": "Geburtsdatum",
+        "type": "date",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "derived"
+      }
+    ],
+    "createdBy": "system",
+    "editable": true
+  },
+  "encounter": {
+    "id": "encounter",
+    "resourceType": "Encounter",
+    "version": 1,
+    "fields": [
+      {
+        "path": "status",
+        "label": "Status",
+        "type": "select",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "derived",
+        "options": [
+          {
+            "value": "planned",
+            "label": "Geplant"
+          },
+          {
+            "value": "arrived",
+            "label": "Angekommen"
+          },
+          {
+            "value": "triaged",
+            "label": "Triagiert"
+          },
+          {
+            "value": "in-progress",
+            "label": "Laufend"
+          },
+          {
+            "value": "onleave",
+            "label": "Unterbrochen"
+          },
+          {
+            "value": "finished",
+            "label": "Abgeschlossen"
+          },
+          {
+            "value": "cancelled",
+            "label": "Storniert"
+          }
+        ]
+      },
+      {
+        "path": "class.system",
+        "label": "Encounter-Klasse (System)",
+        "type": "text",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "derived"
+      },
+      {
+        "path": "class.code",
+        "label": "Encounter-Klasse (Code)",
+        "type": "code",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "derived"
+      },
+      {
+        "path": "subject.reference",
+        "label": "Patient",
+        "type": "reference",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "scenario",
+        "referenceResourceTypes": [
+          "Patient"
+        ]
+      },
+      {
+        "path": "period.start",
+        "label": "Aufnahmezeitpunkt",
+        "type": "datetime",
+        "required": true,
+        "editable": true,
+        "sourcePolicy": "scenario"
+      }
+    ],
+    "createdBy": "system",
+    "editable": true
+  }
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-maria\"",
+    "action": "create Patient",
+    "tool": "create_patient",
+    "result": "success",
+    "message": "Patient 9c3ca933-fa91-4178-b7bc-32abd53b37a0 created (ehrId 1b5f8d38-65b2-42fc-8293-00693ea7bd3b)",
+    "id": "45b2e226-0fab-4d71-b69a-57f8564a26a9",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "timestamp": "2026-09-16T10:19:27.665Z"
+  },
+  {
+    "reason": "Encounter required for scenario entity \"encounter-arrival\"",
+    "action": "create Encounter",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Encounter/90ea4d4a-6192-4854-a1bd-d40164cbb577 created",
+    "id": "70fa4f14-8d50-4cf6-a098-1df4833d5f17",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "timestamp": "2026-09-16T10:19:28.174Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-maria\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition ae76cd8c-12ff-4d8f-8065-af46696c8a5e submitted",
+    "id": "9a7163fc-d1c0-443e-ae77-dc674e6c5e2f",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "timestamp": "2026-09-16T10:19:28.765Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-maria\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 592b1f85-eab5-45f3-b467-7e4b1b43884b submitted",
+    "id": "978d4922-24d5-4df4-b8f9-664a81721cdc",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "timestamp": "2026-09-16T10:19:29.257Z"
+  },
+  {
+    "reason": "Slot required for scenario entity \"slot-ctpa-request\"",
+    "action": "create Slot",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Slot/0d7ba3da-1e35-452d-928d-9e7bba24d9d1 created",
+    "id": "d5c859bb-436a-40c5-b466-81078e086446",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "timestamp": "2026-09-16T10:19:29.839Z"
+  },
+  {
+    "reason": "Appointment required for scenario entity \"appointment-ctpa-request\"",
+    "action": "create Appointment",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Appointment/30a18d2e-8446-490e-945f-005ffc4b2f1d created",
+    "id": "7decb70b-0fab-4341-8882-ee1808d99462",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "timestamp": "2026-09-16T10:19:30.171Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/90ea4d4a-6192-4854-a1bd-d40164cbb577 updated",
+    "id": "21572bd7-3666-4f89-9d0f-3e8b6e85869c",
+    "scenarioRunId": "staffing-verify-1789553966",
+    "timestamp": "2026-09-16T10:19:31.222Z"
+  }
+]

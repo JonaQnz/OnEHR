@@ -1,0 +1,31 @@
+# Spec section 19/23 - the root of the "ct-imaging" capability chain:
+# HealthcareService -> Schedule -> Slot -> Appointment. Kept deliberately
+# minimal (just a name) - this workbench models organizational capacity only
+# as far as scheduling actually needs it, not a full service catalog.
+resourceType: HealthcareService
+
+simulationRequired:
+  - name
+
+recommended: []
+references: {}
+
+# A service's own name/description is a reasonable thing for the agent to
+# generate when the scenario only names a capability ("ct-imaging"), not an
+# organizational name - spec section 6's "konkrete organisatorische Struktur"
+# is explicitly listed as something the scenario need NOT supply.
+llmMayGenerate:
+  - name
+llmMayNotGenerate: []
+
+dependencies: []
+mayTrigger:
+  - Schedule
+
+fields:
+  - path: name
+    label: Name
+    type: text
+    required: true
+    editable: true
+    sourcePolicy: generated

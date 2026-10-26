@@ -1,0 +1,80 @@
+{
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-bauer",
+    "compositionSessionId": "99e71a38-ece0-4001-ba38-1ff083365700",
+    "formSessionId": "6be9ec98-b0ec-4c79-8fd1-5110bbd00a0a",
+    "capability": "anamnesis",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "createdAt": "2026-09-16T16:47:41.238Z",
+    "updatedAt": "2026-09-16T16:49:07.776Z"
+  },
+  "vital-signs": {
+    "kind": "openEHR",
+    "formId": "61730ea9-284d-458f-b173-47902d0a7c90",
+    "compositionFormId": "b82c488f-688a-49d2-8031-447a0440d098",
+    "blockId": "vitals_block",
+    "patientScenarioKey": "patient-bauer",
+    "compositionSessionId": "5b574e54-6353-4774-86ac-1dacb1771bd4",
+    "formSessionId": "e7789585-4b9f-46ca-93fd-9beec5a59b31",
+    "capability": "vital-signs",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "createdAt": "2026-09-16T16:47:54.375Z",
+    "updatedAt": "2026-09-16T16:48:56.003Z"
+  },
+  "doctor-round": {
+    "kind": "openEHR",
+    "formId": "fe7c41d6-32e8-4840-9974-effb9354fe54",
+    "compositionFormId": "eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "blockId": "block-order",
+    "patientScenarioKey": "patient-bauer",
+    "compositionSessionId": "2b2427ab-0f45-4047-8ce8-f83de3f9bad9",
+    "formSessionId": "dbd22e42-15e6-4d3c-8d48-eddd629ff892",
+    "capability": "doctor-round",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "createdAt": "2026-09-16T16:48:22.392Z",
+    "updatedAt": "2026-09-16T16:48:22.392Z"
+  },
+  "lab-result": {
+    "kind": "openEHR",
+    "formId": "3d3adbcd-c3b5-4eae-a496-d0e9ab3fd609",
+    "compositionFormId": "eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "blockId": "block-lab",
+    "patientScenarioKey": "patient-bauer",
+    "compositionSessionId": "c06e3f52-2378-411a-b907-e275c125d4f6",
+    "formSessionId": "3338ac43-f482-4ed1-a16b-eb7c88860824",
+    "capability": "lab-result",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "createdAt": "2026-09-16T16:48:41.300Z",
+    "updatedAt": "2026-09-16T16:48:41.300Z"
+  },
+  "discharge-letter": {
+    "kind": "openEHR",
+    "formId": "42d74b75-e2fe-4238-a0a0-1f7c556938a5",
+    "compositionFormId": "2a88d34b-541d-4085-ab7a-23c713346928",
+    "blockId": "summary-form",
+    "patientScenarioKey": "patient-bauer",
+    "compositionSessionId": "d4523e97-71ba-427f-a40f-c8d92bba3ed3",
+    "formSessionId": "521048ba-a352-4416-9d4e-639080149156",
+    "capability": "discharge-letter",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "createdAt": "2026-09-16T16:52:03.711Z",
+    "updatedAt": "2026-09-16T16:52:03.711Z"
+  },
+  "urologie-nachsorge": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-urologie-nachsorge",
+      "schedule": "schedule-urologie-nachsorge",
+      "slot": "slot-followup-urologie",
+      "appointment": "appointment-followup-urologie"
+    },
+    "capability": "urologie-nachsorge",
+    "scenarioRunId": "notaufnahme-bauer-1789577257",
+    "createdAt": "2026-09-16T17:50:42.141Z",
+    "updatedAt": "2026-09-16T17:50:42.141Z"
+  }
+}

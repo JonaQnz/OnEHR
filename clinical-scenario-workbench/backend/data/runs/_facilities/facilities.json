@@ -1,0 +1,14 @@
+{
+  "krankenhaus": {
+    "id": "krankenhaus",
+    "name": "Krankenhaus",
+    "description": "Das ursprüngliche, allgemeine Krankenhaus.",
+    "createdAt": "2026-09-17T12:35:43.198Z"
+  },
+  "rehazentrum": {
+    "id": "rehazentrum",
+    "name": "Rehazentrum Sonnenberg",
+    "description": "Orthopädische und neurologische Anschlussheilbehandlung.",
+    "createdAt": "2026-09-17T12:36:09.373Z"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "3b1105d7-6809-480d-ad1b-0a88dd3f6574": {
+    "kind": "lab-value",
+    "description": "D-Dimer-Ergebnis eintragen",
+    "orderedByRole": "doctor",
+    "orderEventId": "ddimer-order",
+    "patientScenarioKey": "patient-neumann",
+    "payload": {
+      "analyteName": "D-Dimer",
+      "analyteCode": "48065-7",
+      "value": 0.3,
+      "unit": "mg/L FEU",
+      "referenceRange": "< 0.5 mg/L FEU",
+      "interpretation": "N",
+      "comment": "D-Dimer im Normbereich - spricht gegen eine akute Thrombose."
+    },
+    "id": "3b1105d7-6809-480d-ad1b-0a88dd3f6574",
+    "status": "done",
+    "createdAt": "2026-09-17T12:43:57.252Z",
+    "reviewedByDoctor": true,
+    "completedAt": "2026-09-17T12:43:58.597Z",
+    "completedByEventId": "pflege-blutabnahme-executes-3b1105d7-6809-480d-ad1b-0a88dd3f6574"
+  }
+}

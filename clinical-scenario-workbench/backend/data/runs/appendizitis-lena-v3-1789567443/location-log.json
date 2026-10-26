@@ -1,0 +1,22 @@
+[
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-notaufnahme",
+    "timestamp": "2026-09-16T14:04:21.437Z"
+  },
+  {
+    "eventId": "op",
+    "locationScenarioKey": "location-op",
+    "timestamp": "2026-09-16T14:04:28.578Z"
+  },
+  {
+    "eventId": "normalstation",
+    "locationScenarioKey": "location-normalstation",
+    "timestamp": "2026-09-16T14:04:31.516Z"
+  },
+  {
+    "eventId": "discharge-home",
+    "locationScenarioKey": "location-entlassen",
+    "timestamp": "2026-09-16T14:04:42.025Z"
+  }
+]

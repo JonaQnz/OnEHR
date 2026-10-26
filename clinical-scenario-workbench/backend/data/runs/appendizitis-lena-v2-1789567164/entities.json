@@ -1,0 +1,107 @@
+{
+  "patient-lena": {
+    "resourceType": "Patient",
+    "hipResourceId": "5994d731-30a7-45c2-934a-97c34eb9c9bc",
+    "ehrId": "94d97769-1963-4249-a9a2-56a0f3652a4d",
+    "formsPatientId": "70c56f2a-8023-4bb2-b4c2-8efbe8acbaac",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-lena",
+    "scenarioRunId": "appendizitis-lena-v2-1789567164",
+    "createdAt": "2026-09-16T13:59:42.023Z",
+    "updatedAt": "2026-09-16T13:59:42.023Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "72edaa6d-f603-49ae-b517-421bccb3fa60",
+    "fhirVersionId": "2",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "appendizitis-lena-v2-1789567164",
+    "createdAt": "2026-09-16T13:59:42.549Z",
+    "updatedAt": "2026-09-16T13:59:50.672Z"
+  },
+  "slot-ultrasound": {
+    "resourceType": "Slot",
+    "hipResourceId": "f933d33f-08f0-4037-bb07-cca49d72ae5c",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-ultrasound",
+    "scenarioRunId": "appendizitis-lena-v2-1789567164",
+    "createdAt": "2026-09-16T13:59:47.723Z",
+    "updatedAt": "2026-09-16T13:59:47.723Z"
+  },
+  "appointment-ultrasound": {
+    "resourceType": "Appointment",
+    "hipResourceId": "8c08c23d-afb1-4db5-a954-9d4c1588a830",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-ultrasound",
+    "scenarioRunId": "appendizitis-lena-v2-1789567164",
+    "createdAt": "2026-09-16T13:59:48.043Z",
+    "updatedAt": "2026-09-16T13:59:48.043Z"
+  },
+  "slot-op-scheduling": {
+    "resourceType": "Slot",
+    "hipResourceId": "abe0df0d-0db7-46fd-8f79-f22e4fa5de07",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-op-scheduling",
+    "scenarioRunId": "appendizitis-lena-v2-1789567164",
+    "createdAt": "2026-09-16T13:59:49.561Z",
+    "updatedAt": "2026-09-16T13:59:49.561Z"
+  },
+  "appointment-op-scheduling": {
+    "resourceType": "Appointment",
+    "hipResourceId": "87567362-b984-436d-9eca-60dfe516319c",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-op-scheduling",
+    "scenarioRunId": "appendizitis-lena-v2-1789567164",
+    "createdAt": "2026-09-16T13:59:49.868Z",
+    "updatedAt": "2026-09-16T13:59:49.868Z"
+  }
+}

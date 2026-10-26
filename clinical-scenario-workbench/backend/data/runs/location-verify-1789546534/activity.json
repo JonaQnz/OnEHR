@@ -1,0 +1,12 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-maria\"",
+    "action": "create Patient",
+    "tool": "create_patient",
+    "result": "success",
+    "message": "Patient ddcffe66-84d1-402c-8896-78c2757ef207 created (ehrId 6d5ec8d1-121b-451e-80b7-073cb20ae3c7)",
+    "id": "4994622b-4a24-4214-9e4f-6395e0a4a4f1",
+    "scenarioRunId": "location-verify-1789546534",
+    "timestamp": "2026-09-16T08:15:36.158Z"
+  }
+]

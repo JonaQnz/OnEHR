@@ -1,0 +1,37 @@
+[
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-praeklinik",
+    "timestamp": "2026-09-16T11:01:44.390Z"
+  },
+  {
+    "eventId": "schockraum",
+    "locationScenarioKey": "location-schockraum",
+    "timestamp": "2026-09-16T11:01:53.631Z"
+  },
+  {
+    "eventId": "op-damage-control",
+    "locationScenarioKey": "location-op",
+    "timestamp": "2026-09-16T11:01:56.759Z"
+  },
+  {
+    "eventId": "icu",
+    "locationScenarioKey": "location-intensiv",
+    "timestamp": "2026-09-16T11:01:57.700Z"
+  },
+  {
+    "eventId": "op-definitive",
+    "locationScenarioKey": "location-op",
+    "timestamp": "2026-09-16T11:02:01.216Z"
+  },
+  {
+    "eventId": "normalstation",
+    "locationScenarioKey": "location-normalstation",
+    "timestamp": "2026-09-16T11:02:02.068Z"
+  },
+  {
+    "eventId": "reha",
+    "locationScenarioKey": "location-reha",
+    "timestamp": "2026-09-16T11:02:03.208Z"
+  }
+]

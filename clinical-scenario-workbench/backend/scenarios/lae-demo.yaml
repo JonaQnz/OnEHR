@@ -1,0 +1,47 @@
+# Spec section 39 - the initial POC scenario: Lungenembolie/LAE.
+# Deliberately spare (spec section 6) - no organizational structure, no
+# exact appointment time, no room names. The engine (scenario/engine.ts)
+# fills in everything else via the ensure* functions.
+scenarioId: lae-demo
+
+patient:
+  key: patient-maria
+  firstName: Maria
+  lastName: Schneider
+  sex: female
+  age: 67
+
+events:
+  - id: arrival
+    type: patient-arrival
+    at: 0m
+
+  - id: anamnesis
+    type: anamnesis
+    at: 5m
+    data:
+      diagnosis: Verdacht auf Lungenembolie
+
+  - id: vitals
+    type: vital-signs
+    at: 10m
+    data:
+      heartRate: 108
+      spo2: 91
+
+  - id: ctpa-request
+    type: request-imaging
+    at: 15m
+    data:
+      service: ct-pulmonary-angiography
+
+  # Real, ICD-10-GM-coded diagnosis (capability/catalog.ts's "coded-diagnosis",
+  # via "Diagnose (Basis)") - closes the critic's own "missing-coded-diagnosis"
+  # finding, distinct from the free-text anamnesis note above.
+  - id: confirmed-diagnosis
+    type: coded-diagnosis
+    at: 20m
+    data:
+      diagnosisName: Lungenembolie ohne Angabe eines akuten Cor pulmonale
+      icdCode: I26.9
+      icdDisplay: Lungenembolie ohne Angabe eines akuten Cor pulmonale

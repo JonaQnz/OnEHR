@@ -1,0 +1,72 @@
+{
+  "patient-fischer": {
+    "resourceType": "Patient",
+    "hipResourceId": "7bf63fd4-67a0-4005-986e-265700374a06",
+    "ehrId": "7abb63dd-ee11-4263-8ba0-e2e56576e412",
+    "formsPatientId": "2a4947be-d777-44a5-890f-b22c32594c6d",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-fischer",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "createdAt": "2026-09-16T17:23:44.381Z",
+    "updatedAt": "2026-09-16T17:23:44.381Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "54df3ade-c545-43d7-9a19-04f3353384aa",
+    "fhirVersionId": "5",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "createdAt": "2026-09-16T17:23:44.859Z",
+    "updatedAt": "2026-09-16T17:30:59.547Z"
+  },
+  "slot-followup-kardiologie": {
+    "resourceType": "Slot",
+    "hipResourceId": "e052a0ee-1187-42cf-88a0-d33457fd22ae",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-followup-kardiologie",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "createdAt": "2026-09-16T17:50:56.938Z",
+    "updatedAt": "2026-09-16T17:50:56.938Z"
+  },
+  "appointment-followup-kardiologie": {
+    "resourceType": "Appointment",
+    "hipResourceId": "c9f71264-510f-4cc1-a27b-ca21fb79d7ef",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-followup-kardiologie",
+    "scenarioRunId": "herzinfarkt-fischer-1789579423",
+    "createdAt": "2026-09-16T17:50:57.345Z",
+    "updatedAt": "2026-09-16T17:50:57.345Z"
+  }
+}

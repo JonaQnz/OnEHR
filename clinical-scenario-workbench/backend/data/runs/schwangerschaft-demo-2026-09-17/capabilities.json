@@ -1,0 +1,80 @@
+{
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-nina",
+    "compositionSessionId": "f93d4c15-5dca-4f3c-b639-c7a75889dd1b",
+    "formSessionId": "60dfbda0-cd4b-43ce-87ed-8d4a690a2dee",
+    "capability": "anamnesis",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "createdAt": "2026-09-17T07:45:13.583Z",
+    "updatedAt": "2026-09-17T08:47:16.012Z"
+  },
+  "vital-signs": {
+    "kind": "openEHR",
+    "formId": "61730ea9-284d-458f-b173-47902d0a7c90",
+    "compositionFormId": "b82c488f-688a-49d2-8031-447a0440d098",
+    "blockId": "vitals_block",
+    "patientScenarioKey": "patient-nina",
+    "compositionSessionId": "65449079-162f-4e37-8a9a-4ee20e6c05bb",
+    "formSessionId": "8545575b-a81c-4a32-9270-2c9fe57f8d4c",
+    "capability": "vital-signs",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "createdAt": "2026-09-17T07:45:14.207Z",
+    "updatedAt": "2026-09-17T07:45:14.207Z"
+  },
+  "obstetric-ultrasound": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-obstetric-ultrasound",
+      "schedule": "schedule-obstetric-ultrasound",
+      "slot": "slot-ultrasound",
+      "appointment": "appointment-ultrasound"
+    },
+    "capability": "obstetric-ultrasound",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "createdAt": "2026-09-17T07:45:15.777Z",
+    "updatedAt": "2026-09-17T07:45:15.777Z"
+  },
+  "lab-value": {
+    "kind": "openEHR",
+    "formId": "7c1210b2-39a4-4b4a-a479-62c1925fe38f",
+    "compositionFormId": "8338ddde-26d9-49fd-8edf-095d12415edc",
+    "blockId": "block-1",
+    "patientScenarioKey": "patient-nina",
+    "compositionSessionId": "61ac21be-1040-4d25-8e4a-776be71fbebf",
+    "formSessionId": "5a9000cb-1f41-4ce7-9d00-5b3b49bacc7d",
+    "capability": "lab-value",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "createdAt": "2026-09-17T07:45:17.179Z",
+    "updatedAt": "2026-09-17T07:45:17.179Z"
+  },
+  "pregnancy-status": {
+    "kind": "openEHR",
+    "formId": "cb8213e8-751a-4c88-8671-0ab7759c1ce8",
+    "compositionFormId": "00eafebe-7b94-4f2c-a104-1bc8ef7b7d3f",
+    "blockId": "block-1",
+    "patientScenarioKey": "patient-nina",
+    "compositionSessionId": "e12a6ed6-682d-4bb1-a81b-7482223bb62b",
+    "formSessionId": "e66ab43a-3001-4e1d-ac97-34e8f2c4162d",
+    "capability": "pregnancy-status",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "createdAt": "2026-09-17T08:07:04.187Z",
+    "updatedAt": "2026-09-17T08:07:04.187Z"
+  },
+  "coded-diagnosis": {
+    "kind": "openEHR",
+    "formId": "2e06e44e-1b9a-40c4-bc5b-d7efc139abe1",
+    "compositionFormId": "eda16486-e4c3-4d84-859e-87e7f6c505cf",
+    "blockId": "block-1",
+    "patientScenarioKey": "patient-nina",
+    "compositionSessionId": "4c8c5c00-39f4-43c6-b9dd-096fdf10c938",
+    "formSessionId": "f9d030ac-7b0f-4da9-b36f-910a52800d7e",
+    "capability": "coded-diagnosis",
+    "scenarioRunId": "schwangerschaft-demo-2026-09-17",
+    "createdAt": "2026-09-17T08:07:05.254Z",
+    "updatedAt": "2026-09-17T08:07:05.254Z"
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "missing-allergy-history": {
+    "id": "missing-allergy-history",
+    "code": "missing-allergy-history",
+    "description": "Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "anchorEventId": "arrival",
+    "source": "critic",
+    "status": "open",
+    "createdAt": "2026-09-17T09:33:56.333Z"
+  },
+  "missing-discharge-letter": {
+    "id": "missing-discharge-letter",
+    "code": "missing-discharge-letter",
+    "description": "Kein Arztbrief/Entlassungsbrief zur Entlassung erstellt.",
+    "anchorEventId": "order-sono",
+    "source": "critic",
+    "status": "resolved",
+    "createdAt": "2026-09-17T09:33:56.334Z",
+    "resolvedAt": "2026-09-17T11:39:18.944Z"
+  },
+  "missing-followup-appointment": {
+    "id": "missing-followup-appointment",
+    "code": "missing-followup-appointment",
+    "description": "Kein Nachsorgetermin nach der Entlassung vereinbart.",
+    "anchorEventId": "order-sono",
+    "source": "critic",
+    "status": "resolved",
+    "createdAt": "2026-09-17T09:33:56.336Z",
+    "resolvedAt": "2026-09-17T11:39:28.814Z"
+  },
+  "missing-discharge-medication": {
+    "id": "missing-discharge-medication",
+    "code": "missing-discharge-medication",
+    "description": "Keine Entlassmedikation dokumentiert.",
+    "anchorEventId": "order-sono",
+    "source": "critic",
+    "status": "resolved",
+    "createdAt": "2026-09-17T09:33:56.337Z",
+    "resolvedAt": "2026-09-17T11:39:03.527Z"
+  },
+  "missing-coded-diagnosis": {
+    "id": "missing-coded-diagnosis",
+    "code": "missing-coded-diagnosis",
+    "description": "Keine formal kodierte (ICD-10-GM) Diagnose im Verlauf dokumentiert.",
+    "anchorEventId": "order-sono",
+    "source": "critic",
+    "status": "resolved",
+    "createdAt": "2026-09-17T09:33:56.339Z",
+    "resolvedAt": "2026-09-17T09:36:42.508Z"
+  },
+  "missing-diagnostic-report:order-sono": {
+    "id": "missing-diagnostic-report:order-sono",
+    "code": "missing-diagnostic-report:order-sono",
+    "description": "Für die Diagnostik \"Abdomensonographie\" liegt kein strukturierter Befund vor (nur ein Freitext-Kommentar im Termin).",
+    "anchorEventId": "order-sono",
+    "source": "critic",
+    "status": "resolved",
+    "createdAt": "2026-09-17T09:35:09.793Z",
+    "resolvedAt": "2026-09-17T09:36:00.576Z"
+  },
+  "missing-consent:verlegung-op": {
+    "id": "missing-consent:verlegung-op",
+    "code": "missing-consent:verlegung-op",
+    "description": "Keine dokumentierte Aufklärung/Einwilligung vor dem Eingriff an Station \"OP\".",
+    "anchorEventId": "verlegung-op",
+    "source": "critic",
+    "status": "open",
+    "createdAt": "2026-09-17T09:42:34.406Z"
+  },
+  "missing-procedure-record:verlegung-op": {
+    "id": "missing-procedure-record:verlegung-op",
+    "code": "missing-procedure-record:verlegung-op",
+    "description": "Kein strukturierter Prozedur-Eintrag für den Eingriff an Station \"OP\" gefunden.",
+    "anchorEventId": "verlegung-op",
+    "source": "critic",
+    "status": "resolved",
+    "createdAt": "2026-09-17T09:42:34.408Z",
+    "resolvedAt": "2026-09-17T09:42:47.322Z"
+  },
+  "missing-preprocedure-medication:verlegung-op": {
+    "id": "missing-preprocedure-medication:verlegung-op",
+    "code": "missing-preprocedure-medication:verlegung-op",
+    "description": "Keine periprozedurale Medikamentengabe vor dem Eingriff an Station \"OP\" dokumentiert.",
+    "anchorEventId": "verlegung-op",
+    "source": "critic",
+    "status": "resolved",
+    "createdAt": "2026-09-17T09:42:34.410Z",
+    "resolvedAt": "2026-09-17T11:40:36.503Z"
+  },
+  "system-critique:arrival:1789644956487": {
+    "id": "system-critique:arrival:1789644956487",
+    "code": "system-critique",
+    "anchorEventId": "arrival",
+    "description": "Als behandelnder Arzt: Ich habe bei Aufnahme nach Allergien und Dauermedikation gefragt, aber es gibt in diesem System keine strukturierte Erfassungsmöglichkeit dafür (keine Capability, kein Formular) - nur die freie Anamnese. Das ist eine echte Lücke: Allergien/Dauermedikation gehören zu jeder Aufnahme und sollten wie die Diagnose ein eigenes strukturiertes Formular haben, nicht nur unstrukturierten Text.",
+    "source": "manual",
+    "status": "open",
+    "createdAt": "2026-09-17T11:35:56.487Z"
+  },
+  "system-critique:aufklaerung-gespraech:1789644956552": {
+    "id": "system-critique:aufklaerung-gespraech:1789644956552",
+    "code": "system-critique",
+    "anchorEventId": "aufklaerung-gespraech",
+    "description": "Als behandelnder Arzt: Ich habe die Patientin vor der Appendektomie aufgeklärt und ihre Einwilligung eingeholt (im Gespräch dokumentiert), aber es gibt keine eigene Einwilligungs-/Consent-Capability, die das strukturiert und rechtssicher ablegt (z.B. als eigene Observation/Procedure-Precondition mit Unterschrift/Zeitstempel). Aktuell landet das nur als unstrukturierte Gesprächsnotiz - für einen invasiven Eingriff reicht das nicht.",
+    "source": "manual",
+    "status": "open",
+    "createdAt": "2026-09-17T11:35:56.552Z"
+  }
+}

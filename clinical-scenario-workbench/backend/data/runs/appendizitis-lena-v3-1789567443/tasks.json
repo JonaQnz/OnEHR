@@ -1,0 +1,42 @@
+{
+  "missing-allergy-history": {
+    "id": "missing-allergy-history",
+    "code": "missing-allergy-history",
+    "description": "Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "anchorEventId": "arrival",
+    "status": "open",
+    "createdAt": "2026-09-16T14:04:21.878Z"
+  },
+  "missing-consent:op": {
+    "id": "missing-consent:op",
+    "code": "missing-consent:op",
+    "description": "Keine dokumentierte Aufklärung/Einwilligung vor dem Eingriff an Station \"OP\".",
+    "anchorEventId": "op",
+    "status": "open",
+    "createdAt": "2026-09-16T14:04:29.437Z"
+  },
+  "missing-discharge-letter": {
+    "id": "missing-discharge-letter",
+    "code": "missing-discharge-letter",
+    "description": "Kein Arztbrief/Entlassungsbrief zur Entlassung erstellt.",
+    "anchorEventId": "discharge-home",
+    "status": "open",
+    "createdAt": "2026-09-16T14:04:42.542Z"
+  },
+  "missing-followup-appointment": {
+    "id": "missing-followup-appointment",
+    "code": "missing-followup-appointment",
+    "description": "Kein Nachsorgetermin nach der Entlassung vereinbart.",
+    "anchorEventId": "discharge-home",
+    "status": "open",
+    "createdAt": "2026-09-16T14:04:42.543Z"
+  },
+  "missing-discharge-medication": {
+    "id": "missing-discharge-medication",
+    "code": "missing-discharge-medication",
+    "description": "Keine Entlassmedikation dokumentiert.",
+    "anchorEventId": "discharge-home",
+    "status": "open",
+    "createdAt": "2026-09-16T14:04:42.545Z"
+  }
+}

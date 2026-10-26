@@ -1,0 +1,10 @@
+{
+  "scenarioId": "lae-demo",
+  "completedEventIds": [
+    "arrival",
+    "anamnesis",
+    "vitals",
+    "ctpa-request"
+  ],
+  "patientScenarioKey": "patient-maria"
+}

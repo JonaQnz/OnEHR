@@ -1,0 +1,28 @@
+{
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-bauer",
+    "compositionSessionId": "621e3000-f7bc-40e5-b610-26320725aaa7",
+    "formSessionId": "ef243318-8c26-4a6c-aad7-3d67e605d90e",
+    "capability": "anamnesis",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "createdAt": "2026-09-16T17:19:54.099Z",
+    "updatedAt": "2026-09-16T17:19:54.099Z"
+  },
+  "procedure": {
+    "kind": "openEHR",
+    "formId": "1d7db2e8-f483-431f-94aa-d9d49115bfd8",
+    "compositionFormId": "573656a0-e52d-4564-a559-47ec8d3cbbf3",
+    "blockId": "block-1",
+    "patientScenarioKey": "patient-bauer",
+    "compositionSessionId": "e71ad78e-5e54-46d8-9f29-a543aa94f485",
+    "formSessionId": "fc557a9d-e17a-4d0c-b677-d26700400933",
+    "capability": "procedure",
+    "scenarioRunId": "smoketest-newcaps2-1789579191",
+    "createdAt": "2026-09-16T17:20:04.581Z",
+    "updatedAt": "2026-09-16T17:20:04.581Z"
+  }
+}

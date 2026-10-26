@@ -1,0 +1,18 @@
+{
+  "scenarioId": "lae-demo",
+  "completedEventIds": [
+    "arrival",
+    "anamnesis",
+    "vitals",
+    "ctpa-request",
+    "confirmed-diagnosis"
+  ],
+  "patientScenarioKey": "patient-maria",
+  "completedAt": {
+    "arrival": "2026-09-16T10:55:59.665Z",
+    "anamnesis": "2026-09-16T10:56:01.075Z",
+    "vitals": "2026-09-16T10:56:02.500Z",
+    "ctpa-request": "2026-09-17T15:02:43.082Z",
+    "confirmed-diagnosis": "2026-09-17T15:02:49.024Z"
+  }
+}

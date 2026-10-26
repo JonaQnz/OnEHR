@@ -1,0 +1,26 @@
+[
+  {
+    "id": "smoke-coded-dx",
+    "type": "coded-diagnosis",
+    "at": "1h",
+    "data": {
+      "diagnosisName": "Akuter Myokardinfarkt der Vorderwand (STEMI)",
+      "icd10Code": "I21.0",
+      "icd10Display": "Akuter transmuraler Myokardinfarkt der Vorderwand"
+    }
+  },
+  {
+    "id": "smoke-coded-dx-2",
+    "type": "coded-diagnosis",
+    "at": "1h5m",
+    "data": {
+      "diagnosisName": "Akuter Myokardinfarkt der Vorderwand (STEMI)",
+      "icd10Code": "I21.0",
+      "icd10Display": "Akuter transmuraler Myokardinfarkt der Vorderwand",
+      "diagnosticStatus": "Working",
+      "activeInactive": "Active",
+      "diagnosticCertainty": "Confirmed",
+      "diagnosticCategory": "Principal diagnosis"
+    }
+  }
+]

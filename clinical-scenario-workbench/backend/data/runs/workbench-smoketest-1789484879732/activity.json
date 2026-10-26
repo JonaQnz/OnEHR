@@ -1,0 +1,42 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-smoketest\"",
+    "action": "create Patient",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Patient/1da7d5a9-e69c-4304-b63f-f3a9af6e99c8 created",
+    "id": "708f0f12-aad1-4257-9594-7010542c5377",
+    "scenarioRunId": "workbench-smoketest-1789484879732",
+    "timestamp": "2026-09-15T15:08:01.596Z"
+  },
+  {
+    "reason": "Update requested for Patient \"patient-smoketest\"",
+    "action": "update Patient",
+    "tool": "update_fhir_resource",
+    "result": "error",
+    "message": "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON",
+    "id": "aeeb69aa-53c0-4bac-9146-d1316e6d8325",
+    "scenarioRunId": "workbench-smoketest-1789484879732",
+    "timestamp": "2026-09-15T15:08:15.373Z"
+  },
+  {
+    "reason": "Update requested for Patient \"patient-smoketest\"",
+    "action": "update Patient",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Patient/1da7d5a9-e69c-4304-b63f-f3a9af6e99c8 updated",
+    "id": "7d26723f-6275-4912-a3f8-1118fde7a6ef",
+    "scenarioRunId": "workbench-smoketest-1789484879732",
+    "timestamp": "2026-09-15T15:14:45.751Z"
+  },
+  {
+    "reason": "Encounter required for scenario entity \"encounter-emergency-001\"",
+    "action": "create Encounter",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Encounter/7ca805b7-1ff6-4b0c-b828-6dca4355e9e1 created",
+    "id": "b51d6384-087d-48c3-b1d4-d903c62ba92c",
+    "scenarioRunId": "workbench-smoketest-1789484879732",
+    "timestamp": "2026-09-15T15:16:37.098Z"
+  }
+]

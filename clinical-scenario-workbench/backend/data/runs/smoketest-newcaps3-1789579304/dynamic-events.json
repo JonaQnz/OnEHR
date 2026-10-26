@@ -1,0 +1,39 @@
+[
+  {
+    "id": "smoke-medorder",
+    "type": "medication-order",
+    "at": "2h5m",
+    "data": {
+      "medicationName": "Acetylsalicylsäure 300mg",
+      "status": "at0011",
+      "doseAndTiming": "300mg einmalig, Aufsättigungsdosis",
+      "route": "oral (zerkaut)",
+      "clinicalIndication": "Akuter Myokardinfarkt (STEMI) - Thrombozytenaggregationshemmung"
+    }
+  },
+  {
+    "id": "smoke-medadmin",
+    "type": "medication-administration",
+    "at": "2h10m",
+    "data": {
+      "arzneimittel": "Acetylsalicylsäure 300mg",
+      "dosisbeschreibung": "300mg",
+      "verabreichungsweg": "oral (zerkaut)",
+      "klinischeIndikation": "Akuter Myokardinfarkt (STEMI)",
+      "nachkontrolliert": "true"
+    }
+  },
+  {
+    "id": "smoke-dischmed",
+    "type": "discharge-medication",
+    "at": "3h",
+    "data": {
+      "medicationName": "Acetylsalicylsäure 100mg",
+      "status": "at0011",
+      "doseAndTiming": "1-0-0",
+      "route": "oral",
+      "clinicalIndication": "Sekundärprophylaxe nach Myokardinfarkt",
+      "therapeuticIntent": "Dauerhafte Sekundärprophylaxe"
+    }
+  }
+]

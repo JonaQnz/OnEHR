@@ -1,0 +1,12 @@
+[
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-notaufnahme",
+    "timestamp": "2026-09-16T10:55:58.995Z"
+  },
+  {
+    "eventId": "ctpa-request",
+    "locationScenarioKey": "location-radiologie",
+    "timestamp": "2026-09-17T15:02:40.937Z"
+  }
+]

@@ -1,0 +1,15 @@
+{
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-maria",
+    "compositionSessionId": "20ea45d5-b8a9-4744-8e9a-585ccd98520a",
+    "formSessionId": "b20502e1-156f-4576-a71a-f1d2def12b13",
+    "capability": "anamnesis",
+    "scenarioRunId": "lae-demo-e2e-1789486660452",
+    "createdAt": "2026-09-15T15:52:30.137Z",
+    "updatedAt": "2026-09-15T15:52:30.137Z"
+  }
+}

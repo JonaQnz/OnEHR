@@ -1,0 +1,61 @@
+resourceType: Slot
+
+simulationRequired:
+  - schedule.reference
+  - status
+  - start
+  - end
+
+recommended: []
+
+references:
+  schedule.reference:
+    target:
+      - Schedule
+
+# Spec section 19/27's own worked example: "Wenn das Scenario keine genaue
+# Terminzeit nennt: Der Agent darf eine plausible freie Zeit auswählen." -
+# the resulting value's provenance is GENERATED either way.
+llmMayGenerate:
+  - start
+  - end
+llmMayNotGenerate:
+  - schedule.reference
+
+dependencies:
+  - Schedule
+mayTrigger:
+  - Appointment
+
+fields:
+  - path: schedule.reference
+    label: Schedule
+    type: reference
+    required: true
+    editable: true
+    sourcePolicy: derived
+    referenceResourceTypes:
+      - Schedule
+  - path: status
+    label: Status
+    type: select
+    required: true
+    editable: true
+    sourcePolicy: derived
+    options:
+      - { value: free, label: Frei }
+      - { value: busy, label: Belegt }
+      - { value: busy-unavailable, label: Nicht verfügbar }
+      - { value: busy-tentative, label: Vorläufig belegt }
+  - path: start
+    label: Beginn
+    type: datetime
+    required: true
+    editable: true
+    sourcePolicy: generated
+  - path: end
+    label: Ende
+    type: datetime
+    required: true
+    editable: true
+    sourcePolicy: generated

@@ -1,0 +1,18 @@
+{
+  "missing-allergy-history": {
+    "id": "missing-allergy-history",
+    "code": "missing-allergy-history",
+    "description": "Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "anchorEventId": "arrival",
+    "status": "open",
+    "createdAt": "2026-09-16T13:59:42.552Z"
+  },
+  "missing-consent:op": {
+    "id": "missing-consent:op",
+    "code": "missing-consent:op",
+    "description": "Keine dokumentierte Aufklärung/Einwilligung vor dem Eingriff an Station \"OP\".",
+    "anchorEventId": "op",
+    "status": "open",
+    "createdAt": "2026-09-16T13:59:50.673Z"
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "anamnesis": {
+    "kind": "openEHR",
+    "formId": "88857072-b166-4f1e-bec7-56b779209669",
+    "compositionFormId": "94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "blockId": "block-diagnosis-1",
+    "patientScenarioKey": "patient-schmidt",
+    "compositionSessionId": "dcc57ef0-3474-4d8d-afe8-539039e6f74e",
+    "formSessionId": "d0f2e2a1-e892-404b-874b-430a01674c24",
+    "capability": "anamnesis",
+    "scenarioRunId": "reha-schmidt-demo-2026-09-17",
+    "createdAt": "2026-09-17T12:36:24.313Z",
+    "updatedAt": "2026-09-17T12:36:25.405Z"
+  },
+  "progress-note": {
+    "kind": "openEHR",
+    "formId": "ff3cb87f-cc0b-4b03-87ef-991e794eca11",
+    "compositionFormId": "d0fe6829-2852-4183-ada3-142abb0fb6c4",
+    "blockId": "block-1",
+    "patientScenarioKey": "patient-schmidt",
+    "compositionSessionId": "e650363d-74da-4b01-8d5e-69deefb40558",
+    "formSessionId": "b7a4625e-a251-49b7-9e67-bc834fbeb8c3",
+    "capability": "progress-note",
+    "scenarioRunId": "reha-schmidt-demo-2026-09-17",
+    "createdAt": "2026-09-17T12:36:24.762Z",
+    "updatedAt": "2026-09-17T12:36:27.220Z"
+  },
+  "vital-signs": {
+    "kind": "openEHR",
+    "formId": "61730ea9-284d-458f-b173-47902d0a7c90",
+    "compositionFormId": "b82c488f-688a-49d2-8031-447a0440d098",
+    "blockId": "vitals_block",
+    "patientScenarioKey": "patient-schmidt",
+    "compositionSessionId": "e0de044d-e0ff-4ecc-995e-6a53dc973d14",
+    "formSessionId": "71d7d3d7-8ac6-425e-9457-6f230cdc8d9c",
+    "capability": "vital-signs",
+    "scenarioRunId": "reha-schmidt-demo-2026-09-17",
+    "createdAt": "2026-09-17T12:36:25.810Z",
+    "updatedAt": "2026-09-17T12:36:25.810Z"
+  },
+  "nursing-round": {
+    "kind": "openEHR",
+    "formId": "6f1449d1-bd94-4ab4-ac40-d3cbc8412847",
+    "compositionFormId": "5f70143f-bb4d-4d44-8553-0103b597c246",
+    "blockId": "block-nursing",
+    "patientScenarioKey": "patient-schmidt",
+    "compositionSessionId": "aab4d043-b449-4f11-acb0-f3c43655d981",
+    "formSessionId": "657a6732-840f-46d5-82ac-2c7d7f3fc4eb",
+    "capability": "nursing-round",
+    "scenarioRunId": "reha-schmidt-demo-2026-09-17",
+    "createdAt": "2026-09-17T12:36:26.248Z",
+    "updatedAt": "2026-09-17T12:36:27.768Z"
+  },
+  "doctor-round": {
+    "kind": "openEHR",
+    "formId": "fe7c41d6-32e8-4840-9974-effb9354fe54",
+    "compositionFormId": "eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "blockId": "block-order",
+    "patientScenarioKey": "patient-schmidt",
+    "compositionSessionId": "82fb8353-6c12-4d9b-a211-b5ed55870c13",
+    "formSessionId": "4302097f-86c0-4a54-bc61-ed87c98cb7e5",
+    "capability": "doctor-round",
+    "scenarioRunId": "reha-schmidt-demo-2026-09-17",
+    "createdAt": "2026-09-17T12:36:26.732Z",
+    "updatedAt": "2026-09-17T12:36:28.263Z"
+  },
+  "discharge-letter": {
+    "kind": "openEHR",
+    "formId": "42d74b75-e2fe-4238-a0a0-1f7c556938a5",
+    "compositionFormId": "2a88d34b-541d-4085-ab7a-23c713346928",
+    "blockId": "summary-form",
+    "patientScenarioKey": "patient-schmidt",
+    "compositionSessionId": "02734075-6d61-4b65-8e0b-da29d001f1f8",
+    "formSessionId": "f23d1ca1-1fa0-41d9-9a1b-2c5a12f7e90f",
+    "capability": "discharge-letter",
+    "scenarioRunId": "reha-schmidt-demo-2026-09-17",
+    "createdAt": "2026-09-17T12:36:28.665Z",
+    "updatedAt": "2026-09-17T12:36:28.665Z"
+  },
+  "discharge-medication": {
+    "kind": "openEHR",
+    "formId": "dddee1ff-3b22-4316-b985-06938694da66",
+    "compositionFormId": "2a88d34b-541d-4085-ab7a-23c713346928",
+    "blockId": "med-form",
+    "patientScenarioKey": "patient-schmidt",
+    "compositionSessionId": "ef48b550-bed7-42fd-9259-c271bc9afc54",
+    "formSessionId": "331c98a6-a711-4180-864d-a52fb4f5f7f3",
+    "capability": "discharge-medication",
+    "scenarioRunId": "reha-schmidt-demo-2026-09-17",
+    "createdAt": "2026-09-17T12:36:29.280Z",
+    "updatedAt": "2026-09-17T12:36:29.280Z"
+  },
+  "reha-nachsorge": {
+    "kind": "fhir",
+    "resourceRefs": {
+      "healthcareService": "service-reha-nachsorge",
+      "schedule": "schedule-reha-nachsorge",
+      "slot": "slot-nachsorge-termin",
+      "appointment": "appointment-nachsorge-termin"
+    },
+    "capability": "reha-nachsorge",
+    "scenarioRunId": "reha-schmidt-demo-2026-09-17",
+    "createdAt": "2026-09-17T12:36:30.829Z",
+    "updatedAt": "2026-09-17T12:36:30.829Z"
+  }
+}

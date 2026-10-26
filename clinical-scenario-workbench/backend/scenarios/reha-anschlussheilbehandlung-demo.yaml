@@ -1,0 +1,128 @@
+# Live demo case for multi-facility support (user's own ask: "dass wir ein
+# zweites Haus eröffnen können") - a brand-new, independent patient admitted
+# directly at a NEW facility, the "Rehazentrum" (never opened/used in this
+# workbench before this scenario). Reuses the `rehabilitation` StationKind
+# that already existed in protocol.ts untouched - only the facility-scoping
+# infrastructure (context.ts, this file's own top-level `facilityId`) is new.
+# facilityId must be opened first (open_facility/POST /api/facilities) before
+# a run can be started against this scenario - context.ts's WorkbenchContext
+# only ever auto-opens the original hospital ("krankenhaus").
+scenarioId: reha-anschlussheilbehandlung-demo
+facilityId: rehazentrum
+
+patient:
+  key: patient-schmidt
+  firstName: Werner
+  lastName: Schmidt
+  sex: male
+  age: 68
+
+events:
+  - id: arrival
+    type: patient-arrival
+    at: 0h
+    data:
+      location:
+        key: location-reha-station-a
+        name: Reha-Station A
+        description: Rehazentrum Sonnenberg · Orthopädische Anschlussheilbehandlung
+        kind: rehabilitation
+      staff:
+        scenarioKey: practitioner-reha-aufnahme-1
+        family: Wagner
+        given: Sabine
+        qualification: Fachärztin für Physikalische und Rehabilitative Medizin
+      classSystem: http://terminology.hl7.org/CodeSystem/v3-ActCode
+      classCode: IMP
+      encounterStatus: arrived
+
+  - id: aufnahmegespraech
+    type: patient-conversation
+    at: 15m
+    data:
+      actorRole: doctor
+      topic: Aufnahmegespräch AHB
+      question: Wie geht es Ihnen nach der Hüft-OP, und was erhoffen Sie sich von der Reha?
+      patientSays: Die Wunde tut noch etwas weh, aber es geht bergauf. Ich möchte vor allem wieder sicher ohne Rollator die Treppe hochkommen.
+      newInfoLearned: Z.n. Hüft-TEP-Implantation rechts vor 8 Tagen (auswärtige Klinik), unauffälliger Wundstatus, Hauptziel der AHB ist Wiedererlangung sicherer Treppengängigkeit.
+
+  - id: vitals-aufnahme
+    type: vital-signs
+    at: 30m
+    data:
+      heartRate: 74
+      spo2: 97
+      respRate: 14
+      temperature: 36.6
+
+  - id: pflege-woche1
+    type: nursing-round
+    at: 48h
+    data:
+      note: Physiotherapie wird gut toleriert, Gangbild mit Rollator zunehmend sicher, Wunde reizlos.
+
+  - id: arzt-visite-woche1
+    type: doctor-round
+    at: 72h
+    data:
+      serviceName: Reha-Verlaufskontrolle
+      serviceType: Visite
+      urgency: at0138
+      clinicalIndication: Regelhafte ärztliche Verlaufsbeurteilung im Rahmen der Anschlussheilbehandlung.
+      comment: Guter Reha-Verlauf, Fortführung des Therapieplans, Belastungssteigerung nach Maßgabe der Physiotherapie.
+
+  - id: physio-gespraech
+    type: patient-conversation
+    at: 144h
+    data:
+      actorRole: nurse
+      topic: Zwischenstand Physiotherapie
+      question: Wie kommen Sie mit den Übungen zurecht?
+      patientSays: Deutlich besser als in der ersten Woche, ich schaffe die Treppe inzwischen mit nur einem Handlauf.
+
+  - id: pflege-woche2
+    type: nursing-round
+    at: 240h
+    data:
+      note: Treppensteigen mit einem Handlauf sicher möglich, Rollator wird kaum noch benötigt, Patient zunehmend selbstständig.
+
+  - id: arzt-entlassvisite
+    type: doctor-round
+    at: 312h
+    data:
+      serviceName: Reha-Abschlussvisite
+      serviceType: Visite
+      urgency: at0138
+      clinicalIndication: Abschließende ärztliche Beurteilung vor Entlassung aus der Anschlussheilbehandlung.
+      comment: Rehabilitationsziel erreicht - sichere Treppengängigkeit ohne Rollator. Entlassung nach Hause vorgesehen.
+
+  - id: entlassbrief
+    type: discharge-letter
+    at: 336h
+    data:
+      topic: Entlassung nach orthopädischer Anschlussheilbehandlung
+      synopsis: 68-jähriger Patient, Aufnahme zur AHB 8 Tage nach Hüft-TEP-Implantation rechts (auswärtige Klinik). Physiotherapeutische Mobilisation mit kontinuierlicher Verbesserung von Gangbild und Treppengängigkeit, Wundverhältnisse durchgehend reizlos.
+      recommendation: Fortführung der Eigenübungen entsprechend Therapieplan, ambulante Physiotherapie 2x/Woche für weitere 4 Wochen, Wiedervorstellung beim Operateur zur Verlaufskontrolle nach 6 Wochen.
+      rationale: Rehabilitationsziel (sichere Treppengängigkeit) erreicht, komplikationsloser Reha-Verlauf ohne Hinweise auf Wundheilungsstörung oder Prothesenlockerung.
+
+  - id: entlassmedikation
+    type: discharge-medication
+    at: 337h
+    data:
+      medicationName: Ibuprofen 400mg
+      status: at0011
+      doseAndTiming: 400mg oral, bei Bedarf bis 3x/Tag
+      route: oral
+      clinicalIndication: Restbeschwerden nach Hüft-TEP-Implantation und Mobilisation.
+      therapeuticIntent: Ambulante Schmerztherapie nach Entlassung aus der AHB.
+
+  - id: nachsorge-termin
+    type: request-imaging
+    at: 338h
+    data:
+      serviceKey: service-reha-nachsorge
+      scheduleKey: schedule-reha-nachsorge
+      capabilityKey: reha-nachsorge
+      serviceName: Orthopädische Ambulanz - Verlaufskontrolle nach Hüft-TEP
+      comment: Verlaufskontrolle beim Operateur, 6 Wochen postoperativ.
+      isFollowUp: true

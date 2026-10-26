@@ -1,0 +1,72 @@
+{
+  "patient-emil": {
+    "resourceType": "Patient",
+    "hipResourceId": "da72e4b2-b448-458a-9576-6cc776e95e7e",
+    "ehrId": "281d216c-54a1-42f7-9a49-0a949b092116",
+    "formsPatientId": "33bca704-38bb-45af-9fe5-38952c753040",
+    "provenance": "SOURCE",
+    "fieldProvenance": {
+      "firstName": "SOURCE",
+      "lastName": "SOURCE",
+      "gender": "SOURCE",
+      "birthDate": "SOURCE"
+    },
+    "scenarioKey": "patient-emil",
+    "scenarioRunId": "polytrauma-rounds-1789563411",
+    "createdAt": "2026-09-16T12:57:23.978Z",
+    "updatedAt": "2026-09-16T12:57:23.978Z"
+  },
+  "encounter-arrival": {
+    "resourceType": "Encounter",
+    "hipResourceId": "53bd03c5-9c23-4f0f-b86c-9d9373ad5fa2",
+    "fhirVersionId": "4",
+    "provenance": "DERIVED",
+    "fieldProvenance": {
+      "status": "DERIVED",
+      "class.system": "DERIVED",
+      "class.code": "DERIVED",
+      "subject.reference": "DERIVED",
+      "period.start": "DERIVED",
+      "participant.0.individual.reference": "DERIVED"
+    },
+    "scenarioKey": "encounter-arrival",
+    "scenarioRunId": "polytrauma-rounds-1789563411",
+    "createdAt": "2026-09-16T12:57:24.961Z",
+    "updatedAt": "2026-09-16T12:57:47.449Z"
+  },
+  "slot-ct-scan": {
+    "resourceType": "Slot",
+    "hipResourceId": "57cbe074-6eef-4fe4-99a8-5ad7967b4bd6",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "schedule.reference": "GENERATED",
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED"
+    },
+    "scenarioKey": "slot-ct-scan",
+    "scenarioRunId": "polytrauma-rounds-1789563411",
+    "createdAt": "2026-09-16T12:57:41.802Z",
+    "updatedAt": "2026-09-16T12:57:41.802Z"
+  },
+  "appointment-ct-scan": {
+    "resourceType": "Appointment",
+    "hipResourceId": "035acef6-cdce-4e4d-91ac-920389ca5f9c",
+    "fhirVersionId": "1",
+    "provenance": "GENERATED",
+    "fieldProvenance": {
+      "status": "GENERATED",
+      "start": "GENERATED",
+      "end": "GENERATED",
+      "participant.0.actor.reference": "GENERATED",
+      "participant.0.status": "GENERATED",
+      "slot.0.reference": "GENERATED",
+      "comment": "GENERATED"
+    },
+    "scenarioKey": "appointment-ct-scan",
+    "scenarioRunId": "polytrauma-rounds-1789563411",
+    "createdAt": "2026-09-16T12:57:42.426Z",
+    "updatedAt": "2026-09-16T12:57:42.426Z"
+  }
+}

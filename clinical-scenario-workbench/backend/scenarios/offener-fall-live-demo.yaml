@@ -1,0 +1,27 @@
+# Genuinely open-ended (scenario/dynamicEvents.ts's own design) - only the
+# patient and the very first arrival are pre-authored. Every event after
+# this is decided live, one at a time, by whoever is playing the doctor -
+# in this run, Claude itself, acting as the agent the system was designed
+# for (no ANTHROPIC_API_KEY needed - see generatedValues.ts's own doc
+# comment on this).
+scenarioId: offener-fall-live-demo
+
+patient:
+  key: patient-anna
+  firstName: Anna
+  lastName: Keller
+  sex: female
+  age: 45
+
+events:
+  - id: arrival
+    type: patient-arrival
+    at: 0m
+    data:
+      location:
+        key: location-notaufnahme-allgemein
+        name: Notaufnahme
+        description: Allgemeine Notaufnahme
+      classSystem: http://terminology.hl7.org/CodeSystem/v3-ActCode
+      classCode: EMER
+      encounterStatus: arrived

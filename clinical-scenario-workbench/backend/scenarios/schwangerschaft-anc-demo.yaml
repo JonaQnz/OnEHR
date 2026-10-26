@@ -1,0 +1,89 @@
+# A routine outpatient antenatal-care (ANC) visit - deliberately spare, same
+# style as lae-demo.yaml. Tries out the new "pregnancy-status" capability
+# (built live via the openehr-architect agent - no pregnancy/antenatal Form
+# existed anywhere in this Forms instance before this scenario), alongside
+# the already-existing lab-value/coded-diagnosis capabilities.
+scenarioId: schwangerschaft-anc-demo
+
+patient:
+  key: patient-nina
+  firstName: Nina
+  lastName: Berger
+  sex: female
+  age: 29
+
+events:
+  - id: arrival
+    type: patient-arrival
+    at: 0m
+    data:
+      location:
+        key: location-ambulanz-schwangerenvorsorge
+        name: Ambulanz – Schwangerenvorsorge
+        description: Ambulante Schwangerenvorsorge · Vorsorgeuntersuchungen nach Mutterschaftsrichtlinien
+        kind: outpatient-clinic
+      staff:
+        scenarioKey: practitioner-gynaekologie-1
+        family: Hoffmann
+        given: Sabine
+        qualification: Fachärztin für Gynäkologie und Geburtshilfe
+      classSystem: http://terminology.hl7.org/CodeSystem/v3-ActCode
+      classCode: AMB
+      encounterStatus: arrived
+
+  - id: anamnesis
+    type: anamnesis
+    at: 5m
+    data:
+      diagnosis: Routinevorsorge in der 28. Schwangerschaftswoche, keine Beschwerden, keine Blutung, regelrechte Kindsbewegungen.
+
+  - id: vitals
+    type: vital-signs
+    at: 10m
+    data:
+      heartRate: 78
+      spo2: 98
+
+  - id: ultrasound
+    type: request-imaging
+    at: 15m
+    data:
+      serviceKey: service-obstetric-ultrasound
+      scheduleKey: schedule-obstetric-ultrasound
+      capabilityKey: obstetric-ultrasound
+      serviceName: Geburtshilfliche Sonographie
+      comment: Schwangerschafts-Ultraschall (2. Trimenon) - Biometrie, Fruchtwassermenge, Plazentasitz.
+
+  - id: hemoglobin
+    type: lab-value
+    at: 20m
+    data:
+      analyteName: Hämoglobin
+      analyteCode: 718-7
+      value: 10.8
+      unit: g/dL
+      referenceRange: '11.0-15.0 g/dL (Schwangerschaft, 2./3. Trimenon)'
+      interpretation: L
+      comment: Leichte Anämie in der Schwangerschaft - Eisensubstitution empfohlen.
+
+  # New capability, built for this scenario - see capability/catalog.ts's own
+  # doc comment on "pregnancy-status" for the live-verification writeup.
+  - id: pregnancy-status
+    type: pregnancy-status
+    at: 25m
+    data:
+      gestationalAgeWeeks: 28
+      gestationalAgeDays: 2
+      estimatedDueDate: '2026-12-10'
+      gravida: 2
+      para: 1
+      fetalHeartRate: 148
+      comment: Regelrechter Schwangerschaftsverlauf, Fundusstand entsprechend Gestationsalter, kindliche Herzaktion regelrecht.
+
+  - id: confirmed-diagnosis
+    type: coded-diagnosis
+    at: 30m
+    data:
+      diagnosisName: Überwachung einer normalen Schwangerschaft
+      icdCode: Z34.9
+      icdDisplay: Überwachung einer normalen Schwangerschaft, nicht näher bezeichnet

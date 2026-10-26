@@ -1,0 +1,452 @@
+[
+  {
+    "reason": "Patient required for scenario entity \"patient-lena\"",
+    "action": "create Patient",
+    "tool": "create_patient",
+    "result": "success",
+    "message": "Patient fa8cd7e7-47f6-4b0d-91a3-9bd5a56e4a0e created (ehrId 61f7c093-3381-44d3-aca8-5a2ec39ddf18)",
+    "id": "12d3d106-bb26-47b1-bb14-84c2db738534",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:21.436Z"
+  },
+  {
+    "reason": "Encounter required for scenario entity \"encounter-arrival\"",
+    "action": "create Encounter",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Encounter/f66ceeee-e1d5-4f06-9d1d-8c856e5fd9a0 created",
+    "id": "d89f5d26-8a26-475e-a8b4-d4701a458437",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:21.876Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"arrival\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Allergien und Dauermedikation wurden bei Aufnahme nicht strukturiert erfasst.",
+    "id": "52b5dc5c-6e47-4068-a3ab-09bac57e5e86",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:21.904Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-lena\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 2a02589b-7275-445e-84cf-6088ae0eae11 submitted",
+    "id": "9196c5f8-d57a-4b1f-9059-f944ea74b834",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:22.389Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-lena\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 1b5a485a-7073-49e9-a17f-cfa5eed330a2 submitted",
+    "id": "05626160-fc73-45f3-8164-f144a574e130",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:22.758Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-lena\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 58a17237-4c6d-4d2b-bf23-867e3a053b30 submitted",
+    "id": "ac29876e-5622-4db7-b0c4-d69a50435297",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:23.425Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-lena\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition f850b21f-fcaf-4ea8-8042-5062abd4f1ba submitted",
+    "id": "808f20a9-27c0-45ea-96d4-33ffbb218f5e",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:24.069Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-lena\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 90e487ce-0ad1-445b-b2a0-eb49a5e3c7e6 submitted",
+    "id": "4c02ea73-40f2-4f92-b1e5-6ff03d5cefe6",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:24.553Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-lena\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 0515f741-c184-428c-9f20-b6dbfefc3df4 submitted",
+    "id": "3d51cb6b-ec45-43a1-a10b-621aae8ba56f",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:25.347Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-lena\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 26c66a01-f059-4db6-8f49-2c6d84166427 submitted",
+    "id": "a243171f-16fe-45fa-82f1-a02d6641c6da",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:25.765Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-lena\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 1b5a485a-7073-49e9-a17f-cfa5eed330a2 submitted",
+    "id": "0af4bbb5-2a98-4534-8a17-fd7a58a7102a",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:26.220Z"
+  },
+  {
+    "reason": "Slot required for scenario entity \"slot-ultrasound\"",
+    "action": "create Slot",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Slot/4a7f4c79-669e-4283-9b81-fb8211262610 created",
+    "id": "54fd62b6-9ad7-40e9-8eff-ab3514a53910",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:26.807Z"
+  },
+  {
+    "reason": "Appointment required for scenario entity \"appointment-ultrasound\"",
+    "action": "create Appointment",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Appointment/783fa007-9353-40ec-88b2-8a422fa19a17 created",
+    "id": "3f7163e5-5711-4bb4-b94e-1e560d3738e7",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:27.168Z"
+  },
+  {
+    "reason": "openEHR capability \"diagnostic-report\" required for scenario patient \"patient-lena\"",
+    "action": "fill b99eeb54-ec79-4713-8725-2c936ee0e9c7 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 1ffb0dcf-42ad-47f8-a9c4-5e4b780d3309 submitted",
+    "id": "128cfa9d-bf1e-4d7f-b531-8ecf54d62a7b",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:27.547Z"
+  },
+  {
+    "reason": "Slot required for scenario entity \"slot-op-scheduling\"",
+    "action": "create Slot",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Slot/a942e445-899c-4fa1-a554-6949a94e21a9 created",
+    "id": "a43c1e92-fdb7-488d-bc56-113a9029856a",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:28.153Z"
+  },
+  {
+    "reason": "Appointment required for scenario entity \"appointment-op-scheduling\"",
+    "action": "create Appointment",
+    "tool": "create_fhir_resource",
+    "result": "success",
+    "message": "Appointment/0bdbbda2-4632-49d8-b144-e96300cccbad created",
+    "id": "64ad55f9-ef86-4cc8-9ccc-1e2f10ac3296",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:28.576Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/f66ceeee-e1d5-4f06-9d1d-8c856e5fd9a0 updated",
+    "id": "413fdb6e-3cec-49c0-ac50-57dcd7c5e2b4",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:29.436Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"op\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine dokumentierte Aufklärung/Einwilligung vor dem Eingriff an Station \"OP\".",
+    "id": "7d74bb33-91e6-4a30-9b4e-35ff2c573be0",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:29.438Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-lena\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 1b5a485a-7073-49e9-a17f-cfa5eed330a2 submitted",
+    "id": "37627e67-9e8e-47c4-bc87-50cb4dc7b1a0",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:29.928Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-lena\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 1b5a485a-7073-49e9-a17f-cfa5eed330a2 submitted",
+    "id": "293dcf6b-82f6-4731-9b1a-9adc4313c42b",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:30.345Z"
+  },
+  {
+    "reason": "openEHR capability \"anamnesis\" required for scenario patient \"patient-lena\"",
+    "action": "fill 88857072-b166-4f1e-bec7-56b779209669 into 94fba4cc-a179-4780-94f9-1cc9dba42f0a",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 1b5a485a-7073-49e9-a17f-cfa5eed330a2 submitted",
+    "id": "3503b2dc-81bf-4228-965f-d8cd07cd2e1c",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:31.129Z"
+  },
+  {
+    "reason": "openEHR capability \"procedure\" required for scenario patient \"patient-lena\"",
+    "action": "fill 88156aa7-4a18-4427-8710-c6c0b56da936 into 5f70143f-bb4d-4d44-8553-0103b597c246",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition bcab5c14-49a5-4e9f-b226-0715d6dcc609 submitted",
+    "id": "6418e7fa-98c2-4799-826f-7c5343f0b388",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:31.515Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/f66ceeee-e1d5-4f06-9d1d-8c856e5fd9a0 updated",
+    "id": "a7d682bc-0dbf-46da-8dff-2aa74c650560",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:32.149Z"
+  },
+  {
+    "reason": "openEHR capability \"lab-result\" required for scenario patient \"patient-lena\"",
+    "action": "fill 3d3adbcd-c3b5-4eae-a496-d0e9ab3fd609 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 0d19001b-d692-49ab-bfbf-4b0ee8b5d6d5 submitted",
+    "id": "4c5cc65e-423e-4d1d-b2a7-174aadadb3ad",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:32.721Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-lena\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition c111b6d3-69b5-4732-be78-ac21a91ab42e submitted",
+    "id": "050f69c6-efd3-4f9f-b71e-5d04d73bcd59",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:33.307Z"
+  },
+  {
+    "reason": "openEHR capability \"nursing-round\" required for scenario patient \"patient-lena\"",
+    "action": "fill 6f1449d1-bd94-4ab4-ac40-d3cbc8412847 into 5f70143f-bb4d-4d44-8553-0103b597c246",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 64930aa1-6a13-4ca3-b22b-7a8ca2dd7e27 submitted",
+    "id": "f0814bba-4003-4240-8c3d-584bb07e5beb",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:33.650Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-lena\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 7c39b058-fbe1-4b10-af1c-0c39cf58c549 submitted",
+    "id": "23397417-460f-4bb6-a10f-34cc16f136e6",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:34.156Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-lena\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition a9ddbd7a-c9a6-4d69-bdf7-d774b3e4649e submitted",
+    "id": "b75f9b75-c361-441f-9f08-b4c87a706cea",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:34.604Z"
+  },
+  {
+    "reason": "openEHR capability \"nursing-round\" required for scenario patient \"patient-lena\"",
+    "action": "fill 6f1449d1-bd94-4ab4-ac40-d3cbc8412847 into 5f70143f-bb4d-4d44-8553-0103b597c246",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 9f2cad55-6c65-44f4-93e4-f75175ad21bc submitted",
+    "id": "de458552-a98f-4ff4-a266-40d63674dbb8",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:35.345Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-lena\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition cee1bf1f-5a97-4a5a-a217-230559bd4c26 submitted",
+    "id": "c7a8bf68-0f4b-4dea-a7fc-f3a2939b46b0",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:35.778Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-lena\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition c282f520-67fe-4033-bed4-aec79b066461 submitted",
+    "id": "8fa707ca-35f7-4ca5-83ea-9c05dc6c46fd",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:36.388Z"
+  },
+  {
+    "reason": "openEHR capability \"nursing-round\" required for scenario patient \"patient-lena\"",
+    "action": "fill 6f1449d1-bd94-4ab4-ac40-d3cbc8412847 into 5f70143f-bb4d-4d44-8553-0103b597c246",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 3e956aeb-b895-4f1c-a7ae-6ffc06618d24 submitted",
+    "id": "95db8547-3e3a-4be0-8b65-046a2d270162",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:36.829Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-lena\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 1996d5cd-1005-4020-b89e-d0bd2af42bdf submitted",
+    "id": "e557b75a-5b41-4bb1-a9d4-83080a1afc21",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:37.360Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-lena\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 21a10cf7-707e-4438-855f-d55a69ce7854 submitted",
+    "id": "438ed5e9-8f2f-4e73-aa1c-1a8e3a93d45a",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:37.930Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-lena\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 7d713d28-f1a1-431e-8819-ac62a6386bae submitted",
+    "id": "73ebf1f2-b71c-40a2-957e-dd401becf1e3",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:38.434Z"
+  },
+  {
+    "reason": "openEHR capability \"nursing-round\" required for scenario patient \"patient-lena\"",
+    "action": "fill 6f1449d1-bd94-4ab4-ac40-d3cbc8412847 into 5f70143f-bb4d-4d44-8553-0103b597c246",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 62cd975c-dc93-471a-bc60-1293981f099a submitted",
+    "id": "38a6e50c-6909-446c-b412-7819df7bd3e4",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:39.069Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-lena\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 5e7356e0-7b9f-4af5-981e-b7484b979279 submitted",
+    "id": "27f694ae-b4de-452d-9044-fb1a22a911ba",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:39.836Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-lena\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 7ba973b5-e853-4c54-ae36-13d93c63f5a3 submitted",
+    "id": "027cd237-bb15-4102-b61f-b3f0e0901436",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:40.266Z"
+  },
+  {
+    "reason": "openEHR capability \"nursing-round\" required for scenario patient \"patient-lena\"",
+    "action": "fill 6f1449d1-bd94-4ab4-ac40-d3cbc8412847 into 5f70143f-bb4d-4d44-8553-0103b597c246",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition e10fd722-02b6-44e7-8e3e-193abdbf2b14 submitted",
+    "id": "7b383aba-671f-453d-b8a2-453d2eedac34",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:41.034Z"
+  },
+  {
+    "reason": "openEHR capability \"doctor-round\" required for scenario patient \"patient-lena\"",
+    "action": "fill fe7c41d6-32e8-4840-9974-effb9354fe54 into eb0e66f3-f8d2-4bd2-8924-87b281de83a9",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition 46c4f58f-cbfc-43f4-965f-3da446d6c5f8 submitted",
+    "id": "aff13d73-e053-493b-87f9-a3cde54e08a1",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:41.510Z"
+  },
+  {
+    "reason": "openEHR capability \"vital-signs\" required for scenario patient \"patient-lena\"",
+    "action": "fill 61730ea9-284d-458f-b173-47902d0a7c90 into b82c488f-688a-49d2-8031-447a0440d098",
+    "tool": "ensure_capability",
+    "result": "success",
+    "message": "Composition e2d62c6f-6973-47f0-a478-b46375e192bb submitted",
+    "id": "2a322ae8-20ae-4e2e-8699-7ca3a8d836c7",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:42.023Z"
+  },
+  {
+    "reason": "Update requested for Encounter \"encounter-arrival\"",
+    "action": "update Encounter",
+    "tool": "update_fhir_resource",
+    "result": "success",
+    "message": "Encounter/f66ceeee-e1d5-4f06-9d1d-8c856e5fd9a0 updated",
+    "id": "cfb8694a-665e-4a1a-ab1b-f67cfbea691e",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:42.542Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"discharge-home\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein Arztbrief/Entlassungsbrief zur Entlassung erstellt.",
+    "id": "c78653b4-85ce-480e-828e-bd4f1859d6ee",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:42.543Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"discharge-home\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Kein Nachsorgetermin nach der Entlassung vereinbart.",
+    "id": "5e2421fe-3208-4927-8f63-0645f67c2148",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:42.544Z"
+  },
+  {
+    "reason": "Kritik-System: Vollständigkeitsprüfung nach Ereignis \"discharge-home\"",
+    "action": "critique",
+    "tool": "critic",
+    "result": "success",
+    "message": "Task erstellt: Keine Entlassmedikation dokumentiert.",
+    "id": "22ab1118-dc15-401a-ba04-9330e3a69e8c",
+    "scenarioRunId": "appendizitis-lena-v3-1789567443",
+    "timestamp": "2026-09-16T14:04:42.545Z"
+  }
+]

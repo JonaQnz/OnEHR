@@ -1,0 +1,12 @@
+[
+  {
+    "eventId": "arrival",
+    "locationScenarioKey": "location-ambulanz-schwangerenvorsorge",
+    "timestamp": "2026-09-17T07:45:11.871Z"
+  },
+  {
+    "eventId": "ultrasound",
+    "locationScenarioKey": "location-radiologie",
+    "timestamp": "2026-09-17T07:45:15.778Z"
+  }
+]

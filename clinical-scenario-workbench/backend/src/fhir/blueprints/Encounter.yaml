@@ -1,0 +1,92 @@
+# Spec section 13/section 14's note: openEHR has no Composition-level
+# concept of Encounter administrative data (arrival/exit time, care
+# setting/class, status) - so, matching the main Forms app's own existing
+# fhirCdrService.ts doc comment, Encounter lives as a native FHIR resource
+# here too, created through the same generic, validated create_fhir_resource
+# pipeline as every other resource type in this workbench.
+resourceType: Encounter
+
+simulationRequired:
+  - status
+  - class.system
+  - class.code
+  - subject.reference
+  - period.start
+
+recommended: []
+
+references:
+  subject.reference:
+    target:
+      - Patient
+  participant.0.individual.reference:
+    target:
+      - Practitioner
+
+llmMayGenerate: []
+# An Encounter's patient is never something the LLM may invent - it is
+# always the scenario's own patient, resolved through the Entity Registry.
+llmMayNotGenerate:
+  - subject.reference
+
+dependencies:
+  - Patient
+mayTrigger:
+  - Practitioner
+
+fields:
+  - path: status
+    label: Status
+    type: select
+    required: true
+    editable: true
+    # The scenario states an EVENT (e.g. "patient-arrival"), not a raw FHIR
+    # status code - the scenario engine derives the right status deterministically.
+    sourcePolicy: derived
+    options:
+      - { value: planned, label: Geplant }
+      - { value: arrived, label: Angekommen }
+      - { value: triaged, label: Triagiert }
+      - { value: in-progress, label: Laufend }
+      - { value: onleave, label: Unterbrochen }
+      - { value: finished, label: Abgeschlossen }
+      - { value: cancelled, label: Storniert }
+  - path: class.system
+    label: Encounter-Klasse (System)
+    type: text
+    required: true
+    editable: true
+    sourcePolicy: derived
+  - path: class.code
+    label: Encounter-Klasse (Code)
+    type: code
+    required: true
+    editable: true
+    # e.g. "EMER" for an emergency-care scenario - derived from the
+    # scenario's own care-setting fact, never LLM-invented.
+    sourcePolicy: derived
+  - path: subject.reference
+    label: Patient
+    type: reference
+    required: true
+    editable: true
+    sourcePolicy: scenario
+    referenceResourceTypes:
+      - Patient
+  - path: period.start
+    label: Aufnahmezeitpunkt
+    type: datetime
+    required: true
+    editable: true
+    sourcePolicy: scenario
+  - path: participant.0.individual.reference
+    label: Behandelnde/r
+    type: reference
+    required: false
+    editable: true
+    # The engine assigns/updates this to whichever real Practitioner is
+    # currently staffing the patient's own station (scenario/engine.ts's
+    # ensureStationStaffing) - never scenario/LLM-authored.
+    sourcePolicy: derived
+    referenceResourceTypes:
+      - Practitioner
