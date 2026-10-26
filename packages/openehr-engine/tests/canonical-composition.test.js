@@ -243,6 +243,60 @@ test('OBSERVATION with a flattened HISTORY/EVENT wrapper gets correct archetype_
   assert.equal(event.data.items[0].value.value, 'positive');
 });
 
+test('OBSERVATION event\'s own `time` uses a bound field\'s real value when the form provides one, not always the Composition-wide commit time (same fixed-attribute gap as ACTION.time/EVENT_CONTEXT.start_time)', () => {
+  // Confirmed live (Vital_Signs.pulse.v2): the event's own `time` is a real,
+  // submittable leaf the WebTemplate export DOES expose
+  // (.../events[at0003]/time, min=1 max=1) - but buildObservationData never
+  // looked for a field bound to it, so every OBSERVATION event silently got
+  // the Composition's own commit time regardless of what was actually
+  // submitted, making it impossible to write a backdated/historical
+  // measurement through the normal write path (the whole point of a
+  // demo-data time-series generator).
+  const tree = {
+    id: 'vitals', name: 'Vitals', rmType: 'COMPOSITION', nodeId: 'openEHR-EHR-COMPOSITION.encounter.v1',
+    children: [{
+      id: 'pulse_heart_beat', name: 'Pulse/Heart beat', rmType: 'OBSERVATION', min: 0, max: 1,
+      nodeId: 'openEHR-EHR-OBSERVATION.pulse.v2', aqlPath: '/content[openEHR-EHR-OBSERVATION.pulse.v2]',
+      children: [{
+        id: 'any_event', name: 'Any event', rmType: 'EVENT', nodeId: 'at0003', min: 0, max: -1,
+        aqlPath: '/content[openEHR-EHR-OBSERVATION.pulse.v2]/data[at0002]/events[at0003]',
+        children: [
+          { id: 'rate', name: 'Rate', rmType: 'DV_QUANTITY', min: 0, max: 1, nodeId: 'at0004', aqlPath: '/content[openEHR-EHR-OBSERVATION.pulse.v2]/data[at0002]/events[at0003]/data[at0001]/items[at0004]/value' },
+          { id: 'time', name: 'Time', rmType: 'DV_DATE_TIME', min: 1, max: 1, aqlPath: '/content[openEHR-EHR-OBSERVATION.pulse.v2]/data[at0002]/events[at0003]/time' },
+        ],
+      }],
+    }],
+  };
+  const definition = {
+    id: 'vitals-form', name: 'Vitals', version: '1.0.0',
+    sourceTemplates: [{ alias: 'vitals', id: 'vitals.v1', version: '1.0.0', type: 'openEhrWebTemplate' }],
+    locales: { en: {} }, bindings: {},
+    layout: {
+      type: 'form',
+      children: [
+        { id: 'hr_rate', type: 'quantity', binding: { path: '/content[openEHR-EHR-OBSERVATION.pulse.v2]/data[at0002]/events[at0003]/data[at0001]/items[at0004]/value', rmType: 'DV_QUANTITY' } },
+        { id: 'hr_time', type: 'input-date-time', binding: { path: '/content[openEHR-EHR-OBSERVATION.pulse.v2]/data[at0002]/events[at0003]/time', rmType: 'DV_DATE_TIME' } },
+      ],
+    },
+  };
+  const composition = buildCanonicalComposition(
+    definition,
+    { hr_rate: { magnitude: 78, unit: '/min' }, hr_time: '2026-01-05T03:15:00.000Z' },
+    tree,
+    { time: '2026-09-10T12:00:00.000Z' }, // the real commit time - must NOT win when a real field value exists
+  );
+  const history = composition.content[0].data;
+  assert.equal(history.origin.value, '2026-01-05T03:15:00.000Z');
+  assert.equal(history.events[0].time.value, '2026-01-05T03:15:00.000Z');
+
+  // And the pre-existing hardcoded fallback still applies when no such field is bound at all (backward compatible).
+  const fallbackDefinition = { ...definition, layout: { type: 'form', children: [definition.layout.children[0]] } };
+  const fallbackComposition = buildCanonicalComposition(fallbackDefinition, { hr_rate: { magnitude: 78, unit: '/min' } }, tree, { time: '2026-09-10T12:00:00.000Z' });
+  const fallbackHistory = fallbackComposition.content[0].data;
+  assert.equal(fallbackHistory.origin.value, '2026-09-10T12:00:00.000Z');
+  assert.equal(fallbackHistory.events[0].time.value, '2026-09-10T12:00:00.000Z');
+});
+
 test('OBSERVATION.protocol (a sibling branch of .data, e.g. requester_order_identifier) is built and attached, not silently dropped', () => {
   // Confirmed live (vg_ObservationLab.v1.2.0): requester_order_identifier
   // binds under /protocol[at0004]/items[at0094]/items[at0062]/value, a

@@ -40,11 +40,45 @@ import { PrefillConflictDialog, type PrefillConflictItem } from './PrefillConfli
 type RuntimeDefinition = CanonicalForm | FormDefinitionV1;
 type GroupRow = Record<string, unknown>;
 
+/** One {groupId, index} step on the way down to a (possibly nested)
+ * repeatable group's row - see GroupContext.parentPath. */
+interface GroupPathEntry { groupId: string; index: number; }
+
 interface GroupContext {
   groupId: string;
   index: number;
   row: GroupRow;
   disabled: boolean;
+  /** Ancestor {groupId, index} steps from the outermost repeatable group
+   * down to (but not including) this one - lets updateGroupField/
+   * replaceGroupRows navigate straight to the right row inside `values`
+   * regardless of nesting depth (P0.2 UI half, nested repeats - see
+   * [[p02-repeatables-audit-and-first-fixes]]). Empty for a group nested
+   * directly under the top-level form. Matches core's own
+   * validateRuntimeValues pathPrefix chain exactly (form-runtime/index.ts),
+   * so a nested group's issue paths line up with the ones rendered here. */
+  parentPath: GroupPathEntry[];
+  /** Stable per-row key chain (rowKeysRef's own generated UUIDs, see
+   * rowKeysFor below) from the outermost row down to this one. Scopes a
+   * nested group's own row-key array to "this specific outer row instance"
+   * rather than a bare groupId, so two sibling outer rows' same-shaped
+   * nested groups never collide, and the scope survives an outer reorder
+   * (it's keyed by UUID, not by index). */
+  rowKeyPath: string[];
+}
+
+/** The full row-path prefix (`outer[0].inner[2]`) for everything rendered
+ * inside `groupContext`'s own row - undefined at the true top level. Used
+ * both for a field's basePath/issue path and for a nested group's own path,
+ * so this must build the identical string form-runtime/index.ts's
+ * validateRuntimeValues produces (`pathPrefix ? \`${pathPrefix}.${group.id}\`
+ * : group.id`, then `${groupPath}[${index}]`) - any divergence would make a
+ * nested group's own validation issues silently never match up with what's
+ * rendered here. */
+function groupChainPath(groupContext?: GroupContext): string | undefined {
+  if (!groupContext) return undefined;
+  const chain = [...groupContext.parentPath, { groupId: groupContext.groupId, index: groupContext.index }];
+  return chain.map((entry) => `${entry.groupId}[${entry.index}]`).join('.');
 }
 
 export interface RuntimeRendererProps {
@@ -164,6 +198,33 @@ function rowsOf(value: unknown): GroupRow[] {
   return Array.isArray(value)
     ? value.filter((item): item is GroupRow => Boolean(item && typeof item === 'object' && !Array.isArray(item)))
     : [];
+}
+
+/** Reads a (possibly nested) group's own rows straight out of `container`
+ * (either the top-level `values` object or a GroupRow - both are plain
+ * Record<string, unknown> for this purpose) by walking `path` - see
+ * GroupPathEntry/GroupContext.parentPath. An empty `path` is exactly the
+ * pre-nesting single-level case (`rowsOf(container[groupId])`). A missing
+ * ancestor row (shouldn't happen, but React can render one tick behind a
+ * removal) resolves to `{}` rather than throwing. */
+function getNestedRows(container: Record<string, unknown>, path: GroupPathEntry[], groupId: string): GroupRow[] {
+  if (path.length === 0) return rowsOf(container[groupId]);
+  const [head, ...rest] = path;
+  const rows = rowsOf(container[head.groupId]);
+  return getNestedRows(rows[head.index] || {}, rest, groupId);
+}
+
+/** The immutable-update counterpart to getNestedRows - replaces a (possibly
+ * nested) group's rows array, rebuilding every ancestor row/array along the
+ * way so no sibling row or sibling group is ever mutated in place. */
+function setNestedRows(container: Record<string, unknown>, path: GroupPathEntry[], groupId: string, nextRows: GroupRow[]): Record<string, unknown> {
+  if (path.length === 0) return { ...container, [groupId]: nextRows };
+  const [head, ...rest] = path;
+  const rows = rowsOf(container[head.groupId]);
+  const targetRow = rows[head.index] || {};
+  const updatedRow = setNestedRows(targetRow, rest, groupId, nextRows);
+  const nextOuterRows = rows.map((item, index) => (index === head.index ? updatedRow : item));
+  return { ...container, [head.groupId]: nextOuterRows };
 }
 
 function fieldIdFromIssuePath(path: string): string {
@@ -943,6 +1004,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   };
 
   const updateGroupField = (
+    ancestorPath: GroupPathEntry[],
     groupId: string,
     index: number,
     fieldId: string,
@@ -950,7 +1012,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
   ) => {
     nonPersistedIdsRef.current.delete(groupId);
     setValues((previous) => {
-      const rows = rowsOf(previous[groupId]);
+      const rows = getNestedRows(previous, ancestorPath, groupId);
       const row = rows[index];
       if (!row) return previous;
       const previousValue = row[fieldId];
@@ -958,7 +1020,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
       const nextRows = rows.map((item, itemIndex) => (
         itemIndex === index ? { ...item, [fieldId]: value } : item
       ));
-      const next = { ...previous, [groupId]: nextRows as never };
+      const next = setNestedRows(previous, ancestorPath, groupId, nextRows) as RuntimeValues;
       valuesRef.current = next;
       scriptClientRef.current?.dispatchGroupChange(
         groupId,
@@ -968,28 +1030,50 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
         previousValue,
         'user',
       );
+      // The Form Script worker's own GroupApi only ever understood a
+      // top-level `values[groupId]` (dispatchGroupChange above patches
+      // exactly that in its mirror) - for a NESTED group that mirror would
+      // now be wrong (there is no top-level `groupId` key at all), so a
+      // full re-sync corrects it. Skipped for the single-level case (empty
+      // ancestorPath) to leave that already-shipped, already-tested path
+      // byte-for-byte unchanged.
+      if (ancestorPath.length > 0) scriptClientRef.current?.syncValues(next, 'user', false);
       return next;
     });
   };
 
   const replaceGroupRows = (
+    ancestorPath: GroupPathEntry[],
     groupId: string,
     nextRows: GroupRow[],
     action?: { type: 'add'; index: number; item: GroupRow } | { type: 'remove'; index: number; item: GroupRow },
   ) => {
     nonPersistedIdsRef.current.delete(groupId);
     setValues((previous) => {
-      const next = { ...previous, [groupId]: nextRows as never };
+      const next = setNestedRows(previous, ancestorPath, groupId, nextRows) as RuntimeValues;
       valuesRef.current = next;
       if (action?.type === 'add') scriptClientRef.current?.addGroupItem(groupId, action.index, action.item);
       if (action?.type === 'remove') scriptClientRef.current?.removeGroupItem(groupId, action.index, action.item);
-      if (!action) scriptClientRef.current?.syncValues({ [groupId]: nextRows as never }, 'user', false);
+      if (!action) {
+        scriptClientRef.current?.syncValues(
+          ancestorPath.length > 0 ? next : ({ [groupId]: nextRows as never } as RuntimeValues),
+          'user',
+          false,
+        );
+      } else if (ancestorPath.length > 0) {
+        // Same worker-mirror gap as updateGroupField's own nested branch
+        // just above - addGroupItem/removeGroupItem only ever patch a
+        // top-level `values[groupId]`, which doesn't exist for a nested
+        // group.
+        scriptClientRef.current?.syncValues(next, 'user', false);
+      }
       return next;
     });
   };
 
   const issuesFor = (id: string, groupContext?: GroupContext) => {
-    const path = groupContext ? `${groupContext.groupId}[${groupContext.index}].${id}` : id;
+    const chain = groupChainPath(groupContext);
+    const path = chain ? `${chain}.${id}` : id;
     return validation.issues.filter((issue) => issue.path === path || issue.path.startsWith(`${path}[`));
   };
 
@@ -1248,9 +1332,10 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
     const effectiveNode = { ...node, placeholder: dynamic?.placeholder || node.placeholder };
     const nodeIssues = issuesFor(id, groupContext);
     const fieldValue = groupContext ? groupContext.row[id] : values[id];
-    const basePath = groupContext ? `${groupContext.groupId}[${groupContext.index}].${id}` : id;
+    const groupChain = groupChainPath(groupContext);
+    const basePath = groupChain ? `${groupChain}.${id}` : id;
     const commit = (next: unknown) => {
-      if (groupContext) updateGroupField(groupContext.groupId, groupContext.index, id, next);
+      if (groupContext) updateGroupField(groupContext.parentPath, groupContext.groupId, groupContext.index, id, next);
       else update(id, next);
     };
 
@@ -1275,7 +1360,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
               const list = Array.isArray(fieldValue) ? [...fieldValue] : [];
               list[index] = next;
               commit(list);
-            }, issuesForValue, groupContext ? `${id}-${groupContext.index}` : id, index === undefined ? basePath : `${basePath}[${index}]`)}
+            }, issuesForValue, groupChain ? `${id}-${groupChain}` : id, index === undefined ? basePath : `${basePath}[${index}]`)}
           </div>
           {index !== undefined && <button type="button" disabled={readOnly || groupContext?.disabled} onClick={() => commit((Array.isArray(fieldValue) ? fieldValue : []).filter((_item, itemIndex) => itemIndex !== index))} style={{ border: 0, background: 'transparent', color: '#64748b', cursor: 'pointer', padding: '0.5rem' }}>×</button>}
         </div>
@@ -1383,26 +1468,48 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
 
       if (node.type === 'container' && node.repeatable === true && id) {
         const descriptor = groupById.get(id);
-        const rows = rowsOf(values[id]);
-        const rowKeys = rowKeysFor(id, rows.length);
+        // Nesting-aware read: `groupContext.row` (when this repeatable
+        // container is itself rendered inside another group's row) is
+        // already the correct scoped object for this specific row instance
+        // - only the true top level reads straight off `values` (P0.2 UI
+        // half, nested repeats).
+        const rows = rowsOf(groupContext ? groupContext.row[id] : values[id]);
+        // The ancestor chain this group's OWN rows live under - empty at the
+        // top level, otherwise groupContext's own chain plus itself becomes
+        // the prefix any row *within* this group renders with.
+        const ancestorPath: GroupPathEntry[] = groupContext
+          ? [...groupContext.parentPath, { groupId: groupContext.groupId, index: groupContext.index }]
+          : [];
+        // This group's own path (no row index) - matches core's groupPath
+        // exactly (form-runtime/index.ts's validateGroup), used for the
+        // group-level repeat-min/repeat-max issues and this group's own
+        // touched/markChanged bookkeeping.
+        const parentChain = groupChainPath(groupContext);
+        const ownGroupPath = parentChain ? `${parentChain}.${id}` : id;
+        // Scopes this group's row-key array to the specific outer row
+        // instance it's nested under (by that row's own stable UUID key,
+        // not its index, so the scope survives an outer reorder) - see
+        // GroupContext.rowKeyPath's doc comment.
+        const rowKeyScope = groupContext ? [...groupContext.rowKeyPath, id].join('/') : id;
+        const rowKeys = rowKeysFor(rowKeyScope, rows.length);
         const maximumReached = descriptor?.repeatMax !== -1
           && descriptor?.repeatMax !== undefined
           && rows.length >= descriptor.repeatMax;
         const groupDisabled = readOnly || dynamic?.enabled === false || dynamic?.readonly === true;
         const addRow = () => {
-          markChanged(id);
+          markChanged(ownGroupPath);
           const row: GroupRow = {};
           fields.filter((field) => field.repeatableGroupId === id && field.defaultValue !== undefined).forEach((field) => {
             row[field.id] = field.repeatable ? [field.defaultValue] : field.defaultValue;
           });
-          replaceGroupRows(id, [...rows, row], { type: 'add', index: rows.length, item: row });
+          replaceGroupRows(ancestorPath, id, [...rows, row], { type: 'add', index: rows.length, item: row });
         };
         // Duplicate: a deep-ish copy (repeatable sub-fields' own arrays
         // still need their own new array, same reasoning as
         // buildRepeatableDefaults' shallow-copy fix elsewhere) so editing
         // the copy never mutates the source row through a shared reference.
         const duplicateRow = (index: number) => {
-          markChanged(id);
+          markChanged(ownGroupPath);
           const source = rows[index];
           const copy: GroupRow = {};
           Object.entries(source).forEach(([fieldId, fieldValue]) => {
@@ -1410,8 +1517,8 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
           });
           const nextRows = rows.slice();
           nextRows.splice(index + 1, 0, copy);
-          insertRowKeyAfter(id, index);
-          replaceGroupRows(id, nextRows, { type: 'add', index: index + 1, item: copy });
+          insertRowKeyAfter(rowKeyScope, index);
+          replaceGroupRows(ancestorPath, id, nextRows, { type: 'add', index: index + 1, item: copy });
         };
         // Reorder: swaps two adjacent rows in place - no add/remove Form
         // Script event fires (nothing was added or removed, see
@@ -1419,11 +1526,11 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
         const moveRow = (index: number, direction: -1 | 1) => {
           const target = index + direction;
           if (target < 0 || target >= rows.length) return;
-          markChanged(id);
+          markChanged(ownGroupPath);
           const nextRows = rows.slice();
           [nextRows[index], nextRows[target]] = [nextRows[target], nextRows[index]];
-          swapRowKeys(id, index, target);
-          replaceGroupRows(id, nextRows);
+          swapRowKeys(rowKeyScope, index, target);
+          replaceGroupRows(ancestorPath, id, nextRows);
         };
         const rowActions = (index: number, row: GroupRow) => (
           <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
@@ -1459,9 +1566,10 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
               type="button"
               disabled={groupDisabled || rows.length <= (descriptor?.repeatMin || 0)}
               onClick={() => {
-                markChanged(id);
-                removeRowKey(id, index);
+                markChanged(ownGroupPath);
+                removeRowKey(rowKeyScope, index);
                 replaceGroupRows(
+                  ancestorPath,
                   id,
                   rows.filter((_item, itemIndex) => itemIndex !== index),
                   { type: 'remove', index, item: row },
@@ -1474,7 +1582,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
           </div>
         );
         const addRowButton = <button type="button" disabled={groupDisabled || maximumReached} onClick={addRow} style={{ border: '1px dashed #94a3b8', background: 'transparent', borderRadius: '6px', padding: '0.45rem 0.75rem', color: '#475569', cursor: 'pointer' }}>+ Eintrag hinzufügen</button>;
-        const groupIssuesFooter = validation.issues.filter((issue) => issue.path === id && (alwaysShowValidation || (isBlockingIssue(issue) ? submitted : touchedFields[id] !== undefined))).map((issue, index) => {
+        const groupIssuesFooter = validation.issues.filter((issue) => issue.path === ownGroupPath && (alwaysShowValidation || (isBlockingIssue(issue) ? submitted : touchedFields[ownGroupPath] !== undefined))).map((issue, index) => {
           const warning = !isBlockingIssue(issue);
           return (
             <div
@@ -1528,7 +1636,7 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
                       <tr key={rowKeys[index]} style={{ background: index % 2 === 1 ? '#f8fafc' : undefined }}>
                         {columns.map((column, columnIndex) => (
                           <td key={idOf(column) || columnIndex} style={{ padding: '0.4rem 0.5rem', borderBottom: '1px solid #e2e8f0', verticalAlign: 'top' }}>
-                            {renderField(column, { groupId: id, index, row, disabled: groupDisabled }, true)}
+                            {renderField(column, { groupId: id, index, row, disabled: groupDisabled, parentPath: ancestorPath, rowKeyPath: [...(groupContext?.rowKeyPath || []), rowKeys[index]] }, true)}
                           </td>
                         ))}
                         <td style={{ padding: '0.4rem 0.5rem', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>{rowActions(index, row)}</td>
@@ -1560,6 +1668,8 @@ const FormRuntime = forwardRef<FormRuntimeHandle, FormRuntimeProps>(function For
                   index,
                   row,
                   disabled: groupDisabled,
+                  parentPath: ancestorPath,
+                  rowKeyPath: [...(groupContext?.rowKeyPath || []), rowKeys[index]],
                 }))}
               </div>
             ))}

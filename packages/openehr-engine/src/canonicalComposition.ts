@@ -653,14 +653,35 @@ function buildObservationData(node: WebTemplateTreeNode, scope: RuntimeValues, i
       // scraped from a surviving child's aqlPath, not reused from the
       // EVENT's own id (which is a different, outer RM node).
       : buildEntryData(eventNode, scope, index, context, 'data');
+    // The event's own `time` is a real, submittable RM attribute the
+    // WebTemplate export DOES expose as a visible leaf node (confirmed live,
+    // e.g. Vital_Signs' pulse/blood_pressure/... `.../events[atXXXX]/time`)
+    // - same category as ACTION's own `time` and EVENT_CONTEXT's own
+    // `start_time` above/below (resolveFixedAttributeField), just never
+    // looked up here: every OBSERVATION event silently got the
+    // Composition's own commit time regardless of what a form actually
+    // bound to this path, which makes it impossible to submit a
+    // backdated/historical measurement through the normal write path. Use a
+    // bound field's real value when a form provides one, falling back to
+    // the previous fixed default (origin) for any form that doesn't.
+    const timeField = resolveFixedAttributeField(eventNode, index, scope, '/time');
+    const eventTime = timeField
+      ? (buildLeafDvValue('DV_DATE_TIME', timeField.field, timeField.raw) as Canonical | undefined)
+      : undefined;
+    // A single-event HISTORY's own `origin` and its one event's `time` are
+    // conventionally the same instant (the unmodified code already assumed
+    // this, building both from the same `origin` value) - keep that
+    // invariant rather than letting `origin` silently stay at "now" while
+    // the event itself is backdated.
+    const resolvedTime = eventTime || origin;
     const event: Canonical = {
       _type: eventNode.rmType === 'INTERVAL_EVENT' ? 'INTERVAL_EVENT' : 'POINT_EVENT',
       name: dvText(nodeLabel(eventNode)),
       archetype_node_id: eventNode.nodeId || eventNode.id,
-      time: origin,
+      time: resolvedTime,
       data: eventData,
     };
-    return { _type: 'HISTORY', name: dvText(nodeLabel(node)), archetype_node_id: historyNodeId, origin, events: [event] };
+    return { _type: 'HISTORY', name: dvText(nodeLabel(node)), archetype_node_id: historyNodeId, origin: resolvedTime, events: [event] };
   }
   // This template's WebTemplate export flattened HISTORY/EVENT away
   // entirely (single-occurrence wrapper nodes are sometimes omitted from the

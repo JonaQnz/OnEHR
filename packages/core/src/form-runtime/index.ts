@@ -707,6 +707,21 @@ export interface RuntimeValidationOptions {
 
 const DRAFT_EXEMPT_ISSUE_CODES: ReadonlySet<RuntimeValidationIssue['code']> = new Set(['required', 'repeat-min']);
 
+// A field's layout `id` and its `name` (the prefixed key `bindings`/
+// toOpenEhrFlatComposition/formScript's FieldId actually use - see
+// RuntimeFieldDescriptor.name) can differ for a flat/singleton field, same
+// as they can for a field wrapped in a repeatable group (that case already
+// read `row[field.id]` too, so it was equally affected). Real bug found live
+// (clinician agent, Petra Hoffmann case, docs/simulation/issues/
+// petra-hoffmann-copd-1.md): a session populated correctly under `name`
+// still failed `required` and was permanently unsubmittable, because this
+// check only ever read `scope[field.id]`. `id` wins when both are somehow
+// present, matching every other id-then-name fallback in this codebase
+// (e.g. openehr-engine's own layout-id-then-bindings-map order).
+function fieldValueOf(scope: Record<string, RuntimeValue>, field: RuntimeFieldDescriptor): RuntimeValue {
+  return scope[field.id] !== undefined ? scope[field.id] : scope[field.name];
+}
+
 export function validateRuntimeValues(form: Pick<CanonicalForm, 'layout' | 'locales'>, values: RuntimeValues, options?: RuntimeValidationOptions): RuntimeValidationResult {
   const issues: RuntimeValidationIssue[] = [];
   const allGroups = collectRuntimeGroups(form);
@@ -758,7 +773,7 @@ export function validateRuntimeValues(form: Pick<CanonicalForm, 'layout' | 'loca
       }
       directFields.forEach((field) => {
         if (!isRuntimeFieldVisible(field, values)) return;
-        const value = row[field.id] as RuntimeValue;
+        const value = fieldValueOf(row, field);
         const path = `${rowPath}.${field.id}`;
         if (!field.repeatable) {
           validateOne(field, value, path, issues);
@@ -780,7 +795,7 @@ export function validateRuntimeValues(form: Pick<CanonicalForm, 'layout' | 'loca
   allFields.forEach((field) => {
     if (field.repeatableGroupId) return;
     if (!isRuntimeFieldVisible(field, values)) return;
-    const value = values[field.id];
+    const value = fieldValueOf(values, field);
     if (!field.repeatable) { validateOne(field, value, field.id, issues); return; }
     const repeated = value === undefined ? [] : value;
     if (!Array.isArray(repeated)) { issue(issues, field.id, 'type', `${field.label} requires repeated values.`); return; }
