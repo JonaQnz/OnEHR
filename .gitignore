@@ -13,13 +13,15 @@ lib/
 .env.test.local
 .env.production.local
 
-# Runtime data directory - the api service's docker-compose bind mount
-# (DATA_DIR=/app/data), holding mutable local state (config.json with
-# credentials, uploaded assets, ...). Never meant to be version controlled.
-# Root-anchored (leading /) so this doesn't also match an unrelated data/
-# directory elsewhere in the tree (e.g. apps/data/config.json is its own,
-# intentionally tracked file).
+# Runtime configuration and data - never version controlled. Secrets come
+# from environment variables (apps/api/.env.example) or an untracked local
+# config.json (copy apps/data/config.example.json to apps/data/config.json).
+# /data/ is the api service's docker-compose bind mount (DATA_DIR=/app/data).
+# .data uses a file-level pattern on purpose: ignoring the directory itself
+# breaks staging the deletion of files that used to be tracked in it.
 /data/
+/.data/*
+**/data/config.json
 
 # Logs
 logs
