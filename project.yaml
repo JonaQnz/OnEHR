@@ -34,6 +34,7 @@ rollback:
   keep: 3
 test:
   unit: npm ci --no-audit --no-fund --loglevel=error && npm test
+  integration: bash scripts/integration-smoke.sh
 docs:
   readme: README.md
   agents: AGENTS.md
