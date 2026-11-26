@@ -2,15 +2,39 @@
 schema_version: 1
 id: OnEHR
 name: OnEHR
-description: ''
-type: library
+description: openEHR form builder and runtime (API + web)
+type: webapp
 repository:
   default_branch: main
   integration_branch: develop
 stack:
 - node
+- docker
+build:
+  command: docker build -t onehr:$(git rev-parse --short HEAD) .
+healthcheck:
+  path: /api/health/ready
+  expect_status: 200
+environments:
+  test:
+    branch: develop
+    compose_project: onehr-test
+    port: 18114
+  production:
+    branch: main
+    compose_project: onehr-prod
+    port: 18115
+    requires_approval: true
+deploy:
+  mechanism: compose
+  compose_file: compose.yaml
+  artifact: docker-image
+rollback:
+  mechanism: previous-artifact
+  keep: 3
 test:
   unit: npm ci --no-audit --no-fund --loglevel=error && npm test
 docs:
   readme: README.md
   agents: AGENTS.md
+  claude: CLAUDE.md
