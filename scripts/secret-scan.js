@@ -129,6 +129,17 @@ function makeFinding({ filePath, line, rule, value }) {
   return finding;
 }
 
+function makeHistoryFinding({ commit, filePath, rule, value }) {
+  const finding = { commit, path: filePath, rule, group: null };
+  Object.defineProperty(finding, '_value', {
+    value,
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  });
+  return finding;
+}
+
 function scanText(text, filePath) {
   const findings = [];
   const lines = String(text).split(/\r?\n/);
@@ -212,6 +223,39 @@ function assignGroups(findings) {
   return findings;
 }
 
+function createHistoryState() {
+  return { findings: [], seen: new Set(), commit: null, file: null };
+}
+
+function scanHistoryLine(state, line) {
+  if (line.startsWith('commit ')) {
+    state.commit = line.slice('commit '.length).trim();
+    state.file = null;
+    return;
+  }
+  if (line.startsWith('+++ b/')) {
+    state.file = line.slice('+++ b/'.length);
+    return;
+  }
+  if (line.startsWith('+++ ')) {
+    state.file = null;
+    return;
+  }
+  if (!state.commit || !state.file) return;
+  if (!line.startsWith('+') || line.startsWith('+++')) return;
+  if (isSkippedPath(state.file)) return;
+
+  const commit = state.commit.slice(0, 10);
+  for (const { rule, value } of scanLineValues(line.slice(1))) {
+    const key = `${commit}\0${state.file}\0${rule}\0${value}`;
+    if (state.seen.has(key)) continue;
+    state.seen.add(key);
+    state.findings.push(
+      makeHistoryFinding({ commit, filePath: state.file, rule, value }),
+    );
+  }
+}
+
 function scanHistory(repoRoot) {
   return new Promise((resolve, reject) => {
     const child = spawn(
@@ -220,10 +264,7 @@ function scanHistory(repoRoot) {
       { cwd: repoRoot, stdio: ['ignore', 'pipe', 'pipe'] },
     );
 
-    const findings = [];
-    const seen = new Set();
-    let currentCommit = null;
-    let currentFile = null;
+    const state = createHistoryState();
     let stderr = '';
 
     child.on('error', reject);
@@ -237,30 +278,7 @@ function scanHistory(repoRoot) {
     });
 
     lines.on('line', (line) => {
-      if (line.startsWith('commit ')) {
-        currentCommit = line.slice('commit '.length).trim();
-        currentFile = null;
-        return;
-      }
-      if (line.startsWith('+++ b/')) {
-        currentFile = line.slice('+++ b/'.length);
-        return;
-      }
-      if (line.startsWith('+++ ')) {
-        currentFile = null;
-        return;
-      }
-      if (!currentCommit || !currentFile) return;
-      if (!line.startsWith('+') || line.startsWith('+++')) return;
-      if (isSkippedPath(currentFile)) return;
-
-      const commit = currentCommit.slice(0, 10);
-      for (const { rule } of scanLineValues(line.slice(1))) {
-        const key = `${commit}\0${currentFile}\0${rule}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        findings.push({ commit, path: currentFile, rule, group: null });
-      }
+      scanHistoryLine(state, line);
     });
 
     child.on('close', (code) => {
@@ -268,9 +286,17 @@ function scanHistory(repoRoot) {
         reject(new Error(`git log failed (${code}): ${stderr.trim()}`));
         return;
       }
-      resolve(findings);
+      resolve(state.findings);
     });
   });
+}
+
+function scanPatch(text) {
+  const state = createHistoryState();
+  for (const line of String(text).split(/\r?\n/)) {
+    scanHistoryLine(state, line);
+  }
+  return state.findings;
 }
 
 function loadAllowlist(file) {
@@ -308,6 +334,45 @@ function summarize(findings) {
   return { total: findings.length, byRule, byPath };
 }
 
+function summarizeHistory(findings) {
+  const rows = new Map();
+  for (const finding of findings) {
+    const key = `${finding.path}\0${finding.rule}`;
+    let row = rows.get(key);
+    if (!row) {
+      row = {
+        path: finding.path,
+        rule: finding.rule,
+        commits: new Set(),
+        newest: finding.commit,
+        oldest: finding.commit,
+        groups: new Set(),
+      };
+      rows.set(key, row);
+    }
+    row.commits.add(finding.commit);
+    row.oldest = finding.commit;
+    if (finding.group !== null && finding.group !== undefined) {
+      row.groups.add(finding.group);
+    }
+  }
+
+  return [...rows.values()]
+    .map((row) => ({
+      path: row.path,
+      rule: row.rule,
+      commits: row.commits.size,
+      newest: row.newest,
+      oldest: row.oldest,
+      groups: [...row.groups].sort((a, b) => a - b),
+    }))
+    .sort((a, b) => {
+      if (a.path !== b.path) return a.path < b.path ? -1 : 1;
+      if (a.rule !== b.rule) return a.rule < b.rule ? -1 : 1;
+      return 0;
+    });
+}
+
 function repoRootOf() {
   return execFileSync('git', ['rev-parse', '--show-toplevel'], {
     encoding: 'utf8',
@@ -337,17 +402,23 @@ async function main(argv) {
 
   const root = repoRootOf();
   const allowlist = allowlistFile ? loadAllowlist(allowlistFile) : [];
-  const { remaining, allowed } = applyAllowlist(scanTree(root), allowlist);
+  const treeFindings = scanTree(root);
+  const { remaining, allowed } = applyAllowlist(treeFindings, allowlist);
 
   let history = null;
   if (includeHistory) {
     history = await scanHistory(root);
+    assignGroups([...treeFindings, ...history]);
   }
 
   if (useJson) {
     const output = { tree: { summary: summarize(remaining), findings: remaining, allowed } };
     if (history) {
-      output.history = { summary: summarize(history), findings: history };
+      output.history = {
+        summary: summarize(history),
+        rows: summarizeHistory(history),
+        findings: history,
+      };
     }
     console.log(JSON.stringify(output, null, 2));
   } else {
@@ -360,7 +431,12 @@ async function main(argv) {
     if (history) {
       console.log('');
       console.log(`history: ${history.length} finding(s)`);
-      printFindings(history);
+      for (const row of summarizeHistory(history)) {
+        const groups = row.groups.length > 0 ? row.groups.join(',') : '-';
+        console.log(
+          `${row.path} ${row.rule} commits=${row.commits} newest=${row.newest} oldest=${row.oldest} groups=${groups}`,
+        );
+      }
     }
   }
 
@@ -380,8 +456,10 @@ module.exports = {
   scanText,
   scanTree,
   scanHistory,
+  scanPatch,
   loadAllowlist,
   applyAllowlist,
   summarize,
+  summarizeHistory,
   assignGroups,
 };
