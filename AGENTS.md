@@ -11,6 +11,8 @@ Claude plans and reviews; OpenCode workers implement work packages.
 
 ## Project conventions (where code and tests go)
 - Tests live in `tests/` and run with the unit test command above.
+- Deployment: the deploy files are `Dockerfile` + `compose.yaml` (see `docs/deployment.md`); their tests live in `tests/deploy/` and run with the unit test command above.
+- Host proof: `scripts/integration-smoke.sh` (project.yaml `test.integration`, needs Docker) is run by the platform on the integration head before a task closes - workers do not run it.
 
 Skills on this server (MCP server `aidhub`, tools `<skill>_<action>`):
 - `aid-chat` (chat): Persistent per-project chat between the operator and Claude in the preview shell
