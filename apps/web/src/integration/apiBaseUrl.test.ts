@@ -26,4 +26,18 @@ describe('apiBaseUrl', () => {
     expect(API_ORIGIN).toBe('https://forms.example.org');
     expect(API_BASE_URL).toBe('https://forms.example.org/api');
   });
+
+  it("treats VITE_API_URL '/' as same-origin, giving API_BASE_URL '/api'", async () => {
+    vi.stubEnv('VITE_API_URL', '/');
+    const { API_ORIGIN, API_BASE_URL } = await import('./apiBaseUrl');
+    expect(API_ORIGIN).toBe('');
+    expect(API_BASE_URL).toBe('/api');
+  });
+
+  it('strips a trailing slash from a full VITE_API_URL origin', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://forms.example.org/');
+    const { API_ORIGIN, API_BASE_URL } = await import('./apiBaseUrl');
+    expect(API_ORIGIN).toBe('https://forms.example.org');
+    expect(API_BASE_URL).toBe('https://forms.example.org/api');
+  });
 });

@@ -14,6 +14,10 @@
  * serves static `dist/` with no reverse proxy). One shared source
  * instead - every one of those files now imports API_ORIGIN/API_BASE_URL
  * from here rather than hand-rolling its own copy of the same fallback.
+ *
+ * Trailing slashes are stripped so `VITE_API_URL='/'` yields an empty
+ * origin and a same-origin `/api` base, which is what the single
+ * production image uses.
  */
-export const API_ORIGIN: string = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+export const API_ORIGIN: string = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 export const API_BASE_URL: string = `${API_ORIGIN}/api`;
