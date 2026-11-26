@@ -19,3 +19,13 @@ data
 **/screenshot*.png
 **/package-lock.json
 !package-lock.json
+
+# Runtime config, env files and keys anywhere in the tree
+# (data/.data above only match at the build-context root)
+**/data/config.json
+**/.data
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
