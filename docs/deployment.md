@@ -73,11 +73,46 @@ Swap `onehr-test` for `onehr-prod` for production.
 With no dependencies (`fetch` is global on Node >= 18):
 
 ```bash
-SMOKE_BASE_URL=http://127.0.0.1:18114 node scripts/smoke-test.mjs
+SMOKE_BASE_URL=http://127.0.0.1:18114 SMOKE_WAIT_S=180 node scripts/smoke-test.mjs
 ```
 
-It checks `GET /api/health` (optionally matching `SMOKE_EXPECT_VERSION`),
-`GET /api/health/ready`, the SPA at `/`, and - when `SMOKE_USERNAME` and
-`SMOKE_PASSWORD` are set - logs in at `/api/auth/login` and reads
-`/api/auth/me` with the session cookie. It prints one PASS/FAIL line per
-step and exits 1 on any failure.
+The steps are:
+
+- optional wait for `/api/health/ready` (up to `SMOKE_WAIT_S` seconds);
+- `GET /api/health` (the version must equal `SMOKE_EXPECT_VERSION` when set);
+- `GET /api/health/ready`;
+- `GET /` (expects `text/html`);
+- with `SMOKE_USERNAME` / `SMOKE_PASSWORD`:
+  - `GET /api/forms` without a session must give 401/403;
+  - `POST /api/auth/login`;
+  - `GET /api/auth/me` must report `authenticated: true`;
+  - `POST /api/forms` creates a synthetic form named `smoke-synthetic-<timestamp>`;
+  - `GET /api/forms/:id` reads it back;
+  - `POST /api/forms/:id/delete` cleans it up.
+
+It prints one PASS/FAIL line per step, never prints the password or the
+session cookie, and exits 1 on any failure.
+
+## Host proof (test.integration)
+
+The deploy files are `Dockerfile` + `compose.yaml` (described in this file,
+`docs/deployment.md`); their tests live in `tests/deploy/` and run with the
+unit test command.
+
+`bash scripts/integration-smoke.sh` is the project's acceptance proof. The
+AI Dev Home platform runs it automatically in a clean clone of the integration
+head before a task closes. Nobody runs it by hand; it needs Docker and
+Node >= 18.
+
+- It builds the image of that commit with `--build-arg APP_VERSION=<sha12>`.
+- It starts `compose.yaml` as the separate compose project `onehr-proof` on a
+  free `127.0.0.1` port. That gives separate containers and volumes, so TEST
+  (`onehr-test`) and PROD (`onehr-prod`) are never touched.
+- It generates a random bootstrap admin password per run, which is never
+  printed and is redacted from the report.
+- It runs the smoke flow with `SMOKE_EXPECT_VERSION=<sha12>` and
+  `SMOKE_WAIT_S=180`.
+- It always removes the stack with `docker compose -p onehr-proof down -v`
+  and the image tag.
+- It writes `reports/integration-smoke.txt` (commit, result, step lines). The
+  platform keeps that file, so `reports/` must never be git-ignored.
