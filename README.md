@@ -116,7 +116,7 @@ The SDK supports powerful UI injections:
 - **`registerField`** — Inject entirely new drag-and-drop components into the Form Builder's *Layout Elements* toolbox.
 - **`registerRenderer`** — Provide native React implementations for those custom fields when executed inside `FormRuntime` (Live Mode / Preview).
 
-To enable plugins, install them in the repository and list them in your environment variables or local `data/config.json`:
+To enable plugins, install them in the repository and list them in your environment variables or local, untracked `data/config.json` (template: `apps/data/config.example.json`):
 ```json
 "pluginPackages": [
   "formbuilder-plugin-hapi-terminology",
@@ -227,6 +227,8 @@ Ensure you have the following installed on your machine:
    cp apps/api/.env.example apps/api/.env
    # Update DATABASE_URL in apps/api/.env if needed
    ```
+
+   **Configuration & secrets**: credentials are never committed. The API reads them from environment variables (all listed in `apps/api/.env.example`) or from an untracked runtime `config.json` in `DATA_DIR` (Docker Compose mounts `./data`). For local development copy the template and fill in your own values: `cp apps/data/config.example.json apps/data/config.json`. `config.json` and `.env` files are git-ignored - never commit them.
 
    Run Prisma migrations:
    ```bash
