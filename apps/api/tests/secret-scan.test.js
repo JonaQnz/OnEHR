@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const test = require('node:test');
 
 const {
@@ -7,6 +8,8 @@ const {
   assignGroups,
   applyAllowlist,
   summarize,
+  scanPatch,
+  summarizeHistory,
 } = require('../../../scripts/secret-scan');
 
 // Synthetic secret material is assembled at runtime so this test file does not
@@ -131,4 +134,82 @@ test('summarize counts totals by rule and by path', () => {
     byRule: { 'aws-access-key': 2, 'github-token': 1 },
     byPath: { 'a.txt': 2, 'b.txt': 1 },
   });
+});
+
+const FAKE_A = 'fake' + '-history-a';
+const FAKE_B = 'fake' + '-history-b';
+const FAKE_C = 'fake' + '-history-c';
+
+// Shaped like `git log -p --format='commit %H'` output.
+const HISTORY_PATCH = [
+  'commit ' + 'a'.repeat(40),
+  '+++ b/apps/data/config.json',
+  `+  "ehrbasePass": "${FAKE_A}",`,
+  `-  "ehrbasePass": "${FAKE_C}",`,
+  'commit ' + 'b'.repeat(40),
+  '+++ b/docker-compose.yml',
+  `+      SECURITY_AUTHPASSWORD: ${FAKE_A}`,
+  `+      DB_PASS: ${FAKE_B}`,
+  `+      DB_PASS_ADMIN: ${FAKE_B}`,
+  '+++ /dev/null',
+  `+      OTHER_PASSWORD: ${FAKE_C}`,
+].join('\n');
+
+test('scanPatch deduplicates history findings per commit, path, rule and value', () => {
+  const findings = scanPatch(HISTORY_PATCH);
+  assert.deepEqual(
+    findings.map(({ commit, path, rule }) => ({ commit, path, rule })),
+    [
+      { commit: 'aaaaaaaaaa', path: 'apps/data/config.json', rule: 'json-secret-field' },
+      { commit: 'bbbbbbbbbb', path: 'docker-compose.yml', rule: 'env-secret-assignment' },
+      { commit: 'bbbbbbbbbb', path: 'docker-compose.yml', rule: 'env-secret-assignment' },
+    ],
+  );
+});
+
+test('history findings never serialize their values', () => {
+  const findings = scanPatch(HISTORY_PATCH);
+  const serialized = JSON.stringify(findings);
+  assert.ok(!serialized.includes(FAKE_A));
+  assert.ok(!serialized.includes(FAKE_B));
+  assert.ok(!serialized.includes(FAKE_C));
+  assert.deepEqual(Object.keys(findings[0]), ['commit', 'path', 'rule', 'group']);
+  assert.equal(findings[0]._value, FAKE_A);
+});
+
+test('assignGroups shares ids between tree and history findings with the same value', () => {
+  const all = assignGroups([
+    ...scanText(`DB_PASSWORD=${FAKE_A}`, 'tree.env'),
+    ...scanPatch(HISTORY_PATCH),
+  ]);
+
+  const treeFinding = all[0];
+  const configFinding = all[1];
+  const authFinding = all[2];
+  const dbFinding = all[3];
+
+  assert.equal(typeof treeFinding.group, 'number');
+  assert.notEqual(treeFinding.group, null);
+  assert.equal(configFinding.group, treeFinding.group);
+  assert.equal(authFinding.group, treeFinding.group);
+  assert.equal(dbFinding.group, null);
+});
+
+test('summarizeHistory groups commits by path and rule', () => {
+  const findings = [
+    { commit: 'c3', path: 'b.yml', rule: 'env-secret-assignment', group: 2 },
+    { commit: 'c2', path: 'a.json', rule: 'json-secret-field', group: null },
+    { commit: 'c1', path: 'b.yml', rule: 'env-secret-assignment', group: 1 },
+    { commit: 'c1', path: 'b.yml', rule: 'env-secret-assignment', group: 2 },
+  ];
+
+  assert.deepEqual(summarizeHistory(findings), [
+    { path: 'a.json', rule: 'json-secret-field', commits: 1, newest: 'c2', oldest: 'c2', groups: [] },
+    { path: 'b.yml', rule: 'env-secret-assignment', commits: 2, newest: 'c3', oldest: 'c1', groups: [1, 2] },
+  ]);
+});
+
+test('this test file contains no literal secret-like values', () => {
+  const text = fs.readFileSync(__filename, 'utf8');
+  assert.deepEqual(scanText(text, 'apps/api/tests/secret-scan.test.js'), []);
 });
