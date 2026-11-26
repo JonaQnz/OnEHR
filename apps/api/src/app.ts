@@ -1,5 +1,6 @@
 import express, { type Express } from 'express';
 import cors from 'cors';
+import path from 'path';
 import formRoutes from './routes/formRoutes';
 import templateRoutes from './routes/templateRoutes';
 import configRoutes from './routes/configRoutes';
@@ -19,6 +20,7 @@ import ehrbaseAdminRoutes from './routes/ehrbaseAdminRoutes';
 import compositionSessionRoutes from './routes/compositionSessionRoutes';
 import dataWidgetRoutes from './routes/dataWidgetRoutes';
 import terminologyRoutes from './routes/terminologyRoutes';
+import prisma from './db/prisma';
 
 /**
  * Pure Express app construction - every route, in the exact same order
@@ -47,7 +49,15 @@ export function createApp(): Express {
 
   app.use('/api/auth', authRoutes);
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', timestamp: new Date().toISOString(), version: process.env.APP_VERSION || 'dev' });
+  });
+  app.get('/api/health/ready', async (req, res) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      res.json({ status: 'ready', version: process.env.APP_VERSION || 'dev' });
+    } catch {
+      res.status(503).json({ status: 'unavailable' });
+    }
   });
   app.use('/api/form-sessions', formSessionRoutes);
   app.use('/api/composition-sessions', compositionSessionRoutes);
@@ -66,6 +76,17 @@ export function createApp(): Express {
   app.use('/api/templates', templateRoutes);
   app.use('/api/config', configRoutes);
   app.use('/api/plugins', pluginRoutes);
+
+  // Optional serving of the built web app (SPA) from the same process. Read
+  // inside createApp() so tests can set WEB_DIST_DIR before booting a server.
+  const webDistDir = process.env.WEB_DIST_DIR;
+  if (webDistDir) {
+    app.use(express.static(webDistDir, { index: false }));
+    app.use((req, res, next) => {
+      if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
+      res.sendFile(path.join(webDistDir, 'index.html'));
+    });
+  }
 
   app.use(errorHandler);
   return app;
