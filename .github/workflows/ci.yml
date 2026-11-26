@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 # Cancel a still-running run for the same branch/PR once a newer commit
 # lands, instead of letting both finish.
@@ -90,3 +90,14 @@ jobs:
 
       - name: Build apps/web (tsc -b && vite build)
         run: npm run build --workspace=web
+
+  build-image:
+    name: Build deployment image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Builds the single runtime image (API + built SPA) from the root
+      # Dockerfile, with the commit recorded as APP_VERSION.
+      - name: Build image
+        run: docker build --build-arg APP_VERSION=${{ github.sha }} -t onehr:ci .

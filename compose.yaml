@@ -1,0 +1,49 @@
+# OnEHR production compose stack (TEST and PROD share this file).
+# One image (built from the root Dockerfile) runs the API, which also serves
+# the SPA. The platform starts it per environment:
+#
+#   IMAGE=onehr:<sha> HOST_PORT=18114 APP_ENV=test \
+#     docker compose -p onehr-test up -d
+#
+# The app port is published on loopback only; the database is reachable
+# only on the compose project network (no host port). That is why the
+# internal default password is acceptable - set ONEHR_DB_PASSWORD in the
+# CI/CD environment to override it. Never publish db ports here: the
+# platform policy (and tests/deploy/contract.test.js) rejects that.
+services:
+  app:
+    image: ${IMAGE:-onehr:dev}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${HOST_PORT:?HOST_PORT required}:3001"
+    environment:
+      APP_ENV: ${APP_ENV:-test}
+      DATABASE_URL: postgresql://onehr:${ONEHR_DB_PASSWORD:-onehr-internal}@db:5432/onehr?schema=public
+      WEB_ORIGIN: ${WEB_ORIGIN:-}
+      EHRBASE_URL: ${EHRBASE_URL:-}
+      FORMS_BOOTSTRAP_ADMIN_USERNAME: ${FORMS_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      FORMS_BOOTSTRAP_ADMIN_PASSWORD: ${FORMS_BOOTSTRAP_ADMIN_PASSWORD:-}
+      AID_NOTIFY_TOKEN: ${AID_NOTIFY_TOKEN:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      - app_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: onehr
+      POSTGRES_PASSWORD: ${ONEHR_DB_PASSWORD:-onehr-internal}
+      POSTGRES_DB: onehr
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U onehr -d onehr"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  pgdata:
+  app_data:
