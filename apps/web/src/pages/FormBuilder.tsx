@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import FormBuilders, { ReactFormBuilder, FormElementsEdit } from 'react-form-builder2';
 const ElementStore = FormBuilders.ElementStore;
@@ -19,9 +19,30 @@ import ScriptEditor from '../scripting/editor/ScriptEditor';
 import ScriptLogs from '../scripting/editor/ScriptLogs';
 import { DesignerShell } from '../designer/DesignerShell';
 import { API_BASE_URL } from '../integration/apiBaseUrl';
+import {
+  closeFormSaveCoordinator,
+  ensureFormSaveCoordinator,
+  type FormSaveCoordinator,
+  type FormSaveResult,
+  type FormSaveStatus,
+} from '../designer/formSaveCoordinator';
+import { SaveStatusBanner } from '../designer/SaveStatusBanner';
+import { createDebouncedDraftSave } from '../integration/debouncedDraftSave';
+import { resendLocalDraftAfterConflict } from '../integration/resendLocalDraftAfterConflict';
 import type { FormSessionRuntimeContext } from 'core';
 import { resolveFolderPath, compileValidationPattern } from 'core';
 import { Undo2, Redo2, Search, X, ChevronUp, ChevronDown } from 'lucide-react';
+
+interface JsonDraftSaveTarget {
+  formId: string;
+  coordinator: FormSaveCoordinator;
+  draftSequence: number;
+}
+
+interface JsonDraftSavePayload {
+  parsed: any;
+  draftSequence: number;
+}
 
 // Field Config panel's "Regeln" section - a small standalone component
 // (not an inline arrow function in the JSX below) because it needs its own
@@ -268,27 +289,19 @@ function TerminologyBindingEditor({
   );
 }
 
-function LiveJsonEditor({ form, onSave }: { form: any, onSave: (f: any, items: any[]) => void }) {
+function LiveJsonEditor({ form, onDraftChange, onValidChange }: {
+  form: any;
+  /** Mirrors the parsed JSON into formRef/canvas without re-rendering `form`. */
+  onDraftChange: (newForm: any, items: any[]) => void;
+  /** Arms the debounced save; the scheduler re-checks form/coordinator identity. */
+  onValidChange: (formId: string, parsed: any, items: any[]) => void;
+}) {
   const [jsonString, setJsonString] = useState('');
   const [error, setError] = useState<string | null>(null);
-  // Autosave used to PUT on every single valid-JSON keystroke - typing a
-  // sentence fired a request per character, each racing every other in
-  // flight with no guarantee the last one to land was the last one typed.
-  // Debounce the network call and abort whichever save is still in flight
-  // before starting the next one, so only the most recent edit ever wins.
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saveAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setJsonString(JSON.stringify(form.canonical_json, null, 2));
   }, [form]);
-
-  // Cancel any pending/in-flight autosave on unmount so it doesn't fire (or
-  // land) after this editor is gone.
-  useEffect(() => () => {
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveAbortRef.current?.abort();
-  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -298,24 +311,13 @@ function LiveJsonEditor({ form, onSave }: { form: any, onSave: (f: any, items: a
       setError(null);
       const items = canonicalToFormBuilder(parsed);
       const newForm = { ...form, canonical_json: parsed };
-      onSave(newForm, items);
-
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(() => {
-        saveAbortRef.current?.abort();
-        const controller = new AbortController();
-        saveAbortRef.current = controller;
-        fetch(`${API_BASE_URL}/forms/${form.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(parsed),
-          signal: controller.signal,
-        }).catch(err => {
-          if (err?.name === 'AbortError') return;
-          console.error("Auto-save failed from JSON view:", err);
-        });
-      }, 500);
-
+      // Local draft first, so a mapping/canvas save queued while the JSON
+      // debounce is still open cannot send the old canonical definition.
+      onDraftChange(newForm, items);
+      // Deliberately no local timer/fetch here: FormBuilder captures this
+      // editor's form id and coordinator before the debounce and validates
+      // them again when it fires.
+      onValidChange(String(form.id), parsed, items);
     } catch (err: any) {
       setError(err.message);
     }
@@ -750,6 +752,187 @@ function FormBuilderContent() {
   }, [form]);
   const [templateFields, setTemplateFields] = useState<any[]>([]);
   const [builderItems, setBuilderItems] = useState<any[]>([]);
+  // One save coordinator per form id. Every save path (canvas, undo/redo,
+  // folder/FHIR mapping, live JSON, apply-template) goes through it, so only
+  // one PUT is ever in flight and the If-Match revision lives in one place
+  // instead of being inferred from whichever server response landed last.
+  const saveCoordinatorRef = React.useRef<FormSaveCoordinator | null>(null);
+  const [saveStatus, setSaveStatus] = useState<FormSaveStatus>('idle');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [exclusiveActionRunning, setExclusiveActionRunning] = useState(false);
+  const idRef = React.useRef(String(id));
+  idRef.current = String(id);
+  const exclusiveActionRef = React.useRef(false);
+  const jsonDraftSequenceRef = React.useRef(0);
+  const saveJsonDraftRef = React.useRef<(target: JsonDraftSaveTarget, payload: JsonDraftSavePayload) => void>(() => undefined);
+  // Captures form id, coordinator and local draft generation when a JSON edit
+  // is typed and re-checks them when the timer fires, so neither a timer armed
+  // for form A nor one overtaken by a newer canvas/mapping draft can still
+  // send its old snapshot.
+  const jsonSaveSchedulerRef = React.useRef(createDebouncedDraftSave<JsonDraftSavePayload>({
+    delay: 500,
+    isStillActive: (target) => idRef.current === target.formId
+      && saveCoordinatorRef.current === target.coordinator
+      && !target.coordinator.isClosed
+      && target.coordinator.isLatestDraftSequence(target.draftSequence),
+    save: (target, payload) => saveJsonDraftRef.current(target, payload),
+  }));
+
+  const ensureSaveCoordinator = React.useCallback((): FormSaveCoordinator => {
+    const coordinator = ensureFormSaveCoordinator(String(id), { apiBaseUrl: API_BASE_URL });
+    // A stale callback from the previous route must not become the active
+    // coordinator for the newly opened form.
+    if (idRef.current === String(id)) saveCoordinatorRef.current = coordinator;
+    return coordinator;
+  }, [id]);
+
+  const applySaveResult = React.useCallback((
+    coordinator: FormSaveCoordinator,
+    result: FormSaveResult,
+    options: { updateForm?: boolean } = {},
+  ) => {
+    // A late reply from a previous form id (or a closed coordinator) must
+    // never touch the currently visible form.
+    if (coordinator.isClosed || saveCoordinatorRef.current !== coordinator) return;
+
+    if (result.status === 'saved') {
+      setSaveError(null);
+      const liveStatus = coordinator.getStatus();
+      setSaveStatus(liveStatus === 'saving' || liveStatus === 'pending' || liveStatus === 'exclusive' ? liveStatus : 'idle');
+      // A newer draft is already queued, in flight or still inside the JSON
+      // debounce: the server body is older than what the user sees locally,
+      // so do not write it back over the canvas/editor. The local draft
+      // generation (not hasPendingDraft alone) covers the debounce window.
+      const isStaleDraft = typeof result.draftSequence === 'number'
+        && !coordinator.isLatestDraftSequence(result.draftSequence);
+      const keepLocalDraft = coordinator.hasPendingDraft() || isStaleDraft;
+      const savedRevision = result.saved?.canonical_json?.revision;
+      // A successful PUT always advances the confirmed revision - even when
+      // its definition is intentionally not applied locally.
+      if ((keepLocalDraft || options.updateForm === false)
+        && typeof savedRevision === 'number' && formRef.current) {
+        formRef.current = {
+          ...formRef.current,
+          canonical_json: { ...formRef.current.canonical_json, revision: savedRevision },
+        };
+      }
+      if (keepLocalDraft || options.updateForm === false) return;
+      if (result.saved) {
+        setForm(result.saved);
+        formRef.current = result.saved;
+      }
+      return;
+    }
+
+    if (result.status === 'conflict') {
+      setSaveStatus('conflict');
+      setSaveError(result.error ?? 'Das Formular wurde in einem anderen Tab geändert.');
+      return;
+    }
+    if (result.status === 'error') {
+      setSaveStatus('error');
+      setSaveError(result.error ?? 'Speichern fehlgeschlagen.');
+      return;
+    }
+    if (result.status === 'blocked') {
+      setSaveStatus(coordinator.hasConflict() ? 'conflict' : 'pending');
+      if (result.error) setSaveError(result.error);
+    }
+  }, []);
+
+  const adoptLocalCanonical = React.useCallback((canonical: any) => {
+    if (!formRef.current) return null;
+    const next = { ...formRef.current, canonical_json: canonical };
+    // Synchronously visible to every other save path before the PUT starts.
+    formRef.current = next;
+    setForm(next);
+    return next;
+  }, []);
+
+  const persistCanonical = React.useCallback(async (
+    canonical: any,
+    options: { updateForm?: boolean } = {},
+  ): Promise<FormSaveResult> => {
+    const coordinator = ensureSaveCoordinator();
+    setSaveStatus('saving');
+    setSaveError(null);
+    const result = await coordinator.save(canonical);
+    applySaveResult(coordinator, result, options);
+    return result;
+  }, [applySaveResult, ensureSaveCoordinator]);
+
+  // The scheduler captured this coordinator/form id/generation before the
+  // debounce; only that same, still-open, still-newest target may save.
+  saveJsonDraftRef.current = (target, payload) => {
+    const coordinator = target.coordinator;
+    if (saveCoordinatorRef.current !== coordinator || coordinator.isClosed || exclusiveActionRef.current) return;
+    if (payload.draftSequence !== target.draftSequence) return;
+    setSaveStatus('saving');
+    setSaveError(null);
+    void coordinator.save(payload.parsed, { draftSequence: payload.draftSequence }).then((result) => {
+      // Keep the live editor untouched - only formRef's revision mirror is
+      // advanced; the editor already shows the local draft.
+      applySaveResult(coordinator, result, { updateForm: false });
+    });
+  };
+
+  // Valid JSON publishes the shared local draft *and* its generation before
+  // the debounce starts. A mapping/canvas save triggered immediately after
+  // therefore builds on this definition and bumps the generation, which
+  // invalidates the already-scheduled timer.
+  const handleJsonDraftChange = (newForm: any, items: any[]) => {
+    formRef.current = newForm;
+    setBuilderItems(items);
+    (ElementStore as any).dispatch('setData', [...items], false);
+    const coordinator = saveCoordinatorRef.current;
+    if (!coordinator || coordinator.isClosed || coordinator.formId !== String(id)) return;
+    jsonDraftSequenceRef.current = coordinator.adoptLocalDraft(newForm.canonical_json);
+  };
+
+  const handleJsonValidChange = (formId: string, parsed: any, _items: any[]) => {
+    const coordinator = saveCoordinatorRef.current;
+    if (!coordinator || coordinator.isClosed || coordinator.formId !== formId) return;
+    const draftSequence = jsonDraftSequenceRef.current;
+    if (!coordinator.isLatestDraftSequence(draftSequence)) return;
+    jsonSaveSchedulerRef.current.schedule(
+      { formId, coordinator, draftSequence },
+      { parsed, draftSequence },
+    );
+  };
+
+  const resendLocalDraft = async () => {
+    const coordinator = saveCoordinatorRef.current;
+    if (!coordinator || coordinator.isClosed) return;
+    setSaveStatus('saving');
+    setSaveError(null);
+    // Reload the current server revision first; the coordinator keeps our
+    // newest local draft and sends it on top of that revision.
+    const result = await resendLocalDraftAfterConflict(coordinator, fetch, API_BASE_URL);
+    applySaveResult(coordinator, result);
+  };
+
+  const retryFailedSave = async () => {
+    const coordinator = saveCoordinatorRef.current;
+    if (!coordinator || coordinator.isClosed) return;
+    setSaveStatus('saving');
+    setSaveError(null);
+    const result = await coordinator.retryPending();
+    applySaveResult(coordinator, result);
+  };
+
+  // The previous form's coordinator is closed on a route switch; its open
+  // requests then resolve as "ignored" instead of writing into this form.
+  useEffect(() => {
+    const formId = String(id);
+    void ensureSaveCoordinator();
+    jsonSaveSchedulerRef.current.cancel();
+    return () => {
+      jsonSaveSchedulerRef.current.cancel();
+      closeFormSaveCoordinator(formId);
+      if (saveCoordinatorRef.current?.formId === formId) saveCoordinatorRef.current = null;
+    };
+  }, [id, ensureSaveCoordinator]);
+
   const hydratedBuilderItems = React.useMemo(
     () => hydrateCustomBuilderElements(builderItems, customFields),
     [builderItems, customFields],
@@ -827,6 +1010,16 @@ function FormBuilderContent() {
 
   // One integrated workbench per form: Designer | Preview | TypeScript | Logs | Live JSON
   const [previewMode, setPreviewMode] = useState<'edit' | 'runtime' | 'typescript' | 'logs' | 'clinical' | 'export' | 'json' | 'fhirDebug'>('edit');
+  // Leaving the Live JSON tab publishes the local draft (kept in formRef by
+  // the editor) back into the normal form state, without ever doing that on
+  // each keystroke - which would reset the editor's textarea.
+  const previousPreviewModeRef = React.useRef(previewMode);
+  useEffect(() => {
+    if (previousPreviewModeRef.current === 'json' && previewMode !== 'json' && formRef.current) {
+      setForm(formRef.current);
+    }
+    previousPreviewModeRef.current = previewMode;
+  }, [previewMode]);
   // Warnings Drawer toggle
   const [warningsOpen, setWarningsOpen] = useState(false);
 
@@ -901,7 +1094,7 @@ function FormBuilderContent() {
     setFolderPathDraft(form?.canonical_json?.extensions?.['formbuilder.folder-path']?.path || '');
   }, [form?.id]);
   const saveFolderMapping = async (path: string) => {
-    if (!formRef.current) return;
+    if (!formRef.current || exclusiveActionRef.current || idRef.current !== String(id)) return;
     setFolderMappingSaving(true);
     try {
       const trimmed = path.trim();
@@ -909,14 +1102,12 @@ function FormBuilderContent() {
       if (trimmed) nextExtensions['formbuilder.folder-path'] = { path: trimmed };
       else delete nextExtensions['formbuilder.folder-path'];
       const nextCanonical = { ...formRef.current.canonical_json, extensions: nextExtensions };
-      const res = await fetch(`${API_BASE_URL}/forms/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nextCanonical),
-      });
-      const saved = await res.json();
-      setForm(saved);
-      formRef.current = saved;
+      // Adopt the newest canvas/JSON draft synchronously before the mapping
+      // save is queued: a PUT still in flight must not make this request send
+      // the old canonical definition without the other edits.
+      adoptLocalCanonical(nextCanonical);
+      const result = await persistCanonical(nextCanonical);
+      if (result.status === 'error') console.error('Konnte Ordner-Zuordnung nicht speichern:', result.error);
     } catch (error) {
       console.error('Konnte Ordner-Zuordnung nicht speichern:', error);
     } finally {
@@ -924,7 +1115,7 @@ function FormBuilderContent() {
     }
   };
   const saveFhirMapping = async (resourceType: string) => {
-    if (!formRef.current) return;
+    if (!formRef.current || exclusiveActionRef.current || idRef.current !== String(id)) return;
     setFhirMappingSaving(true);
     try {
       const trimmed = resourceType.trim();
@@ -932,14 +1123,9 @@ function FormBuilderContent() {
       if (trimmed) nextExtensions['formbuilder.fhir-mapping'] = { resourceType: trimmed };
       else delete nextExtensions['formbuilder.fhir-mapping'];
       const nextCanonical = { ...formRef.current.canonical_json, extensions: nextExtensions };
-      const res = await fetch(`${API_BASE_URL}/forms/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nextCanonical),
-      });
-      const saved = await res.json();
-      setForm(saved);
-      formRef.current = saved;
+      adoptLocalCanonical(nextCanonical);
+      const result = await persistCanonical(nextCanonical);
+      if (result.status === 'error') console.error('Konnte FHIR-Ressourcenzuordnung nicht speichern:', result.error);
     } catch (error) {
       console.error('Konnte FHIR-Ressourcenzuordnung nicht speichern:', error);
     } finally {
@@ -1294,9 +1480,19 @@ function FormBuilderContent() {
 
 
   const fetchForm = () => {
+    const requestedFormId = String(id);
     fetch(`${API_BASE_URL}/forms/${id}`)
       .then(res => res.json())
       .then(data => {
+        // The route may have moved on while this GET was open; its body must
+        // never be adopted into (or rendered for) the new form.
+        if (idRef.current !== requestedFormId) return;
+        const coordinator = ensureSaveCoordinator();
+        if (saveCoordinatorRef.current !== coordinator || coordinator.isClosed) return;
+        coordinator.adoptServerForm(data);
+        // A reload that lands while a newer local draft is queued must not
+        // write the older server snapshot over the visible form.
+        if (coordinator.hasPendingDraft()) return;
         setForm(data);
         const items = canonicalToFormBuilder(data.canonical_json);
         setBuilderItems(items);
@@ -1433,6 +1629,7 @@ function FormBuilderContent() {
 
   const handleSave = (postData: any) => {
     if (!formRef.current) return;
+    if (exclusiveActionRef.current || idRef.current !== String(id)) return;
     let items = Array.isArray(postData) ? postData : (postData?.task_data || builderItems);
 
     // Undo/redo history: capture the pre-edit state once per genuine user
@@ -1484,17 +1681,12 @@ function FormBuilderContent() {
     setBuilderItems(items);
 
     const updatedCanonical = formBuilderToCanonical(items, formRef.current.canonical_json);
+    // Publish the local draft through formRef/setForm *before* queueing the
+    // PUT. A mapping/JSON save queued while this request is still open then
+    // builds on this definition instead of the previous server snapshot.
+    adoptLocalCanonical(updatedCanonical);
 
-    fetch(`${API_BASE_URL}/forms/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedCanonical)
-    })
-      .then(res => res.json())
-      .then(data => {
-        setForm(data);
-      })
-      .catch(err => console.error("Autosave failed:", err));
+    void persistCanonical(updatedCanonical);
   };
 
   // Shared restore path for both undo and redo - writes a past builderItems
@@ -1506,22 +1698,16 @@ function FormBuilderContent() {
   // Deliberately doesn't go through handleSave, so this never re-enters the
   // history-push branch.
   const applyHistorySnapshot = (items: any[]) => {
-    if (!formRef.current) return;
+    if (!formRef.current || exclusiveActionRef.current || idRef.current !== String(id)) return;
     isApplyingHistoryRef.current = true;
     try {
       setBuilderItems(items);
+      // Let the canvas remount from the restored snapshot immediately; the
+      // save below is only the persistence side of the same local state.
+      setCanvasGeneration((g) => g + 1);
       const updatedCanonical = formBuilderToCanonical(items, formRef.current.canonical_json);
-      fetch(`${API_BASE_URL}/forms/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedCanonical),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          setForm(data);
-          setCanvasGeneration((g) => g + 1);
-        })
-        .catch((err) => console.error('Undo/redo save failed:', err));
+      adoptLocalCanonical(updatedCanonical);
+      void persistCanonical(updatedCanonical);
     } finally {
       isApplyingHistoryRef.current = false;
     }
@@ -1578,27 +1764,65 @@ function FormBuilderContent() {
     downloadAnchor.remove();
   };
 
-  const selectTemplate = (templateId: string) => {
+  const selectTemplate = async (templateId: string) => {
     setLoadingTemplate(true);
-    fetch(`${API_BASE_URL}/templates/remote/${encodeURIComponent(templateId)}/import`, { method: 'POST' })
-      .then(res => res.json())
-      .then(importData => {
-        if (importData.template) {
-          fetch(`${API_BASE_URL}/forms/${id}/apply-template`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ templateId: importData.template.id })
-          })
-            .then(() => {
-              setLoadingTemplate(false);
-              fetchForm();
-            });
-        }
-      })
-      .catch(() => {
-        setLoadingTemplate(false);
-        alert('Failed to load template from EHRbase.');
+    // The template POST owns the definition: drop any debounced JSON snapshot
+    // instead of letting it fire after the new revision was published.
+    jsonSaveSchedulerRef.current.cancel();
+    exclusiveActionRef.current = true;
+    setExclusiveActionRunning(true);
+    setSaveError(null);
+    try {
+      const importRes = await fetch(`${API_BASE_URL}/templates/remote/${encodeURIComponent(templateId)}/import`, { method: 'POST' });
+      const importData = await importRes.json();
+      if (!importData.template) throw new Error('Vorlage konnte nicht importiert werden.');
+
+      const coordinator = ensureSaveCoordinator();
+      // apply-template changes the revision on the server. Run it through the
+      // coordinator so it waits for an open PUT, blocks competing saves while
+      // the POST owns the definition, and publishes the new revision before
+      // any later save is allowed to start.
+      setSaveStatus('exclusive');
+      const result = await coordinator.runExclusive(async () => {
+        const response = await fetch(`${API_BASE_URL}/forms/${id}/apply-template`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ templateId: importData.template.id }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || body.message || `Vorlage konnte nicht angewendet werden (HTTP ${response.status}).`);
+        return body;
       });
+
+      if (result.status === 'ignored') return;
+      // The route moved on while the import/POST was open: its success or
+      // error belongs to the form that was open when the action started.
+      if (idRef.current !== String(id)) return;
+      if (result.status !== 'done') {
+        setSaveStatus(result.status === 'blocked' && result.reason === 'conflict' ? 'conflict' : 'error');
+        setSaveError(result.error);
+        return;
+      }
+
+      if (saveCoordinatorRef.current !== coordinator || coordinator.isClosed) return;
+      const serverForm = (result.value as any)?.form ?? result.value;
+      // The exclusive action owns the definition while it runs, so adopting
+      // its result here is safe; no newer local draft can be queued.
+      setForm(serverForm);
+      formRef.current = serverForm;
+      setBuilderItems(canonicalToFormBuilder(serverForm.canonical_json));
+      setCanvasGeneration((generation) => generation + 1);
+      setSaveStatus('idle');
+      setSaveError(null);
+    } catch (error) {
+      if (idRef.current !== String(id)) return;
+      setSaveStatus('error');
+      setSaveError(error instanceof Error ? error.message : 'Failed to load template from EHRbase.');
+    } finally {
+      exclusiveActionRef.current = false;
+      setExclusiveActionRunning(false);
+      setLoadingTemplate(false);
+    }
   };
 
   // Group fields by parent Observation / Section from their parentName
@@ -1887,6 +2111,13 @@ function FormBuilderContent() {
         </div>
         <div className="workbench-actions-area">
           <ExtensionSlot name="designer:toolbar" context={{ documentId: String(id || ''), kind: 'clinical-form' }} />
+          <SaveStatusBanner
+            status={saveStatus}
+            error={saveError}
+            onResend={() => void resendLocalDraft()}
+            onRetry={() => void retryFailedSave()}
+            busy={saveStatus === 'saving'}
+          />
           <nav className="workbench-view-tabs" aria-label="Formular-Arbeitsbereich">
             <button type="button" className={`btn-workbench secondary ${previewMode === 'edit' ? 'active' : ''}`} onClick={() => setPreviewMode('edit')}>Designer</button>
             <button type="button" className={`btn-workbench secondary ${previewMode === 'json' ? 'active' : ''}`} onClick={() => setPreviewMode('json')}>Live JSON</button>
@@ -1937,7 +2168,7 @@ function FormBuilderContent() {
       </header>
 
       {/* Main Panels Area */}
-      <div className="workbench-panels">
+      <div className={`workbench-panels ${exclusiveActionRunning ? 'exclusive-lock' : ''}`} aria-busy={exclusiveActionRunning}>
         {previewMode === 'typescript' ? (
           <div className="workbench-scripting-view">
             <ScriptEditor
@@ -2126,13 +2357,10 @@ function FormBuilderContent() {
         ) : previewMode === 'json' ? (
           <div className="workbench-scripting-view">
             <LiveJsonEditor
+              key={form.id}
               form={form} 
-              onSave={(newForm, newBuilderItems) => {
-                 setForm(newForm);
-                 formRef.current = newForm;
-                 setBuilderItems(newBuilderItems);
-                 (ElementStore as any).dispatch('setData', [...newBuilderItems], false);
-              }}
+              onDraftChange={handleJsonDraftChange}
+              onValidChange={handleJsonValidChange}
             />
           </div>
         ) : previewMode === 'edit' ? (

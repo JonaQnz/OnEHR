@@ -2225,3 +2225,41 @@
   color: #64748b;
   font-size: 0.76rem;
 }
+
+/* Save coordinator status (conflict/error/busy) in the workbench header */
+.save-status-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: 36rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+.save-status-banner.conflict {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+}
+.save-status-banner.error {
+  background: #fee2e2;
+  border: 1px solid #ef4444;
+  color: #991b1b;
+}
+.save-status-banner.busy {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+}
+.save-status-banner .save-status-action {
+  margin-left: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+}
+
+/* apply-template owns the definition while it runs: no editing can race it */
+.workbench-panels.exclusive-lock {
+  pointer-events: none;
+  opacity: 0.65;
+}

@@ -21,6 +21,13 @@ import { DesignerShell } from '../designer/DesignerShell';
 import { ClinicalGrid } from '../components/layout/ClinicalLayout';
 import CompositionScriptEditor from '../scripting/editor/CompositionScriptEditor';
 import { CompositionBuilderCanvas } from '../designer/CompositionBuilderCanvas';
+import {
+  closeFormSaveCoordinator,
+  ensureFormSaveCoordinator,
+  type FormSaveStatus,
+} from '../designer/formSaveCoordinator';
+import { SaveStatusBanner } from '../designer/SaveStatusBanner';
+import { resendLocalDraftAfterConflict } from '../integration/resendLocalDraftAfterConflict';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import '../styles/workbench.css';
 import '../styles/builder-theme.css';
@@ -72,22 +79,30 @@ export default function CompositionBuilder() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [saveStatus, setSaveStatus] = useState<FormSaveStatus>('idle');
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<'designer' | 'script'>('designer');
 
   useEffect(() => {
     if (!compositionId) return;
+    const formId = String(compositionId);
+    const coordinator = ensureFormSaveCoordinator(formId, { apiBaseUrl: API_BASE_URL });
     void Promise.all([
       request<CompositionResponse>(`/forms/${encodeURIComponent(compositionId)}`),
       request<FormRow[]>('/forms'),
       request<{ functions: AqlFunction[] }>('/functions/aql'),
       request<{ packages: WidgetPackage[] }>('/plugins/widget-packages'),
     ]).then(([form, allForms, functions, packages]) => {
+      coordinator.adoptServerForm(form);
       const value = getCompositionDefinition(form.canonical_json.extensions) || defaultComposition();
       setRecord(form); setComposition(value); setForms(allForms.filter((candidate) => candidate.id !== form.id && candidate.status === 'published'));
       setAqlFunctions((functions.functions || []).filter((candidate) => candidate.enabled));
       setWidgetPackages((packages.packages || []).filter((candidate) => candidate.available));
       value.pages.flatMap((page) => page.blocks).forEach((block) => { if (block.type === 'form') void loadFields(block.formId); });
     }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Form konnte nicht geladen werden.'));
+    return () => {
+      closeFormSaveCoordinator(formId);
+    };
   }, [compositionId]);
 
   const loadFields = async (formId: string) => {
@@ -127,13 +142,41 @@ export default function CompositionBuilder() {
 
   const save = async () => {
     if (!record || !compositionId) return;
-    setSaving(true); setError(''); setNotice('');
+    setSaving(true); setError(''); setNotice(''); setSaveError(null); setSaveStatus('saving');
     try {
       const canonical = { ...record.canonical_json, name: record.name, extensions: { ...record.canonical_json.extensions, [COMPOSITION_EXTENSION_KEY]: composition } };
-      const updated = await request<CompositionResponse>(`/forms/${encodeURIComponent(compositionId)}`, { method: 'PUT', body: JSON.stringify(canonical) });
-      setRecord(updated); setNotice('Form gespeichert. Im Dashboard wie gewohnt veröffentlichen.');
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Speichern fehlgeschlagen.'); }
+      const coordinator = ensureFormSaveCoordinator(String(compositionId), { apiBaseUrl: API_BASE_URL });
+      // The coordinator owns the If-Match revision for this form; the record
+      // is kept as the local draft until the server confirms it.
+      const result = await coordinator.save(canonical);
+      if (result.status === 'saved' && result.saved) {
+        setRecord(result.saved); setSaveStatus('idle'); setNotice('Form gespeichert. Im Dashboard wie gewohnt veröffentlichen.');
+      } else if (result.status === 'conflict') {
+        setSaveStatus('conflict');
+        setSaveError(result.error ?? 'Das Formular wurde in einem anderen Tab geändert.');
+      } else if (result.status === 'error') {
+        setSaveStatus('error');
+        setSaveError(result.error ?? 'Speichern fehlgeschlagen.');
+        setError(result.error ?? 'Speichern fehlgeschlagen.');
+      } else if (result.status === 'ignored') {
+        return;
+      }
+    } catch (reason) { setSaveStatus('error'); setError(reason instanceof Error ? reason.message : 'Speichern fehlgeschlagen.'); }
     finally { setSaving(false); }
+  };
+
+  const resendComposition = async () => {
+    const coordinator = ensureFormSaveCoordinator(String(compositionId), { apiBaseUrl: API_BASE_URL });
+    if (coordinator.isClosed) return;
+    setSaveStatus('saving'); setSaveError(null);
+    const result = await resendLocalDraftAfterConflict(coordinator, fetch, API_BASE_URL);
+    if (result.status === 'saved' && result.saved) {
+      setRecord(result.saved); setSaveStatus('idle'); setSaveError(null);
+    } else if (result.status === 'conflict') {
+      setSaveStatus('conflict'); setSaveError(result.error ?? null);
+    } else if (result.status === 'error') {
+      setSaveStatus('error'); setSaveError(result.error ?? 'Speichern fehlgeschlagen.'); setError(result.error ?? 'Speichern fehlgeschlagen.');
+    }
   };
 
   if (error && !record) return <div style={{ padding: '2rem', color: '#b91c1c' }}>{error}</div>;
@@ -142,7 +185,7 @@ export default function CompositionBuilder() {
   return <DesignerShell kind="composition" dragAndDrop><div style={{ minHeight: '100vh', background: '#f8fafc', color: '#0f172a' }}>
     <header style={{ height: 62, background: '#fff', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.25rem', position: 'sticky', top: 0, zIndex: 5 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '.8rem' }}><Link to="/" style={{ color: '#475569' }}><ArrowLeft size={19} /></Link><div><strong>{record.name}</strong><span style={{ marginLeft: '.6rem', fontSize: '.75rem', color: '#64748b' }}>COMPOSITION</span></div></div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '.8rem' }}><ExtensionSlot name="designer:toolbar" context={{ documentId: record.id, kind: 'composition' }} />{notice && <span style={{ color: '#166534', fontSize: '.82rem' }}>{notice}</span>}{error && <span style={{ color: '#b91c1c', fontSize: '.82rem' }}>{error}</span>}<button className="btn btn-secondary" onClick={() => setWorkspace(workspace === 'designer' ? 'script' : 'designer')}>{workspace === 'designer' ? 'Script' : 'Designer'}</button><button className="btn" onClick={() => void save()} disabled={saving}><Save size={16} /> {saving ? 'Speichert…' : 'Speichern'}</button></div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.8rem' }}><ExtensionSlot name="designer:toolbar" context={{ documentId: record.id, kind: 'composition' }} /><SaveStatusBanner status={saveStatus} error={saveError} onResend={() => void resendComposition()} busy={saving} />{notice && <span style={{ color: '#166534', fontSize: '.82rem' }}>{notice}</span>}{error && <span style={{ color: '#b91c1c', fontSize: '.82rem' }}>{error}</span>}<button className="btn btn-secondary" onClick={() => setWorkspace(workspace === 'designer' ? 'script' : 'designer')}>{workspace === 'designer' ? 'Script' : 'Designer'}</button><button className="btn" onClick={() => void save()} disabled={saving}><Save size={16} /> {saving ? 'Speichert…' : 'Speichern'}</button></div>
     </header>
     {workspace === 'script' ? <CompositionScriptEditor compositionId={record.id} definition={record.canonical_json} onClose={() => setWorkspace('designer')} onSaved={(updated) => setRecord((current) => current ? { ...current, canonical_json: updated.canonical_json } : current)} /> : <div className="workbench-panels" style={{ minHeight: 'calc(100vh - 62px)' }}>
       <div className="workbench-panel left">
