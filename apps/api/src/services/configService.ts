@@ -89,6 +89,8 @@ export interface AppConfig {
      * settings existed (autosave on, 2500ms after the last edit). */
     autosaveEnabledByDefault?: boolean;
     autosaveDebounceMsDefault?: number;
+    /** Form line id (parent_id, falls back to id) of the Composition shown as the Klinisches-Cockpit tab in PatientDetail. Empty = legacy name match "Klinisches Cockpit" (transition for existing installations). */
+    patientCockpitFormParentId?: string;
     /** Org-wide fallback for a form's own
      * `settings.runtime.pushDraftsToProvider` - see
      * formSessionService.ts's autosaveFormSessionDraft. Defaults to `true`
@@ -319,6 +321,7 @@ export function getConfig(): AppConfig {
         requireAtomicCommitByDefault: persistedConfig.requireAtomicCommitByDefault ?? true,
         autosaveEnabledByDefault: persistedConfig.autosaveEnabledByDefault ?? true,
         autosaveDebounceMsDefault: persistedConfig.autosaveDebounceMsDefault ?? 2500,
+        patientCockpitFormParentId: (persistedConfig.patientCockpitFormParentId || '').trim(),
         pushDraftsToProviderByDefault: persistedConfig.pushDraftsToProviderByDefault ?? true,
         sessionReuseDefault: persistedConfig.sessionReuseDefault ?? 'reuse',
     };
@@ -432,6 +435,7 @@ export function getSafeConfig(): Partial<AppConfig> {
         requireAtomicCommitByDefault: full.requireAtomicCommitByDefault ?? true,
         autosaveEnabledByDefault: full.autosaveEnabledByDefault ?? true,
         autosaveDebounceMsDefault: full.autosaveDebounceMsDefault ?? 2500,
+        patientCockpitFormParentId: full.patientCockpitFormParentId || '',
         pushDraftsToProviderByDefault: full.pushDraftsToProviderByDefault ?? true,
         sessionReuseDefault: full.sessionReuseDefault ?? 'reuse',
     };
