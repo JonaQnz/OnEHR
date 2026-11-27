@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { composeDocumentTemplate } from '../documentTemplate/documentTemplateService.js';
+import { composeDocumentTemplate } from '../documentTemplate/index.js';
 import { toResult } from '../toolResult.js';
 
 const documentComponentSchema = z.object({

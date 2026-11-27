@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { FormbuilderApiClient } from '../apiClient.js';
 import { toResult } from '../toolResult.js';
-import { composeDocumentTemplate, deriveDocumentComponents, type DocumentComponent, type FormLike } from 'openehr-architect-mcp/dist/documentTemplate/index.js';
+import { composeDocumentTemplate, deriveDocumentComponents, type DocumentComponent, type FormLike } from 'openehr-architect-mcp/document-template';
 
 interface FormRecord { canonical_json: FormLike; }
 
