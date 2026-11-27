@@ -7,56 +7,25 @@ import type {
 } from 'core';
 import { appendScriptLog } from './scriptLogStore';
 import { API_BASE_URL } from '../../integration/apiBaseUrl';
+import {
+  isFormWorkerMessage,
+  type FormHostToWorkerMessage,
+  type FormScriptFieldMessage,
+  type FormScriptFieldProvenance,
+  type FormScriptLifecycleResult,
+  type FormScriptPrefillConflict,
+  type FormScriptUiState,
+  type FormWorkerToHostMessage,
+} from './formScriptProtocol';
 
-export interface FormScriptUiState {
-  visible?: boolean;
-  enabled?: boolean;
-  readonly?: boolean;
-  required?: boolean;
-  loading?: boolean;
-  label?: string;
-  placeholder?: string;
-  helpText?: string;
-  options?: Array<{ value: string; label: string }>;
-}
-
-export interface FormScriptLifecycleResult {
-  cancelled: boolean;
-  message?: string;
-}
-
-/** A field('id').validate() result, normalized in the worker - a bare
- * string return is always `severity: 'error'`, unchanged from before this
- * became an object; only the object form can be a non-blocking 'warning'. */
-export interface FormScriptFieldMessage {
-  message: string;
-  severity: 'error' | 'warning';
-  /** Always 'script' - see RuntimeValidationIssue.source (packages/core/form-runtime). */
-  source: 'script';
-}
-
-/** A field's current value came from an AQL prefill run, not a clinician's
- * own entry - see formScript.worker.ts's `provenance` map. Carried
- * alongside `form:set-value` so the host can render a small "aus AQL ·
- * HH:MM"-style badge without a separate lookup. */
-export interface FormScriptFieldProvenance {
-  kind: 'prefill';
-  source: string;
-  timestamp?: string;
-}
-
-/** Raised when a script's `field(id).prefill(...)` call would overwrite a
- * value that didn't itself come from a prior prefill (i.e. a real
- * clinician entry) - the host decides, the worker waits. See
- * `resolvePrefillConflict()` below. */
-export interface FormScriptPrefillConflict {
-  requestId: string;
-  fieldId: string;
-  currentValue: unknown;
-  prefillValue: unknown;
-  source: string;
-  timestamp?: string;
-}
+// Re-exported here so existing imports from FormScriptClient keep working.
+export type {
+  FormScriptFieldMessage,
+  FormScriptFieldProvenance,
+  FormScriptLifecycleResult,
+  FormScriptPrefillConflict,
+  FormScriptUiState,
+} from './formScriptProtocol';
 
 interface FormScriptClientOptions {
   formId: string;
@@ -107,7 +76,7 @@ export class FormScriptClient {
       this.addHostLog('error', error.message, error.stack);
       this.abortApiRequests();
     };
-    this.worker.postMessage({
+    this.post({
       type: 'init',
       compiled: options.compiled,
       values: options.values,
@@ -139,7 +108,13 @@ export class FormScriptClient {
     this.options.onLog?.(entry);
   }
 
-  private handleMessage(message: Record<string, unknown>): void {
+  private post(message: FormHostToWorkerMessage): void {
+    this.worker.postMessage(message);
+  }
+
+  private handleMessage(message: unknown): void {
+    if (this.terminated) return;
+    if (!isFormWorkerMessage(message)) return;
     if (message.type === 'ready') {
       clearTimeout(this.initializationTimer);
       this.readyResolve();
@@ -151,32 +126,31 @@ export class FormScriptClient {
       return;
     }
     if (message.type === 'log') {
-      const entry = message.entry as unknown as FormScriptLogEntry;
-      appendScriptLog(this.options.formId, entry);
-      this.options.onLog?.(entry);
+      appendScriptLog(this.options.formId, message.entry);
+      this.options.onLog?.(message.entry);
       return;
     }
     if (message.type === 'form:set-value') {
-      this.options.onSetValue(String(message.id), message.value, message.persist !== false, (message.provenance as FormScriptFieldProvenance | null) ?? null);
+      this.options.onSetValue(message.id, message.value, message.persist !== false, message.provenance ?? null);
       return;
     }
     if (message.type === 'prefill:conflict') {
       this.options.onPrefillConflict({
-        requestId: String(message.requestId),
-        fieldId: String(message.fieldId),
+        requestId: message.requestId,
+        fieldId: message.fieldId,
         currentValue: message.currentValue,
         prefillValue: message.prefillValue,
-        source: String(message.source ?? ''),
+        source: message.source,
         ...(typeof message.timestamp === 'string' ? { timestamp: message.timestamp } : {}),
       });
       return;
     }
     if (message.type === 'form:update-values') {
-      this.options.onUpdateValues(message.values as RuntimeValues, message.persist !== false);
+      this.options.onUpdateValues(message.values, message.persist !== false);
       return;
     }
     if (message.type === 'validation:errors') {
-      this.options.onValidationErrors(message.errors as Record<string, FormScriptFieldMessage>);
+      this.options.onValidationErrors(message.errors);
       return;
     }
     if (message.type === 'api:call') {
@@ -184,21 +158,21 @@ export class FormScriptClient {
       return;
     }
     if (message.type === 'api:cancel') {
-      const requestId = String(message.requestId);
+      const requestId = message.requestId;
       this.apiControllers.get(requestId)?.abort();
       this.apiControllers.delete(requestId);
       return;
     }
     if (message.type === 'ui:set-state') {
-      this.options.onUiState(String(message.kind), String(message.id), message.state as FormScriptUiState);
+      this.options.onUiState(message.kind, message.id, message.state);
       return;
     }
     if (message.type === 'ui:toast') {
-      this.options.onToast(String(message.level), String(message.message));
+      this.options.onToast(message.level, message.message);
       return;
     }
     if (message.type === 'response') {
-      const requestId = String(message.requestId);
+      const requestId = message.requestId;
       const request = this.pending.get(requestId);
       if (!request) return;
       clearTimeout(request.timer);
@@ -212,9 +186,9 @@ export class FormScriptClient {
     this.apiControllers.clear();
   }
 
-  private async handleApiCall(message: Record<string, unknown>): Promise<void> {
+  private async handleApiCall(message: Extract<FormWorkerToHostMessage, { type: 'api:call' }>): Promise<void> {
     if (this.terminated) return;
-    const requestId = String(message.requestId);
+    const requestId = message.requestId;
     const operation = String(message.operation || '');
     const controller = new AbortController();
     this.apiControllers.set(requestId, controller);
@@ -238,23 +212,23 @@ export class FormScriptClient {
       );
       const body = await response.json().catch(() => ({})) as Record<string, unknown>;
       if (controller.signal.aborted || this.terminated) return;
-      this.worker.postMessage(response.ok
+      this.post(response.ok
         ? {
           type: 'api:response',
           requestId,
           result: body.result,
-          durationMs: body.durationMs,
+          durationMs: body.durationMs as number | undefined,
         }
         : {
           type: 'api:response',
           requestId,
           error: String(body.error || `Connector request failed (${response.status}).`),
           code: String(body.code || 'SCRIPT_CONNECTOR_FAILED'),
-          durationMs: body.durationMs,
+          durationMs: body.durationMs as number | undefined,
         });
     } catch (error) {
       if (controller.signal.aborted || this.terminated) return;
-      this.worker.postMessage({
+      this.post({
         type: 'api:response',
         requestId,
         error: error instanceof Error ? error.message : 'Connector request failed.',
@@ -278,7 +252,7 @@ export class FormScriptClient {
     initialLoad = false,
   ): void {
     if (this.terminated) return;
-    this.worker.postMessage({
+    this.post({
       type: 'change',
       change: { id, value, previousValue, source, initialLoad },
     });
@@ -290,7 +264,7 @@ export class FormScriptClient {
    * call is awaiting exactly this response. */
   resolvePrefillConflict(requestId: string, apply: boolean): void {
     if (this.terminated) return;
-    this.worker.postMessage({ type: 'prefill:resolve', requestId, apply });
+    this.post({ type: 'prefill:resolve', requestId, apply });
   }
 
   dispatchGroupChange(
@@ -302,31 +276,31 @@ export class FormScriptClient {
     source: FormScriptChangeSource,
   ): void {
     if (this.terminated) return;
-    this.worker.postMessage({
+    this.post({
       type: 'group-change',
       change: { groupId, index, fieldId, value, previousValue, source },
     });
   }
 
   addGroupItem(groupId: string, index: number, item: Record<string, unknown>): void {
-    if (!this.terminated) this.worker.postMessage({ type: 'group-add', groupId, index, item });
+    if (!this.terminated) this.post({ type: 'group-add', groupId, index, item });
   }
 
   removeGroupItem(groupId: string, index: number, item: Record<string, unknown>): void {
-    if (!this.terminated) this.worker.postMessage({ type: 'group-remove', groupId, index, item });
+    if (!this.terminated) this.post({ type: 'group-remove', groupId, index, item });
   }
 
   syncValues(values: RuntimeValues, source: FormScriptChangeSource, emitChanges: boolean): void {
     if (this.terminated) return;
-    this.worker.postMessage({ type: 'values', values, source, emitChanges });
+    this.post({ type: 'values', values, source, emitChanges });
   }
 
   uiEvent(id: string, event: 'focus' | 'blur'): void {
-    if (!this.terminated) this.worker.postMessage({ type: 'ui-event', id, event });
+    if (!this.terminated) this.post({ type: 'ui-event', id, event });
   }
 
   clickButton(id: string): void {
-    if (!this.terminated) this.worker.postMessage({ type: 'button', id });
+    if (!this.terminated) this.post({ type: 'button', id });
   }
 
   async runLifecycle(name: FormScriptEventName, values: RuntimeValues): Promise<FormScriptLifecycleResult> {
@@ -347,7 +321,7 @@ export class FormScriptClient {
         reject,
         timer,
       });
-      this.worker.postMessage({ type: 'lifecycle', name, requestId, values });
+      this.post({ type: 'lifecycle', name, requestId, values });
     });
   }
 
@@ -370,7 +344,7 @@ export class FormScriptClient {
         reject,
         timer,
       });
-      this.worker.postMessage({ type: 'validate', requestId, values });
+      this.post({ type: 'validate', requestId, values });
     });
   }
 
