@@ -5,12 +5,14 @@
 
 A complete react form builder that interfaces with a json endpoint to load and save generated forms.
 
+This is the OnEHR fork of the upstream [Kiho/react-form-builder](https://github.com/Kiho/react-form-builder) package, vendored as an npm workspace and distributed under the MIT license (see [LICENSE](LICENSE)).
+
 - Upgraded to React 18.3.1
 - Upgraded related packages
 
 ### Editing Items
 
-![](screenshot2.png)
+The builder edits the selected element in its inline properties panel.
 
 # Basic Usage
 
@@ -102,33 +104,29 @@ Read only signatures allow you to use a saved/canned signature to be placed into
 
 To use a read only signature, choose the "Read only" option and enter the key value of the variable that will be used to pass in the signature.
 
-![](screenshot3.png)
-
-The signature data should be in base 64 format.
-
-There is a `variables.js` file that contains a sample base 64 signature. This variable is passed into the demo builder and generator for testing. Use the variable key "JOHN" to test the variable replacement.
+The signature data should be base 64 encoded and passed in through the `variables` prop, keyed by the element's variable key.
 
 # Vendor Dependencies
 
-In order to make the form builder look pretty, there are a few dependencies other than React. Style sheets from `Bootstrap` and `FontAwesome` must be added to index.html. See the example code in [index.html](https://github.com/Kiho/react-form-builder/blob/master/public/index.html#L5) for more details.
+In order to make the form builder look pretty, there are a few dependencies other than React. Style sheets from `Bootstrap` and `FontAwesome` must be added to the consuming application's `index.html` (the OnEHR web app loads FontAwesome from a CDN in `apps/web/index.html`).
 
 - Bootstrap
 - FontAwesome
 
 # SASS
 
-All relevant styles located in css/application.css.scss.
+All relevant styles live in `scss/application.scss`. The production build compiles that entry point to `dist/app.css` via `npm run build:style`.
 
 # Develop
 
+This package is consumed as an npm workspace in this repository. From the repository root:
+
 ```bash
-$ npm install
-$ NODE_OPTIONS=--openssl-legacy-provider npm run build:dist
-$ npm run serve:api
-$ NODE_OPTIONS=--openssl-legacy-provider npm run start
+$ npm ci
+$ npm run build:lib --workspace=react-form-builder2
 ```
 
-Then navigate to http://localhost:8080/ in your browser and you should be able to see the form builder in action.
+`build:lib` transpiles `src/` to `lib/` and compiles `scss/application.scss` to `dist/app.css`. The web app then imports both the library entry point and the compiled stylesheet.
 
 # Customizations
 
@@ -263,21 +261,8 @@ const items = [
   />
 ```
 
-- Find working example [here](https://github.com/Kiho/react-form-builder/blob/master/examples/custom/app.js)
-
-# Examples
-
-- [Basic](https://github.com/Kiho/react-form-builder/tree/master/examples/demo)
-- [JSON Post](https://github.com/Kiho/react-form-builder/tree/master/examples/custom)
-- [UMD](https://github.com/Kiho/react-form-builder/tree/master/examples/umd)
-- [NEXT](https://github.com/Kiho/react-form-builder/tree/master/examples/next)
-- [NEXT-Mongo](https://github.com/Kiho/react-form-builder/tree/master/examples/mongo)
-- [create-react-app](https://github.com/Kiho/react-form-builder/tree/master/examples/cra)
+The upstream repository ships the demo, custom, UMD, Next, Mongo and create-react-app examples; this fork vendors only the library sources and its build inputs.
 
 # Tests
 
-```bash
-$ npm test
-```
-
-Test is not working at this moment.
+This package has no test script of its own. Run the repository tests from the root with `npm test`; they include the build contract for this vendored package.
