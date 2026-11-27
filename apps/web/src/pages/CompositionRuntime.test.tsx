@@ -3,7 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import CompositionRuntime from './CompositionRuntime';
 import { AuthStateContext, type AuthState } from '../App';
-import { compositionDataCacheKey, loadCachedBlockData, saveCachedBlockData } from '../integration/compositionDataCache';
+import { activateCompositionDataCacheScope, clearCompositionDataCache, compositionSessionScope, loadCachedBlockData, saveCachedBlockData } from '../integration/compositionDataCache';
 
 // CompositionRuntime reads useAuth() (to scope its client-side data cache
 // per user) - App.tsx's useAuth() throws "Auth state unavailable" outside
@@ -94,18 +94,23 @@ describe('CompositionRuntime embedding', () => {
   });
 });
 
-// Covers the composition-data local-cache wiring end to end at the
-// component level (see docs/features/composition-data-cache.md) - the
-// pure-function tests in compositionDataCache.test.ts and
-// composition-data-diff.test.js each cover their own half in isolation,
-// but neither exercises refreshData() itself: cache-hit paint, the
-// background fetch actually carrying `since`, and the merge back into
-// both UI state and the cache.
+// Covers the composition-data in-memory cache wiring end to end at the
+// component level (see docs/features/composition-data-cache.md). The
+// volatile cache only lives for the current authenticated page session, is
+// scoped by session + full clinical context, and every fetch replaces the
+// block's rows completely instead of merging an incremental delta.
 describe('CompositionRuntime data cache wiring', () => {
   const DATA_FORM_ID = 'data-cache-1';
-  const cacheKey = compositionDataCacheKey({ userId: 'test-user', formId: DATA_FORM_ID, blockId: 'block-labor', patientId: 'p1', ehrId: 'ehr1' });
+  const sessionScope = compositionSessionScope(mockAuthState);
+  const blockContext = { sessionScope, formId: DATA_FORM_ID, blockId: 'block-labor', patientId: 'p1', namespace: '', ehrId: 'ehr1' };
 
-  function stubBackendWithDataBlock(compositionDataHandler: (init?: RequestInit) => Promise<Response>) {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise; });
+    return { promise, resolve };
+  }
+
+  function stubBackendWithDataBlock(compositionDataHandler: (body: any) => Promise<Response>) {
     const composition = {
       id: DATA_FORM_ID,
       name: 'Datentest',
@@ -125,22 +130,26 @@ describe('CompositionRuntime data cache wiring', () => {
       const url = String(input);
       if (url.endsWith(`/forms/${DATA_FORM_ID}`)) return jsonResponse(composition);
       if (url.endsWith('/patients')) return jsonResponse([]);
-      if (url.endsWith('/composition-sessions') && init?.method === 'POST') return jsonResponse(session);
+      if (url.endsWith('/composition-sessions') && init?.method === 'POST') {
+        const body = JSON.parse((init.body as string) || '{}');
+        return jsonResponse({ ...session, patientId: body.patientId, mode: body.mode || session.mode });
+      }
       if (url.includes(`/composition-sessions/${session.id}`)) return jsonResponse(session);
-      if (url.endsWith(`/forms/${DATA_FORM_ID}/composition-data`)) return compositionDataHandler(init);
+      if (url.endsWith(`/forms/${DATA_FORM_ID}/composition-data`)) return compositionDataHandler(JSON.parse((init?.body as string) || '{}'));
       return jsonResponse({});
     }));
   }
 
-  afterEach(() => { localStorage.clear(); });
+  afterEach(() => { localStorage.clear(); clearCompositionDataCache(); });
 
-  it('paints instantly from a pre-existing cache, then merges an incrementally-fetched row using the cached `since` cursor', async () => {
-    const cachedThrough = Date.parse('2026-08-20T08:00:00Z');
-    saveCachedBlockData(cacheKey, { rows: [{ analyt: 'Hb', wert: 14, recordedAt: '2026-08-20T08:00:00Z' }], cachedThrough });
+  it('paints instantly from the in-memory cache, sends no `since`, and fully replaces rows on fetch', async () => {
+    activateCompositionDataCacheScope(sessionScope);
+    saveCachedBlockData(blockContext, { rows: [{ analyt: 'Hb', wert: 14, recordedAt: '2026-08-20T08:00:00Z' }, { analyt: 'OnlyCached', wert: 7 }] });
     const compositionDataCalls: any[] = [];
-    stubBackendWithDataBlock(async (init) => {
-      compositionDataCalls.push(JSON.parse((init?.body as string) || '{}'));
-      return jsonResponse({ blockId: 'block-labor', rows: [{ analyt: 'Hb', wert: 13.2, recordedAt: '2026-08-21T08:00:00Z' }], cachedThrough: Date.parse('2026-08-21T08:00:00Z') });
+    const response = deferred<Response>();
+    stubBackendWithDataBlock(async (body) => {
+      compositionDataCalls.push(body);
+      return response.promise;
     });
 
     renderWithAuth(
@@ -151,28 +160,116 @@ describe('CompositionRuntime data cache wiring', () => {
       </MemoryRouter>,
     );
 
-    // Instant paint from the pre-seeded cache - the cached row is visible
-    // (WidgetDataCard's "list" display renders it as a table cell) without
-    // waiting on any network round trip to resolve.
+    // Instant paint from the cache - before the network round trip resolves.
     await waitFor(() => expect(screen.getByText('14')).toBeInTheDocument());
-    // The background fetch actually asked for only what's new, using the
-    // cache's own cachedThrough as `since` - not a blind full refetch.
+    expect(screen.getByText('OnlyCached')).toBeInTheDocument();
     await waitFor(() => expect(compositionDataCalls.length).toBeGreaterThan(0));
-    expect(compositionDataCalls[0].since).toBe(cachedThrough);
-    // Once it resolves, the new row merges in alongside the cached one.
+    // No incremental cursor any more: every load transfers the full result.
+    expect(compositionDataCalls[0].since).toBeUndefined();
+
+    response.resolve(jsonResponse({ blockId: 'block-labor', rows: [{ analyt: 'Hb', wert: 13.2, recordedAt: '2026-08-21T08:00:00Z' }] }));
+
     await waitFor(() => expect(screen.getByText('13.2')).toBeInTheDocument());
-    expect(screen.getByText('14')).toBeInTheDocument();
-    // And the cache itself now reflects the merged set, ready for the next visit.
-    const updated = loadCachedBlockData(cacheKey);
-    expect(updated?.rows).toHaveLength(2);
-    expect(updated?.cachedThrough).toBe(Date.parse('2026-08-21T08:00:00Z'));
+    // Replaced, not merged: the cached-only row and the old Hb value are gone.
+    expect(screen.queryByText('OnlyCached')).not.toBeInTheDocument();
+    expect(screen.queryByText('14')).not.toBeInTheDocument();
+    expect(loadCachedBlockData(blockContext)?.rows).toEqual([{ analyt: 'Hb', wert: 13.2, recordedAt: '2026-08-21T08:00:00Z' }]);
   });
 
-  it('fetches everything (no `since`) on a genuinely first load with nothing cached yet', async () => {
+  it('surfaces a corrected value even when its timestamp is unchanged', async () => {
+    activateCompositionDataCacheScope(sessionScope);
+    const recordedAt = '2026-08-20T08:00:00Z';
+    saveCachedBlockData(blockContext, { rows: [{ analyt: 'Hb', wert: 14, recordedAt }] });
+    stubBackendWithDataBlock(async () => jsonResponse({ blockId: 'block-labor', rows: [{ analyt: 'Hb', wert: 14.2, recordedAt }] }));
+
+    renderWithAuth(
+      <MemoryRouter initialEntries={['/x']}>
+        <Routes>
+          <Route path="/x" element={<CompositionRuntime formId={DATA_FORM_ID} initialPatientId="p1" initialEhrId="ehr1" embedded />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText('14.2')).toBeInTheDocument());
+    expect(screen.queryByText('14')).not.toBeInTheDocument();
+    expect(loadCachedBlockData(blockContext)?.rows).toEqual([{ analyt: 'Hb', wert: 14.2, recordedAt }]);
+  });
+
+  it('ignores a late response from a previous patient/namespace after a switch', async () => {
+    const oldRequest = deferred<Response>();
+    const calls: any[] = [];
+    stubBackendWithDataBlock(async (body) => {
+      calls.push(body);
+      if (body.patient.id === 'p1') return oldRequest.promise;
+      return jsonResponse({ blockId: 'block-labor', rows: [{ analyt: 'Hb', wert: 'p2-new', recordedAt: '2026-08-22T08:00:00Z' }] });
+    });
+
+    renderWithAuth(
+      <MemoryRouter initialEntries={[`/compositions/${DATA_FORM_ID}`]}>
+        <Routes>
+          <Route path="/compositions/:id" element={<CompositionRuntime />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const patientInput = await screen.findByPlaceholderText('Patient-ID / EHR-ID');
+    fireEvent.change(patientInput, { target: { value: 'p1' } });
+    fireEvent.change(screen.getByLabelText('Namespace'), { target: { value: 'ns1' } });
+    fireEvent.change(screen.getByLabelText('EHR-ID (optional)'), { target: { value: 'ehr1' } });
+    await waitFor(() => expect(calls.some((body) => body.patient.id === 'p1')).toBe(true));
+
+    // Switch to a different patient *and* namespace while the old request is
+    // still in flight. Its response must not repopulate the UI or the cache.
+    fireEvent.change(patientInput, { target: { value: 'p2' } });
+    fireEvent.change(screen.getByLabelText('Namespace'), { target: { value: 'ns2' } });
+    await waitFor(() => expect(screen.getByText('p2-new')).toBeInTheDocument());
+
+    oldRequest.resolve(jsonResponse({ blockId: 'block-labor', rows: [{ analyt: 'Hb', wert: 'p1-stale', recordedAt: '2026-08-23T08:00:00Z' }] }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.queryByText('p1-stale')).not.toBeInTheDocument();
+    expect(loadCachedBlockData({ ...blockContext, namespace: 'ns1' })).toBeUndefined();
+    expect(loadCachedBlockData({ ...blockContext, patientId: 'p2', namespace: 'ns2' })?.rows).toEqual([{ analyt: 'Hb', wert: 'p2-new', recordedAt: '2026-08-22T08:00:00Z' }]);
+  });
+
+  it('keeps the previous cache entry isolated when only the namespace changes', async () => {
+    const oldRequest = deferred<Response>();
+    const calls: any[] = [];
+    stubBackendWithDataBlock(async (body) => {
+      calls.push(body);
+      if (body.patient.namespace === 'ns1') return oldRequest.promise;
+      return jsonResponse({ blockId: 'block-labor', rows: [{ analyt: 'Hb', wert: 'ns2-new', recordedAt: '2026-08-22T08:00:00Z' }] });
+    });
+
+    renderWithAuth(
+      <MemoryRouter initialEntries={[`/compositions/${DATA_FORM_ID}`]}>
+        <Routes>
+          <Route path="/compositions/:id" element={<CompositionRuntime />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const patientInput = await screen.findByPlaceholderText('Patient-ID / EHR-ID');
+    fireEvent.change(patientInput, { target: { value: 'p1' } });
+    fireEvent.change(screen.getByLabelText('Namespace'), { target: { value: 'ns1' } });
+    fireEvent.change(screen.getByLabelText('EHR-ID (optional)'), { target: { value: 'ehr1' } });
+    await waitFor(() => expect(calls.some((body) => body.patient.namespace === 'ns1')).toBe(true));
+
+    fireEvent.change(screen.getByLabelText('Namespace'), { target: { value: 'ns2' } });
+    await waitFor(() => expect(screen.getByText('ns2-new')).toBeInTheDocument());
+
+    oldRequest.resolve(jsonResponse({ blockId: 'block-labor', rows: [{ analyt: 'Hb', wert: 'ns1-stale', recordedAt: '2026-08-23T08:00:00Z' }] }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.queryByText('ns1-stale')).not.toBeInTheDocument();
+    expect(loadCachedBlockData({ ...blockContext, namespace: 'ns1' })).toBeUndefined();
+  });
+
+  it('fetches everything on a genuinely first load and stores the result', async () => {
     const compositionDataCalls: any[] = [];
-    stubBackendWithDataBlock(async (init) => {
-      compositionDataCalls.push(JSON.parse((init?.body as string) || '{}'));
-      return jsonResponse({ blockId: 'block-labor', rows: [{ analyt: 'Hb', wert: 14, recordedAt: '2026-08-20T08:00:00Z' }], cachedThrough: Date.parse('2026-08-20T08:00:00Z') });
+    stubBackendWithDataBlock(async (body) => {
+      compositionDataCalls.push(body);
+      return jsonResponse({ blockId: 'block-labor', rows: [{ analyt: 'Hb', wert: 14, recordedAt: '2026-08-20T08:00:00Z' }] });
     });
 
     renderWithAuth(
@@ -186,7 +283,7 @@ describe('CompositionRuntime data cache wiring', () => {
     await waitFor(() => expect(screen.getByText('14')).toBeInTheDocument());
     await waitFor(() => expect(compositionDataCalls.length).toBeGreaterThan(0));
     expect(compositionDataCalls[0].since).toBeUndefined();
-    expect(loadCachedBlockData(cacheKey)?.cachedThrough).toBe(Date.parse('2026-08-20T08:00:00Z'));
+    expect(loadCachedBlockData(blockContext)?.rows).toEqual([{ analyt: 'Hb', wert: 14, recordedAt: '2026-08-20T08:00:00Z' }]);
   });
 });
 

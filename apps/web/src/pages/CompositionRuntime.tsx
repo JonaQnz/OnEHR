@@ -8,7 +8,7 @@ import { CompositionScriptClient } from '../scripting/runtime/CompositionScriptC
 import { WidgetDataCard, type WidgetDataState } from '../components/WidgetDataCard';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useAuth } from '../App';
-import { compositionDataCacheKey, loadCachedBlockData, mergeCachedRows, saveCachedBlockData } from '../integration/compositionDataCache';
+import { activateCompositionDataCacheScope, compositionSessionScope, loadCachedBlockData, saveCachedBlockData } from '../integration/compositionDataCache';
 import { API_BASE_URL } from '../integration/apiBaseUrl';
 
 const API = API_BASE_URL;
@@ -32,6 +32,14 @@ type ClinicalTransactionOp = { id: string; formSessionId: string; blockId?: stri
 // and some, but not all, operations succeeded - never treated as success.
 type ClinicalTransaction = { id: string; status: string; contributionUid?: string; atomic?: boolean; operations: ClinicalTransactionOp[]; errorCode?: string; errorMessage?: string };
 class RequestError extends Error { messages?: Array<{ severity?: string; path?: string; message: string }>; }
+// Everything that identifies one data-widget fetch's clinical scope. A
+// response may only touch UI/cache while it still matches the scope of the
+// currently rendered patient/namespace context - changing patient,
+// namespace, EHR id or the authenticated session invalidates it.
+type DataRequestScope = { sessionScope: string; formId: string; patientId: string; namespace: string; ehrId: string };
+function sameDataRequestScope(a: DataRequestScope, b: DataRequestScope): boolean {
+  return a.sessionScope === b.sessionScope && a.formId === b.formId && a.patientId === b.patientId && a.namespace === b.namespace && a.ehrId === b.ehrId;
+}
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API}${path}`, { ...options, credentials: 'include', headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) } });
   const body = await response.json().catch(() => ({}));
@@ -81,6 +89,7 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
   // one clinician must never surface one user's cached clinical data to
   // another.
   const auth = useAuth();
+  const sessionScope = compositionSessionScope(auth);
   const [record, setRecord] = useState<FormRecord | null>(null); const [composition, setComposition] = useState<CompositionDefinition | null>(null); const [session, setSession] = useState<CompositionSession | null>(null);
   useDocumentTitle(record?.name || 'Form-Vorgang', { skip: props.embedded });
   const [pageIndex, setPageIndex] = useState(0); const [patientId, setPatientId] = useState(props.initialPatientId ?? searchParams.get('patientId') ?? ''); const [namespace, setNamespace] = useState(props.initialNamespace ?? searchParams.get('patientNamespace') ?? ''); const [ehrId, setEhrId] = useState(props.initialEhrId ?? searchParams.get('ehrId') ?? ''); const [mode, setMode] = useState<Mode>(() => { if (props.initialMode) return props.initialMode; const requested = searchParams.get('mode'); return requested === 'edit' || requested === 'view' || requested === 'prefill' ? requested : 'create'; });
@@ -104,6 +113,9 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
   // regenerated once a save actually succeeds or the session itself resets,
   // so a genuinely new save is never mistaken for a retry of an old one.
   const transactionClientId = useRef<string>(crypto.randomUUID());
+  const dataRequestEpoch = useRef(0);
+  const dataRequestSeq = useRef<Record<string, number>>({});
+  const currentDataScope = useRef<DataRequestScope>({ sessionScope: '', formId: '', patientId: '', namespace: '', ehrId: '' });
   const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
   const returnUrl = useMemo(() => {
     const requested = searchParams.get('returnUrl');
@@ -185,7 +197,8 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
   }, [compactBlocks, session, composition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const page = composition?.pages[pageIndex]; const contextReady = patientId.trim().length > 0 && ehrId.trim().length > 0;
-  const reset = () => { setSession(null); setLaunches({}); setData({}); setNotice(''); setSaveOutcomes({}); setTransaction(null); setTransactionError(''); transactionClientId.current = crypto.randomUUID(); iframeRefs.current = {}; };
+  currentDataScope.current = { sessionScope, formId: record?.id || '', patientId: patientId.trim(), namespace: namespace.trim(), ehrId: ehrId.trim() };
+  const reset = () => { dataRequestEpoch.current += 1; dataRequestSeq.current = {}; setSession(null); setLaunches({}); setData({}); setNotice(''); setSaveOutcomes({}); setTransaction(null); setTransactionError(''); transactionClientId.current = crypto.randomUUID(); iframeRefs.current = {}; };
   const refreshSession = async (sessionId = session?.id) => { if (!sessionId) return; const next = await request<CompositionSession>(`/composition-sessions/${encodeURIComponent(sessionId)}`); setSession(next); return next; };
   // Dedupes concurrent ensureSession() calls for the same (record, patient,
   // mode, ...) identity against one shared in-flight request, keyed so a
@@ -214,31 +227,43 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
     ensureSessionInFlight.current = { key, promise };
     return promise;
   };
-  // `force` (an explicit "Aktualisieren"-style refresh, e.g. the
-  // Medikationssicherheit page's onPageVisibility-triggered data.refresh())
-  // bypasses the cache entirely rather than just sending it along as
-  // `since` - a corrected value sharing its original entry's timeColumn
-  // would otherwise never surface until the cache's own 24h safety-net
-  // expiry, since the incremental path can only ever learn about rows
-  // strictly newer than what it already has, never revisions of rows it
-  // already cached. Every other load (mount, page switch, script-driven
-  // non-forced refresh) takes the fast incremental path.
+  // `force` is still the explicit "Aktualisieren"-style refresh (e.g. the
+  // Medikationssicherheit page's onPageVisibility-triggered data.refresh()):
+  // it bypasses the in-memory cache and fetches everything fresh. Every
+  // other load may paint instantly from the volatile cache first, but the
+  // request itself always asks for the full result - no `since` cursor any
+  // more - and its response replaces the block's rows completely instead of
+  // merging a delta. That deliberately transfers more rows, and in return a
+  // corrected value with an unchanged timestamp becomes visible and rows
+  // removed server-side disappear.
   const refreshData = (onlyBlockId?: string, force = false) => {
     if (!record || !composition || !contextReady) return;
+    // Only the currently authenticated session may read/write the cache; a
+    // switch invalidates everything cached for the previous identity.
+    activateCompositionDataCacheScope(sessionScope);
     const blocks = composition.pages.flatMap((candidate) => candidate.blocks).filter((block): block is CompositionDataBlock => block.type === 'data' && (!onlyBlockId || block.id === onlyBlockId));
+    const requestScope: DataRequestScope = { sessionScope, formId: record.id, patientId: patientId.trim(), namespace: namespace.trim(), ehrId: ehrId.trim() };
     for (const block of blocks) {
       if (!force && (data[block.id]?.loading || data[block.id]?.rows)) continue;
-      const cacheKey = compositionDataCacheKey({ userId: auth.user?.id || 'anonymous', formId: record.id, blockId: block.id, patientId: patientId.trim(), ehrId: ehrId.trim() || undefined });
-      const cached = force ? undefined : loadCachedBlockData(cacheKey);
+      const cacheContext = { ...requestScope, blockId: block.id, namespace: requestScope.namespace || undefined, ehrId: requestScope.ehrId || undefined };
+      const cached = force ? undefined : loadCachedBlockData(cacheContext);
+      const requestId = { epoch: dataRequestEpoch.current, seq: (dataRequestSeq.current[block.id] ?? 0) + 1 };
+      dataRequestSeq.current[block.id] = requestId.seq;
       setData((current) => ({ ...current, [block.id]: cached ? { rows: cached.rows } : { loading: true } }));
-      void request<{ rows: Record<string, unknown>[]; cachedThrough?: number }>(`/forms/${encodeURIComponent(record.id)}/composition-data`, { method: 'POST', body: JSON.stringify({ blockId: block.id, patient: { id: patientId.trim(), ...(namespace.trim() ? { namespace: namespace.trim() } : {}) }, ehrId: ehrId.trim() || undefined, ...(cached?.cachedThrough !== undefined ? { since: cached.cachedThrough } : {}) }) })
+      void request<{ rows: Record<string, unknown>[] }>(`/forms/${encodeURIComponent(record.id)}/composition-data`, { method: 'POST', body: JSON.stringify({ blockId: block.id, patient: { id: requestScope.patientId, ...(requestScope.namespace ? { namespace: requestScope.namespace } : {}) }, ehrId: requestScope.ehrId || undefined }) })
         .then((result) => {
-          const rows = cached ? mergeCachedRows(cached.rows, result.rows) : result.rows;
-          const cachedThrough = result.cachedThrough ?? cached?.cachedThrough;
-          saveCachedBlockData(cacheKey, { rows, cachedThrough });
+          // A late response from before a patient/namespace/session switch
+          // (or superseded by a newer request for this block) must never
+          // repopulate either the UI or the cache.
+          if (dataRequestEpoch.current !== requestId.epoch || dataRequestSeq.current[block.id] !== requestId.seq || !sameDataRequestScope(currentDataScope.current, requestScope)) return;
+          const rows = result.rows;
+          saveCachedBlockData(cacheContext, { rows });
           setData((current) => ({ ...current, [block.id]: { rows } }));
         })
-        .catch((reason) => setData((current) => ({ ...current, [block.id]: { error: reason instanceof Error ? reason.message : 'Daten konnten nicht geladen werden.', rows: cached?.rows } })));
+        .catch((reason) => {
+          if (dataRequestEpoch.current !== requestId.epoch || dataRequestSeq.current[block.id] !== requestId.seq || !sameDataRequestScope(currentDataScope.current, requestScope)) return;
+          setData((current) => ({ ...current, [block.id]: { error: reason instanceof Error ? reason.message : 'Daten konnten nicht geladen werden.', rows: cached?.rows } }));
+        });
     }
   };
   // Launches every form block in the given set that isn't already started.

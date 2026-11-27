@@ -27,7 +27,7 @@ const PatientDetail = React.lazy(() => import('./pages/patients/PatientDetail'))
 import { FrontendPluginProvider } from './components/FrontendPluginRegistry';
 import type { FrontendPluginRegistration } from 'plugin-api';
 import { loadFrontendPluginRegistrations } from './plugins/frontendPluginCatalog';
-import { clearCompositionDataCache } from './integration/compositionDataCache';
+import { activateCompositionDataCacheScope, clearCompositionDataCache, compositionSessionScope, purgeLegacyCompositionDataCache } from './integration/compositionDataCache';
 import { API_BASE_URL } from './integration/apiBaseUrl';
 import './App.css';
 
@@ -54,6 +54,15 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     catch { setState((current) => ({ ...current, loading: false })); }
   }, []);
   React.useEffect(() => { void reload(); }, [reload]);
+  // The composition-data cache is volatile and belongs to one authenticated
+  // session only. A different identity drops every cached clinical row;
+  // losing auth clears it outright instead of leaving it available to
+  // whoever logs in next in this tab.
+  React.useEffect(() => {
+    if (state.loading) return;
+    if (!state.authenticated) { clearCompositionDataCache(); return; }
+    activateCompositionDataCacheScope(compositionSessionScope({ authenticated: state.authenticated, mode: state.mode, user: state.user }));
+  }, [state.loading, state.authenticated, state.mode, state.user?.id, state.user?.authSource]);
   if (state.loading) return <div style={{ padding: '2rem' }}>Loading…</div>;
   if (!state.authenticated) return <Login mode={state.mode === 'hip' ? 'hip' : 'local'} onAuthenticated={reload} />;
   return <AuthStateContext.Provider value={{ ...state, reload }}>{children}</AuthStateContext.Provider>;
@@ -66,7 +75,7 @@ function AppContent() {
   // integration/compositionDataCache.ts) on logout - a shared browser
   // profile used by more than one clinician must never surface one user's
   // cached clinical data to the next person who logs in on it.
-  const logout = async () => { await fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' }); clearCompositionDataCache(); await auth.reload(); };
+  const logout = async () => { try { await fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' }); } finally { clearCompositionDataCache(); await auth.reload(); } };
   if (isBuilder || location.pathname.includes('/composition-builder')) return <main style={{ width: '100vw', height: '100vh', overflow: 'auto', padding: 0, margin: 0 }}><React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}><Routes><Route path="/forms/:id/builder" element={<Protected permission="form.design"><FormBuilder /></Protected>} /><Route path="/compositions/:id/builder" element={<Protected permission="form.design"><CompositionBuilder /></Protected>} /></Routes></React.Suspense></main>;
   return <div className="app-container"><nav className="sidebar"><div className="sidebar-header"><img src="/onehr-logo.png" alt="OnEHR" style={{ width: '100%', maxWidth: 170, height: 'auto' }} /></div><ul className="sidebar-nav">
     <li><Link to="/" className={location.pathname === '/' ? 'active' : ''}><LayoutDashboard size={18} /><span>Bibliothek</span></Link></li>
@@ -88,5 +97,5 @@ function AppContent() {
     <div style={{ fontSize: '.85rem', marginBottom: '.5rem' }}>{auth.user?.displayName}</div><button className="btn secondary" onClick={() => void logout()} style={{ width: '100%', justifyContent: 'center' }}><LogOut size={16} /> Logout</button></div></nav>
   <main className="main-content"><React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}><Routes><Route path="/" element={<Dashboard />} /><Route path="/patients" element={<PatientList />} /><Route path="/patients/:id" element={<PatientDetail />} /><Route path="/config" element={<Protected permission="system.configure"><Config /></Protected>} /><Route path="/plugins" element={<Protected permission="plugin.configure"><Plugins /></Protected>} /><Route path="/functions" element={<Protected permission="form.design"><FunctionsAdmin /></Protected>} /><Route path="/widgets" element={<Protected permission="form.design"><WidgetsAdmin /></Protected>} /><Route path="/terminology" element={<Protected permission="terminology.manage"><TerminologyAdmin /></Protected>} /><Route path="/admin/users" element={<Protected permission="user.manage"><UsersAdmin /></Protected>} /><Route path="/forms/:id/export" element={<Protected permission="form.design"><FormExport /></Protected>} /><Route path="/forms/:id/runtime" element={<SessionRuntime />} /><Route path="/compositions/:id" element={<Protected permission="form.execute"><CompositionRuntime /></Protected>} /></Routes></React.Suspense></main></div>;
 }
-function App() { const [frontendPlugins, setFrontendPlugins] = React.useState<FrontendPluginRegistration[]>([]); React.useEffect(() => { void loadFrontendPluginRegistrations().then(setFrontendPlugins).catch((error: unknown) => console.error('[PLUGIN] Failed to load frontend plugins', error)); }, []); return <Router><FrontendPluginProvider plugins={frontendPlugins}><AuthGate><React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}><Routes><Route path="/live/:parentId" element={<LiveForm />} /><Route path="/embed/forms/:parentId" element={<LiveForm />} /><Route path="*" element={<AppContent />} /></Routes></React.Suspense></AuthGate></FrontendPluginProvider></Router>; }
+function App() { const [frontendPlugins, setFrontendPlugins] = React.useState<FrontendPluginRegistration[]>([]); React.useEffect(() => { purgeLegacyCompositionDataCache(); }, []); React.useEffect(() => { void loadFrontendPluginRegistrations().then(setFrontendPlugins).catch((error: unknown) => console.error('[PLUGIN] Failed to load frontend plugins', error)); }, []); return <Router><FrontendPluginProvider plugins={frontendPlugins}><AuthGate><React.Suspense fallback={<div style={{ padding: '2rem' }}>Loading…</div>}><Routes><Route path="/live/:parentId" element={<LiveForm />} /><Route path="/embed/forms/:parentId" element={<LiveForm />} /><Route path="*" element={<AppContent />} /></Routes></React.Suspense></AuthGate></FrontendPluginProvider></Router>; }
 export default App;
