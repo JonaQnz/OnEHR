@@ -1,101 +1,114 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  activateCompositionDataCacheScope,
   clearCompositionDataCache,
   compositionDataCacheKey,
+  compositionSessionScope,
   loadCachedBlockData,
-  mergeCachedRows,
+  purgeLegacyCompositionDataCache,
   saveCachedBlockData,
 } from './compositionDataCache';
 
-const params = { userId: 'u1', formId: 'form-1', blockId: 'block-1', patientId: 'p1', ehrId: 'ehr-1' };
+const context = { sessionScope: 'local::u1', formId: 'form-1', blockId: 'block-1', patientId: 'p1', namespace: 'ns-1', ehrId: 'ehr-1' };
+
+beforeEach(() => {
+  activateCompositionDataCacheScope(context.sessionScope);
+});
+
+afterEach(() => {
+  clearCompositionDataCache();
+  localStorage.clear();
+  vi.restoreAllMocks();
+});
 
 describe('compositionDataCacheKey', () => {
-  it('scopes the key per user, form, block, patient and EHR', () => {
-    const key = compositionDataCacheKey(params);
+  it('scopes the key per authenticated session and the full clinical context', () => {
+    const key = compositionDataCacheKey(context);
     expect(key).toContain('u1');
     expect(key).toContain('form-1');
     expect(key).toContain('block-1');
     expect(key).toContain('p1');
+    expect(key).toContain('ns-1');
     expect(key).toContain('ehr-1');
-    // A different user must never land on the same key - that's what keeps
-    // one clinician's cached clinical data from leaking to the next person
-    // on a shared browser profile.
-    expect(compositionDataCacheKey({ ...params, userId: 'u2' })).not.toBe(key);
+    // A different authenticated session, patient, namespace or EHR id must
+    // never land on the same key - the same patient id can exist in more
+    // than one namespace, and a shared browser profile must not leak one
+    // clinician's rows to the next.
+    expect(compositionDataCacheKey({ ...context, sessionScope: 'local::u2' })).not.toBe(key);
+    expect(compositionDataCacheKey({ ...context, patientId: 'p2' })).not.toBe(key);
+    expect(compositionDataCacheKey({ ...context, namespace: 'ns-2' })).not.toBe(key);
+    expect(compositionDataCacheKey({ ...context, ehrId: 'ehr-2' })).not.toBe(key);
   });
 });
 
-describe('save/loadCachedBlockData', () => {
-  it('round-trips rows and cachedThrough', () => {
-    const key = compositionDataCacheKey(params);
-    saveCachedBlockData(key, { rows: [{ analyt: 'Hb', wert: 14 }], cachedThrough: 1000 });
-    const loaded = loadCachedBlockData(key);
-    expect(loaded?.rows).toEqual([{ analyt: 'Hb', wert: 14 }]);
-    expect(loaded?.cachedThrough).toBe(1000);
-  });
-
-  it('returns undefined for a key that was never written', () => {
-    expect(loadCachedBlockData(compositionDataCacheKey({ ...params, blockId: 'never-written' }))).toBeUndefined();
-  });
-
-  it('treats a corrupted entry as no cache, not a crash', () => {
-    const key = compositionDataCacheKey(params);
-    localStorage.setItem(key, 'not json{{{');
-    expect(loadCachedBlockData(key)).toBeUndefined();
-  });
-
-  it('discards an entry older than the 24h safety-net expiry', () => {
-    const key = compositionDataCacheKey(params);
-    localStorage.setItem(key, JSON.stringify({ rows: [{ a: 1 }], savedAt: Date.now() - 25 * 60 * 60 * 1000 }));
-    expect(loadCachedBlockData(key)).toBeUndefined();
-    // Also removed, not just ignored - a later save() to the same key
-    // shouldn't have to fight a lingering stale entry.
-    expect(localStorage.getItem(key)).toBeNull();
+describe('compositionSessionScope', () => {
+  it('separates users and auth sources, and collapses to anonymous without auth', () => {
+    const localUser = compositionSessionScope({ authenticated: true, mode: 'local', user: { id: 'u1', authSource: 'local' } });
+    expect(compositionSessionScope({ authenticated: true, mode: 'local', user: { id: 'u2', authSource: 'local' } })).not.toBe(localUser);
+    expect(compositionSessionScope({ authenticated: true, mode: 'hip', user: { id: 'u1', authSource: 'hip' } })).not.toBe(localUser);
+    expect(compositionSessionScope({ authenticated: false, mode: 'local', user: { id: 'u1', authSource: 'local' } })).toBe('anonymous');
+    expect(compositionSessionScope({ authenticated: true, mode: 'local' })).toBe('anonymous');
   });
 });
 
-describe('mergeCachedRows', () => {
-  it('appends new rows onto the previously cached set', () => {
-    const previous = [{ analyt: 'Hb', wert: 14, recordedAt: '2026-08-20' }];
-    const incoming = [{ analyt: 'Hb', wert: 13.8, recordedAt: '2026-08-21' }];
-    expect(mergeCachedRows(previous, incoming)).toEqual([...previous, ...incoming]);
+describe('in-memory save/load', () => {
+  it('round-trips rows without writing to localStorage', () => {
+    saveCachedBlockData(context, { rows: [{ analyt: 'Hb', wert: 14 }] });
+    expect(loadCachedBlockData(context)?.rows).toEqual([{ analyt: 'Hb', wert: 14 }]);
+    expect(localStorage.length).toBe(0);
   });
 
-  it('returns the previous rows unchanged when there is nothing new', () => {
-    const previous = [{ analyt: 'Hb', wert: 14 }];
-    expect(mergeCachedRows(previous, [])).toBe(previous);
+  it('returns undefined for a context that was never written', () => {
+    expect(loadCachedBlockData({ ...context, blockId: 'never-written' })).toBeUndefined();
   });
 
-  it('does not duplicate a row the backend keeps re-returning because it has no usable timeColumn value', () => {
-    // diffRowsSince (compositionDataDiff.ts) deliberately always re-returns
-    // a row with no usable timeColumn value on every single fetch, since it
-    // can never be judged "older than since" - e.g. a "Versorgungsverlauf"
-    // entry whose valueColumn is `composer` (a name) rather than a number,
-    // or any row with a null/unparsable recordedAt. Without dedup here,
-    // that exact row would pile up as a duplicate on every refresh.
-    const timelessRow = { compositionName: 'Aufnahme', composer: 'Dr. Meier', recordedAt: null };
-    const previous = [timelessRow];
-    // Simulates diffRowsSince re-sending it on the very next incremental fetch.
-    expect(mergeCachedRows(previous, [timelessRow])).toEqual([timelessRow]);
-    // A genuinely different timeless row is still added, not dropped.
-    const anotherTimelessRow = { compositionName: 'Entlassung', composer: 'Dr. Weber', recordedAt: null };
-    expect(mergeCachedRows(previous, [timelessRow, anotherTimelessRow])).toEqual([timelessRow, anotherTimelessRow]);
+  it('replaces rows completely instead of merging them', () => {
+    saveCachedBlockData(context, { rows: [{ analyt: 'Hb', wert: 14, recordedAt: '2026-08-20T08:00:00Z' }] });
+    saveCachedBlockData(context, { rows: [{ analyt: 'Hb', wert: 14.2, recordedAt: '2026-08-20T08:00:00Z' }] });
+    // A corrected value with an unchanged timestamp must replace the cached
+    // row - merging would keep the stale 14 around forever.
+    expect(loadCachedBlockData(context)?.rows).toEqual([{ analyt: 'Hb', wert: 14.2, recordedAt: '2026-08-20T08:00:00Z' }]);
   });
 });
 
-describe('clearCompositionDataCache', () => {
-  it('removes every cached entry, for every user, and nothing else', () => {
-    saveCachedBlockData(compositionDataCacheKey(params), { rows: [{ a: 1 }] });
-    saveCompositionDataCacheUnrelatedKey();
+describe('scope invalidation (logout, identity switch, auth loss)', () => {
+  it('drops every entry on logout/clear and refuses writes while logged out', () => {
+    saveCachedBlockData(context, { rows: [{ a: 1 }] });
     clearCompositionDataCache();
-    expect(loadCachedBlockData(compositionDataCacheKey(params))).toBeUndefined();
-    expect(localStorage.getItem('some-unrelated-app-setting')).toBe('keep-me');
-    localStorage.removeItem('some-unrelated-app-setting');
+    expect(loadCachedBlockData(context)).toBeUndefined();
+    // A response from before the logout must not refill the cache.
+    saveCachedBlockData(context, { rows: [{ a: 2 }] });
+    activateCompositionDataCacheScope(context.sessionScope);
+    expect(loadCachedBlockData(context)).toBeUndefined();
+  });
+
+  it('does not expose the previous user\'s rows after an identity switch', () => {
+    saveCachedBlockData(context, { rows: [{ owner: 'u1' }] });
+    activateCompositionDataCacheScope('local::u2');
+    expect(loadCachedBlockData(context)).toBeUndefined();
+    // A late response from the old user's request cannot refill the cache
+    // under the new identity.
+    saveCachedBlockData(context, { rows: [{ owner: 'late-u1' }] });
+    activateCompositionDataCacheScope(context.sessionScope);
+    expect(loadCachedBlockData(context)).toBeUndefined();
   });
 });
 
-function saveCompositionDataCacheUnrelatedKey() {
-  // A key from a totally different feature (e.g. compositionViewMode: -
-  // see CompositionRuntime.tsx) must survive clearCompositionDataCache(),
-  // which should only ever touch its own prefix.
-  localStorage.setItem('some-unrelated-app-setting', 'keep-me');
-}
+describe('purgeLegacyCompositionDataCache', () => {
+  it('removes only old persisted cache keys, without reading their payloads', () => {
+    const legacyKey = 'formbuilder:compositionDataCache:v1:u1:form-1:block-1:p1:ehr-1';
+    localStorage.setItem(legacyKey, 'not json - a legacy clinical payload that must never be parsed');
+    localStorage.setItem('formbuilder:compositionDataCache:v1:u2:other', '{"rows":[{"analyt":"Hb","wert":14}]}');
+    localStorage.setItem('some-unrelated-app-setting', 'keep-me');
+    const getItem = vi.spyOn(Storage.prototype, 'getItem');
+
+    purgeLegacyCompositionDataCache();
+
+    // The purge itself never called getItem() for a legacy key - our own
+    // assertions below are the only reads, and they happen after this check.
+    expect(getItem.mock.calls.some(([key]) => String(key).startsWith('formbuilder:compositionDataCache:v1:'))).toBe(false);
+    expect(localStorage.getItem(legacyKey)).toBeNull();
+    expect(localStorage.getItem('formbuilder:compositionDataCache:v1:u2:other')).toBeNull();
+    expect(localStorage.getItem('some-unrelated-app-setting')).toBe('keep-me');
+  });
+});

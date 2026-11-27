@@ -1,108 +1,118 @@
-# Composition data widget local cache
+# Composition data widget cache
 
 Data widgets (lab values, medication, timeline/matrix entries in
 Klinisches Cockpit and any other Composition) used to re-fetch and
 re-render their entire result set from EHRbase/AQL on every load. This
-document is the contract between `apps/web/src/integration/
-compositionDataCache.ts` and `apps/api/src/services/
-compositionDataDiff.ts` - read this before changing either side.
+document describes the current contract between
+`apps/web/src/integration/compositionDataCache.ts`,
+`apps/web/src/pages/CompositionRuntime.tsx` and - for older clients only -
+`apps/api/src/services/compositionDataDiff.ts`.
 
 ## What this does and does not do
 
-- **Does**: cache each data block's rows in the browser's `localStorage`,
-  paint instantly from that cache on revisit, and on the next fetch only
-  ask the backend for rows newer than what's cached - shrinking the
-  response payload and the frontend's re-render work.
-- **Does not**: reduce the EHRbase/AQL query cost itself. The backend
-  still runs the full underlying query every single time; AQL is
-  arbitrary, author-written text stored per data widget, not something
-  `POST /forms/:id/composition-data` can safely rewrite a `WHERE` clause
-  into. A genuine reduction in EHRbase load would need a server-side
-  result cache - a separate, larger piece of work that doesn't exist yet.
+- **Does**: keep each data block's last result in a **volatile,
+  in-memory cache** for the lifetime of the authenticated page session,
+  paint instantly from it on revisit, and replace those rows completely
+  with the next full fetch.
+- **Does not**: persist clinical rows in `localStorage`/`sessionStorage`
+  or any other storage that survives a reload. The cache is gone on page
+  reload, logout, identity switch and auth loss.
+- **Does not**: reduce the EHRbase/AQL query cost. The backend still runs
+  the full underlying query every time; AQL is arbitrary, author-written
+  text stored per data widget. A genuine reduction in EHRbase load would
+  need a server-side result cache - a separate, larger piece of work.
 
-## The `since` / `cachedThrough` contract
+## Volatile cache and scoping
 
-`POST /forms/:id/composition-data` accepts an optional `since` (epoch
-ms) in its request body. Behavior depends on the block's `timeColumn`:
+`compositionDataCacheKey(context)` is an in-memory key built from:
 
-- **No `timeColumn` configured on the block** (e.g. a `metric`/`text`
-  display with no natural time axis) → `since` is ignored, every row is
-  always returned, and the response's `cachedThrough` is `undefined`.
-  There is nothing to diff by; the cache still helps with instant paint
-  on revisit, just not with incremental fetching.
-- **`timeColumn` configured, no `since` sent** (first-ever fetch for this
-  cache key) → every row is returned, but `cachedThrough` is still
-  computed (the max `timeColumn` value across the full result), so the
-  client can start caching from this very response.
-- **`timeColumn` configured, `since` sent** → only rows with a
-  `timeColumn` value **strictly greater than** `since` are returned.
-  `cachedThrough` is always computed from the **full** underlying result,
-  not just the rows sent back, so the client's cursor never regresses. A
-  row with no usable `timeColumn` value at all is always kept (can't be
-  judged old or new).
+1. the **authenticated session** (`compositionSessionScope`: auth mode,
+   auth source and user id - `anonymous` once auth is lost), and
+2. the **full clinical context**: form id, block id, patient id,
+   **namespace** and EHR id.
 
-Both response paths (the `widgetId` path via `executeDataWidget` and the
-raw `aqlFunctionId` path) go through the same `diffed()` helper in
-`formRoutes.ts`, which delegates to `diffRowsSince()` in
-`compositionDataDiff.ts` - see that file's unit tests
-(`apps/api/tests/composition-data-diff.test.js`) for the exact edge
-cases covered (no timeColumn, first fetch, `since` already covers
-everything, rows with no time value).
+The namespace is part of the key because the same patient id can exist
+in more than one namespace. A shared browser profile used by more than
+one clinician must never surface one user's cached clinical data to
+another.
 
-## The cache key
+`activateCompositionDataCacheScope(scope)` is called by `AuthGate` and by
+`CompositionRuntime` before a read. Whenever the scope changes, every
+entry is dropped. `clearCompositionDataCache()` clears all entries and
+the active scope; it runs on logout, on an identity switch and when the
+`/auth/me` reload reports that authentication was lost. A cached entry
+also expires after `MAX_AGE_MS` (24h) as a defensive bound for a very
+long-lived tab.
 
-`compositionDataCacheKey({ userId, formId, blockId, patientId, ehrId })`
-in `compositionDataCache.ts`. Scoped by **user**, not just by
-form/block/patient - a shared browser profile used by more than one
-clinician must never surface one user's cached clinical data to another.
-The cache is cleared entirely on logout (`clearCompositionDataCache()`,
-wired into `App.tsx`'s `logout()`).
+## Removing the old persisted cache at startup
 
-## Deduping timeless rows across repeated fetches
+Earlier versions stored rows under the prefix
+`formbuilder:compositionDataCache:v1:`. `purgeLegacyCompositionDataCache()`
+is called once at app startup and removes **only** keys at that known
+prefix. It uses `localStorage.key()`/`removeItem()` exclusively - it never
+reads (`getItem`) or parses a persisted clinical payload, and it never
+touches keys from other features.
 
-`diffRowsSince` deliberately always re-returns a row with no usable
-`timeColumn` value on every fetch (it can never be judged "older than
-`since`" - dropping it would silently lose a genuinely new timeless row).
-That means `mergeCachedRows` in `compositionDataCache.ts` cannot simply
-concatenate: it dedupes by exact content (JSON-equality) against what's
-already cached, so a timeless row the backend keeps re-sending doesn't
-pile up as a duplicate entry in Timeline/Matrix/list widgets the longer a
-Composition stays open. Found via QA review, not the pure single-fetch
-diff tests (which don't exercise a *second* fetch against the same cache)
-- covered now by `mergeCachedRows`'s own dedup test in
-`compositionDataCache.test.ts`.
+## Full fetch on every request - deliberately higher transfer volume
 
-## The correction-visibility caveat, and how `force` handles it
+`POST /forms/:id/composition-data` is still called with the block id,
+patient (`id` + optional `namespace`) and EHR id, but the runtime **no
+longer sends a `since` cursor**. Every load transfers the full widget
+result. That is intentionally more network traffic than the previous
+incremental path, and it buys correctness:
 
-The incremental path can only ever learn about rows **strictly newer**
-than what's already cached - it has no way to learn that an *existing*
-cached row's value was corrected in EHRbase without its `timeColumn`
-also changing (e.g. a typo fix that keeps the original recorded-at
-time). Two things bound how stale that can get in practice:
+- A corrected value whose `timeColumn` did not change (e.g. a typo fix
+  that keeps the original recorded-at time) becomes visible immediately.
+- Rows removed server-side disappear instead of lingering in the cache.
+- No dedupe/merge heuristic is needed for timeless rows.
 
-1. A 24-hour max-age on every cache entry (`MAX_AGE_MS` in
-   `compositionDataCache.ts`) - a purely defensive safety net, not the
-   primary freshness mechanism.
-2. **`force` bypasses the cache entirely.** `refreshData(blockId, true)`
-   in `CompositionRuntime.tsx` - used by the existing "Aktualisieren"-
-   style `data.refresh()` composition-script API, and by page-visibility-
-   triggered refreshes like Klinisches Cockpit's Medikationssicherheit
-   page - ignores any cached rows/`cachedThrough`, fetches everything
-   fresh, and overwrites the cache with the full, correct result. Any
-   code path that cares more about correctness than speed for a given
-   reload should call `refreshData(blockId, true)`, not rely on the
-   default incremental path.
+The response **replaces** the block's cached rows and the rendered rows
+completely (`result.rows`), it is never merged with the previous set.
+
+## Preventing stale requests from repopulating UI or cache
+
+A fetch captures its clinical scope (`sessionScope`, form, patient,
+namespace, EHR id) and a per-block sequence number. A response (success
+or error) is ignored unless:
+
+- no newer request for the same block was started, and
+- the context was not reset (patient/namespace/EHR/mode switch bumps a
+  shared epoch), and
+- the captured scope still equals the currently rendered scope, and
+- the cache module's active session scope still matches (a late response
+  after logout/identity switch is refused a cache write).
+
+So a slow response for patient A / namespace X can never paint over or
+fill the cache for patient B / namespace Y after a switch.
+
+## Explicit refresh and error behaviour
+
+`force` is unchanged: `refreshData(blockId, true)` (used by the
+`data.refresh()` composition-script API and page-visibility-triggered
+refreshes) bypasses the cache, fetches everything fresh and overwrites
+the cache with the result. Non-forced loads still paint cached rows
+first, show the loading state when nothing is cached, and on failure keep
+the previously cached rows alongside the error message.
+
+## Backend compatibility
+
+The backend's `since` / `cachedThrough` contract
+(`apps/api/src/services/compositionDataDiff.ts`, wired into
+`formRoutes.ts`) is unchanged and still covered by
+`apps/api/tests/composition-data-diff.test.js`. Earlier cursor clients
+remain compatible even though this frontend no longer sends `since`.
 
 ## Testing
 
-- `apps/web/src/integration/compositionDataCache.test.ts` - the cache
-  module in isolation (key scoping, round-trip, corrupted-entry handling,
-  expiry, merge, clear).
-- `apps/api/tests/composition-data-diff.test.js` - the diffing logic in
-  isolation.
+- `apps/web/src/integration/compositionDataCache.test.ts` - key scoping
+  by session/patient/namespace/EHR, in-memory round-trip without
+  localStorage writes, complete row replacement, scope invalidation on
+  logout/identity switch, and selective legacy-key purge without reading
+  payloads.
 - `apps/web/src/pages/CompositionRuntime.test.tsx`'s "data cache wiring"
-  describe block - `refreshData`'s actual wiring end to end at the
-  component level: a pre-seeded cache paints instantly, the background
-  fetch carries the cache's own `cachedThrough` as `since`, the response
-  merges into both UI state and the cache, and a genuinely first load
-  (nothing cached) sends no `since` at all.
+  describe block - component-level wiring: instant paint from the
+  volatile cache, requests without `since`, full replacement (including a
+  corrected value with an unchanged timestamp), and late responses after
+  patient/namespace switches being ignored by UI and cache.
+- `apps/api/tests/composition-data-diff.test.js` - the backend `since`
+  diffing logic kept for older clients.
