@@ -13,6 +13,11 @@ test('exposes a CompositionRepository only for providers with a real openEHR ver
   // Epic 3
   assert.equal(typeof repo.getVersionHistory, 'function');
   assert.equal(typeof repo.getVersionContent, 'function');
+  // Epic 4: explicit POST step + separate readback, with commitContribution
+  // kept as the existing combined wrapper.
+  assert.equal(typeof repo.postContribution, 'function');
+  assert.equal(typeof repo.readBackContribution, 'function');
+  assert.equal(typeof repo.commitContribution, 'function');
 });
 
 test('returns the same cached repository instance for repeated lookups', () => {

@@ -5,6 +5,7 @@ import {
   type CommitWithLifecycleResult,
   type ContributionCommitInput,
   type ContributionCommitResult,
+  type ContributionPostResult,
   type ContributionDetails,
   type WithdrawInput,
   type WithdrawResult,
@@ -35,6 +36,19 @@ export interface CompositionRepository {
    * Epic 4's "never silently downgrade" requirement.
    */
   supportsContribution: boolean;
+  /**
+   * Explicit POST step: commits the Contribution and returns the UID the CDR
+   * confirmed. Never performs the readback itself, so a confirmed UID is
+   * available even when the versions cannot be read back yet.
+   */
+  postContribution(input: ContributionCommitInput): Promise<ContributionPostResult>;
+  /**
+   * Separate readback for an already accepted Contribution: fetches it and
+   * correlates its committed versions back to the operations that produced
+   * them. Only usable once postContribution returned a UID.
+   */
+  readBackContribution(input: ContributionCommitInput, contributionUid: string, ehrId?: string): Promise<ContributionCommitResult>;
+  /** Combined POST + readback wrapper kept for existing callers. */
   commitContribution(input: ContributionCommitInput): Promise<ContributionCommitResult>;
   getContribution(context: FormDataProviderContext, contributionUid: string): Promise<ContributionDetails>;
 }
@@ -54,6 +68,8 @@ function ehrbaseRepository(): CompositionRepository {
     // a real 412 - so this connector genuinely supports it, not just "has
     // the methods".
     supportsContribution: true,
+    postContribution: (input) => ehrbaseDataProvider.postContribution(input),
+    readBackContribution: (input, contributionUid, ehrId) => ehrbaseDataProvider.readBackContribution(input, contributionUid, ehrId),
     commitContribution: (input) => ehrbaseDataProvider.commitContribution(input),
     getContribution: (context, contributionUid) => ehrbaseDataProvider.getContribution(context, contributionUid),
   };
