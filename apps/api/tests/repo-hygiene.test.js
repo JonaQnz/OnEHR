@@ -74,3 +74,29 @@ test('.dockerignore keeps runtime config, env files and keys out of build contex
     assert.ok(dockerignore.includes(entry), `.dockerignore is missing ${entry}`);
   }
 });
+
+// Enum values that are not credentials even though the key matches the secret
+// pattern (keycloakGrantType is a fixed mode name, not a secret).
+const SAFE_NON_SECRET_VALUES = {
+  keycloakGrantType: 'password',
+};
+
+test('config.example.json parses and holds only empty secret placeholders', () => {
+  const example = JSON.parse(fs.readFileSync(path.join(root, 'apps/data/config.example.json'), 'utf8'));
+  for (const [key, value] of Object.entries(example)) {
+    if (!/pass|secret|key|token/i.test(key)) continue;
+    if (Object.prototype.hasOwnProperty.call(SAFE_NON_SECRET_VALUES, key)) {
+      assert.equal(value, SAFE_NON_SECRET_VALUES[key], `${key} must keep its safe enum value`);
+      continue;
+    }
+    assert.equal(value, '', `${key} must be an empty placeholder`);
+  }
+});
+
+test('apps/api/.env.example holds only empty secret values', () => {
+  const secretLines = lines('apps/api/.env.example').filter((line) => /(PASS|PASSWORD|SECRET|API_KEY|TOKEN)=/.test(line));
+  assert.ok(secretLines.length > 0, 'expected secret keys in apps/api/.env.example');
+  for (const line of secretLines) {
+    assert.equal(line.split('=').slice(1).join('='), '', `${line} must have an empty value`);
+  }
+});
