@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, LayoutGrid, Loader2, Maximize2, Minimize2, Plus, Rows3, RefreshCw, Save, X } from 'lucide-react';
 import { COMPOSITION_SCRIPTING_EXTENSION_KEY, getCompositionDefinition, normalizeCompositionScript, summarizeRuntimeValues, type CompositionBlock, type CompositionDataBlock, type CompositionDefinition, type CompositionPage, type FormDefinitionV1, type RuntimeValues } from 'core';
 import { formEmbedUrl, isFormEmbedEvent, launchEmbeddedForm } from '../integration/formLaunch';
@@ -12,7 +12,7 @@ import { activateCompositionDataCacheScope, compositionSessionScope, loadCachedB
 import { API_BASE_URL } from '../integration/apiBaseUrl';
 
 const API = API_BASE_URL;
-type Mode = 'create' | 'edit' | 'view' | 'prefill';
+export type Mode = 'create' | 'edit' | 'view' | 'prefill';
 type ViewMode = 'tabs' | 'stacked';
 type FormRecord = { id: string; name: string; canonical_json: FormDefinitionV1 };
 type Launch = { url?: string; error?: string; loading?: boolean };
@@ -63,27 +63,27 @@ function childBadge(status?: string) {
   return <span style={{ display: 'inline-flex', alignItems: 'center', padding: '.15rem .5rem', borderRadius: 999, border: `1px solid ${info.border}`, background: info.background, color: info.color, fontSize: '.72rem', fontWeight: 600, whiteSpace: 'nowrap' }}>{info.label}</span>;
 }
 
-// Optional overrides for every bit of context this component would
-// otherwise read from its own route (`useParams`) or query string
-// (`useSearchParams`) - set when it's mounted directly as embedded content
-// inside another page (e.g. the Klinisches-Cockpit tab in PatientDetail)
-// instead of being routed to on its own. Passing these bypasses
-// useParams()/useSearchParams() entirely for the fields they cover, which
-// matters because an embedding host's own route/query string (e.g.
-// PatientDetail's `/patients/:id`) is not this component's - reading them
-// directly would pick up the host's `id` param, not a composition form id.
-interface CompositionRuntimeProps {
+// Every bit of context this component needs is passed in as a prop - this
+// component reads neither `useParams` nor `useSearchParams`, so it can be
+// mounted directly as embedded content inside another page (e.g. the
+// Klinisches-Cockpit tab in PatientDetail) without picking up that host's
+// own route/query string (e.g. `/patients/:id`, which is not a composition
+// form id). The standalone `/compositions/:id` route supplies these props
+// through CompositionRuntimeRoute, which owns the URL reads.
+export interface CompositionRuntimeProps {
   formId?: string;
   initialPatientId?: string;
   initialNamespace?: string;
   initialEhrId?: string;
   initialMode?: Mode;
   embedded?: boolean;
+  returnUrl?: string;
+  forceNew?: boolean;
 }
 
 export default function CompositionRuntime(props: CompositionRuntimeProps = {}) {
-  const { id: routeId } = useParams(); const [searchParams] = useSearchParams(); const navigate = useNavigate();
-  const id = props.formId ?? routeId;
+  const navigate = useNavigate();
+  const id = props.formId;
   // Only used to scope the client-side composition-data cache per user (see
   // compositionDataCache.ts) - a shared browser profile used by more than
   // one clinician must never surface one user's cached clinical data to
@@ -92,7 +92,7 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
   const sessionScope = compositionSessionScope(auth);
   const [record, setRecord] = useState<FormRecord | null>(null); const [composition, setComposition] = useState<CompositionDefinition | null>(null); const [session, setSession] = useState<CompositionSession | null>(null);
   useDocumentTitle(record?.name || 'Form-Vorgang', { skip: props.embedded });
-  const [pageIndex, setPageIndex] = useState(0); const [patientId, setPatientId] = useState(props.initialPatientId ?? searchParams.get('patientId') ?? ''); const [namespace, setNamespace] = useState(props.initialNamespace ?? searchParams.get('patientNamespace') ?? ''); const [ehrId, setEhrId] = useState(props.initialEhrId ?? searchParams.get('ehrId') ?? ''); const [mode, setMode] = useState<Mode>(() => { if (props.initialMode) return props.initialMode; const requested = searchParams.get('mode'); return requested === 'edit' || requested === 'view' || requested === 'prefill' ? requested : 'create'; });
+  const [pageIndex, setPageIndex] = useState(0); const [patientId, setPatientId] = useState(props.initialPatientId ?? ''); const [namespace, setNamespace] = useState(props.initialNamespace ?? ''); const [ehrId, setEhrId] = useState(props.initialEhrId ?? ''); const [mode, setMode] = useState<Mode>(props.initialMode ?? 'create');
   const [launches, setLaunches] = useState<Record<string, Launch>>({}); const [data, setData] = useState<Record<string, DataState>>({}); const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [checking, setChecking] = useState(false);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [iframeHeights, setIframeHeights] = useState<Record<string, number>>({});
@@ -103,7 +103,7 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
   // same signal LiveForm.tsx already treats as pre-supplied) hides the
   // manual patient-picker entirely - captured once at mount, not
   // re-evaluated as the user later edits patientId/ehrId by hand below.
-  const [suppliedContext] = useState(() => Boolean((props.initialPatientId ?? searchParams.get('patientId'))?.trim() && (props.initialEhrId ?? searchParams.get('ehrId'))?.trim()));
+  const [suppliedContext] = useState(() => Boolean(props.initialPatientId?.trim() && props.initialEhrId?.trim()));
   const [transaction, setTransaction] = useState<ClinicalTransaction | null>(null);
   const [committing, setCommitting] = useState(false);
   const [transactionError, setTransactionError] = useState('');
@@ -118,15 +118,15 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
   const currentDataScope = useRef<DataRequestScope>({ sessionScope: '', formId: '', patientId: '', namespace: '', ehrId: '' });
   const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
   const returnUrl = useMemo(() => {
-    const requested = searchParams.get('returnUrl');
+    const requested = props.returnUrl;
     return requested && requested.startsWith('/') && !requested.startsWith('//') ? requested : '/';
-  }, [searchParams]);
+  }, [props.returnUrl]);
   // Set when this runtime is embedded inline as a tab of PatientDetail
   // (rather than visited as its own page) - drops the page-level chrome
   // ("Zurück zur Patientenakte", outer padding/max-width) that would
   // otherwise be redundant nested inside a host page that already has its
   // own back navigation and layout.
-  const embedded = props.embedded ?? searchParams.get('embedded') === '1';
+  const embedded = props.embedded === true;
   // Aggregated across every embedded child form's own 'dirty' embed event -
   // an iframe's own beforeunload guard only ever protects that iframe's own
   // document, never this page's route change, so the aggregate lives here.
@@ -218,7 +218,7 @@ export default function CompositionRuntime(props: CompositionRuntimeProps = {}) 
   const ensureSession = async (): Promise<CompositionSession | undefined> => {
     if (!record || !contextReady) return undefined;
     if (session && session.patientId === patientId.trim() && session.mode === mode) return session;
-    const forceNew = searchParams.get('forceNew') === 'true';
+    const forceNew = props.forceNew === true;
     const key = [record.id, patientId.trim(), namespace.trim(), ehrId.trim(), mode, forceNew].join('|');
     if (ensureSessionInFlight.current?.key === key) return ensureSessionInFlight.current.promise;
     const promise = request<CompositionSession>('/composition-sessions', { method: 'POST', body: JSON.stringify({ compositionFormId: record.id, patientId: patientId.trim(), patientNamespace: namespace.trim() || undefined, ehrId: ehrId.trim() || undefined, mode, forceNew }) })

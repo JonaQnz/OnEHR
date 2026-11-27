@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import CompositionRuntime from './CompositionRuntime';
+import CompositionRuntimeRoute from './CompositionRuntimeRoute';
 import { AuthStateContext, type AuthState } from '../App';
 import { activateCompositionDataCacheScope, clearCompositionDataCache, compositionSessionScope, loadCachedBlockData, saveCachedBlockData } from '../integration/compositionDataCache';
 
@@ -13,11 +14,12 @@ function renderWithAuth(ui: React.ReactElement) {
   return render(<AuthStateContext.Provider value={mockAuthState}>{ui}</AuthStateContext.Provider>);
 }
 
-// Covers the prop-override refactor from the Klinisches-Cockpit embedding
-// work: CompositionRuntime can now be mounted directly as a component
-// (formId/initial*/embedded props) instead of only being routed to
-// (useParams/useSearchParams) - both paths have to keep working, since the
-// standalone /compositions/:id route still uses the unmounted-props path.
+// Covers the component-only refactor: CompositionRuntime takes every bit of
+// context as props (formId/initial*/embedded/returnUrl/forceNew) and reads
+// the router nowhere - the standalone /compositions/:id route goes through
+// CompositionRuntimeRoute, which owns useParams/useSearchParams, while an
+// embedding host (PatientDetail) mounts CompositionRuntime directly. Both
+// paths have to keep working.
 
 const FORM_ID = 'cockpit-1';
 
@@ -85,12 +87,97 @@ describe('CompositionRuntime embedding', () => {
     renderWithAuth(
       <MemoryRouter initialEntries={[`/compositions/${FORM_ID}?patientId=p1&ehrId=ehr1`]}>
         <Routes>
-          <Route path="/compositions/:id" element={<CompositionRuntime />} />
+          <Route path="/compositions/:id" element={<CompositionRuntimeRoute />} />
         </Routes>
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.getByText('Klinisches Cockpit')).toBeInTheDocument());
     expect(screen.getByText('Zurück zur Patientenakte')).toBeInTheDocument();
+  });
+});
+
+// The standalone /compositions/:id route now reads the URL in
+// CompositionRuntimeRoute and hands everything to CompositionRuntime as
+// props - routed launches must keep working (query mode, returnUrl, patient
+// context), while an embedding host's own route/query string must not leak
+// into the runtime.
+describe('CompositionRuntimeRoute routing', () => {
+  const ROUTE_FORM_ID = 'routed-1';
+
+  function stubRoutedBackend() {
+    const postBodies: Array<{ patientId?: string; mode?: string; forceNew?: boolean }> = [];
+    const composition = {
+      id: ROUTE_FORM_ID,
+      name: 'Routentest',
+      canonical_json: {
+        extensions: {
+          'watehr.composition': {
+            schemaVersion: '1.0',
+            pages: [{ id: 'page-1', title: 'Übersicht', blocks: [] }],
+          },
+        },
+      },
+    };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith(`/forms/${ROUTE_FORM_ID}`)) return jsonResponse(composition);
+      if (url.endsWith('/patients')) return jsonResponse([]);
+      if (url.endsWith('/composition-sessions') && init?.method === 'POST') {
+        const body = JSON.parse((init.body as string) || '{}');
+        postBodies.push(body);
+        return jsonResponse({ id: 'routed-session-1', patientId: body.patientId ?? 'p1', mode: body.mode, status: 'draft', childSessions: {}, children: [], progress: { total: 0, started: 0, ready: 0, submitted: 0 } });
+      }
+      if (url.includes('/composition-sessions/')) return jsonResponse({ id: 'routed-session-1', patientId: 'p1', mode: 'create', status: 'draft', childSessions: {}, children: [], progress: { total: 0, started: 0, ready: 0, submitted: 0 } });
+      return jsonResponse({});
+    }));
+    return postBodies;
+  }
+
+  it('routed: query mode=view, returnUrl and patient context reach the runtime', async () => {
+    const postBodies = stubRoutedBackend();
+    renderWithAuth(
+      <MemoryRouter initialEntries={[`/compositions/${ROUTE_FORM_ID}?patientId=p1&ehrId=ehr1&mode=view&returnUrl=/patients/x`]}>
+        <Routes>
+          <Route path="/compositions/:id" element={<CompositionRuntimeRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('Routentest')).toBeInTheDocument());
+    await waitFor(() => expect(postBodies.length).toBeGreaterThan(0));
+    expect(postBodies[0].mode).toBe('view');
+    expect(postBodies[0].patientId).toBe('p1');
+    expect(screen.getByText('Zurück zur Patientenakte').closest('a')).toHaveAttribute('href', '/patients/x');
+  });
+
+  it('routed: returnUrl //evil is rejected', async () => {
+    stubRoutedBackend();
+    renderWithAuth(
+      <MemoryRouter initialEntries={[`/compositions/${ROUTE_FORM_ID}?patientId=p1&ehrId=ehr1&returnUrl=//evil`]}>
+        <Routes>
+          <Route path="/compositions/:id" element={<CompositionRuntimeRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('Routentest')).toBeInTheDocument());
+    expect(screen.getByText('Zurück zur Patientenakte').closest('a')).toHaveAttribute('href', '/');
+  });
+
+  it('embedded: host route query (?mode=view&forceNew=true) is ignored', async () => {
+    const postBodies = stubRoutedBackend();
+    renderWithAuth(
+      <MemoryRouter initialEntries={['/patients/some-other-id?mode=view&forceNew=true']}>
+        <Routes>
+          <Route
+            path="/patients/:id"
+            element={<CompositionRuntime formId={ROUTE_FORM_ID} initialPatientId="p1" initialEhrId="ehr1" embedded />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('Routentest')).toBeInTheDocument());
+    await waitFor(() => expect(postBodies.length).toBeGreaterThan(0));
+    expect(postBodies[0].mode).toBe('create');
+    expect(postBodies[0].forceNew).toBe(false);
   });
 });
 
@@ -207,7 +294,7 @@ describe('CompositionRuntime data cache wiring', () => {
     renderWithAuth(
       <MemoryRouter initialEntries={[`/compositions/${DATA_FORM_ID}`]}>
         <Routes>
-          <Route path="/compositions/:id" element={<CompositionRuntime />} />
+          <Route path="/compositions/:id" element={<CompositionRuntimeRoute />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -244,7 +331,7 @@ describe('CompositionRuntime data cache wiring', () => {
     renderWithAuth(
       <MemoryRouter initialEntries={[`/compositions/${DATA_FORM_ID}`]}>
         <Routes>
-          <Route path="/compositions/:id" element={<CompositionRuntime />} />
+          <Route path="/compositions/:id" element={<CompositionRuntimeRoute />} />
         </Routes>
       </MemoryRouter>,
     );
