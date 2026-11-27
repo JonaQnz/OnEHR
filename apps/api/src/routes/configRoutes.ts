@@ -27,7 +27,7 @@ router.get('/preview-defaults', requirePermission('form.design'), (_req, res) =>
 // settings.runtime.autosaveEnabled/autosaveDebounceMs.
 router.get('/runtime-defaults', requirePermission('form.execute'), (_req, res) => {
   const config = getConfig();
-  res.json({ autosaveEnabledByDefault: config.autosaveEnabledByDefault ?? true, autosaveDebounceMsDefault: config.autosaveDebounceMsDefault ?? 2500 });
+  res.json({ autosaveEnabledByDefault: config.autosaveEnabledByDefault ?? true, autosaveDebounceMsDefault: config.autosaveDebounceMsDefault ?? 2500, patientCockpitFormParentId: config.patientCockpitFormParentId || '' });
 });
 
 router.post('/', requirePermission('system.configure'), (req, res) => {

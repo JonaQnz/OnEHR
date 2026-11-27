@@ -79,3 +79,8 @@ test('autosave and atomic-commit defaults preserve the pre-existing hardcoded be
   assert.equal(safe.autosaveDebounceMsDefault, 2500);
   assert.equal(safe.requireAtomicCommitByDefault, true);
 });
+
+test('patientCockpitFormParentId defaults to empty (legacy name match)', () => {
+  assert.equal(getConfig().patientCockpitFormParentId, '');
+  assert.equal(getSafeConfig().patientCockpitFormParentId, '');
+});
