@@ -769,7 +769,7 @@ function FormBuilderContent() {
   // is typed and re-checks them when the timer fires, so neither a timer armed
   // for form A nor one overtaken by a newer canvas/mapping draft can still
   // send its old snapshot.
-  const jsonSaveSchedulerRef = React.useRef(createDebouncedDraftSave<JsonDraftSavePayload>({
+  const jsonSaveSchedulerRef = React.useRef(createDebouncedDraftSave<JsonDraftSavePayload, JsonDraftSaveTarget>({
     delay: 500,
     isStillActive: (target) => idRef.current === target.formId
       && saveCoordinatorRef.current === target.coordinator

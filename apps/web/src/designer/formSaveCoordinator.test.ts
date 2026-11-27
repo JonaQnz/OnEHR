@@ -272,12 +272,17 @@ describe('FormSaveCoordinator', () => {
       // The live editor publishes the shared draft synchronously, before the
       // 500 ms debounce starts.
       const jsonSequence = coordinator.adoptLocalDraft(jsonDraft);
-      const save = vi.fn((target: { coordinator: FormSaveCoordinator; draftSequence: number }, payload: { parsed: any; draftSequence: number }) => {
+      interface GeneratedTarget {
+        formId: string;
+        coordinator: FormSaveCoordinator;
+        draftSequence: number;
+      }
+      const save = vi.fn((target: GeneratedTarget, payload: { parsed: any; draftSequence: number }) => {
         if (target.coordinator.isLatestDraftSequence(target.draftSequence)) {
           void target.coordinator.save(payload.parsed, { draftSequence: payload.draftSequence });
         }
       });
-      const scheduler = createDebouncedDraftSave<{ parsed: any; draftSequence: number }>({
+      const scheduler = createDebouncedDraftSave<{ parsed: any; draftSequence: number }, GeneratedTarget>({
         delay: 500,
         isStillActive: (target) => target.coordinator.isLatestDraftSequence(target.draftSequence),
         save,

@@ -38,6 +38,26 @@ describe('createDebouncedDraftSave', () => {
     expect(save).toHaveBeenCalledWith(active, { value: 'b' });
   });
 
+  it('takes the caller-specific target type, including the draft generation', () => {
+    interface GeneratedTarget extends DraftSaveTarget {
+      draftSequence: number;
+    }
+    const sequence = coordinatorA.adoptLocalDraft({ id: 'form-a' });
+    const target: GeneratedTarget = { formId: 'form-a', coordinator: coordinatorA, draftSequence: sequence };
+    const save = vi.fn((_target: GeneratedTarget, _payload: { value: string }) => undefined);
+    const scheduler = createDebouncedDraftSave<{ value: string }, GeneratedTarget>({
+      delay: 500,
+      isStillActive: (candidate) => candidate.coordinator.isLatestDraftSequence(candidate.draftSequence),
+      save,
+    });
+
+    scheduler.schedule(target, { value: 'a' });
+    vi.advanceTimersByTime(500);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledWith(target, { value: 'a' });
+  });
+
   it('cancels a pending save when the editor is left', () => {
     const save = vi.fn();
     const target = { formId: 'form-a', coordinator: coordinatorA };

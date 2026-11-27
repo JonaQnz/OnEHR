@@ -5,15 +5,20 @@ export interface DraftSaveTarget {
   coordinator: FormSaveCoordinator;
 }
 
-export interface DebouncedDraftSaveOptions<T> {
+/**
+ * `TTarget` carries whatever the caller captures before waiting (e.g. the
+ * Designer's local draft generation) through the timer untouched. It defaults
+ * to the plain target so callers that need nothing extra stay unchanged.
+ */
+export interface DebouncedDraftSaveOptions<T, TTarget extends DraftSaveTarget = DraftSaveTarget> {
   delay: number;
   /** Checked when the timer fires, not when it was scheduled. */
-  isStillActive: (target: DraftSaveTarget) => boolean;
-  save: (target: DraftSaveTarget, payload: T) => void;
+  isStillActive: (target: TTarget) => boolean;
+  save: (target: TTarget, payload: T) => void;
 }
 
-export interface DebouncedDraftSave<T> {
-  schedule: (target: DraftSaveTarget, payload: T) => void;
+export interface DebouncedDraftSave<T, TTarget extends DraftSaveTarget = DraftSaveTarget> {
+  schedule: (target: TTarget, payload: T) => void;
   cancel: () => void;
 }
 
@@ -22,7 +27,9 @@ export interface DebouncedDraftSave<T> {
  * time that they are still the active ones. A timer that was armed for form A
  * can therefore never save A's JSON into form B after the route switched.
  */
-export function createDebouncedDraftSave<T>(options: DebouncedDraftSaveOptions<T>): DebouncedDraftSave<T> {
+export function createDebouncedDraftSave<T, TTarget extends DraftSaveTarget = DraftSaveTarget>(
+  options: DebouncedDraftSaveOptions<T, TTarget>,
+): DebouncedDraftSave<T, TTarget> {
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   const cancel = () => {
