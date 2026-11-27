@@ -91,6 +91,14 @@ function installStore({ baseVersionUids = {}, sessionReferences = {} } = {}) {
   canonicalCompositionModule.buildCanonicalComposition = () => ({ _type: 'COMPOSITION', name: { value: 'Test' } });
   compositionRepo.getCompositionRepository = () => ({
     supportsContribution: true,
+    postContribution: async (input) => {
+      commitContributionCalls.push(input);
+      return { contributionUid: 'contribution-1', ehrId: 'ehr-1' };
+    },
+    readBackContribution: async (input, contributionUid) => ({
+      contributionUid,
+      versions: input.operations.map((op) => ({ operationIndex: op.operationIndex, versionUid: `result-${op.operationIndex}::sys::1` })),
+    }),
     commitContribution: async (input) => {
       commitContributionCalls.push(input);
       return { contributionUid: 'contribution-1', versions: input.operations.map((op) => ({ operationIndex: op.operationIndex, versionUid: `result-${op.operationIndex}::sys::1` })) };

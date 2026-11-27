@@ -18,6 +18,7 @@ import { getCompositionDefinition, migrateCanonicalFormToV1, type FormDataProvid
 import { buildCanonicalComposition } from 'openehr-engine';
 import { getCompositionSession, validateCompositionSession, type CompositionSessionActor } from './compositionSessionService';
 import { getCompositionRepository } from './compositionRepository';
+import type { ContributionCommitInput } from './ehrbaseDataProvider';
 import { applySuccessfulProviderCommit } from './formSessionService';
 import { getRemoteWebTemplate } from './ehrbaseService';
 import { getConfig } from './configService';
@@ -117,6 +118,11 @@ function currentReference(session: { draftReference: string | null; providerRefe
   return session.draftReference || session.providerReference || undefined;
 }
 
+// Provider errors that prove neither a rejection nor a successful commit.
+// A POST that ended like this may have landed in the CDR, so it must never
+// be retried blindly - see ehrbaseDataProvider's postContribution.
+const OUTCOME_UNKNOWN_ERROR_CODES: string[] = ['CONTRIBUTION_OUTCOME_UNKNOWN', 'CONTRIBUTION_UID_MISSING'];
+
 // ClinicalTransactionOperationType uses 'create' (this app's own
 // vocabulary, matching the Prisma enum); ContributionRepository speaks the
 // real openEHR term 'creation' - map at this one boundary rather than
@@ -154,6 +160,17 @@ export async function prepareClinicalTransaction(
     if (existing) {
       owner(existing, actor);
       if (existing.status !== 'failed' && existing.status !== 'conflict' && existing.status !== 'partial') {
+        const operations = await prisma.clinicalTransactionOperation.findMany({ where: { transactionId: existing.id }, orderBy: { createdAt: 'asc' } });
+        return publicTransaction(existing, operations);
+      }
+      // An unclear CDR outcome must never be re-prepared into fresh
+      // operations: doing so would replay a write the CDR may already have
+      // accepted. Return the transaction itself (its errorCode/errorMessage
+      // are the clarification state) and let a human resolve it.
+      const unresolved = await prisma.clinicalTransactionOperation.findFirst({
+        where: { transactionId: existing.id, errorCode: { in: OUTCOME_UNKNOWN_ERROR_CODES } },
+      });
+      if (unresolved) {
         const operations = await prisma.clinicalTransactionOperation.findMany({ where: { transactionId: existing.id }, orderBy: { createdAt: 'asc' } });
         return publicTransaction(existing, operations);
       }
@@ -240,6 +257,43 @@ async function markFailed(transactionId: string, error: { code?: string; message
 }
 
 /**
+ * Keeps a transaction resumable after the CDR has already accepted its
+ * Contribution: the UID stays persisted, status stays 'committing' (never
+ * 'failed' - the CDR state is known and must not be overwritten), and the
+ * revision bump releases the claim so a later call can resume readback /
+ * local reconciliation. Called only once the checkpoint exists.
+ */
+async function markResumable(transactionId: string, contributionUid: string, error: { code?: string; message: string }): Promise<void> {
+  await prisma.clinicalTransaction.update({
+    where: { id: transactionId },
+    data: {
+      status: 'committing',
+      contributionUid,
+      errorCode: error.code || 'CLINICAL_TRANSACTION_INCOMPLETE',
+      errorMessage: error.message,
+      revision: { increment: 1 },
+    },
+  });
+}
+
+/**
+ * A POST whose outcome is unknown may still have been committed by the CDR.
+ * Persists that clarification state (still 'committing', no UID, a stable
+ * errorCode) so every later commit call is blocked instead of replaying it.
+ */
+async function markOutcomeUnknown(transactionId: string, error: { code?: string; message: string }): Promise<void> {
+  await prisma.clinicalTransaction.update({
+    where: { id: transactionId },
+    data: {
+      status: 'committing',
+      errorCode: error.code || 'CONTRIBUTION_OUTCOME_UNKNOWN',
+      errorMessage: error.message,
+      revision: { increment: 1 },
+    },
+  });
+}
+
+/**
  * Whether this Composition's grouped save must land as one real
  * Contribution (block if the active provider can't) or may fall back to a
  * best-effort sequential save - the Composition's own `requireAtomicCommit`
@@ -313,10 +367,20 @@ async function commitSequentialFallback(
     } catch (error) {
       anyFailed = true;
       const message = error instanceof Error ? error.message : 'Unknown error saving this form';
-      await prisma.clinicalTransactionOperation.update({ where: { id: op.id }, data: { status: 'failed', errorMessage: message } });
+      const code = (error as { code?: string })?.code;
+      if (code && OUTCOME_UNKNOWN_ERROR_CODES.includes(code)) {
+        // The write may have landed. Keep it distinct from a proven failure,
+        // preserve every already-confirmed operation, and never replay it
+        // automatically (prepare refuses to re-prepare such a transaction).
+        await prisma.clinicalTransactionOperation.update({ where: { id: op.id }, data: { status: 'pending', errorCode: code, errorMessage: message } });
+      } else {
+        await prisma.clinicalTransactionOperation.update({ where: { id: op.id }, data: { status: 'failed', errorCode: code, errorMessage: message } });
+      }
     }
   }
-  const status = anyFailed ? (anySucceeded ? 'partial' : 'failed') : 'committed';
+  const unresolved = await prisma.clinicalTransactionOperation.findMany({ where: { transactionId: record.id }, orderBy: { createdAt: 'asc' } });
+  const hasUnknownOutcome = unresolved.some((op) => op.status === 'pending' && op.errorCode && OUTCOME_UNKNOWN_ERROR_CODES.includes(op.errorCode));
+  const status = anyFailed ? (anySucceeded || hasUnknownOutcome ? 'partial' : 'failed') : 'committed';
   const finalRecord = await prisma.clinicalTransaction.update({ where: { id: record.id }, data: {
     status,
     atomic: false,
@@ -333,61 +397,112 @@ async function commitSequentialFallback(
  * commit over a stale base - a mismatch here fails the WHOLE transaction,
  * no partial writes, all local FormSession state untouched), builds each
  * operation's canonical Composition, and commits all of them together as
- * ONE real Contribution. `status: committing` is set via a conditional
- * update on `status: 'ready'` so a duplicate click/retry can never start a
- * second commit for the same transaction.
+ * ONE real Contribution.
+ *
+ * Uses the split provider contract: the POST's Contribution UID is persisted
+ * as the first durable checkpoint, before any readback or local update. From
+ * that point on the CDR state is known and the same endpoint resumes the
+ * transaction - readback and reconciliation run without a second POST, and
+ * no failure after the checkpoint is ever reported as 'failed' (that would
+ * overwrite a known CDR state). A POST whose outcome is unknown has no UID;
+ * it is kept in 'committing' with a clarification errorCode and every later
+ * call is blocked instead of replaying it.
+ *
+ * `status: committing` is set via a conditional update on `status: 'ready'`
+ * (a resumption claims via compare-and-set on the persisted revision) so a
+ * duplicate click/retry can never start a second commit for the same
+ * transaction.
  */
 export async function commitClinicalTransaction(id: string, actor: ClinicalTransactionActor): Promise<PublicClinicalTransaction> {
   const { record, operations } = await loadTransaction(id, actor);
   if (record.status === 'committed') return publicTransaction(record, operations); // idempotent: already done
-  const claimed = await prisma.clinicalTransaction.updateMany({ where: { id: record.id, status: 'ready' }, data: { status: 'committing', revision: { increment: 1 } } });
-  if (claimed.count === 0) {
+
+  let contributionUid = record.contributionUid || undefined;
+  const resuming = record.status === 'committing' && Boolean(contributionUid);
+
+  if (record.status === 'ready') {
+    const claimed = await prisma.clinicalTransaction.updateMany({ where: { id: record.id, status: 'ready' }, data: { status: 'committing', revision: { increment: 1 } } });
+    if (claimed.count === 0) {
+      throw new HttpError(409, `Transaction is '${record.status}', not ready to commit`, { code: 'CLINICAL_TRANSACTION_NOT_READY' });
+    }
+  } else if (resuming) {
+    // Authorized resumption of an already accepted Contribution: claim via
+    // compare-and-set on the checkpoint revision, so only one request may
+    // read it back / reconcile at a time.
+    const claimed = await prisma.clinicalTransaction.updateMany({
+      where: { id: record.id, status: 'committing', revision: record.revision, contributionUid },
+      data: { revision: { increment: 1 } },
+    });
+    if (claimed.count === 0) {
+      throw new HttpError(409, 'This transaction is already being resumed by another request', { code: 'CLINICAL_TRANSACTION_COMMIT_IN_PROGRESS' });
+    }
+  } else if (record.status === 'committing') {
+    // No UID checkpoint: either another request holds the claim, or the POST
+    // outcome is unknown and must be clarified instead of replayed.
+    const code = record.errorCode && OUTCOME_UNKNOWN_ERROR_CODES.includes(record.errorCode) ? record.errorCode : 'CLINICAL_TRANSACTION_COMMIT_IN_PROGRESS';
+    throw new HttpError(409, record.errorMessage || 'This transaction is already being committed by another request', { code });
+  } else {
     throw new HttpError(409, `Transaction is '${record.status}', not ready to commit`, { code: 'CLINICAL_TRANSACTION_NOT_READY' });
   }
 
+  let postAttempted = false;
   try {
     const sessions = await prisma.formSession.findMany({ where: { id: { in: operations.map((op) => op.formSessionId) } } });
     const sessionById = new Map(sessions.map((row) => [row.id, row]));
 
     // Concurrency re-check: every operation's base must still match reality.
-    // A 'create' operation's baseVersionUid IS allowed to be non-null here -
-    // prepareClinicalTransaction captures currentReference(session)
-    // unconditionally (line ~196), and a 'create'-typed child (lifecycleState
-    // not yet 'complete') routinely already has an autosaved EHRbase draft by
-    // the time the user clicks "save all". Comparing against `Boolean(current)`
-    // instead of the captured baseVersionUid (as a prior version of this check
-    // did) treated that completely normal case - draft unchanged since prepare
-    // - as a conflict, permanently failing every multi-block save whose child
-    // sessions had ever autosaved. Comparing current to op.baseVersionUid
-    // (both normalized to null) still catches the case the original comment
-    // describes - "a 'create' operation's target must still not exist" reads
-    // as "must still match what was true at prepare time", which for a
-    // genuinely-new target means null on both sides - while also catching a
-    // concurrent save that changed or newly created it since. Confirmed live
-    // (2026-09-02): saving a freshly-filled "Anamnese" composition for a new
-    // test patient failed 0/4 with "expected base X, found X" - identical
-    // strings reported as a mismatch, because only Boolean(current) was ever
-    // consulted for these 'create' ops.
-    const conflicts: string[] = [];
-    for (const op of operations) {
-      const session = sessionById.get(op.formSessionId);
-      if (!session) { conflicts.push(`${op.formSessionId}: no longer exists`); continue; }
-      const current = currentReference(session) ?? null;
-      const expected = op.baseVersionUid ?? null;
-      if (current !== expected) {
-        conflicts.push(`${op.formSessionId}: expected base ${expected || '(none)'}, found ${current || '(none)'}`);
+    // Only meaningful before the CDR accepted anything - once the
+    // Contribution exists its contents are fixed, and a session that moved
+    // on since (including by a previous partial reconcile) must not block
+    // confirming what the CDR actually committed.
+    if (!contributionUid) {
+      // A 'create' operation's baseVersionUid IS allowed to be non-null here -
+      // prepareClinicalTransaction captures currentReference(session)
+      // unconditionally (line ~196), and a 'create'-typed child (lifecycleState
+      // not yet 'complete') routinely already has an autosaved EHRbase draft by
+      // the time the user clicks "save all". Comparing against `Boolean(current)`
+      // instead of the captured baseVersionUid (as a prior version of this check
+      // did) treated that completely normal case - draft unchanged since prepare
+      // - as a conflict, permanently failing every multi-block save whose child
+      // sessions had ever autosaved. Comparing current to op.baseVersionUid
+      // (both normalized to null) still catches the case the original comment
+      // describes - "a 'create' operation's target must still not exist" reads
+      // as "must still match what was true at prepare time", which for a
+      // genuinely-new target means null on both sides - while also catching a
+      // concurrent save that changed or newly created it since. Confirmed live
+      // (2026-09-02): saving a freshly-filled "Anamnese" composition for a new
+      // test patient failed 0/4 with "expected base X, found X" - identical
+      // strings reported as a mismatch, because only Boolean(current) was ever
+      // consulted for these 'create' ops.
+      const conflicts: string[] = [];
+      for (const op of operations) {
+        const session = sessionById.get(op.formSessionId);
+        if (!session) { conflicts.push(`${op.formSessionId}: no longer exists`); continue; }
+        const current = currentReference(session) ?? null;
+        const expected = op.baseVersionUid ?? null;
+        if (current !== expected) {
+          conflicts.push(`${op.formSessionId}: expected base ${expected || '(none)'}, found ${current || '(none)'}`);
+        }
       }
-    }
-    if (conflicts.length > 0) {
-      const message = `One or more forms changed since this save was prepared: ${conflicts.join('; ')}`;
-      await markFailed(record.id, { code: 'CLINICAL_TRANSACTION_CONFLICT', message }, true);
-      throw new HttpError(409, message, { code: 'CLINICAL_TRANSACTION_CONFLICT' });
+      if (conflicts.length > 0) {
+        const message = `One or more forms changed since this save was prepared: ${conflicts.join('; ')}`;
+        await markFailed(record.id, { code: 'CLINICAL_TRANSACTION_CONFLICT', message }, true);
+        throw new HttpError(409, message, { code: 'CLINICAL_TRANSACTION_CONFLICT' });
+      }
     }
 
     const repository = getCompositionRepository('ehrbase');
     const compositionSession = await getCompositionSession(record.compositionSessionId, actor);
+    const context: FormDataProviderContext = {
+      mode: 'edit',
+      patientId: compositionSession.patientId,
+      ...(compositionSession.patientNamespace ? { patientNamespace: compositionSession.patientNamespace } : {}),
+      ehrId: record.ehrId,
+      userId: actor.userId,
+      authMode: actor.authMode,
+    };
 
-    if (!repository?.supportsContribution) {
+    if (!contributionUid && !repository?.supportsContribution) {
       const requireAtomic = await resolveRequireAtomicCommit(compositionSession.compositionFormId);
       if (requireAtomic) {
         const message = 'The active data provider does not support atomic multi-composition saves (Contribution)';
@@ -410,88 +525,170 @@ export async function commitClinicalTransaction(id: string, actor: ClinicalTrans
       return commitSequentialFallback(record, operations, sessionById, compositionSession, actor, repository);
     }
 
-    const webTemplateCache = new Map<string, unknown>();
-    const builtOperations = await Promise.all(operations.map(async (op, operationIndex) => {
-      const session = sessionById.get(op.formSessionId)!;
-      const form = await prisma.form.findUnique({ where: { id: session.formId } });
-      if (!form) throw new HttpError(404, `Form definition for session ${session.id} not found`);
-      const definition = migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id);
-      const templateId = definition.sourceTemplates?.[0]?.id;
-      if (!templateId) throw new HttpError(422, `Form ${form.id} has no openEHR source template`);
-      let webTemplateTree = webTemplateCache.get(templateId);
-      if (!webTemplateTree) {
-        const wt = await getRemoteWebTemplate(templateId);
-        webTemplateTree = wt?.tree;
-        if (webTemplateTree) webTemplateCache.set(templateId, webTemplateTree);
-      }
-      const data = buildCanonicalComposition(definition, session.values as any, webTemplateTree, { composerName: actor.userId });
-      // EHRbase rejects change type CREATION whenever preceding_version_uid
-      // is also set (a "creation" is definitionally the first version - see
-      // the concurrency re-check above for why op.baseVersionUid can very
-      // well be non-null even for a 'create'-typed operation: an autosaved
-      // EHRbase draft already exists for a child that hasn't reached
-      // lifecycleState 'complete' yet). Once a preceding version exists,
-      // this commit is really writing the next version of that draft - a
-      // modification - regardless of the app's own not-yet-'complete'
-      // lifecycle label. Confirmed live (2026-09-02) as the very next
-      // EHRbase-side rejection surfaced once the concurrency false-positive
-      // above was fixed: "Invalid version. Change type CREATION, but also
-      // set 'preceding_version_uid' attribute".
-      const desiredChangeType: 'creation' | 'modification' | 'amendment' = op.baseVersionUid
-        ? (op.type === 'create' ? 'modification' : toDesiredChangeType(op.type as OperationType))
-        : toDesiredChangeType(op.type as OperationType);
-      return {
-        operationIndex,
-        data,
-        ...(op.baseVersionUid ? { precedingVersionUid: op.baseVersionUid } : {}),
-        desiredChangeType,
-        ...(op.changeDescription ? { changeDescription: op.changeDescription } : {}),
+    let readbackInput: ContributionCommitInput;
+    let readbackEhrId = record.ehrId;
+    if (!contributionUid) {
+      const webTemplateCache = new Map<string, unknown>();
+      const builtOperations = await Promise.all(operations.map(async (op, operationIndex) => {
+        const session = sessionById.get(op.formSessionId)!;
+        const form = await prisma.form.findUnique({ where: { id: session.formId } });
+        if (!form) throw new HttpError(404, `Form definition for session ${session.id} not found`);
+        const definition = migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id);
+        const templateId = definition.sourceTemplates?.[0]?.id;
+        if (!templateId) throw new HttpError(422, `Form ${form.id} has no openEHR source template`);
+        let webTemplateTree = webTemplateCache.get(templateId);
+        if (!webTemplateTree) {
+          const wt = await getRemoteWebTemplate(templateId);
+          webTemplateTree = wt?.tree;
+          if (webTemplateTree) webTemplateCache.set(templateId, webTemplateTree);
+        }
+        const data = buildCanonicalComposition(definition, session.values as any, webTemplateTree, { composerName: actor.userId });
+        // EHRbase rejects change type CREATION whenever preceding_version_uid
+        // is also set (a "creation" is definitionally the first version - see
+        // the concurrency re-check above for why op.baseVersionUid can very
+        // well be non-null even for a 'create'-typed operation: an autosaved
+        // EHRbase draft already exists for a child that hasn't reached
+        // lifecycleState 'complete' yet). Once a preceding version exists,
+        // this commit is really writing the next version of that draft - a
+        // modification - regardless of the app's own not-yet-'complete'
+        // lifecycle label. Confirmed live (2026-09-02) as the very next
+        // EHRbase-side rejection surfaced once the concurrency false-positive
+        // above was fixed: "Invalid version. Change type CREATION, but also
+        // set 'preceding_version_uid' attribute".
+        const desiredChangeType: 'creation' | 'modification' | 'amendment' = op.baseVersionUid
+          ? (op.type === 'create' ? 'modification' : toDesiredChangeType(op.type as OperationType))
+          : toDesiredChangeType(op.type as OperationType);
+        return {
+          operationIndex,
+          data,
+          ...(op.baseVersionUid ? { precedingVersionUid: op.baseVersionUid } : {}),
+          desiredChangeType,
+          ...(op.changeDescription ? { changeDescription: op.changeDescription } : {}),
+        };
+      }));
+
+      postAttempted = true;
+      const posted = await repository!.postContribution({
+        context,
+        operations: builtOperations,
+        ...(record.description ? { transactionDescription: record.description } : {}),
+      });
+      contributionUid = posted.contributionUid;
+      readbackEhrId = posted.ehrId;
+      // First durable checkpoint: whatever happens next, the accepted
+      // Contribution UID is persisted before the CDR is read back.
+      await prisma.clinicalTransaction.update({
+        where: { id: record.id },
+        data: { contributionUid, errorCode: null, errorMessage: null },
+      });
+      readbackInput = {
+        context,
+        operations: builtOperations,
+        ...(record.description ? { transactionDescription: record.description } : {}),
       };
-    }));
+    } else {
+      // Resume: readback correlation only needs each operation's index and
+      // preceding version - never rebuild canonical data or require the
+      // CDR's web template tree again.
+      readbackInput = {
+        context,
+        operations: operations.map((op, operationIndex) => ({
+          operationIndex,
+          data: {},
+          ...(op.baseVersionUid ? { precedingVersionUid: op.baseVersionUid } : {}),
+          desiredChangeType: (op.type === 'create' ? 'creation' : op.type) as 'creation' | 'modification' | 'amendment',
+        })),
+      };
+    }
 
-    const context: FormDataProviderContext = {
-      mode: 'edit',
-      patientId: compositionSession.patientId,
-      ...(compositionSession.patientNamespace ? { patientNamespace: compositionSession.patientNamespace } : {}),
-      ehrId: record.ehrId,
-      userId: actor.userId,
-      authMode: actor.authMode,
-    };
-
-    const commitResult = await repository.commitContribution({
-      context,
-      operations: builtOperations,
-      ...(record.description ? { transactionDescription: record.description } : {}),
-    });
+    const checkpointUid = contributionUid as string;
+    let commitResult;
+    try {
+      if (!repository) throw new Error('The active data provider cannot read the accepted Contribution back');
+      commitResult = await repository.readBackContribution(readbackInput, checkpointUid, readbackEhrId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The accepted Contribution could not be read back';
+      await markResumable(record.id, checkpointUid, { code: 'CLINICAL_TRANSACTION_READBACK_PENDING', message });
+      throw new HttpError(502, message, { code: 'CLINICAL_TRANSACTION_READBACK_PENDING' });
+    }
 
     const resultByIndex = new Map(commitResult.versions.map((v) => [v.operationIndex, v.versionUid]));
-    await Promise.all(operations.map(async (op, operationIndex) => {
-      const session = sessionById.get(op.formSessionId)!;
-      const versionUid = resultByIndex.get(operationIndex);
-      if (!versionUid) {
-        await prisma.clinicalTransactionOperation.update({ where: { id: op.id }, data: { status: 'failed', errorMessage: 'No result version returned by the Contribution for this operation' } });
-        return;
-      }
-      await applySuccessfulProviderCommit(session.id, {
-        providerId: 'ehrbase',
-        reference: versionUid,
-        values: session.values as any,
-        lifecycleState: 'complete',
-        lifecycleConfirmed: true,
-        changeType: op.type === 'create' ? undefined : (op.type as 'modification' | 'amendment'),
-        changeDescription: op.changeDescription || undefined,
-        ehrId: record.ehrId,
-      }, op.baseVersionUid || undefined);
-      await prisma.clinicalTransactionOperation.update({ where: { id: op.id }, data: { status: 'committed', resultVersionUid: versionUid } });
-    }));
+    const missing = operations
+      .map((op, operationIndex) => ({ op, operationIndex }))
+      .filter(({ operationIndex }) => !resultByIndex.get(operationIndex));
+    if (missing.length > 0) {
+      // A missing version is never an overall success: the CDR accepted the
+      // Contribution but has not confirmed every version yet.
+      const message = `The CDR accepted Contribution ${checkpointUid}, but no result version was confirmed for: ${missing.map(({ op }) => op.formSessionId).join(', ')}`;
+      await Promise.all(missing.map(({ op }) => prisma.clinicalTransactionOperation.update({
+        where: { id: op.id },
+        data: { status: 'pending', errorCode: 'CLINICAL_TRANSACTION_VERSION_MISSING', errorMessage: 'No result version confirmed by the CDR for this operation yet' },
+      })));
+      await markResumable(record.id, checkpointUid, { code: 'CLINICAL_TRANSACTION_INCOMPLETE', message });
+      throw new HttpError(502, message, { code: 'CLINICAL_TRANSACTION_INCOMPLETE' });
+    }
 
-    const committed = await prisma.clinicalTransaction.update({ where: { id: record.id }, data: { status: 'committed', contributionUid: commitResult.contributionUid, atomic: true, revision: { increment: 1 } } });
+    try {
+      // Session update, version event and operation update are confirmed
+      // together; every write is absolute/upsert-by-UID, so repeating this
+      // after a crash is side-effect free.
+      await prisma.$transaction(async (tx) => {
+        for (const [operationIndex, op] of operations.entries()) {
+          const versionUid = resultByIndex.get(operationIndex) as string;
+          // Already confirmed by an earlier reconcile attempt: skip so a
+          // repeat is side-effect free (no extra session revision).
+          if (op.status === 'committed' && op.resultVersionUid === versionUid) continue;
+          const session = sessionById.get(op.formSessionId);
+          if (!session) throw new Error(`Form session ${op.formSessionId} no longer exists`);
+          await applySuccessfulProviderCommit(session.id, {
+            providerId: 'ehrbase',
+            reference: versionUid,
+            values: session.values as any,
+            lifecycleState: 'complete',
+            lifecycleConfirmed: true,
+            changeType: op.type === 'create' ? undefined : (op.type as 'modification' | 'amendment'),
+            changeDescription: op.changeDescription || undefined,
+            ehrId: readbackEhrId,
+          }, op.baseVersionUid || undefined, { tx, requireVersionEvent: true });
+          await tx.clinicalTransactionOperation.update({
+            where: { id: op.id },
+            data: { status: 'committed', resultVersionUid: versionUid, errorCode: null, errorMessage: null },
+          });
+        }
+      });
+    } catch (error) {
+      const message = `Contribution ${checkpointUid} was accepted but its local session/version updates could not be confirmed: ${error instanceof Error ? error.message : 'unknown error'}`;
+      await markResumable(record.id, checkpointUid, { code: 'CLINICAL_TRANSACTION_RECONCILE_PENDING', message });
+      throw new HttpError(502, message, { code: 'CLINICAL_TRANSACTION_RECONCILE_PENDING' });
+    }
+
     const finalOperations = await prisma.clinicalTransactionOperation.findMany({ where: { transactionId: record.id }, orderBy: { createdAt: 'asc' } });
+    const unconfirmed = finalOperations.filter((op) => op.status !== 'committed' || !op.resultVersionUid);
+    if (unconfirmed.length > 0) {
+      const message = `Contribution ${checkpointUid} was accepted but not every version/local update is confirmed yet (${unconfirmed.map((op) => op.formSessionId).join(', ')})`;
+      await markResumable(record.id, checkpointUid, { code: 'CLINICAL_TRANSACTION_INCOMPLETE', message });
+      throw new HttpError(502, message, { code: 'CLINICAL_TRANSACTION_INCOMPLETE' });
+    }
+
+    const committed = await prisma.clinicalTransaction.update({
+      where: { id: record.id },
+      data: { status: 'committed', contributionUid: checkpointUid, atomic: true, errorCode: null, errorMessage: null, revision: { increment: 1 } },
+    });
     return publicTransaction(committed, finalOperations);
   } catch (error) {
     if (error instanceof HttpError) throw error;
     const message = error instanceof Error ? error.message : 'Unknown error committing the transaction';
     const code = (error as { code?: string })?.code;
+    if (contributionUid) {
+      // The CDR accepted the Contribution - its state is known and must
+      // never be overwritten as 'failed'. Keep the checkpoint resumable.
+      await markResumable(record.id, contributionUid, { code: code || 'CLINICAL_TRANSACTION_RECONCILE_PENDING', message });
+      throw new HttpError(502, message, { code: code || 'CLINICAL_TRANSACTION_RECONCILE_PENDING' });
+    }
+    if (postAttempted && code && OUTCOME_UNKNOWN_ERROR_CODES.includes(code)) {
+      await markOutcomeUnknown(record.id, { code, message });
+      throw new HttpError(409, message, { code });
+    }
     const isConflict = code === 'CONTRIBUTION_VERSION_CONFLICT' || code === 'CLINICAL_TRANSACTION_CONFLICT';
     await markFailed(record.id, { code, message }, isConflict);
     throw new HttpError(isConflict ? 409 : 502, message, { code: code || 'CLINICAL_TRANSACTION_COMMIT_FAILED' });

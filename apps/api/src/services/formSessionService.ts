@@ -34,7 +34,7 @@ import { getOpenEhrFormOptions } from 'openehr-engine';
 import { getDataProvider } from './dataProviderRegistry';
 import { EhrbaseProviderError } from './ehrbaseDataProvider';
 import { getCompositionRepository } from './compositionRepository';
-import { recordCompositionVersionEvent } from './compositionVersionEvents';
+import { recordCompositionVersionEvent, recordCompositionVersionEventInTransaction } from './compositionVersionEvents';
 import { getConfig, resolveSessionAlwaysNew } from './configService';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 import type { JsonObject, PluginHookName, PluginHookResult } from 'plugin-api';
@@ -961,8 +961,14 @@ export interface ProviderCommitResult {
  * child form's own normal standalone submit already runs those) - not
  * silently dropped, a deliberately scoped follow-up.
  */
-export async function applySuccessfulProviderCommit(sessionId: string, result: ProviderCommitResult, submitReference?: string) {
-  const updated = await prisma.formSession.update({ where: { id: sessionId }, data: {
+export async function applySuccessfulProviderCommit(
+  sessionId: string,
+  result: ProviderCommitResult,
+  submitReference?: string,
+  options: { tx?: Prisma.TransactionClient; requireVersionEvent?: boolean } = {},
+) {
+  const db: Prisma.TransactionClient = options.tx ?? prisma;
+  const updated = await db.formSession.update({ where: { id: sessionId }, data: {
     status: 'submitted',
     providerId: result.providerId,
     values: result.values as unknown as Prisma.InputJsonValue,
@@ -975,7 +981,7 @@ export async function applySuccessfulProviderCommit(sessionId: string, result: P
     revision: { increment: 1 },
   } });
   if (result.reference && result.ehrId) {
-    void recordCompositionVersionEvent({
+    const event = {
       versionUid: result.reference,
       compositionUid: compositionUidFromReference(result.reference) || result.reference,
       ehrId: result.ehrId,
@@ -983,7 +989,12 @@ export async function applySuccessfulProviderCommit(sessionId: string, result: P
       lifecycleState: result.lifecycleState || 'complete',
       changeType: result.changeType,
       changeDescription: result.changeDescription,
-    });
+    };
+    // requireVersionEvent: the caller is reconciling an already-accepted CDR
+    // commit, so this event must be confirmed (on its transaction) rather
+    // than the usual fire-and-forget best effort.
+    if (options.requireVersionEvent) await recordCompositionVersionEventInTransaction(db, event);
+    else void recordCompositionVersionEvent(event);
   }
   return updated;
 }
