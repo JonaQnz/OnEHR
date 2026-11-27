@@ -20,6 +20,7 @@ import type { FormLaunchLoadPolicy, FormRuntimeMode } from 'core';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useDebugMode } from '../../hooks/useDebugMode';
 import { useAuth } from '../../App';
+import { resolveCockpitForm } from './cockpitForm';
 
 // Code-split like every other routed page (see App.tsx's own React.lazy
 // calls) - PatientDetail is visited far more often than a patient actually
@@ -573,11 +574,23 @@ export default function PatientDetail() {
   // integrated as the default tab of this same page (embedded inline),
   // not a separate destination: the other tabs and the "Neues Formular"
   // picker stay visible and reachable at all times, exactly as before.
-  // Matched by name (not a hardcoded form/parent id) so it keeps working
-  // across republishes and even a full rebuild of the Form.
+  // The configured form line id from Config wins exclusively; only while it
+  // is unset do we fall back to the legacy name match - that keeps working
+  // across republishes and a full rebuild of the Form during the transition.
+  const [cockpitLineId, setCockpitLineId] = useState<string | undefined>(undefined);
+  // Non-essential setting: never blocks the page render and never sets the
+  // page error state - a failed fetch just keeps the legacy name match.
+  useEffect(() => {
+    void fetch(`${API}/config/runtime-defaults`, { credentials: 'include' })
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then((data: { patientCockpitFormParentId?: unknown } | undefined) => {
+        if (typeof data?.patientCockpitFormParentId === 'string') setCockpitLineId(data.patientCockpitFormParentId);
+      })
+      .catch(() => {});
+  }, []);
   const cockpitForm = useMemo(
-    () => (canExecuteForms ? launchableForms.find((form) => form.name === 'Klinisches Cockpit') : undefined),
-    [launchableForms, canExecuteForms],
+    () => (canExecuteForms ? resolveCockpitForm(launchableForms, cockpitLineId) : undefined),
+    [launchableForms, canExecuteForms, cockpitLineId],
   );
   // Switches to the Cockpit tab the first time it becomes available (forms
   // load asynchronously, so it's usually not there on the very first
