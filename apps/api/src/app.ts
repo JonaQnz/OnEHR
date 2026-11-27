@@ -38,7 +38,7 @@ export function createApp(): Express {
   const app = express();
   app.use('/api', attachAuth);
 
-  app.use(cors({ origin: process.env.WEB_ORIGIN || 'http://localhost:3000', credentials: true }));
+  app.use(cors({ origin: process.env.WEB_ORIGIN || 'http://localhost:3000', credentials: true, exposedHeaders: ['ETag'] }));
   app.use(express.json());
 
   // Incoming request logger middleware

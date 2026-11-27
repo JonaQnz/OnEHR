@@ -35,6 +35,34 @@ import { auditFormBindings } from 'openehr-engine';
 const router = Router();
 router.use((req, res, next) => requirePermission(req.method === 'GET' || /\/composition-data$/.test(req.path) ? 'form.execute' : 'form.design')(req, res, next));
 
+/**
+ * Draft autosave concurrency token: the canonical definition's `revision`,
+ * wrapped as a single quoted ETag (`"rev-3"`). GET/PUT hand it back to the
+ * browser; PUT only accepts exactly that one token in `If-Match` - never a
+ * list or a wildcard - so "which revision is this save based on" is
+ * unambiguous.
+ */
+const FORM_REVISION_ETAG_PATTERN = /^"rev-(0|[1-9]\d*)"$/;
+
+function formRevisionEtag(revision: number): string {
+  return `"rev-${revision}"`;
+}
+
+function ifMatchRevision(ifMatch: string | undefined): number | undefined {
+  if (ifMatch === undefined) return undefined;
+  const value = ifMatch.trim();
+  if (!FORM_REVISION_ETAG_PATTERN.test(value)) {
+    throw new HttpError(400, 'If-Match must be a single form revision ETag ("rev-<revision>")', {
+      code: 'FORM_IF_MATCH_INVALID',
+    });
+  }
+  return Number(value.slice(5, -1));
+}
+
+function revisionConflictStatus(expectedRevision: number | undefined): number {
+  return expectedRevision === undefined ? 409 : 412;
+}
+
 function assertScriptCompiles(result: Pick<FormScriptCompileResult, 'valid' | 'document'>): void {
   if (result.valid) return;
   throw new HttpError(422, 'Das Form Script enthält TypeScript- oder Sicherheitsfehler.', {
@@ -314,6 +342,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
   const form = await prisma.form.findUnique({ where: { id: formId } });
   if (!form) throw new HttpError(404, 'Form not found');
   const canonicalForm = migrateCanonicalFormToV1({ ...(form.canonical_json as any), id: form.id }, form.id);
+  res.set('ETag', formRevisionEtag(canonicalForm.revision));
   res.json({ ...form, canonical_json: canonicalForm });
 }));
 
@@ -488,16 +517,38 @@ router.post('/:id/script/generate', asyncHandler(async (req, res) => {
 
 router.put('/:id', asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
+  // Parsed and checked before any hook runs: a save based on a revision that
+  // is no longer persisted must not invoke plugin hooks at all.
+  const expectedRevision = ifMatchRevision(req.get('If-Match'));
   const stored = await prisma.form.findUnique({ where: { id: formId } });
   if (!stored) throw new HttpError(404, 'Form not found');
+  const storedDefinition = migrateCanonicalFormToV1(stored.canonical_json, formId);
+  if (expectedRevision !== undefined && expectedRevision !== storedDefinition.revision) {
+    throw new HttpError(412, 'Form was changed by another request', { code: 'FORM_REVISION_CONFLICT' });
+  }
   const beforeSave = await pluginRegistry.runHook('beforeFormSave', { form: (req.body || {}) as Record<string, any>, data: (req.body || {}) as Record<string, any>, formId });
   let canonicalForm = normalizeCanonicalFormPayload(beforeSave.data || req.body, formId);
-  const storedDefinition = migrateCanonicalFormToV1(stored.canonical_json, formId);
   canonicalForm.revision = storedDefinition.revision + 1;
   canonicalForm = prepareConnectors(canonicalForm);
   canonicalForm = compileDefinitionScripts(canonicalForm) as typeof canonicalForm;
-  const form = await prisma.form.update({ where: { id: formId }, data: { canonical_json: canonicalForm as any, name: canonicalForm.name, version: canonicalForm.version, status: canonicalForm.status || 'draft' } });
+  // Compare-and-set against the EXACT persisted canonical_json that was read
+  // above (not the migrated v1 shape): two saves from the same revision both
+  // pass the If-Match check but only one can still match this predicate, and
+  // legacy JSON formats compare correctly because they are used as stored.
+  const claimed = await prisma.form.updateMany({
+    where: { id: formId, canonical_json: { equals: stored.canonical_json as any } },
+    data: { canonical_json: canonicalForm as any, name: canonicalForm.name, version: canonicalForm.version, status: canonicalForm.status || 'draft' },
+  });
+  if (claimed.count === 0) {
+    throw new HttpError(revisionConflictStatus(expectedRevision), 'Form was changed by another request', { code: 'FORM_REVISION_CONFLICT' });
+  }
+  const form = await prisma.form.findUnique({ where: { id: formId } });
+  if (!form) throw new HttpError(409, 'Form was changed by another request', { code: 'FORM_REVISION_CONFLICT' });
   await pluginRegistry.runHook('afterFormSave', { form: canonicalForm as Record<string, any>, data: canonicalForm as Record<string, any>, formId });
+  // Derived from the record actually persisted (a third save may already have
+  // bumped it again) so the ETag always describes the returned body.
+  const persistedRevision = (form.canonical_json as any)?.revision;
+  res.set('ETag', formRevisionEtag(typeof persistedRevision === 'number' ? persistedRevision : canonicalForm.revision));
   res.json(form);
 }));
 
