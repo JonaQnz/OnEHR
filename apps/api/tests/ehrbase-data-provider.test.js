@@ -628,6 +628,180 @@ test('commitContribution turns a stale preceding_version_uid conflict into a str
   );
 });
 
+test('postContribution performs only the Contribution POST and returns the confirmed UID without an implicit readback GET', async () => {
+  const calls = [];
+  const http = {
+    async post(url, body, options) {
+      calls.push({ method: 'POST', url, body });
+      assert.equal(options.headers.Prefer, 'return=representation');
+      return { data: '', status: 204, headers: { etag: '"contribution-uid-post-1"' } };
+    },
+    async get(url) {
+      calls.push({ method: 'GET', url });
+      throw new Error(`unexpected GET ${url}`);
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+
+  const result = await provider.postContribution({
+    context: { ehrId: 'ehr-1', userId: 'alice', mode: 'edit' },
+    operations: [{ operationIndex: 0, data: { _type: 'COMPOSITION' }, desiredChangeType: 'creation' }],
+  });
+
+  assert.equal(result.contributionUid, 'contribution-uid-post-1');
+  assert.deepEqual(calls.map((call) => call.method), ['POST'], 'the POST step must never be followed by an implicit readback GET');
+});
+
+test('postContribution reports a missing Contribution UID after an accepted POST without guessing or reading back', async () => {
+  const calls = [];
+  const http = {
+    async post(url) {
+      calls.push({ method: 'POST', url });
+      return { data: '', status: 204, headers: {} };
+    },
+    async get(url) {
+      calls.push({ method: 'GET', url });
+      throw new Error(`unexpected GET ${url}`);
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+  await assert.rejects(
+    provider.postContribution({
+      context: { ehrId: 'ehr-1', userId: 'alice', mode: 'edit' },
+      operations: [{ operationIndex: 0, data: { _type: 'COMPOSITION' }, desiredChangeType: 'creation' }],
+    }),
+    (error) => {
+      assert.equal(error.code, 'CONTRIBUTION_UID_MISSING');
+      return true;
+    },
+  );
+  assert.deepEqual(calls.map((call) => call.method), ['POST'], 'a missing UID must not trigger an implicit readback GET');
+});
+
+test('postContribution reports 5xx, gateway errors and timeouts as CONTRIBUTION_OUTCOME_UNKNOWN, never as a proven rejection', async () => {
+  const config = { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' };
+  for (const status of [500, 502, 504]) {
+    const http = {
+      async post() {
+        const error = new Error(`upstream ${status}`);
+        error.response = { status };
+        throw error;
+      },
+    };
+    const provider = new EhrbaseDataProvider({ http, config });
+    await assert.rejects(
+      provider.postContribution({ context: { ehrId: 'ehr-1', userId: 'alice', mode: 'edit' }, operations: [{ operationIndex: 0, data: {}, desiredChangeType: 'creation' }] }),
+      (error) => {
+        assert.equal(error.code, 'CONTRIBUTION_OUTCOME_UNKNOWN', `status ${status} must not be reported as a proven rejection`);
+        assert.equal(error.status, status);
+        return true;
+      },
+    );
+  }
+
+  // No response at all (timeout / connection loss): the CDR may still have
+  // committed, so this is unknown too - matching the transport-error contract.
+  const timeoutHttp = {
+    async post() {
+      const error = new Error('timeout of 10000ms exceeded');
+      error.code = 'ECONNABORTED';
+      throw error;
+    },
+  };
+  const timeoutProvider = new EhrbaseDataProvider({ http: timeoutHttp, config });
+  await assert.rejects(
+    timeoutProvider.postContribution({ context: { ehrId: 'ehr-1', userId: 'alice', mode: 'edit' }, operations: [{ operationIndex: 0, data: {}, desiredChangeType: 'creation' }] }),
+    (error) => {
+      assert.equal(error.code, 'CONTRIBUTION_OUTCOME_UNKNOWN');
+      assert.equal(error.status, 502);
+      return true;
+    },
+  );
+});
+
+test('postContribution still reports a demonstrable 4xx rejection as a request failure', async () => {
+  const http = {
+    async post() {
+      const error = new Error('Unprocessable Entity');
+      error.response = { status: 422, data: { message: 'Invalid composition' } };
+      throw error;
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+  await assert.rejects(
+    provider.postContribution({ context: { ehrId: 'ehr-1', userId: 'alice', mode: 'edit' }, operations: [{ operationIndex: 0, data: {}, desiredChangeType: 'creation' }] }),
+    (error) => {
+      assert.equal(error.code, 'EHRBASE_REQUEST_FAILED');
+      assert.equal(error.status, 422);
+      return true;
+    },
+  );
+});
+
+test('readBackContribution correlates an already accepted Contribution\'s versions to operations, separately from the POST', async () => {
+  const sys = 'ehrbase-live';
+  const compA = '11111111-1111-1111-1111-111111111111';
+  const compB = '22222222-2222-2222-2222-222222222222';
+  let posted = false;
+  const http = {
+    async post() {
+      posted = true;
+      throw new Error('readback must not post');
+    },
+    async get(url) {
+      if (url.endsWith('/contribution/contribution-uid-rb')) {
+        return {
+          data: {
+            uid: { value: 'contribution-uid-rb' },
+            versions: [
+              { id: { value: `${compB}::${sys}::4` } },
+              { id: { value: `${compA}::${sys}::1` } },
+            ],
+          },
+        };
+      }
+      throw new Error(`unexpected GET ${url}`);
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+
+  const result = await provider.readBackContribution({
+    context: { ehrId: 'ehr-1', userId: 'Dr. Müller', mode: 'edit' },
+    operations: [
+      { operationIndex: 0, data: {}, desiredChangeType: 'creation' },
+      { operationIndex: 1, data: {}, precedingVersionUid: `${compB}::${sys}::3`, desiredChangeType: 'amendment' },
+    ],
+  }, 'contribution-uid-rb', 'ehr-1');
+
+  assert.equal(result.contributionUid, 'contribution-uid-rb');
+  assert.deepEqual(result.versions.find((v) => v.operationIndex === 1), { operationIndex: 1, versionUid: `${compB}::${sys}::4` });
+  assert.deepEqual(result.versions.find((v) => v.operationIndex === 0), { operationIndex: 0, versionUid: `${compA}::${sys}::1` });
+  assert.equal(posted, false);
+});
+
+test('readBackContribution reports a readback failure after an accepted POST separately, keeping the Contribution UID', async () => {
+  const http = {
+    async get() {
+      const error = new Error('upstream 500');
+      error.response = { status: 500 };
+      throw error;
+    },
+  };
+  const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });
+  await assert.rejects(
+    provider.readBackContribution({
+      context: { ehrId: 'ehr-1', userId: 'alice', mode: 'edit' },
+      operations: [{ operationIndex: 0, data: {}, desiredChangeType: 'creation' }],
+    }, 'contribution-uid-accepted', 'ehr-1'),
+    (error) => {
+      assert.equal(error.code, 'CONTRIBUTION_READBACK_FAILED');
+      assert.equal(error.status, 500);
+      assert.match(error.message, /contribution-uid-accepted/);
+      return true;
+    },
+  );
+});
+
 test('commitContribution rejects an empty operation list before making any request', async () => {
   const http = { async post() { throw new Error('should not be called'); } };
   const provider = new EhrbaseDataProvider({ http, config: { ehrbaseUrl: 'http://ehrbase/rest/openehr/v1', ehrbaseUser: 'admin', ehrbasePass: 'secret', authMode: 'basic' } });

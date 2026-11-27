@@ -102,6 +102,14 @@ export interface ContributionCommitResult {
   versions: Array<{ operationIndex: number; versionUid: string }>;
 }
 
+/** Result of the POST-only step: the Contribution UID the CDR confirmed,
+ * plus the EHR it was posted to so the separate readback needs no second
+ * patient/EHR resolution. */
+export interface ContributionPostResult {
+  contributionUid: string;
+  ehrId: string;
+}
+
 export interface ContributionVersionSummary {
   versionUid: string;
   compositionUid: string;
@@ -726,20 +734,33 @@ export class EhrbaseDataProvider implements FormDataProvider {
   }
 
   /**
-   * Commits multiple Compositions as ONE openEHR CONTRIBUTION
-   * (`POST /ehr/{ehr_id}/contribution`) - Epic 4. Confirmed live: this CDR
-   * accepts canonical (nested RM) JSON here (no FLAT/STRUCTURED option, per
-   * its own OpenAPI schema), applies `preceding_version_uid`/`change_type`/
-   * `description`/`committer` all correctly (real improvements over the
-   * FLAT endpoint's silently-ignored audit headers), and rejects a stale
-   * `preceding_version_uid` with a real 412 - covering multi-composition
-   * conflict detection for free, no bespoke concurrency layer needed here.
-   * One confirmed limitation: `lifecycle_state: incomplete` is silently
-   * forced to `complete` - out of scope for this method's job (grouped
-   * finalize of already-valid forms); drafts stay on the existing
-   * commitWithLifecycle()/FLAT autosave pipeline, untouched.
+   * Step 1 of an atomic multi-Composition commit: the openEHR CONTRIBUTION
+   * POST itself (`POST /ehr/{ehr_id}/contribution`) - Epic 4. Confirmed
+   * live: this CDR accepts canonical (nested RM) JSON here (no FLAT/
+   * STRUCTURED option, per its own OpenAPI schema), applies
+   * `preceding_version_uid`/`change_type`/`description`/`committer` all
+   * correctly (real improvements over the FLAT endpoint's silently-ignored
+   * audit headers), and rejects a stale `preceding_version_uid` with a real
+   * 412 - covering multi-composition conflict detection for free, no
+   * bespoke concurrency layer needed here. One confirmed limitation:
+   * `lifecycle_state: incomplete` is silently forced to `complete` - out of
+   * scope for this method's job (grouped finalize of already-valid forms);
+   * drafts stay on the existing commitWithLifecycle()/FLAT autosave
+   * pipeline, untouched.
+   *
+   * Deliberately *only* the POST: it never reads back (see
+   * readBackContribution), so a caller that gets a UID here knows exactly
+   * what the CDR accepted even if a later readback fails.
+   *
+   * Error semantics are split by what the response actually proves:
+   * - 412 is a definitive version conflict (CONTRIBUTION_VERSION_CONFLICT).
+   * - any other 4xx is a definitive rejection - the CDR refused the commit.
+   * - 5xx, gateway errors, timeouts and transport errors with no response
+   *   can hide a successful commit, so they are CONTRIBUTION_OUTCOME_UNKNOWN;
+   *   callers must reconcile via readback before retrying, never assume a
+   *   rejection and blind-retry.
    */
-  public async commitContribution(input: ContributionCommitInput): Promise<ContributionCommitResult> {
+  public async postContribution(input: ContributionCommitInput): Promise<ContributionPostResult> {
     if (input.operations.length === 0) {
       throw new EhrbaseProviderError('A Contribution requires at least one operation', 'CONTRIBUTION_EMPTY', 400);
     }
@@ -800,21 +821,74 @@ export class EhrbaseDataProvider implements FormDataProvider {
         success: false, errorMessage: error instanceof Error ? error.message : String(error),
         ehrId, patientId: input.context.patientId,
       });
-      if (error?.response?.status === 412) {
-        throw new EhrbaseProviderError('One or more compositions changed since they were loaded. Reload before saving.', 'CONTRIBUTION_VERSION_CONFLICT', 409);
-      }
-      return this.handleError(error);
+      this.handleContributionPostError(error);
     }
     // Confirmed live: even with Prefer: return=representation, the create
     // response is a bare 204 with no body on this CDR - the Contribution
     // UID only ever comes back via the etag/location header (referenceFrom
-    // already prefers etag, same as every other commit path here). Per-
-    // version result uids are never in this response either way, so the
-    // Contribution is always read back to get them.
+    // already prefers etag, same as every other commit path here). A 2xx
+    // without a UID means the CDR accepted *something* we cannot identify -
+    // reported as such, never guessed and never read back speculatively.
     const contributionUid = referenceFrom(response) || text(response.data?.uid?.value);
-    if (!contributionUid) throw new EhrbaseProviderError('EHRbase did not return a Contribution UID', 'CONTRIBUTION_UID_MISSING', 502);
-    const details = await this.getContribution(input.context, contributionUid, ehrId);
+    if (!contributionUid) throw new EhrbaseProviderError('EHRbase accepted the Contribution but did not return its UID', 'CONTRIBUTION_UID_MISSING', 502);
+    return { contributionUid, ehrId };
+  }
+
+  /**
+   * Step 2: reads an accepted Contribution back and correlates the versions
+   * it committed to the caller's operations (never by response array order
+   * alone - see correlateContributionVersions). Separate from
+   * postContribution so a readback failure is distinguishable from a POST
+   * failure: the Contribution UID is kept in the error (readback failures
+   * are CONTRIBUTION_READBACK_FAILED), so the commit is known to exist.
+   */
+  public async readBackContribution(input: ContributionCommitInput, contributionUid: string, ehrIdOverride?: string): Promise<ContributionCommitResult> {
+    let details: ContributionDetails;
+    try {
+      details = await this.getContribution(input.context, contributionUid, ehrIdOverride);
+    } catch (error) {
+      const status = error instanceof EhrbaseProviderError ? error.status : undefined;
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new EhrbaseProviderError(
+        `Contribution '${contributionUid}' was accepted but its committed versions could not be read back: ${detail}`,
+        'CONTRIBUTION_READBACK_FAILED',
+        status,
+      );
+    }
     return { contributionUid, versions: correlateContributionVersions(input.operations, details.versions) };
+  }
+
+  /**
+   * Existing callers' combined POST + readback. Kept as a thin wrapper so
+   * callers that need the whole result in one step (e.g.
+   * clinicalTransactionService) keep working unchanged; new callers that
+   * must survive an uncertain/readback-failing outcome can use
+   * postContribution and readBackContribution separately.
+   */
+  public async commitContribution(input: ContributionCommitInput): Promise<ContributionCommitResult> {
+    const { contributionUid, ehrId } = await this.postContribution(input);
+    return this.readBackContribution(input, contributionUid, ehrId);
+  }
+
+  /**
+   * A 412 is a proven version conflict; other 4xx responses prove the CDR
+   * refused the commit. Everything else (5xx, gateway, timeout, no response)
+   * leaves the outcome genuinely unknown - it may have been committed, so it
+   * must never be reported as a rejection that invites a duplicate retry.
+   */
+  private handleContributionPostError(error: any): never {
+    const status = error?.response?.status;
+    if (status === 412) {
+      throw new EhrbaseProviderError('One or more compositions changed since they were loaded. Reload before saving.', 'CONTRIBUTION_VERSION_CONFLICT', 409);
+    }
+    if (typeof status === 'number' && status >= 400 && status < 500 && status !== 408) {
+      return this.handleError(error);
+    }
+    throw new EhrbaseProviderError(
+      `The Contribution commit outcome is unknown${typeof status === 'number' ? ` (${status})` : ''}: the CDR may have committed it. Read the Contribution back before retrying.`,
+      'CONTRIBUTION_OUTCOME_UNKNOWN',
+      typeof status === 'number' ? status : 502,
+    );
   }
 
   /**
