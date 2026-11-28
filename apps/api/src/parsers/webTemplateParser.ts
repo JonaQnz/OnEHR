@@ -1,5 +1,5 @@
 import { FieldRegistryItem, FieldConstraint, FormElementLayout, OpenEhrBinding, type ArchetypeInstanceDefinition, deriveDefaultWidget } from 'core';
-import { parseOpenEhrAqlPath, buildConstraintModelFromWebTemplate } from 'openehr-engine';
+import { parseOpenEhrAqlPath, buildConstraintModelFromWebTemplate, wtCardinality, wtCodeListInput, wtUnitInput, wtUnitOptions, wtNumericConstraint } from 'openehr-engine';
 import { v4 as uuidv4 } from 'uuid';
 
 // This product's clinical UI is German-first. A WebTemplate export already
@@ -143,34 +143,17 @@ function containerBinding(node: any, alias: string, templateId: string): OpenEhr
  * children). Factored out rather than duplicated when DV_INTERVAL support
  * was added (P0.1 audit, 2026-09-05) so the two never drift apart. */
 function unitOptionsFromList(list: any[]): Array<{ unit: string; min?: number; max?: number; minexclusive?: boolean; maxexclusive?: boolean; precision?: number }> {
-  return list.map((l: any) => {
-    const opt: any = { unit: l.value };
-    if (l.validation) {
-      if (l.validation.range) {
-        if (l.validation.range.min !== undefined) opt.min = l.validation.range.min;
-        if (l.validation.range.max !== undefined) opt.max = l.validation.range.max;
-        if (l.validation.range.minOp === '>') opt.minexclusive = true;
-        if (l.validation.range.maxOp === '<') opt.maxexclusive = true;
-      }
-      if (l.validation.precision) {
-        if (l.validation.precision.max !== undefined) opt.precision = l.validation.precision.max;
-        else if (l.validation.precision.min !== undefined) opt.precision = l.validation.precision.min;
-      }
-    }
-    return opt;
-  });
+  return wtUnitOptions(list);
 }
 
 function isRepeatable(node: any): boolean {
-  const max = typeof node.max === 'number' ? node.max : 1;
-  return max === -1 || max > 1;
+  const c = wtCardinality(node);
+  return c.repeatable;
 }
 
 function getRepeatMeta(node: any): { repeatMin: number; repeatMax: number; repeatable: boolean } {
-  const min = typeof node.min === 'number' ? node.min : 0;
-  const max = typeof node.max === 'number' ? node.max : 1;
-  const repeatable = max === -1 || max > 1;
-  return { repeatMin: min, repeatMax: max, repeatable };
+  const c = wtCardinality(node);
+  return { repeatMin: c.min, repeatMax: c.max, repeatable: c.repeatable };
 }
 function getDataType(rmType: string): string {
   // DV_INTERVAL<X> - the WebTemplate reports the full generic instantiation
@@ -339,7 +322,7 @@ export function parseWebTemplate(webTemplate: any): {
         };
 
         if (node.rmType === 'DV_QUANTITY' && node.inputs) {
-          const unitInput = node.inputs.find((i: any) => i.suffix === 'units' || i.suffix === 'unit' || i.suffix === 'unit_code');
+          const unitInput = wtUnitInput(node) as any;
           const constraints: FieldConstraint = {};
           if (unitInput && unitInput.list && unitInput.list.length > 0) {
             constraints.units = unitInput.list.map((l: any) => l.value);
@@ -362,17 +345,7 @@ export function parseWebTemplate(webTemplate: any): {
           const numberInput = node.inputs.find((i: any) => i.validation);
           if (numberInput?.validation) {
             const constraints: FieldConstraint = { ...(field.constraints || {}) };
-            if (numberInput.validation.range) {
-              const range = numberInput.validation.range;
-              if (range.min !== undefined) constraints.min = range.min;
-              if (range.max !== undefined) constraints.max = range.max;
-              if (range.minOp === '>') constraints.minexclusive = true;
-              if (range.maxOp === '<') constraints.maxexclusive = true;
-            }
-            if (numberInput.validation.precision) {
-              const precision = numberInput.validation.precision;
-              constraints.precision = precision.max !== undefined ? precision.max : precision.min;
-            }
+            Object.assign(constraints, wtNumericConstraint(numberInput.validation));
             field.constraints = constraints;
           }
         }
@@ -398,7 +371,7 @@ export function parseWebTemplate(webTemplate: any): {
           const seen = new Map<string, ReturnType<typeof unitOptionsFromList>[number]>();
           for (const boundId of ['lower', 'upper']) {
             const child = node.children.find((c: any) => c.id === boundId);
-            const unitInput = child?.inputs?.find((i: any) => i.suffix === 'units' || i.suffix === 'unit' || i.suffix === 'unit_code');
+            const unitInput = wtUnitInput(child) as any;
             if (!unitInput?.list?.length) continue;
             for (const opt of unitOptionsFromList(unitInput.list)) {
               if (!seen.has(opt.unit)) seen.set(opt.unit, opt);
@@ -433,8 +406,7 @@ export function parseWebTemplate(webTemplate: any): {
 
         const needsOptions = (node.rmType === 'DV_CODED_TEXT' || node.rmType === 'CODE_PHRASE' || node.rmType === 'DV_ORDINAL');
         if (needsOptions && node.inputs) {
-          const codeInput = node.inputs.find((i: any) => i.suffix === 'code' || i.type === 'CODED_TEXT');
-          const listInput = codeInput || node.inputs[0];
+          const listInput = wtCodeListInput(node) as any;
           if (listInput && listInput.list) {
             field.options = listInput.list.map((l: any) => {
               const rmValue = originalLanguageOptionText(l);
