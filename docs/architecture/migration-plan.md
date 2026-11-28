@@ -13,13 +13,13 @@ The migration to the target architecture must be done in small, executable steps
 ## Milestone 2: openEHR Reliability
 1. **WebTemplate Parser:** Secure the WebTemplate parsing, ensuring coverage for Sections, Clusters, Elements, Cardinalities, Occurrences, and RM types.
 2. **Technical Fields & Context:** Automatically extract and map attributes like `language`, `territory`, `composer` without leaking them to the UI unless explicitly configured.
-3. **Composition Engine:** Separate HTTP transport (`ehrbaseDataProvider.ts`) from the Composition mapping logic so WatEHR Core does not depend on EHRbase directly.
+3. **Composition Engine:** Separate HTTP transport (`ehrbaseDataProvider.ts`) from the Composition mapping logic so OnEHR Core does not depend on EHRbase directly.
 4. **Testing:** Build the Golden Master tests asserting the roundtrip `WebTemplate → FormDefinition → Form Values → Composition → Form Values`.
 
 ## Milestone 3: Embedded Runtime
 1. **Unified `FormContext`:** Introduce the `FormContext` interface enforcing strict properties and remove implicit state mechanisms.
 2. **State Machine:** Implement `RuntimeStatus` transitions blocking invalid behaviors (e.g., submit during loading).
-3. **Embed SDK & iframe Protocol:** Extract iframe logic into an SDK defining `WatEhrMessage<T>` with timeout handling, strict origins, and event listeners (`ready`, `changed`, `submitted`).
+3. **Embed SDK & iframe Protocol:** Extract iframe logic into an SDK defining `OnEhrMessage<T>` with timeout handling, strict origins, and event listeners (`ready`, `changed`, `submitted`).
 
 ## Milestone 4: Logic Platform
 1. **Declarative Rules:** Implement the rule evaluator avoiding arbitrary JS injection.

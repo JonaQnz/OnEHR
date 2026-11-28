@@ -147,7 +147,14 @@ The project is structured as an **npm workspaces monorepo**:
 
 ```text
 onehr/
-├── docker-compose.yml           # Multi-container setup (PostgreSQL, API, Web)
+├── Dockerfile                   # Single deployment image (API serves the built SPA)
+├── compose.yaml                 # TEST/PROD deployment stack (one image + PostgreSQL)
+├── docker-compose.yml           # Local dev stack (PostgreSQL, API, Web)
+├── Dockerfile.api               # API image for the local dev stack
+├── docker-compose.ehrbase-test.yml   # Isolated EHRbase for the opt-in integration test
+├── docker-compose.debug-ehrbase.yml  # Overlay wiring the dev API to a local debug EHRbase
+├── .github/workflows/ci.yml     # CI: unit tests, web build, deployment image build
+├── scripts/                     # debug-ehrbase.sh, integration-smoke.sh, smoke-test.mjs
 ├── .mcp.json                    # MCP server registration (formbuilder + openehr-architect)
 ├── package.json                 # Workspace root configuration
 ├── apps/
@@ -183,7 +190,7 @@ onehr/
 ### Prerequisites
 
 Ensure you have the following installed on your machine:
-- **Node.js**: `v18.x` or higher
+- **Node.js**: `v22.x` (at least `v20.x`; the test runner requires Node 20 or newer)
 - **npm**: `v9.x` or higher
 - **Docker & Docker Compose** (highly recommended for the EHRbase backend stack)
 
@@ -197,15 +204,23 @@ Ensure you have the following installed on your machine:
    cd OnEHR
    ```
 
-2. Start all services (Database, API, Web):
+2. Provide the secrets in a root `.env` file (git-ignored - never commit it). The dev stack needs at least `FORMS_BOOTSTRAP_ADMIN_PASSWORD` for the first administrator; all other variables are listed in `apps/api/.env.example` and `apps/data/config.example.json`.
+
+3. Start all services (Database, API, Web):
    ```bash
-   docker-compose up --build
+   docker compose up --build
    ```
 
-3. Access the applications:
+4. Access the applications:
    - **Frontend App**: [http://localhost:3000](http://localhost:3000)
    - **API Server**: [http://localhost:3001/api/health](http://localhost:3001/api/health)
    - **PostgreSQL Database**: `localhost:5432`
+
+5. Optional - local EHRbase on port `8082` (imports the `.opt` files from `debug/ehrbase/templates`):
+   ```bash
+   ./scripts/debug-ehrbase.sh on
+   ```
+   `./scripts/debug-ehrbase.sh off` stops it, `./scripts/debug-ehrbase.sh reset` additionally wipes its data. See [docs/debug-ehrbase.md](docs/debug-ehrbase.md).
 
 ---
 
@@ -230,11 +245,10 @@ Ensure you have the following installed on your machine:
 
    **Configuration & secrets**: credentials are never committed. The API reads them from environment variables (all listed in `apps/api/.env.example`) or from an untracked runtime `config.json` in `DATA_DIR` (Docker Compose mounts `./data`). For local development copy the template and fill in your own values: `cp apps/data/config.example.json apps/data/config.json`. `config.json` and `.env` files are git-ignored - never commit them.
 
-   Run Prisma migrations:
+   Run the Prisma schema push (there is no migrations directory; the schema is applied directly):
    ```bash
    cd apps/api
-   npx prisma migrate dev
-   npx prisma db push
+   npx prisma db push --schema=prisma/schema.prisma
    cd ../..
    ```
 
@@ -247,16 +261,38 @@ Ensure you have the following installed on your machine:
    See the [Wiki: Authentication & Access Control](../../wiki/Authentication-and-Access-Control) for HIP/Keycloak mode and role management.
 
 5. **Start Development Servers**:
-   - **Backend API**:
+   - **Backend API** (there is no watch script; build first, then run the compiled server):
      ```bash
      cd apps/api
-     npm run dev
+     npm run build
+     node dist/index.js
      ```
    - **Frontend Web**:
      ```bash
      cd apps/web
      npm run dev
      ```
+
+---
+
+## Tests & CI
+
+Install once, then run the full unit test aggregate (it builds the shared packages first):
+
+```bash
+npm ci
+npm test
+```
+
+The aggregate covers `packages/core`, `packages/openehr-engine`, `packages/plugin-api`, the plugins and MCP servers, `apps/api` (Node `node:test`), `apps/web` (Vitest) and the deploy/documentation contract tests in `tests/deploy/`. Node 20 or newer is required.
+
+`.github/workflows/ci.yml` runs on pushes and pull requests to `main` and `develop`:
+
+- `test` - Node 22, `npm ci`, `prisma generate`, `npm test`;
+- `build-web` - Node 18, builds the shared packages and `apps/web`;
+- `build-image` - `docker build` of the root `Dockerfile`.
+
+The host proof `bash scripts/integration-smoke.sh` (Docker, Node >= 18) is run by the AI Dev Home platform against the integration head before a task closes - workers do not run it. See [docs/deployment.md](docs/deployment.md) for the deployment contract and [docs/testing/ehrbase-integration.md](docs/testing/ehrbase-integration.md) for the opt-in EHRbase integration test.
 
 ---
 

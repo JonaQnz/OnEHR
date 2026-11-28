@@ -20,10 +20,15 @@ npm workspaces (`apps/*`, `packages/*`):
 - **`packages/core`** - Shared TypeScript types + canonical
   form/Composition normalization logic (`normalizeCompositionDefinition`,
   `getCompositionDefinition`, ...). Single source of truth both
-  `apps/api` and `apps/web` import from directly (aliased to `src/`, not a
-  built `dist/`, in both Vite and the API's own module resolution) -
-  duplicating a type here instead of importing it has caused real bugs
-  before (see "Known sharp edges" below).
+  `apps/api` and `apps/web` import from: `apps/web` resolves `core`,
+  `core/aql-runtime` and `openehr-engine` straight to `packages/*/src`
+  (`resolve.alias` in `apps/web/vite.config.ts`, mirrored in
+  `apps/web/tsconfig.app.json` and checked by
+  `apps/web/src/workspaceResolution.test.ts`), while `apps/api` resolves
+  them to the built `packages/*/dist` (tsconfig paths + package exports),
+  so `npm run build:packages` must run before the API build and tests -
+  the root `npm test` does that. Duplicating a type here instead of
+  importing it has caused real bugs before (see "Known sharp edges" below).
 - **`packages/mcp-server`** - MCP server exposing the Forms API as tools
   for AI agents (`launch_form`, `create_form`, `list_patients`, ...) -
   logs in via the same `POST /api/auth/login` a browser session would use.
@@ -101,8 +106,8 @@ same timestamp.
 
 ## Testing layers
 
-1. `apps/api` - `node:test`, ~193 tests, run via `npm test` (also runs
-   `tsc` build first).
+1. `apps/api` - `node:test`, run via `npm test` (also runs the `tsc`
+   build first).
 2. `apps/web` - Vitest + Testing Library component tests, run via
    `npx vitest run` (or `npm test --workspace=web`). No browser, no
    backend - fetch is mocked per test.
@@ -112,9 +117,29 @@ same timestamp.
 4. `packages/core`, `packages/mcp-server`, `packages/openehr-architect-mcp`,
    `packages/plugin-api` each have their own `npm test`, aggregated by the
    root `npm test` script.
-5. `docs/testing/ehrbase-integration.md` - opt-in integration test against
-   a real isolated EHRbase instance (port 8082), separate from the dev
-   EHRbase.
+5. `tests/deploy/` - plain Node `node:test` contract tests for the deployment
+   files (`Dockerfile` + `compose.yaml`) and the developer documentation
+   (commands, names, workspace resolution). They only read text files with
+   `fs` and are part of the root `npm test`.
+6. `docs/testing/ehrbase-integration.md` - opt-in integration test against a
+   real isolated EHRbase instance (`docker-compose.ehrbase-test.yml`, port
+   8082), separate from the dev stack.
+7. `scripts/integration-smoke.sh` - the host proof (`project.yaml`
+   `test.integration`): builds the deployment image, runs `compose.yaml` as
+   its own `onehr-proof` project and executes the smoke flow. Run by the
+   AI Dev Home platform against the integration head, not by hand.
+
+## Deployment
+
+TEST and PROD run **one image** built from the root `Dockerfile`. The API
+serves the built SPA from `WEB_DIST_DIR`, so there is no separate web
+container. Each environment is a compose project started from the shared
+`compose.yaml` (`onehr-test` / `onehr-prod`, loopback ports 18114 / 18115,
+separate volumes); the contract is documented in `docs/deployment.md`.
+
+The local dev stack is unrelated to deployment: `docker-compose.yml` plus
+`Dockerfile.api` for the API and the `node` image for the web dev server,
+with PostgreSQL, the API and Vite on ports 5432 / 3001 / 3000.
 
 ## Known sharp edges (still true as of this writing)
 
@@ -137,12 +162,15 @@ same timestamp.
 4. **Hardcoded plugin dependencies** - `apps/api` and `apps/web` still
    import specific plugins directly rather than discovering them
    dynamically through `plugin-api`'s boundary.
-5. **No CI pipeline.** Every merge to `main` today is gated only by
-   whoever's doing the merge manually running `npm test`/`tsc` first, not
-   by an automated check. Flagged as the highest-priority infrastructure
-   gap; deliberately deferred (see project conversation history) in favor
-   of first building out actual test coverage (items 1-3 under "Testing
-   layers" above) to have something for a CI pipeline to run.
+5. **CI exists now, coverage is the limit.** `.github/workflows/ci.yml` runs
+   on pushes and pull requests to `main` and `develop` with three jobs:
+   `test` (Node 22, `npm ci`, `prisma generate`, `npm test`), `build-web`
+   (Node 18, builds the packages and `apps/web`) and `build-image`
+   (`docker build` of the root `Dockerfile`). `project.yaml` names the same
+   unit command as `test.unit` and `scripts/integration-smoke.sh` as
+   `test.integration` (run by the platform on the integration head). What CI
+   cannot cover yet is the browser/EHRbase path: `apps/e2e` is not part of
+   the aggregate and the EHRbase integration test is opt-in.
 6. **Concurrent editing on the live dev instance.** More than one
    development session (human or agent) can be, and has been, working
    against the same checked-out working tree and the same live Form

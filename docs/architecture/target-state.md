@@ -1,6 +1,6 @@
 # Target Architecture State
 
-The target architecture defines WatEHR as the standard openEHR form builder—a robust, testable, and highly embeddable web application, rather than a full monolithic hospital information system.
+The target architecture defines OnEHR as the standard openEHR form builder—a robust, testable, and highly embeddable web application, rather than a full monolithic hospital information system.
 
 ## 1. Monorepo Organization
 - Maintain the NPM workspace structure, but enforce strict boundaries.
@@ -8,7 +8,7 @@ The target architecture defines WatEHR as the standard openEHR form builder—a 
 - **openEHR Engine:** Handles WebTemplate parsing, RM data types, Composition building/parsing, and validation.
 - **Embedded Runtime:** Manages Form states, values, validation, plugin hooks, and host communication without user management logic.
 - **Designer:** Visual UI for mappings, validation configs, previewing runtime states, etc.
-- **Embed SDK:** Safe `iframe` embedding via `postMessage`, explicit `WatEhrMessage<T>` protocol, and error formatting.
+- **Embed SDK:** Safe `iframe` embedding via `postMessage`, explicit `OnEhrMessage<T>` protocol, and error formatting.
 - **Plugin SDK:** Clear extension points (`registerField()`, `registerFunction()`, etc.) verified by Contract Tests.
 
 ## 2. API & Type Safety Rules

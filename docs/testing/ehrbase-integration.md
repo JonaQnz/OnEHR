@@ -1,7 +1,9 @@
 # Lokale EHRbase-Integrationstests
 
-Der optionale Stack nutzt eine isolierte EHRbase auf Port `8082`; die reguläre
-Entwicklungs-EHRbase und ihre Daten bleiben unberührt.
+Der optionale Stack nutzt eine isolierte EHRbase auf Port `8082`, definiert in
+`docker-compose.ehrbase-test.yml` (Services `ehrbase-test-db` und `ehrbase-test`,
+Volume `ehrbase_test_data`). Er läuft allein, ohne den Dev-Stack und ohne die
+Debug-Verbindungen in Forms.
 
 Start:
 
@@ -42,8 +44,14 @@ dieses Template getestet werden. Ohne ein importierbares OPT wäre ein solcher
 Test nicht aussagekräftig, weil EHRbase jede Composition ohne installiertes
 Template ablehnt.
 
-Aufräumen inklusive ausschließlich der Testdaten:
+Aufräumen inklusive der Testdaten:
 
 ```bash
 docker compose -f docker-compose.ehrbase-test.yml down -v
 ```
+
+> **Achtung:** Das Volume `ehrbase_test_data` ist mit der lokalen Debug-EHRbase
+> geteilt (`./scripts/debug-ehrbase.sh on`). `down -v` löscht daher auch die
+> Debug-Daten, und `./scripts/debug-ehrbase.sh reset` löscht die Daten dieses
+> Integrationstests. Nur aufräumen, wenn beide Seiten ihre Daten nicht mehr
+> brauchen.
