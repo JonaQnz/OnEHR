@@ -5,20 +5,25 @@ import { exportToCambioForm } from '../exporters/cambioExporter';
 import { exportMappings } from '../exporters/mappingExporter';
 import { asyncHandler, HttpError } from '../middleware/errorHandler';
 import { normalizeCanonicalFormPayload, requireNonEmptyString } from '../validation/formValidation';
-import { COMPOSITION_EXTENSION_KEY, COMPOSITION_SCHEMA_VERSION, COMPOSITION_SCRIPTING_EXTENSION_KEY, FORM_DEFINITION_SCHEMA_VERSION, getCompositionDefinition, migrateCanonicalFormToV1, normalizeCompositionScript } from 'core';
+import { COMPOSITION_EXTENSION_KEY, COMPOSITION_SCHEMA_VERSION, FORM_DEFINITION_SCHEMA_VERSION, getCompositionDefinition, migrateCanonicalFormToV1 } from 'core';
 import { verifyFhirForSubmission } from '../services/fhirVerificationService';
-import { generateCanonicalForm } from '../services/formGenerator';
-import {
-  FormScriptCompileResult,
-  compileFormDefinitionScript,
-  compileFormScript,
-} from '../scripting/formScriptCompiler';
+import { compileFormScript } from '../scripting/formScriptCompiler';
 import { compileCompositionScript } from '../scripting/compositionScriptCompiler';
 import { pluginRegistry } from '../plugins/pluginRegistry';
 import {
-  hydrateFormScriptConnectors,
-  ScriptConnectorError,
-} from '../services/scriptConnectorRegistry';
+  compileDefinitionScripts,
+  generateDefinitionFromTemplate,
+  prepareConnectors,
+  prepareNewDefinition,
+} from '../services/formDefinitionPreparation';
+import {
+  createDraftFromVersion,
+  getLatestPublishedVersion,
+  listLineageVersions,
+  publishFormVersion,
+  restoreVersionAsDraft,
+  setFormVersionStatus,
+} from '../services/formLifecycleService';
 import { deriveAuthMode, requirePermission } from '../middleware/auth';
 import { buildSessionRuntimeContext, executeStoredAqlFunctionRecord } from '../services/aqlFunctionService';
 import { executeDataWidget } from '../services/dataWidgetService';
@@ -61,137 +66,6 @@ function ifMatchRevision(ifMatch: string | undefined): number | undefined {
 
 function revisionConflictStatus(expectedRevision: number | undefined): number {
   return expectedRevision === undefined ? 409 : 412;
-}
-
-function assertScriptCompiles(result: Pick<FormScriptCompileResult, 'valid' | 'document'>): void {
-  if (result.valid) return;
-  throw new HttpError(422, 'Das Form Script enthält TypeScript- oder Sicherheitsfehler.', {
-    code: 'FORM_SCRIPT_INVALID',
-    messages: result.document.diagnostics.map((diagnostic) => ({
-      severity: diagnostic.severity,
-      code: String(diagnostic.code),
-      path: diagnostic.line
-        ? `form-script.ts:${diagnostic.line}:${diagnostic.column || 1}`
-        : 'form-script.ts',
-      message: diagnostic.message,
-    })),
-  });
-}
-
-function compileDefinitionScripts(definition: ReturnType<typeof migrateCanonicalFormToV1>) {
-  const formCompilation = compileFormDefinitionScript(definition);
-  assertScriptCompiles(formCompilation);
-  const withFormScript = { ...definition, formScript: formCompilation.document };
-  const composition = getCompositionDefinition(withFormScript.extensions);
-  if (!composition) return withFormScript;
-  const script = normalizeCompositionScript(
-    withFormScript.extensions?.[COMPOSITION_SCRIPTING_EXTENSION_KEY],
-    composition,
-  );
-  const compositionCompilation = compileCompositionScript(composition, script.source);
-  assertScriptCompiles(compositionCompilation);
-  return {
-    ...withFormScript,
-    extensions: {
-      ...withFormScript.extensions,
-      [COMPOSITION_SCRIPTING_EXTENSION_KEY]: compositionCompilation.document,
-    },
-  };
-}
-
-function prepareConnectors(definition: ReturnType<typeof migrateCanonicalFormToV1>, allowedOverride?: string[]) {
-  try {
-    return hydrateFormScriptConnectors(definition, allowedOverride);
-  } catch (error) {
-    if (error instanceof ScriptConnectorError) {
-      throw new HttpError(error.status, error.message, {
-        code: error.code,
-        messages: [{ severity: 'error', code: error.code, path: 'formScript.connectors', message: error.message }],
-      });
-    }
-    throw error;
-  }
-}
-
-function prepareNewDefinition(input: Record<string, unknown>, formId: string) {
-  const definition = prepareConnectors(migrateCanonicalFormToV1(input, formId));
-  return compileDefinitionScripts(definition);
-}
-
-/**
- * Whether a stored layout actually places any field, as opposed to the empty
- * `{ type: 'form', children: [{ type: 'container', children: [] }] }`
- * placeholder every imported template starts with. Only a layout with real
- * content should ever override `generateCanonicalForm`'s own
- * fields-to-layout generation below - otherwise that placeholder (still
- * truthy) silently wins over the generated layout and the form comes out
- * with correct bindings/locales but nothing on the canvas.
- */
-function layoutHasFields(node: any): boolean {
-  if (!node || typeof node !== 'object') return false;
-  if (Array.isArray(node.children) && node.children.length > 0) {
-    return node.children.some((child: any) => layoutHasFields(child));
-  }
-  return !['form', 'container', 'row', 'column'].includes(node.type);
-}
-
-function generateDefinitionFromTemplate(template: any, formId: string, formName?: string) {
-  const registryData = template.parsed_registry_json as any;
-  const isNewSchema = registryData && !Array.isArray(registryData);
-  const fields = isNewSchema ? (registryData.fields || []) : (registryData || []);
-  const storedLayout = isNewSchema ? registryData.layout : undefined;
-  const layout = storedLayout && layoutHasFields(storedLayout) ? storedLayout : undefined;
-
-  return prepareNewDefinition({
-    ...generateCanonicalForm({
-      id: formId,
-      name: formName || template.template_id,
-      templateId: template.template_id,
-      alias: template.alias,
-      templateVersion: template.version || '1.0.0',
-      fields,
-      layout,
-    }),
-    version: '0.1.0-draft',
-    schemaVersion: FORM_DEFINITION_SCHEMA_VERSION,
-    revision: 0,
-    extensions: {},
-  }, formId);
-}
-
-/** A published Composition is immutable in intent: all referenced building blocks must be executable now. */
-async function assertCompositionDependencies(definition: ReturnType<typeof migrateCanonicalFormToV1>, compositionId: string): Promise<void> {
-  const composition = getCompositionDefinition(definition.extensions);
-  if (!composition) return;
-  const formIds = composition.pages.flatMap((page) => page.blocks)
-    .filter((block): block is Extract<typeof block, { type: 'form' }> => block.type === 'form')
-    .map((block) => block.formId);
-  if (formIds.includes(compositionId)) throw new HttpError(422, 'A Composition cannot include itself');
-  if (formIds.length > 0) {
-    const forms = await prisma.form.findMany({ where: { id: { in: [...new Set(formIds)] } }, select: { id: true, status: true } });
-    const unavailable = formIds.filter((id) => !forms.some((form) => form.id === id && form.status === 'published'));
-    if (unavailable.length > 0) throw new HttpError(422, 'A Composition can only include published forms', { code: 'COMPOSITION_FORM_UNAVAILABLE', messages: unavailable.map((id) => ({ severity: 'error', path: 'extensions.watehr.composition', message: `Embedded form ${id} is not published` })) });
-  }
-  const widgetIds = composition.pages.flatMap((page) => page.blocks)
-    .filter((block): block is Extract<typeof block, { type: 'data' }> => block.type === 'data')
-    .map((block) => block.widgetId)
-    .filter((id): id is string => Boolean(id));
-  if (widgetIds.length > 0) {
-    const widgets = await prisma.dataWidget.findMany({ where: { id: { in: [...new Set(widgetIds)] }, enabled: true }, select: { id: true } });
-    const unavailable = widgetIds.filter((id) => !widgets.some((widget) => widget.id === id));
-    if (unavailable.length > 0) throw new HttpError(422, 'A Composition can only use enabled widgets', { code: 'COMPOSITION_WIDGET_UNAVAILABLE', messages: unavailable.map((id) => ({ severity: 'error', path: 'extensions.watehr.composition', message: `Widget ${id} is unavailable` })) });
-  }
-  // Kept while old definitions are migrated. New data blocks always use widgetId.
-  const functionIds = composition.pages.flatMap((page) => page.blocks)
-    .filter((block): block is Extract<typeof block, { type: 'data' }> => block.type === 'data')
-    .filter((block) => !block.widgetId)
-    .map((block) => block.aqlFunctionId)
-    .filter((id): id is string => Boolean(id));
-  if (functionIds.length > 0) {
-    const functions = await prisma.aqlFunction.findMany({ where: { id: { in: [...new Set(functionIds)] }, enabled: true }, select: { id: true } });
-    const unavailable = functionIds.filter((id) => !functions.some((fn) => fn.id === id));
-    if (unavailable.length > 0) throw new HttpError(422, 'A Composition can only use enabled AQL functions', { code: 'COMPOSITION_AQL_UNAVAILABLE', messages: unavailable.map((id) => ({ severity: 'error', path: 'extensions.watehr.composition', message: `AQL function ${id} is unavailable` })) });
-  }
 }
 
 router.get('/', asyncHandler(async (req, res) => {
@@ -560,186 +434,46 @@ router.put('/:id', asyncHandler(async (req, res) => {
 // two-role model (USER/ADMIN) always grants both together; the permission
 // model implied finer-grained control that didn't actually exist. Stacked
 // on top of (not instead of) the router-level 'form.design' check.
-/**
- * Increment version logic: "0.1.0-draft" -> "1.0.0". Every fresh form is
- * seeded at "0.1.0-draft" (major 0, minor 1) - a first-ever publish must
- * land on "1.0.0", not carry the seed minor through. Re-drafts of an
- * already-published form (via nextDraftVersion) start from major >= 1
- * instead, so that branch's minor/patch already encode the real next
- * version and must pass through unchanged.
- */
-export function nextPublishedVersion(currentVersion: string): string {
-  const match = currentVersion.match(/^(\d+)\.(\d+)\.(\d+)/);
-  if (!match) return '1.0.0';
-  return match[1] === '0' ? '1.0.0' : `${match[1]}.${match[2]}.${match[3]}`;
-}
+export { nextDraftVersion, nextPublishedVersion } from '../services/formLifecycleService';
 
 router.post('/:id/publish', requirePermission('form.publish'), asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
-  const form = await prisma.form.findUnique({ where: { id: formId } });
-  if (!form) throw new HttpError(404, 'Form not found');
-  if (form.status === 'published') throw new HttpError(400, 'Form is already published');
-
-  const newVersion = nextPublishedVersion(form.version);
-  
-  const canonicalForm = prepareConnectors(migrateCanonicalFormToV1({
-    ...(form.canonical_json as any),
-    schemaVersion: (form.canonical_json as any).schemaVersion || FORM_DEFINITION_SCHEMA_VERSION,
-    revision: ((form.canonical_json as any).revision ?? 0) + 1,
-    extensions: (form.canonical_json as any).extensions || {},
-    version: newVersion,
-    status: 'published',
-  }, formId));
-  await assertCompositionDependencies(canonicalForm, formId);
-  const compiledDefinition = compileDefinitionScripts(canonicalForm);
-  const parentId = form.parent_id || form.id;
-  // At most one published version per form identity is the invariant every
-  // consumer of `status` already assumes (latest-published lookups, the
-  // "published" filter on the form list) - archiving is otherwise a
-  // separate manual action, easy to forget, which silently produced two
-  // simultaneously "published" versions of the same form with no way for a
-  // filter-by-status caller to tell which one is actually current. Publish
-  // and supersede as one atomic step instead of trusting a follow-up click.
-  const supersededSiblings = await prisma.form.findMany({
-    where: { parent_id: parentId, status: 'published', id: { not: formId } },
-  });
-  const [published] = await prisma.$transaction([
-    prisma.form.update({
-      where: { id: formId },
-      data: { status: 'published', version: newVersion, canonical_json: compiledDefinition as any },
-    }),
-    ...supersededSiblings.map((sibling) => prisma.form.update({
-      where: { id: sibling.id },
-      data: { status: 'archived', canonical_json: { ...(sibling.canonical_json as any), status: 'archived' } },
-    })),
-  ]);
-  res.json({ message: 'Form published', form: published });
+  const form = await publishFormVersion(formId);
+  res.json({ message: 'Form published', form });
 }));
-
-/**
- * QA review finding: create-draft and restore used to each hand-roll their
- * own "what draft version comes next" logic, and disagreed - create-draft
- * only looked at the ONE form being drafted from (`match[2] + 1`), while
- * restore correctly scanned every sibling under the same parent_id for the
- * true max major.minor across the whole lineage. Creating two drafts from
- * the same published version (without publishing between) used to produce
- * two forms both labeled e.g. "1.1.0-draft" - a real version-string
- * collision. One shared implementation (restore's, the more careful one)
- * instead of two that can drift apart again.
- */
-export async function nextDraftVersion(parentId: string): Promise<string> {
-  const siblings = await prisma.form.findMany({ where: { parent_id: parentId } });
-  let maxMajor = 0;
-  let maxMinor = 0;
-  for (const sibling of siblings) {
-    const match = sibling.version.match(/^(\d+)\.(\d+)\.(\d+)/);
-    if (!match) continue;
-    const major = parseInt(match[1], 10);
-    const minor = parseInt(match[2], 10);
-    if (major > maxMajor) { maxMajor = major; maxMinor = minor; }
-    else if (major === maxMajor && minor > maxMinor) { maxMinor = minor; }
-  }
-  return `${maxMajor}.${maxMinor + 1}.0-draft`;
-}
 
 router.post('/:id/create-draft', asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
-  const form = await prisma.form.findUnique({ where: { id: formId } });
-  if (!form) throw new HttpError(404, 'Form not found');
-
-  // create a new draft with incremented minor version
-  const newId = uuidv4();
-  const newVersion = await nextDraftVersion(form.parent_id || form.id);
-
-  const canonicalForm = { ...(form.canonical_json as any), id: newId, schemaVersion: (form.canonical_json as any).schemaVersion || FORM_DEFINITION_SCHEMA_VERSION, revision: 0, extensions: (form.canonical_json as any).extensions || {}, version: newVersion, status: 'draft' };
-  const draft = await prisma.form.create({
-    data: {
-      id: newId,
-      parent_id: form.parent_id || form.id,
-      name: form.name,
-      version: newVersion,
-      status: 'draft',
-      canonical_json: canonicalForm
-    }
-  });
-
+  const draft = await createDraftFromVersion(formId);
   res.status(201).json({ message: 'Draft created', form: draft });
 }));
 
 router.post('/:id/restore', requirePermission('form.publish'), asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
-  const oldForm = await prisma.form.findUnique({ where: { id: formId } });
-  if (!oldForm) throw new HttpError(404, 'Form not found');
-  
-  const parentId = oldForm.parent_id || oldForm.id;
-  const newId = uuidv4();
-  const newVersion = await nextDraftVersion(parentId);
-
-  const canonicalForm = { ...(oldForm.canonical_json as any), id: newId, revision: 0, version: newVersion, status: 'draft' };
-  const restoredDraft = await prisma.form.create({
-    data: {
-      id: newId,
-      parent_id: parentId,
-      name: oldForm.name,
-      version: newVersion,
-      status: 'draft',
-      canonical_json: canonicalForm
-    }
-  });
-
+  const restoredDraft = await restoreVersionAsDraft(formId);
   res.status(201).json({ message: 'Restored as new draft', form: restoredDraft });
 }));
 
 router.post('/:id/archive', requirePermission('form.publish'), asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
-  const form = await prisma.form.findUnique({ where: { id: formId } });
-  if (!form) throw new HttpError(404, 'Form not found');
-  
-  const canonicalForm = { ...(form.canonical_json as any), status: 'archived' };
-  const archived = await prisma.form.update({
-    where: { id: formId },
-    data: { status: 'archived', canonical_json: canonicalForm }
-  });
-  
+  const archived = await setFormVersionStatus(formId, 'archived');
   res.json({ message: 'Form archived', form: archived });
 }));
 
 router.post('/:id/delete', requirePermission('form.publish'), asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
-  const form = await prisma.form.findUnique({ where: { id: formId } });
-  if (!form) throw new HttpError(404, 'Form not found');
-  
-  const canonicalForm = { ...(form.canonical_json as any), status: 'deleted' };
-  const deleted = await prisma.form.update({
-    where: { id: formId },
-    data: { status: 'deleted', canonical_json: canonicalForm }
-  });
-  
+  const deleted = await setFormVersionStatus(formId, 'deleted');
   res.json({ message: 'Form deleted', form: deleted });
 }));
 
 router.get('/parent/:parentId/latest-published', asyncHandler(async (req, res) => {
   const parentId = requireNonEmptyString(req.params.parentId, 'parentId');
-  const forms = await prisma.form.findMany({
-    where: { parent_id: parentId, status: 'published' },
-    orderBy: { createdAt: 'desc' }
-  });
-  if (forms.length === 0) throw new HttpError(404, 'No active published form found');
-  
-  // Custom sort to find semver latest (or we just rely on createdAt)
-  const latest = forms[0];
-  const canonicalForm = migrateCanonicalFormToV1({ ...(latest.canonical_json as any), id: latest.id }, latest.id);
-  res.json({ ...latest, canonical_json: canonicalForm });
+  res.json(await getLatestPublishedVersion(parentId));
 }));
 
 router.get('/parent/:parentId/versions', asyncHandler(async (req, res) => {
   const parentId = requireNonEmptyString(req.params.parentId, 'parentId');
-  const forms = await prisma.form.findMany({
-    where: { parent_id: parentId },
-    orderBy: { createdAt: 'desc' },
-    select: { id: true, parent_id: true, name: true, version: true, status: true, createdAt: true, updatedAt: true }
-  });
-  res.json(forms);
+  res.json(await listLineageVersions(parentId));
 }));
 
 router.get('/:id/export/cambio', asyncHandler(async (req, res) => {
