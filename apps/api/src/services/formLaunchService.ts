@@ -7,6 +7,7 @@ import {
   type FormSessionValues,
 } from 'core';
 import { HttpError } from '../middleware/errorHandler';
+import { resolvePublishedVersion } from './formIdentity';
 import {
   createFormSession,
   loadFormSessionFromProvider,
@@ -57,12 +58,7 @@ export async function launchForm(input: FormLaunchRequest, actor: SessionActor):
   // live (2026-09-02): launching a Composition's "Person (Basis)" block
   // failed with "Only published forms can be launched..." right after
   // publishing a content fix to that Form Section.
-  const form = requestedForm.status === 'published'
-    ? requestedForm
-    : await prisma.form.findFirst({
-        where: { parent_id: requestedForm.parent_id || requestedForm.id, status: 'published' },
-        orderBy: { createdAt: 'desc' },
-      });
+  const form = await resolvePublishedVersion(requestedForm);
   if (!form) throw new HttpError(409, 'Only published forms can be launched through the integration API');
 
   const initialValues = objectValues(input.initialValues);
