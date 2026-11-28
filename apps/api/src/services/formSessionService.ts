@@ -1,11 +1,9 @@
 import prisma from '../db/prisma';
 import type { Prisma } from '@prisma/client';
 import {
-  assertFormSessionTransition,
   getCompositionDefinition,
   isFormDataProviderError,
   isFormRuntimeMode,
-  isFormSessionChangeType,
   isFormSessionStatus,
   validateRuntimeValues,
   type CanonicalForm,
@@ -15,20 +13,30 @@ import {
   type FormSession,
   type FormSessionChangeType,
   type FormSessionLifecycleState,
-  type FormSessionRuntimeContext,
   type FormSessionMessage,
   type FormSessionPatchInput,
-  type FormSessionStatus,
   type FormSessionValues,
   type JsonValue,
   type RuntimeValues,
   type SessionValidationIssue,
-  type UserAuthMode,
   getFormFolderMapping,
   resolveFolderPath,
   isBlockingIssue,
 } from 'core';
 import { HttpError } from '../middleware/errorHandler';
+import {
+  assertOwner,
+  assertSessionIsEditable,
+  assertWithdrawable,
+  persistedMode,
+  persistedStatus,
+  submitChangeType,
+  transitionStatus,
+} from './formSessionLifecycle';
+import { isObject, publicSession, sameJson, sessionValues, type FormSessionRow } from './formSessionRecord';
+import type { SessionActor } from './formSessionLifecycle';
+import type { ResolvedSessionPatient } from './formSessionRecord';
+
 import { migrateCanonicalFormToV1 } from 'core';
 import { getOpenEhrFormOptions } from 'openehr-engine';
 import { getDataProvider } from './dataProviderRegistry';
@@ -43,10 +51,8 @@ import { verifyFhirForSubmission } from './fhirVerificationService';
 import { fileCompositionIntoFolder } from './ehrDirectoryService';
 import { buildSessionRuntimeContext } from './aqlFunctionService';
 
-export interface SessionActor {
-  userId: string;
-  authMode: UserAuthMode;
-}
+export type { SessionActor } from './formSessionLifecycle';
+export type { ResolvedSessionPatient } from './formSessionRecord';
 
 export interface CreateSessionInput {
   formId: string;
@@ -83,109 +89,6 @@ type SessionHookInput = {
   metadata?: Record<string, unknown>;
 };
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
-}
-
-function sessionValues(value: unknown): FormSessionValues {
-  return isObject(value) ? value : {};
-}
-
-function sessionValidation(value: unknown): SessionValidationIssue[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    if (!isObject(item) || typeof item.code !== 'string' || typeof item.message !== 'string') return [];
-    const severity = item.severity === 'info' || item.severity === 'warning' || item.severity === 'error'
-      ? item.severity
-      : undefined;
-    return [{
-      code: item.code,
-      message: item.message,
-      ...(typeof item.path === 'string' ? { path: item.path } : {}),
-      ...(severity ? { severity } : {}),
-    }];
-  });
-}
-
-function runtimeContext(value: unknown): FormSessionRuntimeContext {
-  if (!isObject(value)) return { aql: {}, codeFunctions: [] };
-  const aql = isObject(value.aql) ? value.aql : {};
-  const composition = isObject(value.composition) && isObject(value.composition.flat)
-    && typeof value.composition.ehrId === 'string'
-    && typeof value.composition.templateId === 'string'
-    && typeof value.composition.loadedAt === 'string'
-    ? {
-      ehrId: value.composition.ehrId,
-      templateId: value.composition.templateId,
-      ...(typeof value.composition.reference === 'string' ? { reference: value.composition.reference } : {}),
-      flat: value.composition.flat,
-      loadedAt: value.composition.loadedAt,
-    }
-    : undefined;
-  const errors: FormSessionRuntimeContext['errors'] = Array.isArray(value.errors) ? value.errors.flatMap((item) => (
-    isObject(item) && (item.source === 'composition' || item.source === 'aql') && typeof item.message === 'string'
-      ? [{ source: item.source as 'composition' | 'aql', ...(typeof item.function === 'string' ? { function: item.function } : {}), message: item.message }]
-      : []
-  )) : undefined;
-  const codeFunctions = Array.isArray(value.codeFunctions) ? value.codeFunctions.flatMap((item) => (
-    isObject(item) && typeof item.packageName === 'string' && typeof item.name === 'string' && typeof item.source === 'string'
-      ? [{ packageName: item.packageName, name: item.name, source: item.source }]
-      : []
-  )) : [];
-  return { ...(composition ? { composition } : {}), aql, codeFunctions, ...(errors && errors.length > 0 ? { errors } : {}) };
-}
-
-function persistedStatus(value: unknown): FormSessionStatus {
-  if (!isFormSessionStatus(value)) throw new HttpError(500, 'Stored form session has an invalid status');
-  return value;
-}
-
-function persistedMode(value: unknown): FormRuntimeMode {
-  if (!isFormRuntimeMode(value)) throw new HttpError(500, 'Stored form session has an invalid mode');
-  return value;
-}
-
-// Same defensive-boundary pattern as persistedStatus/persistedMode above -
-// core doesn't export an isUserAuthMode guard (authMode is a plain String
-// column, not a Prisma enum), so this was previously only "checked" by
-// `record: any` silently accepting whatever the column held. Found while
-// removing that `any` for real: an invalid stored value now fails loudly
-// here instead of quietly typing as UserAuthMode without ever having been
-// verified.
-function persistedAuthMode(value: unknown): UserAuthMode {
-  if (value !== 'local' && value !== 'hip') throw new HttpError(500, 'Stored form session has an invalid auth mode');
-  return value;
-}
-
-function transitionStatus(current: FormSessionStatus, next: FormSessionStatus): FormSessionStatus {
-  try {
-    assertFormSessionTransition(current, next);
-  } catch {
-    throw new HttpError(409, `Invalid form-session transition: ${current} -> ${next}`);
-  }
-  return next;
-}
-
-function assertSessionIsEditable(status: FormSessionStatus, lifecycleState?: unknown): void {
-  if (lifecycleState === 'deleted') {
-    throw new HttpError(409, 'This document has been withdrawn and can no longer be edited');
-  }
-  if (status === 'submitted' || status === 'cancelled') {
-    throw new HttpError(409, 'Form session is no longer editable');
-  }
-}
-
-function persistedLifecycleState(value: unknown): FormSessionLifecycleState {
-  return value === 'new' || value === 'incomplete' || value === 'complete' || value === 'deleted' ? value : 'new';
-}
-
-function sameJson(left: unknown, right: unknown): boolean {
-  try {
-    return JSON.stringify(left ?? {}) === JSON.stringify(right ?? {});
-  } catch {
-    return false;
-  }
-}
 async function runSessionHook(input: SessionHookInput) {
   return pluginRegistry.runHook(input.name, {
     formId: input.formId,
@@ -262,43 +165,6 @@ async function runBestEffortHook(input: SessionHookInput): Promise<{ data: Recor
   return { data: isObject(result.data) ? result.data : input.data, messages };
 }
 
-/** The subset of a `prisma.formSession` row this file actually reads,
- * kept deliberately separate from `@prisma/client`'s own generated
- * `FormSession`/`FormSessionStatus`/`FormSessionLifecycleState`/
- * `FormSessionChangeType` types - those would collide by name with this
- * file's own `core`-imported types of the same name, and importing them
- * would wrongly imply a raw DB enum/Json column value can be trusted
- * without going through persistedStatus()/persistedMode()/
- * persistedLifecycleState()/sessionValues() below. That defensive
- * validation is the whole point; this interface only names the columns,
- * it doesn't vouch for their contents - a genuine Prisma FormSession row
- * satisfies it structurally with zero cast needed at any call site.
- */
-interface FormSessionRow {
-  id: string;
-  formId: string;
-  formVersion: string;
-  mode: unknown;
-  patientId: string;
-  patientNamespace: string | null;
-  userId: string;
-  authMode: string;
-  status: unknown;
-  values: unknown;
-  validation: unknown;
-  runtimeContext: unknown;
-  revision: number;
-  providerId: string | null;
-  providerReference: string | null;
-  draftReference: string | null;
-  lifecycleState: unknown;
-  lifecycleConfirmed: boolean;
-  changeType: unknown;
-  changeDescription: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 async function formForSession(record: Pick<FormSessionRow, 'formId'>): Promise<FormDefinitionV1> {
   const form = await prisma.form.findUnique({ where: { id: record.formId } });
   if (!form) throw new HttpError(404, 'Form definition not found');
@@ -308,14 +174,6 @@ async function formForSession(record: Pick<FormSessionRow, 'formId'>): Promise<F
 function requiredText(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim() === '') throw new HttpError(400, `${field} is required`);
   return value.trim();
-}
-
-export interface ResolvedSessionPatient {
-  patientId: string;
-  patientNamespace?: string;
-  ehrId?: string;
-  id?: string;
-  origin?: string;
 }
 
 async function resolveSessionPatient(
@@ -353,53 +211,6 @@ function providerContext(
     userId: actor.userId,
     authMode: actor.authMode,
   };
-}
-
-function publicSession(
-  record: FormSessionRow,
-  messages?: FormSessionMessage[],
-  patient?: ResolvedSessionPatient,
-): FormSession {
-  const mode = persistedMode(record.mode || 'create');
-  const status = persistedStatus(record.status);
-  // Computed once rather than repeating the `||` chain in both the ternary
-  // condition and its value (the previous shape re-evaluated the same
-  // expression twice, and only worked at all because `record` being `any`
-  // silently absorbed `record.patientNamespace`'s real `string | null` -
-  // the `|| undefined` here does the same null-to-undefined narrowing
-  // explicitly, now that the type checker actually sees it).
-  const patientNamespace = patient?.patientNamespace || record.patientNamespace || undefined;
-  return {
-    id: record.id,
-    formId: record.formId,
-    formVersion: record.formVersion,
-    mode,
-    patientId: patient?.patientId || record.patientId,
-    ...(patientNamespace ? { patientNamespace } : {}),
-    ...(patient?.ehrId ? { ehrId: patient.ehrId } : {}),
-    userId: record.userId,
-    authMode: persistedAuthMode(record.authMode),
-    status,
-    values: sessionValues(record.values),
-    runtimeContext: runtimeContext(record.runtimeContext),
-    validation: sessionValidation(record.validation),
-    ...(messages && messages.length > 0 ? { messages } : {}),
-    revision: record.revision,
-    ...(record.providerId ? { providerId: record.providerId } : {}),
-    ...(record.providerReference ? { providerReference: record.providerReference } : {}),
-    ...(record.draftReference ? { draftReference: record.draftReference } : {}),
-    ...((record.draftReference || record.providerReference || undefined) ? { baseVersionUid: record.draftReference || record.providerReference || undefined } : {}),
-    lifecycleState: persistedLifecycleState(record.lifecycleState),
-    lifecycleConfirmed: Boolean(record.lifecycleConfirmed),
-    ...(isFormSessionChangeType(record.changeType) ? { changeType: record.changeType as FormSessionChangeType } : {}),
-    ...(record.changeDescription ? { changeDescription: record.changeDescription } : {}),
-    createdAt: record.createdAt.toISOString(),
-    updatedAt: record.updatedAt.toISOString(),
-  };
-}
-
-function assertOwner(record: Pick<FormSessionRow, 'userId'>, actor: SessionActor): void {
-  if (record.userId !== actor.userId && actor.userId !== 'anonymous') throw new HttpError(403, 'You do not have access to this form session');
 }
 
 /**
@@ -1040,10 +851,7 @@ export async function submitFormSessionToProvider(
   // routine update vs. a correction of a documentation error. A first-time
   // finalize of a new/incomplete draft has none: openEHR records that as a
   // plain creation.
-  const editingCompleteComposition = persistedLifecycleState(input.session.lifecycleState) === 'complete';
-  const desiredChangeType: FormSessionChangeType | undefined = editingCompleteComposition
-    ? (isFormSessionChangeType(options.changeType) ? options.changeType : (isFormSessionChangeType(input.session.changeType) ? input.session.changeType : 'modification'))
-    : undefined;
+  const desiredChangeType: FormSessionChangeType | undefined = submitChangeType(input.session.lifecycleState, options.changeType, input.session.changeType);
   const changeDescription = options.changeDescription ?? (input.session.changeDescription || undefined);
   const repository = getCompositionRepository(providerId);
   let result: { providerId: string; reference?: string; metadata?: { ehrId?: string; templateId?: string }; lifecycleState?: FormSessionLifecycleState; lifecycleConfirmed?: boolean };
@@ -1137,17 +945,18 @@ export async function withdrawFormSessionFromProvider(id: string, providerId: st
   const session = await prisma.formSession.findUnique({ where: { id: sessionId } });
   if (!session) throw new HttpError(404, 'Form session not found');
   assertOwner(session, actor);
-  const lifecycleState = persistedLifecycleState(session.lifecycleState);
-  if (lifecycleState === 'deleted') throw new HttpError(409, 'This document has already been withdrawn');
-  if (lifecycleState !== 'complete') throw new HttpError(409, 'Only a finalized document can be withdrawn');
-  if (!session.providerReference) throw new HttpError(409, 'No finalized composition reference to withdraw');
+  assertWithdrawable(session);
+  // assertWithdrawable above already rejected a session without a finalized
+  // reference; the cast only restates that guarantee to the type checker,
+  // which the moved-out check can no longer narrow inline.
+  const providerReference = session.providerReference as string;
   const repository = getCompositionRepository(providerId);
   if (!repository) throw new HttpError(501, `Provider '${providerId}' does not support withdrawing a composition`);
   const patient = await resolveSessionPatient(session.patientId, session.patientNamespace);
   const context = providerContext(patient, session.id, actor, persistedMode(session.mode));
   let result;
   try {
-    result = await repository.withdraw({ context, reference: session.providerReference, ...(reason ? { reason } : {}) });
+    result = await repository.withdraw({ context, reference: providerReference, ...(reason ? { reason } : {}) });
   } catch (error) {
     return mapProviderError(error);
   }
