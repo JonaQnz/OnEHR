@@ -2,7 +2,6 @@ import prisma from '../db/prisma';
 import type { Prisma } from '@prisma/client';
 import {
   getCompositionDefinition,
-  isFormDataProviderError,
   isFormRuntimeMode,
   isFormSessionStatus,
   validateRuntimeValues,
@@ -40,8 +39,8 @@ import type { ResolvedSessionPatient } from './formSessionRecord';
 import { migrateCanonicalFormToV1 } from 'core';
 import { getOpenEhrFormOptions } from 'openehr-engine';
 import { getDataProvider } from './dataProviderRegistry';
-import { EhrbaseProviderError } from './ehrbaseDataProvider';
-import { getCompositionRepository } from './compositionRepository';
+import { commitSubmission, mapProviderError, pushDraftToProvider, withdrawComposition } from './formSessionCdrWriter';
+import { compositionUidFromReference } from './formIdentity';
 import { recordCompositionVersionEvent, recordCompositionVersionEventInTransaction } from './compositionVersionEvents';
 import { getConfig, resolveSessionAlwaysNew } from './configService';
 import { pluginRegistry } from '../plugins/pluginRegistry';
@@ -511,24 +510,6 @@ export async function submitFormSession(_id: string, _actor: SessionActor): Prom
   throw new HttpError(409, 'Submitting a session requires POST /provider/submit so a data provider confirms the submission');
 }
 
-function isVersionConflict(error: unknown): boolean {
-  return error instanceof EhrbaseProviderError && error.code === 'COMPOSITION_VERSION_CONFLICT';
-}
-
-/** Any `FormDataProvider`'s own error translates the same way, whether it's
- * a built-in provider (EHRbase) or one supplied by a plugin (n8n, or any
- * future workflow-engine plugin) - detected structurally via
- * `isFormDataProviderError()`, never by importing a specific provider's
- * error class. A plugin-supplied provider living in its own package is
- * never a compile-time dependency of this file. */
-function mapProviderError(error: unknown): never {
-  if (isFormDataProviderError(error)) {
-    const status = typeof error.status === 'number' && error.status >= 400 && error.status < 600 ? error.status : 502;
-    throw new HttpError(status, error.message, { code: error.code, messages: error.messages ? [...error.messages] : [{ severity: 'error', code: error.code, message: error.message }] });
-  }
-  throw error;
-}
-
 async function providerInput(id: string, providerId: string, actor: SessionActor) {
   const sessionId = requiredText(id, 'id');
   const session = await prisma.formSession.findUnique({ where: { id: sessionId } });
@@ -547,11 +528,7 @@ async function providerInput(id: string, providerId: string, actor: SessionActor
   };
 }
 
-export function compositionUidFromReference(reference: string | null | undefined): string | undefined {
-  if (!reference) return undefined;
-  const last = reference.includes('/') ? reference.split('/').pop() : reference;
-  return last ? last.split('::')[0] : undefined;
-}
+export { compositionUidFromReference } from './formIdentity';
 
 /**
  * Resolves a session's provider context for read-only history/audit access
@@ -667,82 +644,29 @@ export async function autosaveFormSessionDraft(id: string, providerId: string, a
     throw new HttpError(422, `${blockingIssues.length} Formular-Validierungsfehler verhindern das Speichern des Entwurfs`, { messages });
   }
   const status = transitionStatus(persistedStatus(input.session.status), 'in_progress');
-  let updated = await prisma.formSession.update({ where: { id: input.session.id }, data: {
+  let updated: FormSessionRow = await prisma.formSession.update({ where: { id: input.session.id }, data: {
     values: draftValues as unknown as Prisma.InputJsonValue,
     status,
     revision: { increment: 1 },
   } });
   let providerResult: unknown;
-  const repository = pushToProvider ? getCompositionRepository(providerId) : undefined;
-  if (repository) {
-    // Continue this session's own prior draft if one exists. Otherwise, for
-    // an edit-mode session, seed from providerReference (the composition
-    // actually being edited) so autosave progressively updates that same
-    // record instead of spawning a separate draft composition. A
-    // create/prefill-mode session with no draft yet gets no seed - its
-    // providerReference, if any, is a prefill *source* that must never be
-    // silently overwritten by autosave.
-    const seedReference = updated.draftReference || (persistedMode(updated.mode) === 'edit' ? updated.providerReference : undefined) || undefined;
-    try {
-      const result = await repository.commit({
-        context: input.context,
-        form: input.form,
-        values: draftValues,
-        ...(seedReference ? { reference: seedReference } : {}),
-        desiredLifecycleState: 'incomplete',
-      }, 'draft');
-      providerResult = result;
-      updated = await prisma.formSession.update({ where: { id: input.session.id }, data: {
-        providerId: result.providerId,
-        draftReference: result.reference || seedReference || null,
-        lifecycleState: result.lifecycleState,
-        lifecycleConfirmed: result.lifecycleConfirmed,
-      } });
-      const eventEhrId = typeof result.metadata?.ehrId === 'string' ? result.metadata.ehrId : undefined;
-      if (result.reference && eventEhrId) {
-        void recordCompositionVersionEvent({
-          versionUid: result.reference,
-          compositionUid: compositionUidFromReference(result.reference) || result.reference,
-          ehrId: eventEhrId,
-          formSessionId: input.session.id,
-          lifecycleState: result.lifecycleState,
-        });
-      }
-    } catch (error) {
-      // A version conflict is never a transient provider hiccup - it means
-      // someone else's newer version already exists, so silently degrading
-      // here (as every other push failure does) would hide a real risk of
-      // overwriting it. Surface it distinctly instead of swallowing it.
-      if (isVersionConflict(error)) return mapProviderError(error);
-      console.warn(`[formSessionService] Draft autosave to provider '${providerId}' failed for session ${input.session.id}; local draft was still saved:`, error instanceof Error ? error.message : error);
-    }
-  } else if (pushToProvider && input.provider.capabilities.includes('draft') && input.provider.draft) {
-    const seedReference = updated.draftReference || (persistedMode(updated.mode) === 'edit' ? updated.providerReference : undefined) || undefined;
-    try {
-      const result = await input.provider.draft({
-        context: input.context,
-        form: input.form,
-        values: draftValues,
-        ...(seedReference ? { reference: seedReference } : {}),
-      });
-      providerResult = result;
-      updated = await prisma.formSession.update({ where: { id: input.session.id }, data: {
-        providerId: result.providerId,
-        draftReference: result.reference || seedReference || null,
-        // No lifecycle mechanism on this provider - Forms' own tracked
-        // state still advances (there IS a real draft now), just never
-        // CDR-confirmed.
-        lifecycleState: 'incomplete',
-        lifecycleConfirmed: false,
-      } });
-    } catch (error) {
-      // A version conflict is never a transient provider hiccup - it means
-      // someone else's newer version already exists, so silently degrading
-      // here (as every other push failure does) would hide a real risk of
-      // overwriting it. Surface it distinctly instead of swallowing it.
-      if (isVersionConflict(error)) return mapProviderError(error);
-      console.warn(`[formSessionService] Draft autosave to provider '${providerId}' failed for session ${input.session.id}; local draft was still saved:`, error instanceof Error ? error.message : error);
-    }
+  if (pushToProvider) {
+    // The local write above is the resilient mirror and always happens
+    // first; the provider push is best-effort (a version conflict is the
+    // only failure it surfaces, see formSessionCdrWriter).
+    const pushed = await pushDraftToProvider({
+      sessionId: input.session.id,
+      mode: persistedMode(updated.mode),
+      draftReference: updated.draftReference,
+      providerReference: updated.providerReference,
+      providerId,
+      context: input.context,
+      form: input.form,
+      provider: input.provider,
+      values: draftValues,
+    });
+    if (pushed.updated) updated = pushed.updated;
+    providerResult = pushed.providerResult;
   }
   const afterSave = await runBestEffortHook({ name: 'afterSave', formId: input.form.id, form, data: (updated.values || {}) as Record<string, unknown>, patientId: input.session.patientId, sessionId: input.session.id, actor, metadata: { status: updated.status, draft: true } });
   return publicSession(updated, [...beforeSave.messages, ...afterSave.messages, ...(providerResult ? messagesFromProvider(providerResult) : [])], input.patient);
@@ -853,32 +777,17 @@ export async function submitFormSessionToProvider(
   // plain creation.
   const desiredChangeType: FormSessionChangeType | undefined = submitChangeType(input.session.lifecycleState, options.changeType, input.session.changeType);
   const changeDescription = options.changeDescription ?? (input.session.changeDescription || undefined);
-  const repository = getCompositionRepository(providerId);
-  let result: { providerId: string; reference?: string; metadata?: { ehrId?: string; templateId?: string }; lifecycleState?: FormSessionLifecycleState; lifecycleConfirmed?: boolean };
-  try {
-    if (repository) {
-      result = await repository.commit({
-        context: input.context,
-        form: input.form,
-        values: submitValues,
-        ...(submitReference ? { reference: submitReference } : {}),
-        continuesDraft: Boolean(draftReference),
-        desiredLifecycleState: 'complete',
-        ...(desiredChangeType ? { desiredChangeType } : {}),
-        ...(changeDescription ? { changeDescription } : {}),
-      }, 'submit');
-    } else {
-      result = await input.provider.submit({
-        context: input.context,
-        form: input.form,
-        values: submitValues,
-        ...(submitReference ? { reference: submitReference } : {}),
-        continuesDraft: Boolean(draftReference),
-      });
-    }
-  } catch (error) {
-    return mapProviderError(error);
-  }
+  const result = await commitSubmission({
+    providerId,
+    context: input.context,
+    form: input.form,
+    provider: input.provider,
+    values: submitValues,
+    ...(submitReference ? { submitReference } : {}),
+    continuesDraft: Boolean(draftReference),
+    ...(desiredChangeType ? { desiredChangeType } : {}),
+    ...(changeDescription ? { changeDescription } : {}),
+  });
   const providerValues = dataFromProvider(result, submitValues);
   const afterSubmit = await runBestEffortHook({ name: 'afterSubmit', formId: input.form.id, form, data: providerValues, patientId: input.session.patientId, sessionId: input.session.id, actor, metadata: { providerId, providerReference: result.reference, provider: result } });
   const updated = await applySuccessfulProviderCommit(input.session.id, {
@@ -950,16 +859,9 @@ export async function withdrawFormSessionFromProvider(id: string, providerId: st
   // reference; the cast only restates that guarantee to the type checker,
   // which the moved-out check can no longer narrow inline.
   const providerReference = session.providerReference as string;
-  const repository = getCompositionRepository(providerId);
-  if (!repository) throw new HttpError(501, `Provider '${providerId}' does not support withdrawing a composition`);
   const patient = await resolveSessionPatient(session.patientId, session.patientNamespace);
   const context = providerContext(patient, session.id, actor, persistedMode(session.mode));
-  let result;
-  try {
-    result = await repository.withdraw({ context, reference: providerReference, ...(reason ? { reason } : {}) });
-  } catch (error) {
-    return mapProviderError(error);
-  }
+  const result = await withdrawComposition({ providerId, context, reference: providerReference, ...(reason ? { reason } : {}) });
   const updated = await prisma.formSession.update({ where: { id: session.id }, data: {
     lifecycleState: 'deleted',
     ...(reason ? { changeDescription: reason } : {}),
