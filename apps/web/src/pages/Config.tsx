@@ -106,8 +106,8 @@ export default function Config() {
       </div>
       <label className="form-label">Verzögerung (ms)</label>
       <input type="number" min={500} step={100} className="form-input" value={config.autosaveDebounceMsDefault ?? 2500} onChange={(event) => setConfig({ ...config, autosaveDebounceMsDefault: Number(event.target.value) || 2500 })} />
-      <label className="form-label" style={{ marginTop: '1rem' }}>Patienten-Cockpit (Formular-Linien-ID)</label>
-      <input name="patientCockpitFormParentId" className="form-input" value={config.patientCockpitFormParentId ?? ''} onChange={change} placeholder="z. B. 3f9c…" spellCheck={false} />
+      <label className="form-label" style={{ marginTop: '1rem' }} htmlFor="patientCockpitFormParentId">Patienten-Cockpit (Formular-Linien-ID)</label>
+      <input id="patientCockpitFormParentId" name="patientCockpitFormParentId" className="form-input" value={config.patientCockpitFormParentId ?? ''} onChange={change} placeholder="z. B. 3f9c…" spellCheck={false} />
       <p style={{ color: 'var(--text-muted)', fontSize: '.85rem', marginBottom: 0, marginTop: '.5rem' }}>Leer = Formular mit dem Namen „Klinisches Cockpit“ (Übergang). Gesetzt = nur diese Formular-Linie.</p>
       <label className="form-label" style={{ marginTop: '1rem' }}>Entwürfe an Provider senden</label>
       <select className="form-input" value={config.pushDraftsToProviderByDefault === false ? 'false' : 'true'} onChange={(event) => setConfig({ ...config, pushDraftsToProviderByDefault: event.target.value === 'true' })}>
