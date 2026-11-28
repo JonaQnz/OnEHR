@@ -38,6 +38,7 @@ function isDvCodedTextConstraint(constraint: ValueConstraint): constraint is DvC
   return constraint.rmType === 'DV_CODED_TEXT' && !('unsupported' in constraint);
 }
 import { parseOpenEhrAqlPath } from '../metadata';
+import { wtCardinality, wtCodeListInput, wtOtherTextInput, wtUnitInput } from '../webTemplate/normalize';
 import type { SemanticBindingIndex } from './parseOptXml';
 
 // A WebTemplate node's `nodeId` is the full archetype id (e.g.
@@ -103,7 +104,9 @@ export interface WebTemplateJson {
 }
 
 function occurrencesOf(node: WtNode): Occurrences {
-  const min = typeof node.min === 'number' ? node.min : 0;
+  const min = wtCardinality(node).min;
+  // Deliberately NOT wtCardinality(node).max: that defaults a missing max to
+  // 1, whereas a WebTemplate's absent regex max is "no upper bound" (null).
   const max = typeof node.max === 'number' && node.max >= 0 ? node.max : null;
   return { min, max };
 }
@@ -176,9 +179,8 @@ function buildConcreteConstraints(node: WtNode, defaultLanguage: string): ValueC
   const rmType = node.rmType as string;
   if (rmType === 'DV_CODED_TEXT' || rmType === 'CODE_PHRASE') {
     const constraints: ValueConstraint[] = [];
-    const codeInput = (node.inputs || []).find((input) => input.suffix === 'code' || input.type === 'CODED_TEXT');
-    const otherInput = (node.inputs || []).find((input) => input.suffix === 'other' || input.type === 'TEXT');
-    const listInput = codeInput || (node.inputs || [])[0];
+    const listInput = wtCodeListInput(node) as WtInput | undefined;
+    const otherInput = wtOtherTextInput(node) as WtInput | undefined;
     constraints.push({
       rmType: 'DV_CODED_TEXT',
       terminologyId: listInput?.terminology || 'local',
@@ -190,7 +192,7 @@ function buildConcreteConstraints(node: WtNode, defaultLanguage: string): ValueC
     return constraints;
   }
   if (rmType === 'DV_QUANTITY') {
-    const unitsInput = (node.inputs || []).find((input) => input.suffix === 'unit' || input.suffix === 'units');
+    const unitsInput = wtUnitInput(node) as WtInput | undefined;
     return [{ rmType: 'DV_QUANTITY', units: (unitsInput?.list || []).map((option) => option.value) }];
   }
   if (rmType === 'DV_ORDINAL') {
