@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import prisma from '../db/prisma';
-import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler, HttpError } from '../middleware/errorHandler';
 import {
   exportCambio,
@@ -8,18 +7,18 @@ import {
   exportFullForm,
   importFullForm,
 } from '../services/formTransferService';
-import { normalizeCanonicalFormPayload, requireNonEmptyString } from '../validation/formValidation';
-import { COMPOSITION_EXTENSION_KEY, COMPOSITION_SCHEMA_VERSION, FORM_DEFINITION_SCHEMA_VERSION, getCompositionDefinition, migrateCanonicalFormToV1 } from 'core';
+import { requireNonEmptyString } from '../validation/formValidation';
+import { getCompositionDefinition, migrateCanonicalFormToV1 } from 'core';
 import { verifyFhirForSubmission } from '../services/fhirVerificationService';
 import { compileFormScript } from '../scripting/formScriptCompiler';
 import { compileCompositionScript } from '../scripting/compositionScriptCompiler';
-import { pluginRegistry } from '../plugins/pluginRegistry';
+import { prepareConnectors } from '../services/formDefinitionPreparation';
 import {
-  compileDefinitionScripts,
-  generateDefinitionFromTemplate,
-  prepareConnectors,
-  prepareNewDefinition,
-} from '../services/formDefinitionPreparation';
+  applyTemplateToDraft,
+  createEmptyForm,
+  generateFormFromTemplate,
+  saveDraft,
+} from '../services/formDraftService';
 import {
   createDraftFromVersion,
   getLatestPublishedVersion,
@@ -68,10 +67,6 @@ function ifMatchRevision(ifMatch: string | undefined): number | undefined {
   return Number(value.slice(5, -1));
 }
 
-function revisionConflictStatus(expectedRevision: number | undefined): number {
-  return expectedRevision === undefined ? 409 : 412;
-}
-
 router.get('/', asyncHandler(async (req, res) => {
   // Both optional and additive - an unfiltered, non-summary call behaves
   // exactly as before for existing callers (the Designer's own form list
@@ -105,48 +100,21 @@ router.get('/', asyncHandler(async (req, res) => {
 
 router.post('/', asyncHandler(async (req, res) => {
   const name = req.body?.name === undefined ? 'New Form' : requireNonEmptyString(req.body.name, 'name');
-  const id = uuidv4();
-  const composition = req.body?.kind === 'composition';
-  const canonicalForm = prepareNewDefinition({
-    id, name, version: '0.1.0-draft', schemaVersion: FORM_DEFINITION_SCHEMA_VERSION, revision: 0,
-    extensions: composition ? { [COMPOSITION_EXTENSION_KEY]: { schemaVersion: COMPOSITION_SCHEMA_VERSION, pages: [{ id: 'page-1', title: 'Seite 1', blocks: [] }] } } : {},
-    sourceTemplates: [], layout: { type: 'form', children: [{ type: 'container', children: [] }] }, bindings: {}, locales: { en: {} },
-  }, id);
-  const form = await prisma.form.create({ data: { id, parent_id: id, name, version: canonicalForm.version, status: 'draft', canonical_json: canonicalForm as any } });
+  const form = await createEmptyForm({ name, composition: req.body?.kind === 'composition' });
   res.status(201).json({ message: 'Empty form created', form });
 }));
 
 router.post('/:id/apply-template', asyncHandler(async (req, res) => {
   const formId = requireNonEmptyString(req.params.id, 'id');
   const templateId = requireNonEmptyString(req.body?.templateId, 'templateId');
-  const formRecord = await prisma.form.findUnique({ where: { id: formId } });
-  if (!formRecord) throw new HttpError(404, 'Form not found');
-  const template = await prisma.template.findUnique({ where: { id: templateId } });
-  if (!template) throw new HttpError(404, 'Template not found');
-
-  const current = formRecord.canonical_json as any;
-  let canonicalForm = {
-    ...generateDefinitionFromTemplate(template, formRecord.id, current.name || formRecord.name),
-    status: current.status || formRecord.status,
-    settings: current.settings,
-    extensions: current.extensions || {},
-    revision: (current.revision ?? 0) + 1,
-    ...(current.formScript ? { formScript: current.formScript } : {}),
-  };
-  canonicalForm = prepareConnectors(migrateCanonicalFormToV1(canonicalForm, formRecord.id)) as any;
-  canonicalForm = compileDefinitionScripts(canonicalForm) as typeof canonicalForm;
-  const form = await prisma.form.update({ where: { id: formRecord.id }, data: { canonical_json: canonicalForm as any, name: canonicalForm.name, version: canonicalForm.version } });
+  const form = await applyTemplateToDraft(formId, templateId);
   res.json({ message: 'Template applied', form });
 }));
 
 router.post('/generate-from-template', asyncHandler(async (req, res) => {
   const templateId = requireNonEmptyString(req.body?.templateId, 'templateId');
   const formName = req.body?.formName === undefined ? undefined : requireNonEmptyString(req.body.formName, 'formName');
-  const template = await prisma.template.findUnique({ where: { id: templateId } });
-  if (!template) throw new HttpError(404, 'Template not found');
-
-  const canonicalForm = generateDefinitionFromTemplate(template, uuidv4(), formName);
-  const form = await prisma.form.create({ data: { id: canonicalForm.id, parent_id: canonicalForm.id, name: canonicalForm.name, version: canonicalForm.version, status: 'draft', canonical_json: canonicalForm as any } });
+  const form = await generateFormFromTemplate(templateId, formName);
   res.status(201).json({ message: 'Form generated', form });
 }));
 
@@ -398,35 +366,11 @@ router.put('/:id', asyncHandler(async (req, res) => {
   // Parsed and checked before any hook runs: a save based on a revision that
   // is no longer persisted must not invoke plugin hooks at all.
   const expectedRevision = ifMatchRevision(req.get('If-Match'));
-  const stored = await prisma.form.findUnique({ where: { id: formId } });
-  if (!stored) throw new HttpError(404, 'Form not found');
-  const storedDefinition = migrateCanonicalFormToV1(stored.canonical_json, formId);
-  if (expectedRevision !== undefined && expectedRevision !== storedDefinition.revision) {
-    throw new HttpError(412, 'Form was changed by another request', { code: 'FORM_REVISION_CONFLICT' });
-  }
-  const beforeSave = await pluginRegistry.runHook('beforeFormSave', { form: (req.body || {}) as Record<string, any>, data: (req.body || {}) as Record<string, any>, formId });
-  let canonicalForm = normalizeCanonicalFormPayload(beforeSave.data || req.body, formId);
-  canonicalForm.revision = storedDefinition.revision + 1;
-  canonicalForm = prepareConnectors(canonicalForm);
-  canonicalForm = compileDefinitionScripts(canonicalForm) as typeof canonicalForm;
-  // Compare-and-set against the EXACT persisted canonical_json that was read
-  // above (not the migrated v1 shape): two saves from the same revision both
-  // pass the If-Match check but only one can still match this predicate, and
-  // legacy JSON formats compare correctly because they are used as stored.
-  const claimed = await prisma.form.updateMany({
-    where: { id: formId, canonical_json: { equals: stored.canonical_json as any } },
-    data: { canonical_json: canonicalForm as any, name: canonicalForm.name, version: canonicalForm.version, status: canonicalForm.status || 'draft' },
-  });
-  if (claimed.count === 0) {
-    throw new HttpError(revisionConflictStatus(expectedRevision), 'Form was changed by another request', { code: 'FORM_REVISION_CONFLICT' });
-  }
-  const form = await prisma.form.findUnique({ where: { id: formId } });
-  if (!form) throw new HttpError(409, 'Form was changed by another request', { code: 'FORM_REVISION_CONFLICT' });
-  await pluginRegistry.runHook('afterFormSave', { form: canonicalForm as Record<string, any>, data: canonicalForm as Record<string, any>, formId });
+  const form = await saveDraft(formId, req.body, expectedRevision);
   // Derived from the record actually persisted (a third save may already have
   // bumped it again) so the ETag always describes the returned body.
   const persistedRevision = (form.canonical_json as any)?.revision;
-  res.set('ETag', formRevisionEtag(typeof persistedRevision === 'number' ? persistedRevision : canonicalForm.revision));
+  if (typeof persistedRevision === 'number') res.set('ETag', formRevisionEtag(persistedRevision));
   res.json(form);
 }));
 
