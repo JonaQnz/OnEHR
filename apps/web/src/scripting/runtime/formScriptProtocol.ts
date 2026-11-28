@@ -141,3 +141,45 @@ export function isFormWorkerMessage(value: unknown): value is FormWorkerToHostMe
   const type = (value as { type?: unknown }).type;
   return typeof type === 'string' && WORKER_MESSAGE_TYPES.has(type as FormWorkerToHostMessage['type']);
 }
+
+/** Host callbacks the form worker messages are dispatched to (implemented by FormScriptClient). */
+export interface FormHostOperations {
+  // lifecycle
+  onReady(): void; onInitError(message: string): void; onResponse(requestId: string, result: unknown): void;
+  // validators
+  onValidationErrors(errors: Record<string, FormScriptFieldMessage>): void;
+  // computed values
+  onSetValue(id: string, value: unknown, persist: boolean, provenance: FormScriptFieldProvenance | null): void;
+  onUpdateValues(values: RuntimeValues, persist: boolean): void;
+  // host operations
+  onApiCall(message: Extract<FormWorkerToHostMessage, { type: 'api:call' }>): void; onApiCancel(requestId: string): void;
+  onUiState(kind: string, id: string, state: FormScriptUiState): void; onToast(level: string, message: string): void;
+  onPrefillConflict(conflict: FormScriptPrefillConflict): void; onLog(entry: FormScriptLogEntry): void;
+}
+
+/** Routes one worker message to the matching host operation. Returns false for unknown or non-object messages. */
+export function dispatchFormWorkerMessage(message: unknown, ops: FormHostOperations): boolean {
+  if (!isFormWorkerMessage(message)) return false;
+  switch (message.type) {
+    case 'ready': ops.onReady(); return true;
+    case 'init-error': ops.onInitError(String(message.message || 'Form Script konnte nicht initialisiert werden.')); return true;
+    case 'response': ops.onResponse(message.requestId, message.result); return true;
+    case 'validation:errors': ops.onValidationErrors(message.errors); return true;
+    case 'form:set-value': ops.onSetValue(message.id, message.value, message.persist !== false, message.provenance ?? null); return true;
+    case 'form:update-values': ops.onUpdateValues(message.values, message.persist !== false); return true;
+    case 'api:call': ops.onApiCall(message); return true;
+    case 'api:cancel': ops.onApiCancel(message.requestId); return true;
+    case 'ui:set-state': ops.onUiState(message.kind, message.id, message.state); return true;
+    case 'ui:toast': ops.onToast(message.level, message.message); return true;
+    case 'prefill:conflict': ops.onPrefillConflict({
+      requestId: message.requestId,
+      fieldId: message.fieldId,
+      currentValue: message.currentValue,
+      prefillValue: message.prefillValue,
+      source: message.source,
+      ...(typeof message.timestamp === 'string' ? { timestamp: message.timestamp } : {}),
+    }); return true;
+    case 'log': ops.onLog(message.entry); return true;
+    default: return false;
+  }
+}

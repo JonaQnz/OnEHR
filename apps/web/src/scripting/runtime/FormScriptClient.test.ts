@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { FormScriptClient } from './FormScriptClient';
 import type {
   FormHostToWorkerMessage,
@@ -223,5 +223,51 @@ describe('FormScriptClient', () => {
     worker.emit({ type: 'form:set-value', id: 'f1', value: 'scripted', persist: true });
 
     expect(options.onSetValue).not.toHaveBeenCalled();
+  });
+
+  it('ignores a worker error after destroy', async () => {
+    const { client, options, worker } = createClient();
+    worker.emit({ type: 'ready' });
+    await flush();
+
+    const destroy = client.destroy({});
+    await flush();
+    const lifecycle = worker.posted.find((message) => message.type === 'lifecycle');
+    worker.emit({
+      type: 'response',
+      requestId: (lifecycle as { requestId: string }).requestId,
+      result: { cancelled: false },
+    });
+    await destroy;
+
+    (options.onLog as Mock).mockClear();
+    worker.onerror?.({ message: 'late failure' } as ErrorEvent);
+
+    expect(options.onLog).not.toHaveBeenCalled();
+  });
+
+  it('rejects ready and logs a worker error before ready', async () => {
+    const { client, options, worker } = createClient();
+
+    const ready = client.ready();
+    const rejection = expect(ready).rejects.toThrow('boom');
+    worker.onerror?.({ message: 'boom' } as ErrorEvent);
+    await rejection;
+
+    expect(options.onLog).toHaveBeenCalledWith(
+      expect.objectContaining({ level: 'error', message: 'boom' }),
+    );
+  });
+
+  it('forwards ui:toast and form:update-values to their host handlers', async () => {
+    const { options, worker } = createClient();
+    worker.emit({ type: 'ready' });
+    await flush();
+
+    worker.emit({ type: 'ui:toast', level: 'info', message: 'hi' });
+    worker.emit({ type: 'form:update-values', values: { f1: 'x' }, persist: true });
+
+    expect(options.onToast).toHaveBeenCalledWith('info', 'hi');
+    expect(options.onUpdateValues).toHaveBeenCalledWith({ f1: 'x' }, true);
   });
 });

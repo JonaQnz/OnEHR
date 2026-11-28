@@ -8,7 +8,8 @@ import type {
 import { appendScriptLog } from './scriptLogStore';
 import { API_BASE_URL } from '../../integration/apiBaseUrl';
 import {
-  isFormWorkerMessage,
+  dispatchFormWorkerMessage,
+  type FormHostOperations,
   type FormHostToWorkerMessage,
   type FormScriptFieldMessage,
   type FormScriptFieldProvenance,
@@ -62,6 +63,41 @@ export class FormScriptClient {
   private terminated = false;
   private readonly initializationTimer: ReturnType<typeof setTimeout>;
 
+  private readonly hostOperations: FormHostOperations = {
+    onReady: () => {
+      clearTimeout(this.initializationTimer);
+      this.readyResolve();
+    },
+    onInitError: (message) => {
+      clearTimeout(this.initializationTimer);
+      this.readyReject(new Error(message));
+    },
+    onResponse: (requestId, result) => {
+      const request = this.pending.get(requestId);
+      if (!request) return;
+      clearTimeout(request.timer);
+      this.pending.delete(requestId);
+      request.resolve(result);
+    },
+    onValidationErrors: (errors) => this.options.onValidationErrors(errors),
+    onSetValue: (id, value, persist, provenance) => this.options.onSetValue(id, value, persist, provenance),
+    onUpdateValues: (values, persist) => this.options.onUpdateValues(values, persist),
+    onApiCall: (message) => {
+      void this.handleApiCall(message);
+    },
+    onApiCancel: (requestId) => {
+      this.apiControllers.get(requestId)?.abort();
+      this.apiControllers.delete(requestId);
+    },
+    onUiState: (kind, id, state) => this.options.onUiState(kind, id, state),
+    onToast: (level, message) => this.options.onToast(level, message),
+    onPrefillConflict: (conflict) => this.options.onPrefillConflict(conflict),
+    onLog: (entry) => {
+      appendScriptLog(this.options.formId, entry);
+      this.options.onLog?.(entry);
+    },
+  };
+
   constructor(private readonly options: FormScriptClientOptions) {
     this.readyPromise = new Promise<void>((resolve, reject) => {
       this.readyResolve = resolve;
@@ -70,6 +106,7 @@ export class FormScriptClient {
     this.worker = new Worker(new URL('./formScript.worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (event: MessageEvent<Record<string, unknown>>) => this.handleMessage(event.data);
     this.worker.onerror = (event) => {
+      if (this.terminated) return;
       const error = new Error(event.message || 'Form Script Worker ist fehlgeschlagen.');
       clearTimeout(this.initializationTimer);
       this.readyReject(error);
@@ -114,71 +151,7 @@ export class FormScriptClient {
 
   private handleMessage(message: unknown): void {
     if (this.terminated) return;
-    if (!isFormWorkerMessage(message)) return;
-    if (message.type === 'ready') {
-      clearTimeout(this.initializationTimer);
-      this.readyResolve();
-      return;
-    }
-    if (message.type === 'init-error') {
-      clearTimeout(this.initializationTimer);
-      this.readyReject(new Error(String(message.message || 'Form Script konnte nicht initialisiert werden.')));
-      return;
-    }
-    if (message.type === 'log') {
-      appendScriptLog(this.options.formId, message.entry);
-      this.options.onLog?.(message.entry);
-      return;
-    }
-    if (message.type === 'form:set-value') {
-      this.options.onSetValue(message.id, message.value, message.persist !== false, message.provenance ?? null);
-      return;
-    }
-    if (message.type === 'prefill:conflict') {
-      this.options.onPrefillConflict({
-        requestId: message.requestId,
-        fieldId: message.fieldId,
-        currentValue: message.currentValue,
-        prefillValue: message.prefillValue,
-        source: message.source,
-        ...(typeof message.timestamp === 'string' ? { timestamp: message.timestamp } : {}),
-      });
-      return;
-    }
-    if (message.type === 'form:update-values') {
-      this.options.onUpdateValues(message.values, message.persist !== false);
-      return;
-    }
-    if (message.type === 'validation:errors') {
-      this.options.onValidationErrors(message.errors);
-      return;
-    }
-    if (message.type === 'api:call') {
-      void this.handleApiCall(message);
-      return;
-    }
-    if (message.type === 'api:cancel') {
-      const requestId = message.requestId;
-      this.apiControllers.get(requestId)?.abort();
-      this.apiControllers.delete(requestId);
-      return;
-    }
-    if (message.type === 'ui:set-state') {
-      this.options.onUiState(message.kind, message.id, message.state);
-      return;
-    }
-    if (message.type === 'ui:toast') {
-      this.options.onToast(message.level, message.message);
-      return;
-    }
-    if (message.type === 'response') {
-      const requestId = message.requestId;
-      const request = this.pending.get(requestId);
-      if (!request) return;
-      clearTimeout(request.timer);
-      this.pending.delete(requestId);
-      request.resolve(message.result);
-    }
+    dispatchFormWorkerMessage(message, this.hostOperations);
   }
 
   private abortApiRequests(): void {
