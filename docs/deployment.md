@@ -10,8 +10,7 @@ IMAGE=onehr:<sha> HOST_PORT=18114 APP_ENV=test \
   docker compose -f compose.yaml -p onehr-test up -d
 ```
 
-The dev stack (`Dockerfile.api`, `Dockerfile.web`, `docker-compose.yml`) is
-unchanged and unrelated to deployment.
+The dev stack (`Dockerfile.api` + `docker-compose.yml`) is unchanged and unrelated to deployment.
 
 ## Environment variables
 

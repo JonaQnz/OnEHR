@@ -1,6 +1,6 @@
 # Form Launch v1
 
-`POST /api/form-launches` is the supported host interface for opening a published WatEHR form. It creates an authorized form session on the server and returns an embed URL containing only that session ID.
+`POST /api/form-launches` is the supported host interface for opening a published OnEHR form. It creates an authorized form session on the server and returns an embed URL containing only that session ID.
 
 ## Request
 

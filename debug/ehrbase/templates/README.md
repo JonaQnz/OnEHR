@@ -5,7 +5,7 @@ Lege hier openEHR Operational Templates (`.opt`) ab. Beim Einschalten der Debug-
 Nach dem Ergänzen weiterer Templates den Import erneut ausführen:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.debug-ehrbase.yml --profile debug-ehrbase run --rm debug-ehrbase-templates
+./scripts/debug-ehrbase.sh import
 ```
 
 Die Dateien bleiben bewusst lokal und werden nicht mit produktiven Systemen geteilt.
