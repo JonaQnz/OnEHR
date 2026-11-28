@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-base_url="http://debug-ehrbase:8080/ehrbase/rest/openehr/v1"
+base_url="http://ehrbase-test:8080/ehrbase/rest/openehr/v1"
 until curl --silent --fail "$base_url/definition/template/adl1.4" >/dev/null; do
-  echo "Waiting for debug EHRbase..."
+  echo "Waiting for local EHRbase..."
   sleep 3
 done
 
