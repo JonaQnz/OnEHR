@@ -20,7 +20,7 @@ import type { FormLaunchLoadPolicy, FormRuntimeMode } from 'core';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useDebugMode } from '../../hooks/useDebugMode';
 import { useAuth } from '../../App';
-import { resolveCockpitForm } from './cockpitForm';
+import { selectCockpitForm, type CockpitLineSetting } from './cockpitForm';
 
 // Code-split like every other routed page (see App.tsx's own React.lazy
 // calls) - PatientDetail is visited far more often than a patient actually
@@ -574,23 +574,28 @@ export default function PatientDetail() {
   // integrated as the default tab of this same page (embedded inline),
   // not a separate destination: the other tabs and the "Neues Formular"
   // picker stay visible and reachable at all times, exactly as before.
-  // The configured form line id from Config wins exclusively; only while it
-  // is unset do we fall back to the legacy name match - that keeps working
-  // across republishes and a full rebuild of the Form during the transition.
-  const [cockpitLineId, setCockpitLineId] = useState<string | undefined>(undefined);
+  // The configured form line id from Config wins exclusively; only when the
+  // setting loaded empty (the transition period before it is configured) do
+  // we fall back to the legacy name match - that keeps working across
+  // republishes and a full rebuild of the Form.
   // Non-essential setting: never blocks the page render and never sets the
-  // page error state - a failed fetch just keeps the legacy name match.
+  // page error state. Nothing is resolved while the setting is still loading
+  // or after its fetch failed - mounting the Cockpit starts a composition
+  // session, so a form of the wrong line must never be mounted.
+  const [cockpitLineSetting, setCockpitLineSetting] = useState<CockpitLineSetting>(undefined);
   useEffect(() => {
+    let cancelled = false;
     void fetch(`${API}/config/runtime-defaults`, { credentials: 'include' })
       .then((response) => (response.ok ? response.json() : undefined))
       .then((data: { patientCockpitFormParentId?: unknown } | undefined) => {
-        if (typeof data?.patientCockpitFormParentId === 'string') setCockpitLineId(data.patientCockpitFormParentId);
+        if (!cancelled) setCockpitLineSetting(typeof data?.patientCockpitFormParentId === 'string' ? data.patientCockpitFormParentId : null);
       })
-      .catch(() => {});
+      .catch(() => { if (!cancelled) setCockpitLineSetting(null); });
+    return () => { cancelled = true; };
   }, []);
   const cockpitForm = useMemo(
-    () => (canExecuteForms ? resolveCockpitForm(launchableForms, cockpitLineId) : undefined),
-    [launchableForms, canExecuteForms, cockpitLineId],
+    () => (canExecuteForms ? selectCockpitForm(launchableForms, cockpitLineSetting) : undefined),
+    [launchableForms, canExecuteForms, cockpitLineSetting],
   );
   // Switches to the Cockpit tab the first time it becomes available (forms
   // load asynchronously, so it's usually not there on the very first
@@ -600,6 +605,11 @@ export default function PatientDetail() {
   useEffect(() => {
     if (!userPickedTab && cockpitForm) setActiveTab('cockpit');
   }, [cockpitForm, userPickedTab]);
+  // A Cockpit that vanishes (e.g. the setting points at a line without a
+  // published form) must not leave its tab active with a blank panel.
+  useEffect(() => {
+    if (activeTab === 'cockpit' && !cockpitForm) setActiveTab('documents');
+  }, [activeTab, cockpitForm]);
   const selectTab = (tab: PatientTab) => { setUserPickedTab(true); setActiveTab(tab); };
 
   const sessionsWithData = useMemo(
