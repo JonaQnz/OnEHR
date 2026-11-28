@@ -179,6 +179,59 @@ describe('CompositionRuntimeRoute routing', () => {
     expect(postBodies[0].mode).toBe('create');
     expect(postBodies[0].forceNew).toBe(false);
   });
+
+  it('routed: forceNew=true reaches the session request', async () => {
+    const postBodies = stubRoutedBackend();
+    renderWithAuth(
+      <MemoryRouter initialEntries={[`/compositions/${ROUTE_FORM_ID}?patientId=p-force&ehrId=ehr1&forceNew=true`]}>
+        <Routes>
+          <Route path="/compositions/:id" element={<CompositionRuntimeRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(postBodies.length).toBeGreaterThan(0));
+    expect(postBodies[0].forceNew).toBe(true);
+    expect(postBodies[0].patientId).toBe('p-force');
+  });
+
+  it('routed: forceNew other than "true" is ignored', async () => {
+    const postBodies = stubRoutedBackend();
+    renderWithAuth(
+      <MemoryRouter initialEntries={[`/compositions/${ROUTE_FORM_ID}?patientId=p-force1&ehrId=ehr1&forceNew=1`]}>
+        <Routes>
+          <Route path="/compositions/:id" element={<CompositionRuntimeRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(postBodies.length).toBeGreaterThan(0));
+    expect(postBodies[0].forceNew).toBe(false);
+  });
+
+  it('routed: embedded=1 hides the back-link', async () => {
+    stubRoutedBackend();
+    renderWithAuth(
+      <MemoryRouter initialEntries={[`/compositions/${ROUTE_FORM_ID}?patientId=p-embed&ehrId=ehr1&embedded=1`]}>
+        <Routes>
+          <Route path="/compositions/:id" element={<CompositionRuntimeRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('Routentest')).toBeInTheDocument());
+    expect(screen.queryByText('Zurück zur Patientenakte')).not.toBeInTheDocument();
+  });
+
+  it('routed: embedded other than "1" keeps the back-link', async () => {
+    stubRoutedBackend();
+    renderWithAuth(
+      <MemoryRouter initialEntries={[`/compositions/${ROUTE_FORM_ID}?patientId=p-embed2&ehrId=ehr1&embedded=true`]}>
+        <Routes>
+          <Route path="/compositions/:id" element={<CompositionRuntimeRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByText('Routentest')).toBeInTheDocument());
+    expect(screen.getByText('Zurück zur Patientenakte')).toBeInTheDocument();
+  });
 });
 
 // Covers the composition-data in-memory cache wiring end to end at the
