@@ -47,9 +47,16 @@ function parseJson(raw) {
 
 // options.notReadyCalls: how many /api/health/ready calls answer 503 first.
 // options.meAnonymous: /api/auth/me reports authenticated: false even with a cookie.
+// options.runtimeDefaultsBody: body served by /api/config/runtime-defaults to
+// signed-in callers.
 async function startStub(options = {}) {
   const notReadyCalls = options.notReadyCalls ?? 0;
   const meAnonymous = options.meAnonymous === true;
+  const runtimeDefaultsBody = options.runtimeDefaultsBody ?? {
+    autosaveEnabledByDefault: true,
+    autosaveDebounceMsDefault: 2500,
+    patientCockpitFormParentId: '',
+  };
   let readyCalls = 0;
   let storedName = '';
 
@@ -85,6 +92,11 @@ async function startStub(options = {}) {
 
     if (pathname === '/api/auth/me') {
       return sendJson(res, 200, { authenticated: hasCookie && !meAnonymous });
+    }
+
+    if (pathname === '/api/config/runtime-defaults') {
+      if (!hasCookie) return sendJson(res, 401, { error: 'Unauthorized' });
+      return sendJson(res, 200, runtimeDefaultsBody);
     }
 
     if (pathname.startsWith('/api/forms') && !hasCookie) {
@@ -148,6 +160,7 @@ test('runs the full authenticated flow without printing secrets', async () => {
     for (const line of [
       'PASS GET /api/forms (no session)',
       'PASS GET /api/auth/me',
+      'PASS GET /api/config/runtime-defaults',
       'PASS POST /api/forms',
       'PASS GET /api/forms/:id',
       'PASS POST /api/forms/:id/delete',
@@ -167,6 +180,18 @@ test('fails when /api/auth/me is not authenticated', async () => {
     const { code, stdout } = await runSmoke(baseEnv(baseUrl));
     assert.equal(code, 1, stdout);
     assert.ok(stdout.includes('FAIL GET /api/auth/me'), stdout);
+    assert.ok(!stdout.includes('PASS POST /api/forms'), `flow continued after the failure:\n${stdout}`);
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test('fails when runtime-defaults lacks patientCockpitFormParentId', async () => {
+  const { server, baseUrl } = await startStub({ runtimeDefaultsBody: { autosaveEnabledByDefault: true } });
+  try {
+    const { code, stdout } = await runSmoke(baseEnv(baseUrl));
+    assert.equal(code, 1, stdout);
+    assert.ok(stdout.includes('FAIL GET /api/config/runtime-defaults'), stdout);
     assert.ok(!stdout.includes('PASS POST /api/forms'), `flow continued after the failure:\n${stdout}`);
   } finally {
     await closeServer(server);

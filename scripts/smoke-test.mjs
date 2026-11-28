@@ -165,6 +165,16 @@ async function stepAuthenticatedFlow() {
   }
   pass('GET /api/auth/me', 'authenticated');
 
+  // Read-only: the patient-cockpit setting PatientDetail resolves the Cockpit
+  // tab from must reach signed-in users (no config is changed here).
+  const defaults = await request('/api/config/runtime-defaults', { headers: { cookie } });
+  const defaultsBody = await defaults.json().catch(() => null);
+  if (defaults.status !== 200 || !defaultsBody || typeof defaultsBody.patientCockpitFormParentId !== 'string') {
+    fail('GET /api/config/runtime-defaults', `HTTP ${defaults.status}`);
+    return;
+  }
+  pass('GET /api/config/runtime-defaults', 'patientCockpitFormParentId present');
+
   // Synthetic data only: created here, read back and deleted again.
   const name = `smoke-synthetic-${Date.now()}`;
   const created = await request('/api/forms', {
