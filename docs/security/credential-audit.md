@@ -48,7 +48,6 @@ Tree scan of the tracked files at `6bfa752`, after the allowlist:
 | README.md | env-secret-assignment | 1 | doc-example | placeholder example value in documentation |
 | apps/api/tests/http/health.test.js | url-credentials | 1 | test-fixture | synthetic connection string of the health endpoint test |
 | deploy/import-packages/onehr-basis-2026-09-01/README.md | env-secret-assignment | 2 | doc-example | placeholder example value in documentation |
-| docker-compose.debug-ehrbase.yml | env-secret-assignment | 7 | dev-default | local EHRbase debug stack |
 | docker-compose.ehrbase-test.yml | env-secret-assignment | 7 | dev-default | local EHRbase test stack |
 | docker-compose.yml | env-secret-assignment | 2 | dev-default | local development stack (Postgres/EHRbase containers) |
 | docker-compose.yml | url-credentials | 1 | dev-default | local development stack (Postgres/EHRbase containers) |
@@ -107,9 +106,9 @@ are the two test fixtures (`apps/api/tests/http/health.test.js`,
 reach it.
 
 `Dockerfile.api` additionally copies `node_modules`, `apps/api` and the `packages/*`
-directories from the build stage into its runtime; `Dockerfile.web` copies only
-`apps/web/dist`. Both inherit the same `.dockerignore` exclusions, so the same two test
-fixtures are the only allowlisted findings present there.
+directories from the build stage into its runtime; it inherits the same `.dockerignore`
+exclusions, so the same two test fixtures are the only allowlisted findings present
+there. `Dockerfile.web` was removed as unused.
 
 `compose.yaml` uses `${VAR}` references only. Its database password default inside the
 `${ONEHR_DB_PASSWORD:-...}` form is reachable on the internal compose network only, not

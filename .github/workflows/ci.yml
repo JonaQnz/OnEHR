@@ -73,7 +73,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Mirrors Dockerfile.web's build stage exactly, so a build that would
+      # Mirrors the web build steps of the root Dockerfile's build stage, so a build that would
       # break the production Docker image fails here first. This step was
       # added after discovering `npm run build` in apps/web was actually
       # broken on main (a worker chunk's CJS/ESM interop failed under

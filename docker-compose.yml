@@ -45,12 +45,12 @@ services:
     image: hapiproject/hapi:v8.8.0-1
     restart: unless-stopped
     ports:
-      # 8082, not 8081 - an unrelated container on this dev machine already
-      # holds 8081 (jsd-form-analyzer-kis-analyzer-1) - only the host-side
-      # port matters here, the terminology plugin talks to this service via
-      # its Docker-network name (see TERMINOLOGY_SERVER_URL/the api
-      # service's env var above), not this published port.
-      - "8082:8080"
+      # The host port is 8083; 8082 is the local EHRbase
+      # (docker-compose.ehrbase-test.yml). Only the host port matters here -
+      # the terminology plugin talks to this service via its Docker-network
+      # name (see TERMINOLOGY_SERVER_URL/the api service's env var above),
+      # not this published port.
+      - "8083:8080"
     environment:
       - hapi.fhir.fhir_version=R4
       # Postgres persistence instead of the image's default embedded H2 -
